@@ -85,7 +85,40 @@ describe("the call's audio context", () => {
 });
 
 describe("screen sharing", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  beforeEach(() => vi.resetModules());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(window, "evilionDesktop");
+  });
+
+  it("takes native desktop tracks even when the webview has no display-capture API", async () => {
+    const captured = { getVideoTracks: () => [] };
+    Object.defineProperty(window, "evilionDesktop", {
+      configurable: true,
+      value: { captureScreen: async () => captured },
+    });
+    vi.stubGlobal("navigator", { mediaDevices: {} });
+    const m = await import("./media");
+    const plan = { res: "720p", fps: 30, bitrate: 3_000_000, smooth: false } as const;
+
+    expect(m.canShareScreen).toBe(true);
+    expect(await m.getScreen(plan, true)).toBe(captured);
+  });
+
+  it("does not fall back to browser capture after native capture is refused", async () => {
+    const refused = new DOMException("Native recording permission was refused", "NotAllowedError");
+    Object.defineProperty(window, "evilionDesktop", {
+      configurable: true,
+      value: { captureScreen: async () => { throw refused; } },
+    });
+    const getDisplayMedia = vi.fn(async () => ({ getVideoTracks: () => [] }));
+    vi.stubGlobal("navigator", { mediaDevices: { getDisplayMedia } });
+    const m = await import("./media");
+    const plan = { res: "720p", fps: 30, bitrate: 3_000_000, smooth: false } as const;
+
+    await expect(m.getScreen(plan, true)).rejects.toBe(refused);
+    expect(getDisplayMedia).not.toHaveBeenCalled();
+  });
 
   it("requests only the chosen window's sound, and excludes every audio source when sound is off", async () => {
     const captured = { getVideoTracks: () => [] };

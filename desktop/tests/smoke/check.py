@@ -67,6 +67,64 @@ else:
         ipc_name.startswith("/"),
         "on Unix the IPC socket must be a filesystem path, got %r" % ipc_name,
     )
+
+integration = report.get("rpcIntegration") or {}
+expected_activities = {
+    "123456789012345678": {"application_id": "123456789012345678", "type": 0,
+                           "name": "IPC Smoke Atlas", "details": "Exploring north", "state": "Party of 2"},
+    "234567890123456789": {"application_id": "234567890123456789", "type": 0,
+                           "name": "WebSocket Smoke Beacon", "details": "Building south", "state": "Room of 7"},
+}
+for phase in ("published", "beforeDisable", "afterEnable"):
+    evidence = integration.get(phase) or {}
+    clients = (evidence.get("wire") or {}).get("clients") or []
+    want({client.get("transport") for client in clients} == {"ipc", "ws"},
+         "RPC %s did not handshake over both external transports" % phase)
+    apps = (evidence.get("state") or {}).get("apps") or []
+    activities = evidence.get("activities") or []
+    want(len(apps) == 2 and len(activities) == 2, "RPC %s did not expose both activities" % phase)
+    for client_id, expected in expected_activities.items():
+        client = next((client for client in clients if client.get("clientId") == client_id), {})
+        ready = client.get("ready") or {}
+        want(ready.get("cmd") == "DISPATCH" and ready.get("evt") == "READY",
+             "RPC %s %s did not receive READY" % (phase, client_id))
+        user = (ready.get("data") or {}).get("user") or {}
+        want(all(user.get(key) == value for key, value in {
+            "id": "345678901234567890", "username": "smoke-rpc", "global_name": "Smoke RPC",
+        }.items()), "RPC %s %s lost the bridge identity" % (phase, client_id))
+        ack = client.get("ack") or {}
+        want(ack.get("cmd") == "SET_ACTIVITY" and ack.get("evt") is None and bool(ack.get("nonce")),
+             "RPC %s %s did not acknowledge SET_ACTIVITY" % (phase, client_id))
+        app = next((app for app in apps if app.get("clientId") == client_id), {})
+        event = next((a for a in activities if a.get("application_id") == client_id), {})
+        for label, actual in (("ack", ack.get("data") or {}),
+                              ("state", app.get("activity") or {}), ("event", event)):
+            want(all(actual.get(key) == value for key, value in expected.items()),
+                 "RPC %s %s %s changed the asymmetric activity: %r" % (phase, client_id, label, actual))
+
+cleared = integration.get("cleared") or {}
+clear_ack = (cleared.get("wire") or {}).get("ack") or {}
+want(clear_ack.get("cmd") == "SET_ACTIVITY" and clear_ack.get("nonce") == "clear-ipc" and
+     clear_ack.get("evt") is None and clear_ack.get("data") is None,
+     "RPC clear was not acknowledged")
+clear_apps = (cleared.get("state") or {}).get("apps") or []
+ipc_app = next((app for app in clear_apps if app.get("clientId") == "123456789012345678"), {})
+want(len(clear_apps) == 2 and bool(ipc_app) and ipc_app.get("activity") is None,
+     "RPC clear removed the connected IPC app or retained its activity")
+want(cleared.get("activities") == [expected_activities["234567890123456789"]],
+     "RPC clear did not remove only the IPC activity from onActivities")
+for phase in ("disconnected", "finished"):
+    evidence = integration.get(phase) or {}
+    want((evidence.get("state") or {}).get("apps") == [] and evidence.get("activities") == [],
+         "RPC %s retained disconnected clients or their activities" % phase)
+disabled = integration.get("disabled") or {}
+want(disabled.get("enabled") is False and disabled.get("apps") == [] and
+     disabled.get("listening") == {"ipc": None, "ws": None},
+     "RPC disable did not stop listeners and remove active clients")
+reenabled = integration.get("reenabled") or {}
+want(reenabled.get("enabled") is True and bool((reenabled.get("listening") or {}).get("ipc")) and
+     bool((reenabled.get("listening") or {}).get("ws")), "RPC re-enable did not restart both listeners")
+
 update = report.get("update") or {}
 want(update.get("status") in ("idle", "checking", "ready", "downloading", "error", "manual"),
      "update state is %r" % update.get("status"))

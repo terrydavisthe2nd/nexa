@@ -70,8 +70,77 @@
             await post("window-state");
             report.update = await b.updates.getState();
             await post("update-state");
-            report.rpc = await b.rpc.getState();
+            const waitFor = async (label, read, accept) => {
+              const deadline = Date.now() + 15000;
+              let value;
+              do {
+                value = await read();
+                if (accept(value)) return value;
+                await new Promise((r) => setTimeout(r, 50));
+              } while (Date.now() < deadline);
+              throw new Error(label + " timed out: " + JSON.stringify(value));
+            };
+            const listening = (state) => state.enabled && state.listening.ipc && state.listening.ws;
+            report.rpc = await waitFor("RPC startup", () => b.rpc.getState(), listening);
             await post("rpc-state");
+            // The Python runner owns real external clients and keeps them connected
+            // while this page checks both the bridge state and delivered events.
+            const activityEvents = [];
+            const stopActivities = b.onActivities((list) => activityEvents.push(list));
+            await b.rpc.setRelay(false); // CI needs no installed or signed-in Discord.
+            await b.setIdentity({ id: "345678901234567890", username: "smoke-rpc", global_name: "Smoke RPC" });
+            await b.rpc.setHidden("0", false); // Empty-list event is a subscription barrier.
+            await waitFor("activity listener", async () => activityEvents.length, (n) => n > 0);
+            report.rpcIntegration = {};
+            const probe = async (stage) => {
+              report.rpcEndpoint = await b.rpc.getState();
+              await post(stage);
+              return waitFor(stage, async () => (await fetch("/rpc-probe")).json(),
+                (result) => result.stage === stage);
+            };
+            const ipcId = "123456789012345678", wsId = "234567890123456789";
+            const matches = (activity, id) => activity?.application_id === id && activity.type === 0 &&
+              activity.name === (id === ipcId ? "IPC Smoke Atlas" : "WebSocket Smoke Beacon") &&
+              activity.details === (id === ipcId ? "Exploring north" : "Building south") &&
+              activity.state === (id === ipcId ? "Party of 2" : "Room of 7");
+            const observe = async (label, ids, cleared = false) => {
+              const state = await waitFor(label + " state", () => b.rpc.getState(), (state) =>
+                state.apps.length === ids.length && ids.every((id) => {
+                  const app = state.apps.find((app) => app.clientId === id);
+                  return app && (cleared && id === ipcId ? app.activity === null : matches(app.activity, id));
+                }));
+              const visible = ids.filter((id) => !(cleared && id === ipcId));
+              const events = await waitFor(label + " event", async () => activityEvents.at(-1), (list) =>
+                Array.isArray(list) && list.length === visible.length &&
+                visible.every((id) => list.some((activity) => matches(activity, id))));
+              return { state, activities: events };
+            };
+            const published = async (stage, key) => {
+              activityEvents.length = 0;
+              const wire = await probe(stage);
+              report.rpcIntegration[key] = { wire, ...await observe(key, [ipcId, wsId]) };
+            };
+            await published("rpc-publish", "published");
+            activityEvents.length = 0;
+            const clearWire = await probe("rpc-clear");
+            report.rpcIntegration.cleared = { wire: clearWire, ...await observe("clear", [ipcId, wsId], true) };
+            activityEvents.length = 0;
+            await probe("rpc-disconnect");
+            report.rpcIntegration.disconnected = await observe("disconnect", []);
+            await published("rpc-republish", "beforeDisable");
+            await b.rpc.setEnabled(false);
+            report.rpcIntegration.disabled = await waitFor("RPC disable", () => b.rpc.getState(), (state) =>
+              !state.enabled && !state.listening.ipc && !state.listening.ws && state.apps.length === 0);
+            await b.rpc.setEnabled(true);
+            report.rpcIntegration.reenabled = await waitFor("RPC re-enable", () => b.rpc.getState(), listening);
+            await published("rpc-reconnect", "afterEnable");
+            activityEvents.length = 0;
+            await probe("rpc-finish");
+            report.rpcIntegration.finished = await observe("final disconnect", []);
+            stopActivities();
+            await b.setIdentity(null);
+            await b.rpc.setRelay(report.rpc.relay);
+            await post("rpc-tested");
             report.versions = b.versions;
             await b.setStrings({
               open: "Open", mute: "Mute", deafen: "Deafen",

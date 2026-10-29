@@ -1593,11 +1593,18 @@ request builds.
 
 Releases are built by `.github/workflows/desktop.yml`, never on the server: a `desktop-v*` tag builds
 Windows (NSIS), Linux (AppImage and deb) and macOS for x64 and arm64, signs the updater artifacts,
-attaches `latest.json` and creates a draft release. Pushes to `tauri-desktop-tests`, pull requests
-and manual runs build without signing or creating a release. Native smoke
+attaches `latest.json` and creates a draft release. Pushes to `tauri-desktop-tests` or
+`desktop-native-capture`, pull requests and manual runs build without signing or creating a release.
+The workflow typechecks the web app and runs its media contract tests before installer builds.
+The native-capture contract tests are test-first work in progress; no native capture backend has
+been added. The current proposal and its source-reviewed limitations are in
+`docs/desktop-share-audio-research.md`. Native smoke
 jobs run on Linux, Windows and both Macs before installer builds. `desktop/tests/smoke/run.py` runs
 the debug binary against a loopback page and checks the bridge, partial settings updates, media
-API availability and the Windows shared-audio capability report. Linux and macOS use disposable
+API availability and the Windows shared-audio capability report. Real external IPC and WebSocket
+clients check READY, identity, activity acknowledgements, bridge activity state/events, clearing,
+disconnect cleanup and disabling/re-enabling the listeners. Those probes disable forwarding and
+do not prove the relay to an installed Discord client. Linux and macOS use disposable
 home/config directories; Windows requires a fresh
 test account and refuses an existing Nexa profile. On Linux it uses Xvfb and sends a real close
 request during call mode, then checks

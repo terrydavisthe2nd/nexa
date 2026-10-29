@@ -116,6 +116,13 @@ mode, and checks that the webview exposes the media APIs calls need. It exits
 non-zero on a missing step. A permission denial on a fresh Mac is a valid
 screen-access report, not evidence that capture works.
 
+The RPC checks connect two real external clients, one over Discord IPC (Unix
+socket or Windows named pipe) and one over its local WebSocket. They check
+READY, signed-in identity, activity acknowledgements, bridge state and activity
+events, clearing one activity, disconnect cleanup and disabling/re-enabling
+the listeners. The probes turn off upstream forwarding, so they do not prove
+relay behavior with an installed Discord client. They need no Python packages.
+
 Linux needs Xvfb, x11-utils, xdotool and a session bus. The runner sends a real
 title-bar close request during call mode, checks that the page sees a hidden
 window, and reopens it at its original position. It also starts call mode with
@@ -128,7 +135,10 @@ screen capture, window audio or sustained background-call performance.
 
 `.github/workflows/desktop.yml` builds Windows (NSIS), Linux (AppImage and deb)
 and both Macs (`.app` and `.dmg`) on GitHub's runners. A push to
-`tauri-desktop-tests` runs unsigned test builds without creating a release.
+`tauri-desktop-tests` or `desktop-native-capture` runs unsigned test builds
+without creating a release. The workflow also typechecks the web app and runs
+its media contract tests before building installers. Native-capture contract
+tests are test-first work in progress, not evidence of an implemented backend.
 Pushing a tag such as
 `desktop-v2.0.0` also creates a draft GitHub release, signs the updater
 artifacts, and attaches `latest.json`.

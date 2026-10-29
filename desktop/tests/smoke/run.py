@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Run the real desktop bridge on Linux, Windows or macOS with disposable settings."""
+import base64
 import ctypes
+import hashlib
 import json
 import os
 import pathlib
 import signal
+import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -12,6 +16,191 @@ import threading
 import time
 
 from server import Handler, HTTPServer, REPORT, ROOT
+
+
+class NamedPipe:
+    """A real Win32 byte pipe, with bounded reads rather than blocking forever."""
+    def __init__(self, path):
+        from ctypes import wintypes as w
+        self.api = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.api.CreateFileW.argtypes = [w.LPCWSTR, w.DWORD, w.DWORD, w.LPVOID,
+                                        w.DWORD, w.DWORD, w.HANDLE]
+        self.api.CreateFileW.restype = w.HANDLE
+        self.api.PeekNamedPipe.argtypes = [w.HANDLE, w.LPVOID, w.DWORD,
+                                          w.LPVOID, ctypes.POINTER(w.DWORD), w.LPVOID]
+        self.api.PeekNamedPipe.restype = w.BOOL
+        for name in ("ReadFile", "WriteFile"):
+            method = getattr(self.api, name)
+            method.argtypes = [w.HANDLE, w.LPVOID, w.DWORD,
+                               ctypes.POINTER(w.DWORD), w.LPVOID]
+            method.restype = w.BOOL
+        self.api.CloseHandle.argtypes = [w.HANDLE]
+        self.api.CloseHandle.restype = w.BOOL
+        path = path.replace("\\\\?\\pipe\\", "\\\\.\\pipe\\", 1)
+        deadline = time.monotonic() + 10
+        while True:
+            self.handle = self.api.CreateFileW(path, 0xC0000000, 0, None, 3, 0, None)
+            if self.handle != ctypes.c_void_p(-1).value:
+                break
+            error = ctypes.get_last_error()
+            if error not in (2, 231) or time.monotonic() >= deadline:
+                raise ctypes.WinError(error)
+            time.sleep(0.02)
+
+    def recv(self, size):
+        available = ctypes.c_ulong()
+        deadline = time.monotonic() + 10
+        while True:
+            if not self.api.PeekNamedPipe(self.handle, None, 0, None,
+                                         ctypes.byref(available), None):
+                raise ctypes.WinError(ctypes.get_last_error())
+            if available.value:
+                break
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Discord named pipe did not respond")
+            time.sleep(0.01)
+        buffer = ctypes.create_string_buffer(min(size, available.value))
+        count = ctypes.c_ulong()
+        if not self.api.ReadFile(self.handle, buffer, len(buffer), ctypes.byref(count), None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return buffer.raw[:count.value]
+
+    def sendall(self, data):
+        while data:
+            count = ctypes.c_ulong()
+            buffer = ctypes.create_string_buffer(data)
+            if not self.api.WriteFile(self.handle, buffer, len(data), ctypes.byref(count), None):
+                raise ctypes.WinError(ctypes.get_last_error())
+            if not count.value:
+                raise RuntimeError("zero-byte named pipe write")
+            data = data[count.value:]
+
+    def close(self):
+        self.api.CloseHandle(self.handle)
+
+
+class RpcClient:
+    """External Discord client. No browser Origin and no product test hooks."""
+    def __init__(self, transport, listening, client_id):
+        self.transport = transport
+        self.client_id = client_id
+        if transport == "ipc":
+            if os.name == "nt":
+                self.stream = NamedPipe(listening["ipc"])
+            else:
+                self.stream = socket.socket(socket.AF_UNIX)
+                self.stream.settimeout(10)
+                self.stream.connect(listening["ipc"])
+            self.send({"v": 1, "client_id": client_id}, op=0)
+        else:
+            self.stream = socket.create_connection(("127.0.0.1", listening["ws"]), 10)
+            key = base64.b64encode(os.urandom(16)).decode()
+            request = ("GET /?v=1&encoding=json&client_id=%s HTTP/1.1\r\n"
+                       "Host: 127.0.0.1:%s\r\nUpgrade: websocket\r\n"
+                       "Connection: Upgrade\r\nSec-WebSocket-Key: %s\r\n"
+                       "Sec-WebSocket-Version: 13\r\n\r\n") % (client_id, listening["ws"], key)
+            self.stream.sendall(request.encode())
+            headers = b""
+            while not headers.endswith(b"\r\n\r\n"):
+                headers += self.read(1)
+                if len(headers) > 8192:
+                    raise RuntimeError("oversized WebSocket upgrade response")
+            lines = headers.decode().split("\r\n")
+            fields = {name.lower(): value.strip() for name, value in
+                      (line.split(":", 1) for line in lines[1:] if ":" in line)}
+            expected = base64.b64encode(hashlib.sha1(
+                (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()).decode()
+            if " 101 " not in lines[0] or fields.get("sec-websocket-accept") != expected:
+                raise RuntimeError("invalid WebSocket upgrade: %r" % headers)
+        self.ready = self.receive()
+        if self.ready.get("cmd") != "DISPATCH" or self.ready.get("evt") != "READY":
+            raise RuntimeError("Discord handshake failed: %r" % self.ready)
+
+    def read(self, size):
+        chunks = bytearray()
+        while len(chunks) < size:
+            chunk = self.stream.recv(size - len(chunks))
+            if not chunk:
+                raise RuntimeError("Discord client connection closed unexpectedly")
+            chunks.extend(chunk)
+        return bytes(chunks)
+
+    def send(self, value, op=1):
+        body = json.dumps(value).encode()
+        if self.transport == "ipc":
+            self.stream.sendall(struct.pack("<II", op, len(body)) + body)
+        else:
+            mask = os.urandom(4)
+            length = len(body)
+            header = bytes([0x81, 0x80 | length]) if length < 126 else \
+                bytes([0x81, 0xFE]) + struct.pack("!H", length)
+            self.stream.sendall(header + mask + bytes(
+                byte ^ mask[i % 4] for i, byte in enumerate(body)))
+
+    def receive(self):
+        if self.transport == "ipc":
+            op, size = struct.unpack("<II", self.read(8))
+            if op != 1 or size > 65536:
+                raise RuntimeError("unexpected Discord frame: %s, %s" % (op, size))
+        else:
+            first, second = self.read(2)
+            if first != 0x81 or second & 0x80:
+                raise RuntimeError("expected an unmasked WebSocket JSON frame, got %s" % first)
+            size = second & 0x7F
+            if size == 126:
+                size = struct.unpack("!H", self.read(2))[0]
+            elif size == 127:
+                size = struct.unpack("!Q", self.read(8))[0]
+            if size > 65536:
+                raise RuntimeError("oversized WebSocket JSON frame")
+        return json.loads(self.read(size))
+
+    def activity(self, activity, nonce):
+        self.send({"cmd": "SET_ACTIVITY", "args": {"pid": os.getpid(), "activity": activity},
+                   "nonce": nonce})
+        answer = self.receive()
+        if answer.get("cmd") != "SET_ACTIVITY" or answer.get("nonce") != nonce or answer.get("evt") is not None:
+            raise RuntimeError("SET_ACTIVITY was not acknowledged: %r" % answer)
+        if activity is None:
+            if answer.get("data") is not None:
+                raise RuntimeError("clearing activity returned %r" % answer)
+        else:
+            for key, value in dict(activity, application_id=self.client_id).items():
+                if (answer.get("data") or {}).get(key) != value:
+                    raise RuntimeError("SET_ACTIVITY ack changed %s: %r" % (key, answer))
+        return answer
+
+    def close(self):
+        self.stream.close()
+
+
+def rpc_probe(stage, report, clients):
+    result = {"stage": stage}
+    if stage in ("rpc-publish", "rpc-republish", "rpc-reconnect"):
+        # Disable closes the server ends. Release our stale handles before
+        # opening fresh sessions on the newly advertised listener endpoints.
+        for client in clients.values():
+            client.close()
+        clients.clear()
+        result["clients"] = []
+        for transport, client_id, name, details, state in (
+                ("ipc", "123456789012345678", "IPC Smoke Atlas", "Exploring north", "Party of 2"),
+                ("ws", "234567890123456789", "WebSocket Smoke Beacon", "Building south", "Room of 7")):
+            client = RpcClient(transport, report["rpcEndpoint"]["listening"], client_id)
+            clients[transport] = client
+            activity = {"name": name, "details": details, "state": state, "type": 0}
+            result["clients"].append({"transport": transport, "clientId": client_id,
+                                      "ready": client.ready,
+                                      "ack": client.activity(activity, stage + "-" + transport)})
+    elif stage == "rpc-clear":
+        result["ack"] = clients["ipc"].activity(None, "clear-ipc")
+    elif stage in ("rpc-disconnect", "rpc-finish"):
+        for client in clients.values():
+            client.close()
+        clients.clear()
+    else:
+        raise RuntimeError("unknown RPC probe stage %r" % stage)
+    return result
 
 
 def close_x11_window(window, display_name):
@@ -58,6 +247,7 @@ def main():
     if os.name == "nt" and pathlib.Path(env["APPDATA"], "xyz.evilion.chat").exists():
         raise RuntimeError("use a fresh Windows test account, not an existing Nexa profile")
     processes = []
+    rpc_clients = {}
     REPORT.unlink(missing_ok=True)
     with tempfile.TemporaryDirectory(prefix="nexa-desktop-smoke-") as scratch, \
             (ROOT / "app.log").open("w") as log:
@@ -105,6 +295,10 @@ def main():
                 stage = report.get("stage")
                 if stage == "done":
                     return subprocess.call([sys.executable, str(ROOT / "check.py")])
+                if stage in ("rpc-publish", "rpc-clear", "rpc-disconnect", "rpc-republish",
+                             "rpc-reconnect", "rpc-finish") and stage not in handled:
+                    http.rpc_result = rpc_probe(stage, report, rpc_clients)
+                    handled.add(stage)
                 if linux and stage in ("close-in-call", "hide-before-call") and stage not in handled:
                     native_pid = subprocess.check_output(
                         ["pgrep", "-P", str(app.pid), "-x", "nexa-desktop"], text=True).strip()
@@ -119,6 +313,8 @@ def main():
                 time.sleep(0.1)
             raise RuntimeError("the smoke page did not finish after 120 seconds")
         finally:
+            for client in rpc_clients.values():
+                client.close()
             http.shutdown()
             http.server_close()
             for process in reversed(processes):
