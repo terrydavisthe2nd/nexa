@@ -259,11 +259,11 @@ impl Rpc {
             self.bounce();
             let rpc = self.clone();
             tauri::async_runtime::spawn(async move {
-                discord::quit_builds(&builds).await;
-                discord::wait_for_pipe_gone().await;
+                super::discord::quit_builds(&builds).await;
+                super::discord::wait_for_pipe_gone().await;
                 rpc.bounce();
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                discord::launch_builds(&builds);
+                super::discord::launch_builds(&builds);
             });
             return true;
         }

@@ -42,19 +42,15 @@ pub fn pipe_listen(target: &str) -> io::Result<PipeListener> {
     })
 }
 
-/// On Unix a socket file is left behind by a process that died; the Electron
-/// app removed a stale one before binding.
-#[cfg(target_os = "windows")]
-pub fn remove_socket(path: &str) {
-    #[cfg(unix)]
-    {
-        let _ = std::fs::remove_file(path);
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = path;
-    }
+/// A blocking connect, for asking whether a pipe is there.
+#[cfg(windows)]
+pub fn pipe_connect_blocking(target: &str, timeout: std::time::Duration) -> io::Result<()> {
+    imp::connect_blocking(target, timeout)
 }
+
+// On Unix a socket file is left behind by a process that died; `paths` removes
+// it before binding, as the Electron app did. Named pipes disappear with their
+// server, so Windows has nothing to remove.
 
 #[cfg(unix)]
 mod imp {
@@ -143,7 +139,7 @@ mod imp {
     use super::*;
     use interprocess::local_socket::prelude::*;
     use interprocess::local_socket::{
-        ConnectOptions, ListenerNonblockingMode, ListenerOptions, Stream,
+        ConnectOptions, GenericFilePath, ListenerNonblockingMode, ListenerOptions, Stream,
     };
     use interprocess::{ConnectWaitMode, TryClone};
     use std::io::{self, Read, Write};

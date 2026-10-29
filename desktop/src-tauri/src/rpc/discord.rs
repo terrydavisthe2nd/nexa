@@ -232,7 +232,6 @@ fn run_tool(file: &Path, args: &[&str]) -> String {
 }
 
 /// Which Discord builds are running on Windows.
-#[cfg(windows)]
 #[cfg(target_os = "windows")]
 pub fn running_discord_builds() -> Vec<String> {
     let out = run_tool(&system32("tasklist"), &["/FO", "CSV", "/NH"]);

@@ -103,7 +103,7 @@ pub fn create(app: &AppHandle, settings: &DesktopSettings) -> tauri::Result<Webv
         if !settings.hardware_acceleration {
             args.push_str(" --disable-gpu");
         }
-        builder = builder.additional_browser_args(args);
+        builder = builder.additional_browser_args(&args);
     }
 
     // WKWebView suspends a hidden or covered page unless told not to (macOS 14

@@ -87,7 +87,7 @@ pub async fn probe_timeout(target: &str, timeout_ms: u64) -> Probe {
 pub async fn probe_timeout(target: &str, timeout_ms: u64) -> Probe {
     let target = target.to_string();
     let attempt = tokio::task::spawn_blocking(move || {
-        super::local::connect_blocking(&target, Duration::from_millis(timeout_ms))
+        super::local::pipe_connect_blocking(&target, Duration::from_millis(timeout_ms))
     });
     match tokio::time::timeout(Duration::from_millis(timeout_ms + 250), attempt).await {
         Err(_) => Probe::Listening,
