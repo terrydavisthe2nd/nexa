@@ -1554,8 +1554,10 @@ embedder supplies only the public camera/microphone delegate, as Wry does. Windo
 Audio through WebView2's picker and reports `shareAudioMode: own` only when the engine supports
 `restrictOwnAudio`; otherwise the dialog warns that system sound includes the call. The web asks
 for `windowAudio: window` when sound is on and `exclude` when off, rather than requesting every
-program's sound for a selected window. That hint depends on the installed engine and Windows
-version, so the bridge still reports `windowAudio: false` until native testing verifies it.
+program's sound for a selected window. Current WebView2 accepts that hint
+(`restrictOwnAudio` is in `getSupportedConstraints`), but the bridge still reports
+`windowAudio: false`, since the app cannot attach a window's audio itself and no CI run has
+captured a real call's sound to prove the engine applies it on every Windows version.
 The Mac and Linux bridges report `shareAudio: false`. WKWebView's display
 capture path returns no audio track; native ScreenCaptureKit supports audio, but this shell does
 not bridge it into the call. WebKitGTK has no display audio. Native window audio and the custom

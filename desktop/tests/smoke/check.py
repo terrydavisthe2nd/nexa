@@ -43,7 +43,30 @@ if report.get("platform") == "win32":
 window = report.get("window") or {}
 want(window.get("visible") is True, "the window is not visible")
 rpc = report.get("rpc") or {}
-want("enabled" in rpc and "listening" in rpc, "rpc state has the wrong shape: %r" % rpc)
+want(
+    "enabled" in rpc and "listening" in rpc,
+    "rpc state has the wrong shape: %r" % rpc,
+)
+# The relay must come up on its own: a page that can only see it after a click
+# is useless to Rich Presence. listening is {ipc, ws}; on a healthy start both
+# are set, so a None on either is the bug where the relay stayed down.
+listening = rpc.get("listening") or {}
+want(
+    isinstance(listening, dict) and bool(listening.get("ipc")) and bool(listening.get("ws")),
+    "rpc must be listening on both the Discord IPC socket and the local WebSocket: %r"
+    % listening,
+)
+ipc_name = str(listening.get("ipc", ""))
+if report.get("platform") == "win32":
+    want(
+        ipc_name.startswith("\\\\?\\pipe\\"),
+        "on Windows the IPC socket must be a named pipe, got %r" % ipc_name,
+    )
+else:
+    want(
+        ipc_name.startswith("/"),
+        "on Unix the IPC socket must be a filesystem path, got %r" % ipc_name,
+    )
 update = report.get("update") or {}
 want(update.get("status") in ("idle", "checking", "ready", "downloading", "error", "manual"),
      "update state is %r" % update.get("status"))
