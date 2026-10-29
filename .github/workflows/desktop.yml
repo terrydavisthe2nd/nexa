@@ -1,0 +1,231 @@
+name: Desktop
+
+on:
+  push:
+    branches: [main, tauri-desktop-tests]
+    paths:
+      - "desktop/**"
+      - ".github/workflows/desktop.yml"
+    tags:
+      - "desktop-v*"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/desktop.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            libxdo-dev \
+            libssl-dev \
+            build-essential \
+            curl \
+            wget \
+            file
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Check
+        working-directory: desktop/src-tauri
+        run: cargo fmt --check && cargo check --locked
+
+      - name: Test
+        working-directory: desktop/src-tauri
+        run: cargo test --locked
+
+  smoke:
+    name: Smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-15-intel, macos-15]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            libxdo-dev \
+            libssl-dev \
+            xvfb \
+            x11-utils \
+            dbus-x11 \
+            xdotool
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Build
+        working-directory: desktop/src-tauri
+        run: cargo build --locked && cargo test --locked
+
+      - name: Run the native bridge and media smoke test
+        shell: bash
+        run: |
+          binary="$PWD/desktop/src-tauri/target/debug/nexa-desktop"
+          if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
+          python desktop/tests/smoke/run.py "$binary"
+
+      - name: Keep the smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-smoke-${{ matrix.os }}
+          path: |
+            desktop/tests/smoke/report.json
+            desktop/tests/smoke/app.log
+          if-no-files-found: ignore
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: [check, smoke]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows-x64
+            args: "--bundles nsis"
+          - os: ubuntu-22.04
+            name: linux-x64
+            args: "--bundles appimage,deb"
+          - os: macos-15-intel
+            name: macos-x64
+            args: "--target x86_64-apple-darwin --bundles app,dmg"
+            targets: "x86_64-apple-darwin"
+          - os: macos-15
+            name: macos-arm64
+            args: "--target aarch64-apple-darwin --bundles app,dmg"
+            targets: "aarch64-apple-darwin"
+    env:
+      # Read by updater.rs through option_env!, so each fork updates from its
+      # own releases instead of the endpoint checked into tauri.conf.json.
+      NEXA_UPDATER_ENDPOINT: "https://github.com/${{ github.repository }}/releases/latest/download/latest.json"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            libxdo-dev \
+            libssl-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      # Pull requests and manual runs only build; they create no release.
+      - name: Build
+        if: ${{ !startsWith(github.ref, 'refs/tags/desktop-v') }}
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop/src-tauri
+          # Signing keys are not given to pull requests, so their builds carry
+          # no updater artifacts and do not fail on a missing key.
+          args: ${{ matrix.args }} --config tauri.nosign.conf.json
+
+      - name: Require the updater key for a release
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set. Add the updater private key and its password as repository secrets (see desktop/README.md)."
+            exit 1
+          fi
+
+      # A desktop-v* tag creates a draft release with signed updater files.
+      - name: Build and publish draft release
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop/src-tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: "Nexa Desktop v__VERSION__"
+          releaseBody: |
+            Nexa for your computer, version __VERSION__.
+
+            Download the installer for your platform from the assets below. Signed updater files are attached, so the app's built-in updater can install this version.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}
+
+      - name: Keep the installers from this run
+        if: ${{ !startsWith(github.ref, 'refs/tags/desktop-v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexa-desktop-${{ matrix.name }}
+          path: |
+            desktop/src-tauri/target/**/release/bundle/**/*.exe
+            desktop/src-tauri/target/**/release/bundle/**/*.dmg
+            desktop/src-tauri/target/**/release/bundle/**/*.AppImage
+            desktop/src-tauri/target/**/release/bundle/**/*.deb
+          if-no-files-found: error

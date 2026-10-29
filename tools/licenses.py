@@ -369,6 +369,94 @@ def assets_part(collector: Collector) -> int:
     return count
 
 
+# ------------------------------------------------------------------------ rust
+
+
+def cargo_license(expression: str | None) -> str | None:
+    """One licence from a crate's expression.
+
+    Cargo allows a choice ("MIT OR Apache-2.0") and exceptions. MIT is used when
+    it is one of the choices (the same text then covers every such crate), and
+    otherwise the first choice without its "WITH" exception is listed.
+    """
+    if not expression:
+        return None
+    choices = [
+        choice.split(" WITH ")[0].strip("() ")
+        for choice in re.split(r"\s+OR\s+|/", expression)
+    ]
+    choices = [choice for choice in choices if choice]
+    if not choices:
+        return None
+    return "MIT" if "MIT" in choices else choices[0]
+
+
+def cargo_part(collector: Collector) -> int:
+    """The crates linked into the desktop app.
+
+    The Tauri shell is Rust, so its notices come from Cargo's resolved graph
+    rather than an npm lockfile. Build scripts and dev-dependencies do not ship
+    and are left out; normal dependencies for every target are included, since
+    a release is made for each of them.
+    """
+    if not shutil.which("cargo"):
+        die("the Rust toolchain is not on PATH, and the desktop app's crates come from it")
+    metadata = json.loads(
+        subprocess.run(
+            [
+                "cargo",
+                "metadata",
+                "--format-version",
+                "1",
+                "--locked",
+                "--manifest-path",
+                str(ROOT / "desktop/src-tauri/Cargo.toml"),
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+    packages = {package["id"]: package for package in metadata["packages"]}
+    nodes = {node["id"]: node for node in metadata["resolve"]["nodes"]}
+    queue = [metadata["resolve"]["root"]]
+    seen: set[str] = set()
+    while queue:
+        node = nodes.get(queue.pop())
+        if node is None or node["id"] in seen:
+            continue
+        seen.add(node["id"])
+        for dependency in node["deps"]:
+            kinds = {kind["kind"] for kind in dependency["dep_kinds"]}
+            if None in kinds:
+                queue.append(dependency["pkg"])
+    seen.discard(metadata["resolve"]["root"])
+    for package_id in sorted(seen):
+        package = packages[package_id]
+        directory = Path(package["manifest_path"]).parent
+        found = directory / package["license_file"] if package.get("license_file") else None
+        if found is None or not found.is_file():
+            found = license_file(directory)
+        text = read_text(found) if found else None
+        if text is None:
+            print(f"licenses: no licence file for {package['name']}@{package['version']}", file=sys.stderr)
+        url = package.get("repository") or f"https://crates.io/crates/{package['name']}"
+        if url.startswith("http://"):
+            url = "https://" + url[len("http://") :]
+        elif not url.startswith("https://"):
+            url = f"https://crates.io/crates/{package['name']}"
+        collector.add(
+            part="desktop",
+            name=package["name"],
+            version=package["version"],
+            license_=cargo_license(package.get("license")),
+            url=url,
+            text=text,
+        )
+    return len(seen)
+
+
 # --------------------------------------------------------------------------- main
 
 
@@ -380,11 +468,9 @@ def main() -> None:
     collector = Collector()
     counts = {
         "web": npm_part(collector, "web", ROOT / "web", list(json.loads(read_text(ROOT / "web/package.json"))["dependencies"])),
-        # The desktop app bundles its main process with esbuild, so what ships is
-        # what those two entry points reach, plus Electron itself. Everything in its
-        # package.json is a devDependency — the installer carries no node_modules —
-        # so npm's own flag cannot tell us this and the roots are named here.
-        "desktop": npm_part(collector, "desktop", ROOT / "desktop", ["electron", "electron-updater", "ws", "koffi"]),
+        # The Tauri shell's crates come from Cargo's resolved graph; nothing
+        # from npm ships with it.
+        "desktop": cargo_part(collector),
         "server": go_part(collector),
     }
     counts["assets"] = assets_part(collector)

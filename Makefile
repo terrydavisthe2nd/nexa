@@ -3,7 +3,7 @@ NODE_BIN ?= /usr/local/lib/nodejs/current/bin
 VERSION ?= $(shell git describe --always --dirty 2>/dev/null || echo dev)
 export PATH := $(NODE_BIN):$(PATH)
 
-.PHONY: build build-current restart-service web server android desktop-release test test-go test-web test-desktop desktop publish-desktop publish-android licenses run clean clean-deploy
+.PHONY: build build-current restart-service web server android desktop-release test test-go test-web test-desktop desktop publish-android licenses run clean clean-deploy
 
 # Re-read the Makefile after pulling so this build uses the fetched instructions.
 # Separate recursive makes enforce deployment order even with make -j.
@@ -46,12 +46,11 @@ restart-service:
 android:
 	python3 tools/android_release.py --if-changed
 
-# The desktop app for every platform, published into DESKTOP_DIR, which chatd
-# serves: the apps update themselves to it. Built only when
-# desktop/package.json names a version not published yet (every release bumps
-# it). `python3 tools/desktop_release.py` builds and publishes it regardless.
+# The desktop app is a Tauri app now. Its installers for Windows, Linux and
+# both Macs are built and published by .github/workflows/desktop.yml when a
+# `desktop-v*` tag is pushed; nothing here writes a live download.
 desktop-release:
-	python3 tools/desktop_release.py --if-changed
+	@echo "  desktop releases are built by GitHub Actions (.github/workflows/desktop.yml)"
 
 # `web/dist` is what chatd serves, so this target *is* the deploy. DEPLOY=1 is
 # how the build says it knows that; see web/scripts/deploy-guard.mjs.
@@ -89,15 +88,12 @@ test-web:
 # The desktop app's source is not in every checkout; the rest of the suite
 # still runs without it.
 test-desktop:
-	@if [ -d desktop/src ]; then cd desktop && npm run typecheck && npm test; else echo "  desktop/ is not here; skipping its tests"; fi
+	@if [ -d desktop/src-tauri ]; then cd desktop/src-tauri && cargo test; else echo "  desktop/ is not here; skipping its tests"; fi
 
-# the desktop app's installers for every platform, into desktop/dist, on a Mac (no publishing)
+# A local desktop build into desktop/src-tauri/target. It signs no updater
+# artifacts; releases are made by the workflow above.
 desktop: test-desktop
-	cd desktop && npm ci --no-audit --no-fund && npm run build && npx electron-builder --mac --win --linux --publish never
-
-# copies desktop/dist into DESKTOP_DIR, where chatd serves downloads and updates
-publish-desktop:
-	python3 tools/publish_desktop.py desktop/dist
+	cd desktop/src-tauri && npx --yes @tauri-apps/cli@2.12.4 build --config tauri.nosign.conf.json
 
 # builds and publishes the Android app's release whether or not it changed
 # (see downloads/android/README.md)

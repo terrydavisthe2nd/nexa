@@ -10,7 +10,7 @@ counted as a person watching would see them: a frame that stays up more than
 three times as long as the frames before it, or 150 ms longer.
 
   tools/.venv/bin/python tools/share_quality.py --label before [--seconds 45] [--res 1080p] [--fps 60]
-      [--viewer chromium|firefox] [--sharer chromium|firefox|electron] [--p2p] [--up-kbps N] [--loss P]
+      [--viewer chromium|firefox] [--sharer chromium|firefox] [--p2p] [--up-kbps N] [--loss P]
 
 Through Cloudflare Realtime by default: REALTIME_APP_ID and REALTIME_APP_SECRET
 from chatd.env reach the test server, and nothing else. --p2p calls peer to
@@ -18,13 +18,10 @@ peer instead. --up-kbps caps Alice's upload, and --loss loses that share of her
 packets, through tools/netsim (both for the SFU only). A Chromium sharer
 captures its own tab for real (getDisplayMedia with the tab accepted
 automatically); a Firefox one shares a canvas the clip is drawn onto, which
-Firefox encodes as a camera, not a screen. An Electron sharer is the desktop
-app's own Electron (desktop/node_modules/electron, fetched with
-`node desktop/node_modules/electron/install.js` the first time) in a hidden
-window, driven over its DevTools port, capturing its own page the way it hands
-the app a source; it needs no screen recording permission. Like
-e2e.py it tests bin/chatd and web/dist unless E2E_CHATD / E2E_WEB_DIST say
-otherwise. Uses a few minutes of real SFU traffic (a few hundred MB at 1080p60).
+Firefox encodes as a camera, not a screen. The desktop app's Tauri shell has
+no DevTools protocol the harness can drive, so the desktop build is measured by
+hand (or by its own smoke test); these numbers are the browser's. Like e2e.py
+it tests bin/chatd and web/dist unless E2E_CHATD / E2E_WEB_DIST say otherwise. Uses a few minutes of real SFU traffic (a few hundred MB at 1080p60).
 Results go to tools/out/share-quality/<label>.json, with a few frames of what
 Bob saw beside them.
 """
@@ -40,7 +37,7 @@ ap.add_argument("--seconds", type=float, default=45)
 ap.add_argument("--res", default="1080p", choices=["720p", "1080p", "1440p", "source"])
 ap.add_argument("--fps", type=int, default=60, choices=[15, 30, 60])
 ap.add_argument("--viewer", default="chromium", choices=["chromium", "firefox"])
-ap.add_argument("--sharer", default="chromium", choices=["chromium", "firefox", "electron"])
+ap.add_argument("--sharer", default="chromium", choices=["chromium", "firefox"])
 ap.add_argument("--p2p", action="store_true")
 ap.add_argument("--up-kbps", type=float, default=0)
 ap.add_argument("--loss", type=float, default=0)
@@ -291,84 +288,7 @@ def tweaks() -> dict:
     return out
 
 
-# The Electron sharer's main process: one hidden window on a blank page, every
-# permission granted, and a request to share answered with the page asking.
-# Electron is not headless: it is muted, or the call (the viewer's fake
-# microphone beeps) plays out of the computer's speakers.
-ELECTRON_MAIN = r"""
-const { app, BrowserWindow, session } = require("electron");
-app.setPath("userData", process.env.SQ_USER_DATA);
-app.commandLine.appendSwitch("mute-audio");
-for (const f of ["disable-renderer-backgrounding", "disable-background-timer-throttling", "disable-backgrounding-occluded-windows"]) app.commandLine.appendSwitch(f);
-app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
-app.commandLine.appendSwitch("remote-debugging-port", process.env.SQ_CDP_PORT);
-app.whenReady().then(() => {
-  const s = session.defaultSession;
-  s.setPermissionRequestHandler((_wc, _perm, cb) => cb(true));
-  s.setPermissionCheckHandler(() => true);
-  s.setDisplayMediaRequestHandler((req, cb) => cb({ video: req.frame }));
-  // with netsim the page asks its control port for its legs, which the app's own policy refuses
-  if (process.env.SQ_BYPASS_CSP === "1") {
-    s.webRequest.onHeadersReceived((d, cb) => {
-      const headers = Object.fromEntries(Object.entries(d.responseHeaders || {}).filter(([k]) => k.toLowerCase() !== "content-security-policy"));
-      cb({ responseHeaders: headers });
-    });
-  }
-  const win = new BrowserWindow({ show: false, width: 1920, height: 1080, useContentSize: true, webPreferences: { backgroundThrottling: false } });
-  win.webContents.setAudioMuted(true);
-  win.loadURL("about:blank");
-});
-app.on("window-all-closed", () => app.quit());
-"""
-
-
-class ElectronBrowser:
-    """Electron over its DevTools port, standing in for a browser: its one
-    context and window page are what Session's new_context and new_page give."""
-
-    def __init__(self, pw, bypass_csp=False):
-        exe = ROOT / "desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
-        if sys.platform != "darwin":
-            exe = ROOT / "desktop/node_modules/electron/dist/electron"
-        if not exe.exists():
-            sys.exit("no Electron: run `node desktop/node_modules/electron/install.js` first")
-        self.dir = Path(tempfile.mkdtemp())
-        (self.dir / "main.js").write_text(ELECTRON_MAIN)
-        (self.dir / "package.json").write_text('{"name": "share-quality-sharer", "main": "main.js"}')
-        port = free_port()
-        env = {**os.environ, "SQ_CDP_PORT": str(port), "SQ_USER_DATA": str(self.dir / "data"), "SQ_BYPASS_CSP": "1" if bypass_csp else "0"}
-        self.proc = subprocess.Popen([str(exe), str(self.dir)], env=env, stdout=open(self.dir / "electron.log", "w"), stderr=subprocess.STDOUT)
-        import urllib.request
-        for _ in range(150):
-            try:
-                urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1).read()
-                break
-            except Exception:
-                time.sleep(0.2)
-        self.br = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
-        self.version = self.br.version
-
-    def new_context(self, **kw):
-        ctx = self.br.contexts[0]
-        for _ in range(50):
-            if ctx.pages:
-                break
-            time.sleep(0.1)
-        page = ctx.pages[0]
-        ctx.new_page = lambda: page
-        return ctx
-
-    def close(self):
-        try:
-            self.br.close()
-        finally:
-            self.proc.terminate()
-            shutil.rmtree(self.dir, ignore_errors=True)
-
-
 def launch(pw, kind, sharer, bypass_csp=False):
-    if kind == "electron":
-        return ElectronBrowser(pw, bypass_csp)
     if kind == "firefox":
         # silent: the call would otherwise play the other side's fake microphone aloud
         return pw.firefox.launch(firefox_user_prefs={"media.navigator.streams.fake": True, "media.navigator.permission.disabled": True, "media.autoplay.default": 0, "media.autoplay.blocking_policy": 0, "media.volume_scale": "0.0"})
@@ -645,7 +565,7 @@ def main():
             print(f"{sess.name}'s last errors and voice log:", *(sess.errors[-12:] + sess.trace[-25:]), sep="\n  ")
         raise
     finally:
-        # a browser Playwright started goes with it; Electron is a process of the harness's own
+        # every browser here is one Playwright started and closes with it
         for br in launched:
             try:
                 br.close()

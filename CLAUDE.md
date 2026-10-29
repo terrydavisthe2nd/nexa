@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Nexa is the end-to-end encrypted chat app served at https://nexa.fish (also https://mathtest.lol;
 https://chat.evilion.xyz is its old address, which moves browsers on). This repository is all of it:
-the Go server (`cmd/`, `internal/`), the React + TypeScript web app (`web/`), the Electron desktop
+the Go server (`cmd/`, `internal/`), the React + TypeScript web app (`web/`), the Tauri desktop
 app that runs the web app (`desktop/`) and the native Android app (`android/`, Kotlin + Jetpack
 Compose). README.md is the public project overview, with features, privacy boundaries, an isolated
 local quick start and links to development documentation. `ENCRYPTION.md` is the public
@@ -31,11 +31,12 @@ the change it describes.
 
 ### Building is deploying
 
-`web/dist`, `bin/chatd`, `downloads/android` and the desktop releases in `DESKTOP_DIR` are what the
-live instance serves, so `npm run build`, `make web`, `make server`, `make build`,
-`make publish-android`, `make desktop-release`, `make publish-desktop`, `tools/desktop_release.py`
-and `tools/android_release.py` without `--to` publish immediately. Never run them to check a change; use the
-commands under Commands, which write nothing live. Never test against port 8090, `data/` or the
+`web/dist`, `bin/chatd` and `downloads/android` are what the live instance serves, so
+`npm run build`, `make web`, `make server`, `make build`, `make publish-android` and
+`tools/android_release.py` without `--to` publish immediately. Never run them to check a change; use
+the commands under Commands, which write nothing live. The desktop app is published by
+`.github/workflows/desktop.yml`, not from this machine; `make desktop` only writes
+`desktop/src-tauri/target`. Never test against port 8090, `data/` or the
 repo's `chatd.env`. On this server, never start chatd from the repository root either (`make run`,
 `go run ./cmd/chatd`): it reads the live `chatd.env` and `./data`, and chatd migrates its database
 before it listens, so an unreleased build would migrate the live database. Deploy only when the
@@ -135,20 +136,20 @@ Each line on its own, from the repository root. None of these write anything liv
 
 ```
 tools/check.sh                    # the whole pre-publish check: Go build/vet/tests, web typecheck, tests
-                                  # and a scratch build, app size, desktop typecheck/tests, i18n keys
+                                  # and a scratch build, app size, desktop format/check/tests, i18n keys
 go build ./... && go vet ./...
 go test ./...                     # `make test-go` adds -race; the api package then takes minutes
 go test ./internal/api -run TestEditKeepsTheKeyThatOpensIt -count=1
 CHAT_TEST_POSTGRES=postgres://... go test ./internal/store ./internal/api    # the same suites on Postgres
 cd web && npm run typecheck
 cd web && npx vitest run          # one file: npx vitest run src/lib/perms.test.ts -t "test name"
-cd desktop && npm run typecheck && npm test
+cd desktop/src-tauri && cargo fmt --check && cargo check && cargo test
 python3 tools/i18n_check.py       # every locale has every key, placeholder and plural form
 python3 tools/i18n_keys_used.py   # must say "web: ... 0 missing"; Android's keys built at runtime are listed, as expected
 python3 tools/privacy_check.py   # private artifacts must not be tracked; --history checks all reachable revisions too
 ```
 
-`make test` runs the Go suite with `-race` plus the web and desktop suites. `internal/db`'s Postgres
+`make test` runs the Go suite with `-race`, the web suite and the desktop crate's tests. `internal/db`'s Postgres
 tests start an embedded Postgres, downloaded the first time (`SKIP_PG_TESTS=1` skips them). For hot
 reload, `cd web && VITE_API_TARGET=http://127.0.0.1:$PORT npm run dev` serves the web app on :5173;
 without `VITE_API_TARGET` it proxies to :8090, the live server.
@@ -176,8 +177,8 @@ Use `JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home` a
 Work that goes with certain changes:
 
 - Dependencies added or upgraded in any build: `make licenses` rewrites `web/src/data/licenses.json`
-  (Settings, Licenses); `android/tools/android_licenses.py` does the same for the Android app
-  (its header has the steps).
+  (Settings, Licenses) from npm, Go modules and the desktop's Cargo graph;
+  `android/tools/android_licenses.py` does the same for the Android app (its header has the steps).
 - The web app's first load grew: `tools/app_size.py` (in `check.sh`) fails once the gzipped first
   load passes `LOAD_KB_LIMIT` in `web/src/pages/HomePage.tsx`, the number the front page prints.
   Keep that claim true.
@@ -272,15 +273,11 @@ its discord.py bot running, for the Android emulator), `tools/discord_e2e.py` (D
 `internal/discordsync/fakediscord/cmd/fakediscord`), `tools/sfu_call.py` and `tools/sfu_guest.py`
 (real calls and a guest through Cloudflare Realtime, keys from `chatd.env`), `tools/call_quality.py`
 (calls over bad networks made by `tools/netsim`), `tools/share_quality.py` (a screen share of hard
-motion through Cloudflare, timed frame by frame as the viewer sees it; the sharer is Chromium,
-Firefox or the desktop app's Electron in a hidden window, `--up-kbps`, `--loss` and `--down-loss`
-shape the links through netsim, results in `tools/out/share-quality`). `tools/desktop_idle.py` runs the desktop app's own build (its windows on screen, muted, no tray icon,
-no system-wide keys, Rich Presence off, its own profile) against its own throwaway chatd and checks
-that it sleeps when hidden, stays at full speed in a call, still notifies and sounds, and sleeps when
-launched into the tray; with it, two headless Chromium pages make a call (`--long 330` adds Chromium's
-deeper throttling after five minutes). Whatever a test starts must
-make no sound: Playwright's headless Chromium is muted, Electron and Firefox are muted by the
-scripts, and the emulator runs with `-no-audio`.
+motion through Cloudflare, timed frame by frame as the viewer sees it; the sharer is Chromium or
+Firefox, `--up-kbps`, `--loss` and `--down-loss` shape the links through netsim, results in
+`tools/out/share-quality`). Whatever a test starts must
+make no sound: Playwright's headless Chromium is muted, Firefox is muted by the scripts, and the
+emulator runs with `-no-audio`.
 
 ## Repository layout
 
@@ -289,7 +286,7 @@ cmd/chatd/          the server's main: wiring, the log file, the maintenance loo
 cmd/chatmigrate/    copies a SQLite database into Postgres in one transaction, all or nothing
 internal/           the server's packages (below)
 web/                the web app: src/, public/ (manifest, icons, sounds, front-page media), scripts/deploy-guard.mjs
-desktop/            the Electron app
+desktop/            the Tauri app
 android/            the Android app; android/ydoc is the notes CRDT in Rust, android/tools its generators
 downloads/android/  the published APKs and manifest.json (not in git: each server publishes its own), served at /android/
 deploy/             systemd and launchd templates, install.sh, route-dns.sh, warp-proxy.sh
@@ -789,7 +786,7 @@ How each permission is held, as Discord holds it:
   is saved. Transfer tests cover bounded preparation/read-ahead, transferred-buffer retries,
   partial offsets, file integrity, cancellation and network/disk errors.
 - Saving attachments and pictures asks for a location: Android uses CreateDocument on every
-  version, desktop downloads keep Electron's Save As dialog, and web `lib/saveFile.ts` opens
+  version, the desktop uses its webview's download prompt, and web `lib/saveFile.ts` opens
   showSaveFilePicker before fetching where supported. Large encrypted browser saves stream the
   download worker's transferred ReadableStream into that file. Mobile browsers with file sharing
   use the system sheet (including Save to Files); if loading outlives the tap's activation, a ready-file dialog
@@ -906,7 +903,7 @@ modes read as Performance when they held the usual 1080p at 30 fps, otherwise as
 smooth, slower sharp), without being rewritten (`shareModeOf`). A smooth share gets no content hint
 and is steered by `ShareAdapter`; a sharp one gets `detail` (`text` at 15 fps), keeps its size and
 gives up frames. Chromium's `motion` hint shrinks a share while the bandwidth estimate is still low at
-the start and never grows it back (1080p60 stayed 480x270, 320x180 in Electron), and asking for
+the start and never grows it back (1080p60 stayed 480x270, 320x180 in Chromium), and asking for
 `maintain-framerate` does the same, so a smooth share is sized by `ShareAdapter` instead: every few
 seconds it reads the encoder's `targetBitrate` and scales the picture just far enough for about 0.06
 bits a pixel a frame, growing back when there is room. A share's sender has high priority and the bitrate
@@ -1514,101 +1511,103 @@ This is a public website feature, with no corresponding native Android screen.
 
 ## Desktop app (`desktop/`)
 
-From 1.2.8, every desktop updater verifies platform-bound Ed25519 signatures over exact manifest
-bytes before parsing checksums. Windows/AppImage use `SignedReleaseProvider`; macOS uses the same
-`fetchRelease` verification. `releaseKey.ts` holds only the public trust anchor. The owner authorized
-its new key after the original was unavailable. Private matching copies are stored on the Mac and
-build server at `~/.local/share/nexa-signing/update-key.pem`, mode 0600 in a 0700 directory. Never
-commit, replace or regenerate that key as part of building. `NEXA_DESKTOP_SIGNING_KEY` can select
-another private path, but its public key must match the pinned anchor. Signing never rewrites it.
+The desktop app is Tauri 2 (version in `desktop/src-tauri/Cargo.toml` and
+`tauri.conf.json`, bumped for every release) around the live site. It opens one window on
+https://nexa.fish (`NEXA_DESKTOP_URL` points a development build elsewhere), refuses to navigate
+anywhere but Nexa's own hostnames and that development origin, and sends other links to the browser.
+GitHub Actions (`.github/workflows/desktop.yml`) builds it on a `desktop-v*` tag into a draft
+release: NSIS on Windows, AppImage and .deb on Linux, separate Intel and Apple Silicon DMGs, with
+signed updater files. The updater private key and its password are repository secrets
+(`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) and are never committed; the
+public half is pinned in `tauri.conf.json`. `src-tauri/src/main.rs`
+registers the plugins and creates the window; `src-tauri/bridge.js` is injected before the page and
+defines `window.evilionDesktop` with the shape `web/src/lib/desktopBridge.ts` expects, so the web app
+needs no changes. `desktop/src-tauri/permissions/desktop.toml` lists every command the remote page
+may call: Tauri's ACL otherwise refuses application commands from a remote origin. The window only
+serves Nexa's origins, and `on_permission_request` allows the microphone, camera, display capture,
+notifications and clipboard reads; the operating system still asks its own questions.
+The bridge's `settings.set` accepts a partial settings object and returns all four current public
+settings, as the web's desktop settings toggles expect; omitted fields and Rich Presence settings
+are preserved.
 
-`tools/publish_desktop.py` signs staged manifests before exposing any artifacts, then publishes
-`signed-latest.yml`, `signed-latest-linux.yml` and `signed-latest-mac.yml` with `.sig` sidecars.
-Legacy `latest*.yml` feeds are preserved for the manual migration; their named artifacts survive
-pruning. Sidecars and manifests use no-cache. The first installer establishing this anchor is a
-manual trusted download. Signed-feed readers have no unsigned fallback. Mac archive reads also enforce the signed byte
-count while streaming, with idle/total deadlines and partial-file cleanup.
+The shell keeps the tray (Open, Mute, Deafen, Check for Updates, Quit), close to tray, start
+minimized and launch at login (the autostart plugin), and system-wide keys through
+`tauri-plugin-global-shortcut` (`src-tauri/src/shortcuts.rs`; the accelerators are the same strings
+the web app always sent). `src-tauri/src/rpc/` is the Rich Presence server: Discord's IPC endpoint
+(named pipe on Windows, Unix socket elsewhere) and a local WebSocket server, passing programs
+through to the real Discord when it runs, and handing activities to the page, which sends them to
+chatd. `src-tauri/src/originals.rs` is Open Original: decrypted pictures and videos go to the default
+browser through a loopback listener that accepts only exact random-token paths and Host headers,
+serves inert media types with no-store and a sandbox CSP, and expires each original after ten
+minutes. Files stay in memory (at most eight, 256 MiB, dropping the oldest); nothing is written to
+disk or uploaded.
 
+Screen sharing uses the webview's own picker. Electron's custom picker fed a chosen window into
+`getDisplayMedia` and could share one window's sound; no system webview exposes that hook (WebView2's
+screen-capture event can only cancel, not choose), so Nexa's picker is not drawn and the system
+picker answers instead. On macOS the `displayCapture` permission alone is not enough for WKWebView:
+`window.rs` sets the private `_setScreenCaptureEnabled:` preference on
+`WKWebView.configuration.preferences`, which turns on the
+ScreenCaptureKit picker WebKit already ships, and `capture.rs` checks and opens Screen Recording in
+System Settings. This requires an updated WebKit; Safari 17.6 fixed display capture when the
+embedder supplies only the public camera/microphone delegate, as Wry does. Windows enables Share
+Audio through WebView2's picker and reports `shareAudioMode: own` only when the engine supports
+`restrictOwnAudio`; otherwise the dialog warns that system sound includes the call. The web asks
+for `windowAudio: window` when sound is on and `exclude` when off, rather than requesting every
+program's sound for a selected window. That hint depends on the installed engine and Windows
+version, so the bridge still reports `windowAudio: false` until native testing verifies it.
+The Mac and Linux bridges report `shareAudio: false`. WKWebView's display
+capture path returns no audio track; native ScreenCaptureKit supports audio, but this shell does
+not bridge it into the call. WebKitGTK has no display audio. Native window audio and the custom
+picker remain feature gaps. The page's
+`DisplayPicker` never receives sources. `desktop/README.md` links the WebKit implementation.
 
-Electron (version in `desktop/package.json`, bumped for every release). `src/main/index.ts` opens one
-window on the live site (`config.ts`: https://nexa.fish, or `EVILION_URL` in an unpackaged app
-while developing; `npm start` builds and runs it), with a tray, system-wide keybinds (`shortcuts.ts`), the screen picker
-(`displayPicker.ts`, `src/picker/`), window sound sharing (`appAudio.ts`; a window of a voice changer or mixer that plays the person's own voice back, Voicemod, Voicemeeter, Clownfish, MorphVOX, Voice.ai, NVIDIA Broadcast, SteelSeries Sonar and the like, matched by `selfMonitoringApp`, is shared with no sound at all, from 1.2.7), permissions limited to
-Nexa's origin, takeover from an older Mac copy (`succession.ts`) and updates from Nexa's own server
-(`update/`, with a Mac updater of its own since the app is signed ad hoc). `src/main/rpc/` is a Rich
-Presence server speaking Discord's IPC and local WebSocket protocols, passing programs through to the
-real Discord when it runs, and handing activities to the page, which sends them to chatd.
-`src/preload/index.ts` puts `window.evilionDesktop` on Nexa's pages; `src/shared/bridge.ts` and
-`web/src/lib/desktopBridge.ts` describe it and must stay in step, compatible with the apps people
-already have installed (anything new is optional and checked before use). `build.mjs` bundles with
-esbuild, `electron-builder.yml` packs (`sign-mac.cjs` signs Mac builds ad hoc), and
-`tools/mac_package.py` and `tools/publish_desktop.py` finish a release.
+A call keeps its timers. Windows builds pass `--disable-background-timer-throttling`,
+`--disable-backgrounding-occluded-windows` and `--disable-renderer-backgrounding` to WebView2; the
+page's own idle work (audio rests, no video pulled off screen) still stops. macOS uses Tauri's
+`backgroundThrottling` policy, WKWebView's inactive scheduling switch for macOS 14 and newer, and an
+`NSProcessInfo` activity that stops App Nap for the call. Linux WebKitGTK has neither switch, so the
+page holds a Web Lock (`web/src/lib/backgroundLock.ts`) for the length of a call and, on X11, a call
+that starts or continues while the window is hidden keeps it mapped off screen with no taskbar
+button. On Wayland an application cannot move its own window, so it is left where it is and the Web
+Lock is the only measure. The window goes back to being hidden when the call ends. Background
+throttling cannot be toggled at runtime in WebView2, which is why the three flags are always on.
+An X11 window parked off screen still reports hidden and unfocused to the page, so notification
+and video-visibility decisions follow what the person sees. Opening it from the tray or bridge
+restores its original position and taskbar entry before focusing it.
 
-From 1.2.10, Open Original hands decrypted images and videos to the default web browser through
-`originals.ts`, using an optional `openOriginal` bridge call. Its temporary HTTP listener binds
-only to 127.0.0.1, accepts only exact random-token paths and Host headers, serves inert media types
-with no-store and a sandbox CSP, and expires each original after ten minutes. Files stay in memory
-(up to eight originals and 256 MiB total, dropping the oldest when full); nothing is uploaded or
-written to disk. Quit closes the listener and drops the files. It creates no extra Electron window.
-Web originals keep their normal browser tab; Android shares a read-only FileProvider URI with an image viewer.
+Updates use Tauri's updater plugin (`src-tauri/src/updater.rs`) and the project's GitHub releases.
+Every artifact is verified against the Ed25519 (minisign) public key in `plugins.updater.pubkey`
+before it installs; there is no unsigned fallback. The private key is never committed: it is
+`TAURI_SIGNING_PRIVATE_KEY` and its password `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` in the repository
+secrets, and the matching public key is regenerated only with `npx @tauri-apps/cli signer generate`.
+The app checks 10 s after start and then every minute, downloads a found update by itself, and
+installs only when the page's Update dialog asks (`updates.restart`), so nothing installs on quit.
+Linux deb installs cannot self-update; they get the release page (`manual`). The endpoint is the
+current repository's `releases/latest/download/latest.json`, baked at build time from
+`NEXA_UPDATER_ENDPOINT` so a fork updates from its own releases; the checked-in endpoint is the
+public project's. `src-tauri/tauri.nosign.conf.json` turns updater artifacts off for local and pull
+request builds.
 
-Releases are built on the Linux server, never handed over from another machine: the owner wants
-every app that changed built and published by `make build` (2026-10-20). Its `desktop-release` step
-runs `tools/desktop_release.py --if-changed`, which builds a release only when
-`desktop/package.json` names a version newer than the one published in `DESKTOP_DIR` (`data/desktop`
-unless the environment says otherwise), so a change to the app bumps that version in the same
-commit. It cleans `desktop/dist`, builds Windows and Linux with electron-builder, the Mac apps with
-its dir target for x64 and arm64 (signed ad hoc by `sign-mac.cjs` with `rcodesign`), packs them with
-`tools/mac_package.py` (`mkfs.hfsplus`, sudo, libdmg-hfsplus's `dmg`) and publishes with
-`tools/publish_desktop.py`. `python3 tools/desktop_release.py` builds and publishes the current
-version regardless (`--republish` to replace one already out). `make desktop` is the Mac's own build
-into `desktop/dist`, which publishes nothing.
+Releases are built by `.github/workflows/desktop.yml`, never on the server: a `desktop-v*` tag builds
+Windows (NSIS), Linux (AppImage and deb) and macOS for x64 and arm64, signs the updater artifacts,
+attaches `latest.json` and creates a draft release. Pushes to `tauri-desktop-tests`, pull requests
+and manual runs build without signing or creating a release. Native smoke
+jobs run on Linux, Windows and both Macs before installer builds. `desktop/tests/smoke/run.py` runs
+the debug binary against a loopback page and checks the bridge, partial settings updates, media
+API availability and the Windows shared-audio capability report. Linux and macOS use disposable
+home/config directories; Windows requires a fresh
+test account and refuses an existing Nexa profile. On Linux it uses Xvfb and sends a real close
+request during call mode, then checks
+logical visibility and restored position, including a call started while hidden. `run.sh` delegates
+to it. These tests do not prove screen capture, window audio or real-call performance. `make
+desktop` builds a local bundle without signing; `make desktop-release` only points at the workflow.
+The old Electron builds (1.2.x) cannot install the Tauri app themselves: existing users download it
+once, and the old `latest*.yml` files and installers in `DESKTOP_DIR` are left as they are. New app
+data lives in Tauri's app config directory (`xyz.evilion.chat`), not the Electron profile.
 
-Out of sight the app costs next to nothing (measured with `tools/desktop_idle.py`). From 1.2.5 the
-window is made with background throttling on, as a browser tab is: minimised, in the tray or
-covered, the page stops drawing and its timers slow down (the gateway's heartbeat runs from a worker,
-so messages and notifications keep coming). A window made with it off is never hidden, whatever is set
-later, so it is on from the start. A call keeps the page at full speed (`applyThrottling` in
-`index.ts`, from the page's `setCallActive`), since its voice gate and share sizing run on timers;
-throttling turned back on while the window is out of sight would leave the page awake, so it waits
-for the window to be shown again, and a navigation resets the call (the new page says again). A
-launch into the tray (`--hidden` with Start Minimized) shows the window for a moment, transparent and
-without focus, until the page has been hidden once (`putToSleep` in `window.ts`; not on Linux, which
-cannot make a window transparent), since a page whose window was never shown counts as seen. The web
-does its part where the desktop app runs it: idle audio rests (`restsWhenIdle` in
-`lib/audioKeeper.ts`, an AudioContext left running kept the audio service waking about 200 times a
-second), a call's video is not pulled while the window is minimised or in the tray
-(`voice/videoShown.ts` reads the window state), the voice gate does not open just because the page
-is hidden (`gateOpen` in `voice/engine.ts`), and only a call listens for `devicechange`
-(`voice/session.ts`), which would start the browser's audio and camera services (near 90 MB).
-Apps before 1.2.5 keep every page at full speed.
-
-Updates (`src/main/update/`, tested in `test/updater.test.ts`) are looked for 10 s after start and
-then every minute; Windows and the AppImage download through electron-updater, the Mac through
-`mac.ts`, and the page offers the result (web `components/shell/UpdateDialog.tsx`). From 1.2.6
-nothing installs when the app quits (`autoInstallOnAppQuit` off): on Windows the silent installer
-it ran after a quit or at shutdown closed a copy opened again meanwhile, so the app seemed to
-restart by itself. An update installs only from Update, once however often it is pressed, and a
-downloaded one stays cached for the next start. While one waits to be installed the minute's check
-reads the manifest and downloads a newer release in its place; a check or download that shows no
-progress for three minutes is given up (the download cancelled) and tried again with the usual
-backoff, where it used to leave the updater busy for good. A page holding unsaved edits
-(`beforeunload`) no longer cancels a quit (`will-prevent-unload` in `index.ts`).
-
-Development overrides pass through `config.testHook`, which ignores them in packaged apps,
-including profile paths, capture device overrides, simulated move decisions and update-test switches.
-`EVILION_DEBUG` remains an intentional logging switch. Desktop publishing checks every platform
-manifest's version and copies installers/blockmaps into temporary files before an atomic rename.
-`python3 -m unittest discover -s tools -p test_publish_desktop.py` checks interrupted copies and stale feeds.
-
-A desktop app older than `REQUIRED_DESKTOP` (`web/src/lib/requiredDesktop.ts`, now 1.2.8) shows
-`components/shell/RequiredUpdate.tsx` once a release at least that new is published. Copies below
-`MANUAL_SIGNATURE_VERSION` (1.2.8) must download and install it manually, with no Later, automatic
-restart or Check for Updates shortcut through the old unsigned updater. The manual gate applies
-even during a call and ignores a staged old-updater result. App data stays in the existing profile.
-Newer clients use signed updates normally. A future automatic required update waits for a call
-to end. The gate loads only inside the desktop app and only affects clients loading the current
-web build; already loaded/offline old code cannot be remotely made to enforce a new trust anchor.
+`REQUIRED_DESKTOP` (`web/src/lib/requiredDesktop.ts`, 1.2.8) and `components/shell/RequiredUpdate.tsx`
+still gate old Electron copies. The Tauri app reports version 2.0.0, so the gate does not apply to it.
 
 ## Android app (`android/`)
 
@@ -1733,14 +1732,14 @@ notes. CMake also fetches pinned Xiph RNNoise source and weights matching rnnois
 - Testing: `check.sh`, `e2e.py`, `screenshot.py`, `text_layout_audit.py`, `seed.py`, `webhook_e2e.py`, `bot_e2e.py` with
   `bots/`, `apps_ui.py`, `discord_e2e.py`,
   `sfu_call.py`, `sfu_guest.py`, `call_quality.py` and `share_quality.py` with `netsim/`, `ios_sim.py`
-  with `ios/`, `app_size.py`, `desktop_idle.py` with `desktop_idle/`.
+  with `ios/`, `app_size.py`.
 - Fonts: `android/tools/name_fonts.py` (the name style fonts for Android, from the web's Fontsource files).
 - `requirements.txt` requires Brotli 1.2.1 or newer for the WOFF font tooling's decoder.
   `advert-video` overrides Remotion's pinned Zod with 4.6.7 for its collection-validation fix.
 - i18n: `i18n_check.py`, `i18n_keys_used.py`, `i18n_apply.py` (write or merge a language's
   values), `i18n_extract.py` (pull hardcoded English into keys); `android/tools/add_strings.py`.
-- Releases: `android_release.py`, `desktop_release.py`, `mac_package.py`, `publish_desktop.py`,
-  `licenses.py`.
+- Releases: `android_release.py`; the desktop app is built by
+  `.github/workflows/desktop.yml` on a `desktop-v*` tag, and `licenses.py` reads its crates.
 - Assets: `twemoji_font.py`, `twemoji_font_check.py`, `twemoji_sprites.py`, `trace_wordmark.py`,
   `home_shots.py` and `home_gifs.py` (the front page's pictures and loops), `trailer.py` (raw footage
   of the app, with a macOS pointer at its real size that moves as a hand does) and `advert.py`, which
@@ -1766,10 +1765,10 @@ notes. CMake also fetches pinned Xiph RNNoise source and weights matching rnnois
   once, with no restart.
 - A server change: `make server` (it keeps the binary it replaces as `bin/chatd.prev`), then
   `sudo systemctl restart xyz.evilion.chat` (the unit runs `run.sh`). `make build` builds both,
-  then the Android app and the desktop app when they changed (see Android, Releases, and Desktop
-  app). Say so when the deploy runs a
+  then the Android app when it changed (see Android, Releases). Desktop installers are built
+  separately by GitHub Actions on a `desktop-v*` tag. Say so when the deploy runs a
   database migration.
 - Back up first (`bash backup.sh`, which keeps only the newest set) only when the request asks for it.
 - To roll back: `cp bin/chatd.prev bin/chatd` and restart (not across a migration, see Database).
-- Android and the desktop app go out with `make build` when they changed; nothing is built on
-  another machine and copied over.
+- Android goes out with `make build` when it changed. Desktop releases are built by GitHub Actions
+  and published from their draft release, separately from a server deploy.

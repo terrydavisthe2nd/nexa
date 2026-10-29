@@ -9,13 +9,14 @@ import (
 	"strings"
 )
 
-// The desktop app's installers and update manifests are published into
-// DesktopDir by tools/publish_desktop.py and served from here: the download
-// page and banner read manifest.json, and the app's updater reads latest*.yml
-// and fetches installers with range requests.
+// A self-hosted deployment can put desktop installers and their manifest.json
+// into DesktopDir, and the download page and banner read that. Tauri builds are
+// published on GitHub; the app's updater reads the signed latest.json there.
+// Old Electron files in an existing directory are left for the copies already
+// installed, and Electron's latest*.yml feeds are still served.
 
-// desktopFileName allows the flat file names electron-builder and the publish
-// script produce, and nothing that could leave the folder or hide in it.
+// desktopFileName allows the flat file names installers use, and nothing that
+// could leave the folder or hide in it.
 var desktopFileName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._+-]{0,200}$`)
 
 // desktopRelease is manifest.json as the download page gets it.

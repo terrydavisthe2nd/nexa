@@ -83,3 +83,29 @@ describe("the call's audio context", () => {
     expect(ac.state).toBe("running");
   });
 });
+
+describe("screen sharing", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("requests only the chosen window's sound, and excludes every audio source when sound is off", async () => {
+    const captured = { getVideoTracks: () => [] };
+    const getDisplayMedia = vi.fn(async (_options: DisplayMediaStreamOptions) => captured);
+    vi.stubGlobal("navigator", { mediaDevices: { getDisplayMedia } });
+    const m = await import("./media");
+    const plan = { res: "720p", fps: 30, bitrate: 3_000_000, smooth: false } as const;
+
+    expect(await m.getScreen(plan, true)).toBe(captured);
+    expect(getDisplayMedia.mock.calls[0]?.[0]).toMatchObject({
+      audio: { channelCount: 2, restrictOwnAudio: true },
+      systemAudio: "include",
+      windowAudio: "window",
+    });
+
+    await m.getScreen(plan, false);
+    expect(getDisplayMedia.mock.calls[1]?.[0]).toMatchObject({
+      audio: false,
+      systemAudio: "exclude",
+      windowAudio: "exclude",
+    });
+  });
+});

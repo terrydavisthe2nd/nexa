@@ -146,33 +146,51 @@ in with their password alone and can set it up again.
 
 ## Desktop app
 
-The desktop app (`desktop/`, Electron) is a window on the live site plus a
-Discord-compatible Rich Presence server and an updater. Its installers are built
-on a Mac and served by chatd from `DESKTOP_DIR` (default `data/desktop`) at
-`/desktop/`; the download page (`/download`) and the banner read
-`/api/v1/desktop/latest`.
+The desktop app (`desktop/`, Tauri 2) is a window on the live site plus a
+Discord-compatible Rich Presence server, a tray, global keys and an updater. It
+uses the operating system's webview, so the Windows, macOS and .deb installs are
+a few megabytes instead of an Electron bundle. The AppImage carries its own
+WebKitGTK and is larger, but still smaller than Electron.
+
+Builds are made by GitHub Actions (`.github/workflows/desktop.yml`) on Windows,
+Linux and macOS, not on the server:
 
 ```
-# on the Mac: bump "version" in desktop/package.json first, then
-make desktop            # desktop/dist: Windows .exe, macOS .dmg/.zip (Intel and Apple Silicon), Linux .AppImage/.deb
-# copy desktop/dist into the server's checkout (rsync -a desktop/dist/ server:chat/desktop/dist/), then there
-make publish-desktop    # copies them and the update manifests into data/desktop; no restart needed
+git tag desktop-v2.0.1 && git push origin desktop-v2.0.1
 ```
 
-Running apps find the new version within a minute and show "A new version is here" across the top (or at once from Settings →
-Desktop App → Check for updates). Windows and the AppImage install it on restart;
-the Mac build swaps itself in on restart (it is not signed, so macOS's own
-updater cannot); a .deb only says a new version is out. Builds are unsigned:
+The tag builds NSIS (x64), AppImage and .deb (x64), and separate Intel and Apple
+Silicon DMGs. They are attached to a **draft** release named for the tag, with
+the signed `latest.json` updater manifest. Publish the draft when it looks right;
+`/releases/latest` and the app's updater only see published releases. The
+`desktop-v*` tag must match the version in `desktop/src-tauri/Cargo.toml` and
+`tauri.conf.json`; bump all three in the same commit.
+
+Two repository secrets are required before a release build can be signed:
+
+- `TAURI_SIGNING_PRIVATE_KEY`: the contents of the updater private key (its
+  public half is pinned in `desktop/src-tauri/tauri.conf.json`; losing the
+  private key means every installed copy must be replaced by hand).
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: that key's password.
+
+A pull request or a push to `main` that touches `desktop/` runs the same builds
+unsigned (`tauri.nosign.conf.json`) and keeps the installers as workflow
+artifacts, so Windows and macOS are tested without publishing anything. The
+Linux job also runs the Rust tests and the smoke test under Xvfb.
+
+Running apps find a new version within a minute and show "A new version is here"
+across the top (or at once from Settings → Desktop App → Check for updates).
+Windows and the AppImage install it on restart; the Mac build swaps itself in on
+restart; a .deb only says a new version is out. Builds are not code-signed:
 Windows shows "Windows protected your PC" (More info → Run anyway), and macOS
 wants System Settings → Privacy & Security → Open Anyway the first time; the
 download page says so.
 
-The Mac app reads `latest-mac-2.yml` from 1.1.0 on. Copies before that read
-`latest-mac.yml`, which stays at their last release (1.0.5) because they cannot
-update themselves to 1.1.0; the publish script leaves it and the files it names
-alone. The page inside those copies offers the new version's disk image
-(`web/src/lib/macReplacement.ts`); opened from there, the new app closes the old
-one and moves into Applications in its place (`desktop/src/main/succession.ts`).
+The download page reads `/api/v1/desktop/latest` when a self-hosted deployment
+publishes 2.x installers into `DESKTOP_DIR` (default `data/desktop`). Otherwise
+it links the GitHub release page. Electron releases (1.x) in an old
+`DESKTOP_DIR` are not shown, and old Electron copies are not offered an updater;
+their Required Update screen sends people to the GitHub downloads.
 
 ## Moving to Postgres
 

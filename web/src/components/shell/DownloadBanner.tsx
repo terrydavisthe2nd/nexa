@@ -1,7 +1,7 @@
 import { Download, Monitor, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { desktop, type DesktopFile } from "@/api/desktop";
+import { desktop, isCurrentRelease, type DesktopFile } from "@/api/desktop";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { desktopBridge } from "@/lib/desktopBridge";
 import { currentPlatform, isAndroidBrowser, pickDownload } from "@/lib/platform";
@@ -38,7 +38,7 @@ function DesktopBanner() {
     let alive = true;
     void Promise.all([desktop.latest(), currentPlatform()])
       .then(([rel, target]) => {
-        const file = rel ? pickDownload(rel, target) : null;
+        const file = rel && isCurrentRelease(rel) ? pickDownload(rel, target) : null;
         if (alive && file) setPick({ file, sure: target.os !== "mac" || target.arch !== null });
       })
       .catch(() => {

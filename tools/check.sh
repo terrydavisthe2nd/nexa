@@ -34,9 +34,13 @@ run "web build"     bash -c 'cd web && npx vite build --outDir "${TMPDIR:-/tmp}/
 # the front page says how much the app is to download; this keeps that true
 run "app size"      python3 tools/app_size.py "${TMPDIR:-/tmp}/dist-check"
 
-run "desktop typecheck" bash -c 'cd desktop && npx tsc --noEmit -p .'
-run "desktop tests"     bash -c 'cd desktop && npx vitest run --reporter dot'
-run "desktop bundle"    bash -c 'cd desktop && node build.mjs >/dev/null'
+if command -v cargo >/dev/null 2>&1 && [ -d desktop/src-tauri ]; then
+  run "desktop format" bash -c 'cd desktop/src-tauri && cargo fmt --check'
+  run "desktop check"  bash -c 'cd desktop/src-tauri && cargo check'
+  run "desktop tests"  bash -c 'cd desktop/src-tauri && cargo test --quiet'
+else
+  printf '\n\033[1m── desktop check\033[0m\n   skipped (no Rust toolchain)\n'
+fi
 
 # Every visible string has to exist in the catalogues, in all eleven languages.
 run "i18n keys" bash -c 'python3 tools/i18n_keys_used.py | tee /dev/stderr | grep -q "0 missing"'

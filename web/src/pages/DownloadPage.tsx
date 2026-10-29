@@ -1,13 +1,14 @@
-import { Download, Laptop, Monitor, Smartphone, Terminal } from "lucide-react";
+import { Download, ExternalLink, Laptop, Monitor, Smartphone, Terminal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { android, type AndroidFile, type AndroidRelease } from "@/api/android";
-import { desktop, type DesktopFile, type DesktopRelease } from "@/api/desktop";
+import { desktop, isCurrentRelease, type DesktopFile, type DesktopRelease } from "@/api/desktop";
 import { Button } from "@/components/common/Button";
 import b from "@/components/common/Button.module.css";
 import { Spinner } from "@/components/common/Spinner";
 import { currentAndroidAbi, currentPlatform, isAndroidBrowser, noDesktopBuild, pickAndroid, pickDownload, type AndroidAbi, type DesktopTarget } from "@/lib/platform";
 import { formatBytes, formatDateDivider } from "@/lib/time";
+import { GITHUB_URL } from "@/lib/legal";
 import { copyText } from "@/lib/copyText";
 import { useUI } from "@/stores/ui";
 import { usePageTitle } from "./AuthLayout";
@@ -89,7 +90,7 @@ export default function DownloadPage() {
 
   const loadDesktop = () => {
     setFailed(false);
-    desktop.latest().then(setRel, () => setFailed(true));
+    desktop.latest().then((r) => setRel(r && isCurrentRelease(r) ? r : null), () => setFailed(true));
   };
   const loadAndroid = () => {
     setApkFailed(false);
@@ -205,9 +206,17 @@ export default function DownloadPage() {
               <div className={s.empty} role="alert">
                 {t("download.theDownloadsCouldNotBeLoaded")}
                 <div style={{ marginTop: 8 }}><Button size="sm" variant="secondary" className={s.touchButton} onClick={loadDesktop}>{t("chat.messageList.tryAgain")}</Button></div>
+                <div style={{ marginTop: 8 }}><a href={`${GITHUB_URL}/releases/latest`} target="_blank" rel="noreferrer">{t("project.viewGithub")}</a></div>
               </div>
             ) : !rel ? (
-              <div className={s.empty}>{t("download.theDesktopAppHasNotBeen")}</div>
+              <div className={s.empty}>
+                {t("download.theDesktopAppHasNotBeen")}
+                <div style={{ marginTop: 12 }}>
+                  <a className={s.bigButton} href={`${GITHUB_URL}/releases/latest`} target="_blank" rel="noreferrer" data-testid="download-github">
+                    <ExternalLink size={20} /> {t("project.viewGithub")}
+                  </a>
+                </div>
+              </div>
             ) : mine ? (
               <div className={s.primary}>
                 <a className={s.bigButton} href={desktop.fileUrl(mine.name)} data-testid="download-primary">

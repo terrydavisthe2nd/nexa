@@ -135,7 +135,9 @@ export async function getScreen(plan: SharePlan, withAudio = true): Promise<Medi
   // share. Chrome honours it for system audio on Windows, and the desktop app
   // swaps its loopback for one that skips its own playback.
   const audio = withAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, sampleRate: 48000, channelCount: 2, restrictOwnAudio: true, suppressLocalAudioPlayback: false } : false;
-  const opts = { video, audio, systemAudio: withAudio ? "include" : "exclude", surfaceSwitching: "include", selfBrowserSurface: "exclude" } as DisplayMediaStreamOptions & { systemAudio: string; surfaceSwitching: string; selfBrowserSurface: string };
+  // Window audio must stay scoped to that program, never silently broaden to
+  // every program's sound. Engines without this hint ignore it.
+  const opts = { video, audio, systemAudio: withAudio ? "include" : "exclude", windowAudio: withAudio ? "window" : "exclude", surfaceSwitching: "include", selfBrowserSurface: "exclude" } as DisplayMediaStreamOptions & { systemAudio: string; windowAudio: string; surfaceSwitching: string; selfBrowserSurface: string };
   shareAudioAsked = withAudio;
   const stream = await navigator.mediaDevices.getDisplayMedia(opts);
   // How the encoder treats the picture. A share that keeps sharp ("detail",

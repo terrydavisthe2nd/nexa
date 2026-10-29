@@ -1,0 +1,35 @@
+[[permission]]
+identifier = "allow-desktop-commands"
+description = "Everything the Nexa page may ask the desktop shell to do."
+commands.allow = [
+  "get_settings",
+  "set_settings",
+  "set_strings",
+  "set_identity",
+  "get_versions",
+  "open_external",
+  "copy",
+  "paste",
+  "notify_app",
+  "rpc_state",
+  "set_rpc_enabled",
+  "set_rpc_relay",
+  "set_rpc_hidden",
+  "restart_discord",
+  "restart_app",
+  "get_window_state",
+  "set_badge",
+  "request_attention_command",
+  "set_call_active",
+  "focus_window",
+  "set_shortcuts",
+  "check_for_updates",
+  "download_update",
+  "install_update",
+  "get_update_state",
+  "screen_access",
+  "open_screen_settings",
+  "reset_screen_access",
+  "choose_display_source",
+  "open_original"
+]

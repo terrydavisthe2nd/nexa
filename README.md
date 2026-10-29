@@ -88,8 +88,8 @@ in [deploy](deploy/); review their domain and infrastructure assumptions before 
 
 ## Development
 
-Install dependencies with `npm ci` in `web/` and `desktop/`. From the repository root,
-run the checks without publishing a build:
+Install dependencies with `npm ci` in `web/`; the desktop shell is Rust and builds
+with Cargo. From the repository root, run the checks without publishing a build:
 
 ```sh
 tools/check.sh
@@ -100,7 +100,7 @@ For focused checks:
 ```sh
 go test ./...
 (cd web && npm run typecheck && npx vitest run)
-(cd desktop && npm run typecheck && npm test)
+(cd desktop/src-tauri && cargo check && cargo test)
 python3 tools/i18n_check.py
 ```
 
@@ -117,7 +117,7 @@ The [tools guide](tools/README.md) covers browser tests and screenshots.
 | `cmd/` | Server and database migration commands |
 | `internal/` | Go server packages |
 | `web/` | React and TypeScript web app |
-| `desktop/` | Electron desktop app |
+| `desktop/` | Tauri desktop app |
 | `android/` | Native Kotlin and Jetpack Compose app |
 | `docs/` | Design, privacy and integration documentation |
 | `tools/` | Testing, asset and release tools |

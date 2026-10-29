@@ -12,6 +12,7 @@ import { GUEST_FLAG, type PublicUser, type VoiceState } from "@/api/types";
 import { dispatchHooks } from "@/gateway/dispatch";
 import type { GatewayEvent } from "@/gateway/events";
 import { gateway } from "@/gateway/session";
+import { holdCallLock, releaseCallLock } from "@/lib/backgroundLock";
 import { doNotDisturb } from "@/lib/dnd";
 import { mutedSentence } from "@/lib/moderation";
 import { playSound, startCalling, startRinging, stopCalling, stopRinging } from "@/lib/sounds";
@@ -282,6 +283,7 @@ export async function joinVoice(channelId: string): Promise<void> {
   stopAloneTimer();
   const announced = await loaded.join(channelId, ice, () => seq === joinSeq, refuse);
   if (!announced || seq !== joinSeq) return;
+  holdCallLock();
   // a channel without Use Voice Activity is push to talk only, whatever the settings say
   const voiceSettings = useSettings.getState().settings.voice;
   if (voiceSettings.mode !== "ptt" && !allowsVoiceActivity(channelId)) {
@@ -296,6 +298,7 @@ export async function joinVoice(channelId: string): Promise<void> {
 /** Leave voice; tells the server unless the connection is already gone. */
 export async function leaveVoice(notify = true): Promise<void> {
   joinSeq++;
+  releaseCallLock();
   const was = engine?.current() ?? null;
   engine?.leave(notify);
   if (was) stopCallingTone();

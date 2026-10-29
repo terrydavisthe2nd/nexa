@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSCameraUsageDescription</key>
+  <string>Nexa uses the camera for video calls you start.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Nexa uses the microphone for voice messages, screen share sound and calls you start.</string>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>Nexa shares a screen or window only when you choose one in a call.</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright © 2026 terrydavisthe2nd / Nexa</string>
+</dict>
+</plist>

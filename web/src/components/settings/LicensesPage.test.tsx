@@ -70,11 +70,11 @@ describe("the licence catalogue", () => {
 
   it("leaves out the tools that never reach anyone", () => {
     const names = new Set(data.packages.map((p) => p.name));
-    for (const tool of ["vite", "vitest", "typescript", "esbuild", "electron-builder", "jsdom", "@types/react", "github.com/alicebob/miniredis/v2"]) {
+    for (const tool of ["vite", "vitest", "typescript", "esbuild", "electron", "electron-builder", "jsdom", "@types/react", "github.com/alicebob/miniredis/v2"]) {
       expect([tool, names.has(tool)]).toEqual([tool, false]);
     }
     // ... while the things that do are all there
-    for (const shipped of ["react", "ws", "golang.org/x/crypto"]) {
+    for (const shipped of ["react", "tauri", "tokio-tungstenite", "golang.org/x/crypto"]) {
       expect([shipped, names.has(shipped)]).toEqual([shipped, true]);
     }
   });

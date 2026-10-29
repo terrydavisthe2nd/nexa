@@ -1,0 +1,127 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Nexa desktop smoke test</title>
+    <style>
+      body { background: #111; color: #eee; font: 16px monospace; padding: 24px; }
+    </style>
+  </head>
+  <body>
+    <h1>Nexa desktop smoke test</h1>
+    <pre id="out">waiting for the bridge…</pre>
+    <script>
+      (async () => {
+        const report = { bridge: false, errors: [], stage: "start" };
+        const out = [];
+        const post = async (stage) => {
+          report.stage = stage;
+          try {
+            await fetch("/report", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(report),
+            });
+          } catch (error) {
+            document.title = "report failed at " + stage;
+          }
+        };
+        try {
+          for (let i = 0; i < 150 && !window.evilionDesktop; i++) {
+            await new Promise((r) => setTimeout(r, 100));
+          }
+          const b = window.evilionDesktop;
+          report.bridge = !!b;
+          await post("bridge");
+          if (b) {
+            report.version = b.version;
+            report.platform = b.platform;
+            report.settings = await b.settings.get();
+            await post("settings-get");
+            await b.settings.set({
+              launchAtLogin: false,
+              startMinimized: false,
+              closeToTray: true,
+              hardwareAcceleration: true,
+            });
+            report.settingsAfter = await b.settings.get();
+            await post("settings-set");
+            report.partialSettings = await b.settings.set({ closeToTray: false });
+            report.settingsAfterPartial = await b.settings.get();
+            await b.settings.set({ closeToTray: true });
+            await post("settings-partial");
+            report.screenAccess = await b.screenAccess();
+            report.media = {
+              secure: window.isSecureContext,
+              mediaDevices: typeof navigator.mediaDevices,
+              getDisplayMedia: typeof navigator.mediaDevices?.getDisplayMedia,
+              getUserMedia: typeof navigator.mediaDevices?.getUserMedia,
+              mediaRecorder: typeof window.MediaRecorder,
+              audioContext: typeof window.AudioContext,
+              worklet: typeof AudioWorkletNode,
+              locks: typeof navigator.locks,
+              userAgent: navigator.userAgent,
+              shareAudio: b.shareAudio,
+              shareAudioMode: b.shareAudioMode,
+              supportedConstraints: navigator.mediaDevices?.getSupportedConstraints(),
+            };
+            await post("screen-access");
+            report.window = await b.getWindowState();
+            await post("window-state");
+            report.update = await b.updates.getState();
+            await post("update-state");
+            report.rpc = await b.rpc.getState();
+            await post("rpc-state");
+            report.versions = b.versions;
+            await b.setStrings({
+              open: "Open", mute: "Mute", deafen: "Deafen",
+              checkForUpdates: "Check for Updates", quit: "Quit",
+              view: "View", reload: "Reload", addToDictionary: "Add to Dictionary",
+              copyLink: "Copy Link", openLinkInBrowser: "Open Link in Browser",
+              offlineTitle: "No Connection", offlineBody: "Offline",
+              offlineRetry: "Retry", about: "About Nexa",
+            });
+            await post("strings");
+            report.shortcuts = await b.setShortcuts([
+              { action: "mute", accelerator: "CommandOrControl+Shift+M" },
+            ]);
+            await post("shortcuts");
+            report.badge = await b.setBadge(3);
+            await post("badge");
+            report.callActive = await b.setCallActive(true);
+            await new Promise((r) => setTimeout(r, 300));
+            report.windowInCall = await b.getWindowState();
+            if (new URLSearchParams(location.search).has("window-test")) {
+              const window = __TAURI__.window.getCurrentWindow();
+              report.positionBefore = await window.outerPosition();
+              await post("close-in-call");
+              await new Promise((r) => setTimeout(r, 1500));
+              report.closedInCall = await b.getWindowState();
+              await b.focusWindow();
+              await new Promise((r) => setTimeout(r, 300));
+              report.reopenedInCall = await b.getWindowState();
+              report.positionAfterClose = await window.outerPosition();
+              await b.setCallActive(false);
+              await post("hide-before-call");
+              await new Promise((r) => setTimeout(r, 500));
+              await b.setCallActive(true);
+              await new Promise((r) => setTimeout(r, 300));
+              report.hiddenInCall = await b.getWindowState();
+              await b.focusWindow();
+              await new Promise((r) => setTimeout(r, 300));
+              report.positionAfterHidden = await window.outerPosition();
+            }
+            await b.setCallActive(false);
+            await post("call-mode");
+            out.push("bridge ok", "version " + report.version);
+          }
+        } catch (error) {
+          report.errors.push(String(error && error.stack ? error.stack : error));
+        }
+        document.getElementById("out").textContent =
+          out.join("\n") + "\n" + JSON.stringify(report, null, 2);
+        await post("done");
+      })();
+    </script>
+  </body>
+</html>

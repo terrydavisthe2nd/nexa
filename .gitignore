@@ -58,3 +58,9 @@ __pycache__/
 /downloads/android/manifest.json
 # Private desktop update signing material, including the original legacy path.
 desktop/update-key.pem
+
+/desktop/src-tauri/target/
+/desktop/src-tauri/gen/
+/desktop/tests/smoke/report.json
+/desktop/tests/smoke/*.log
+/desktop/tests/smoke/__pycache__/

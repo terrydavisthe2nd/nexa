@@ -10,8 +10,8 @@ maintain a second private version of the source.
 After the one-time migration to the cleaned history, use `git pull --ff-only` as
 usual. Pulling source does not restart the service. Build and deploy explicitly,
 following [the deployment guide](../deploy/README.md). `make web server` builds
-the web app and server; `make build` also publishes Android and desktop releases
-and requires the corresponding toolchains and private local signing setup.
+the web app and server; `make build` also publishes Android releases, while the
+desktop app is built and released by GitHub Actions from a `desktop-v*` tag.
 
 Keep `chatd.env`, `data/`, `bin/`, `web/dist`, `downloads/android` and local Android
 signing files in place. Never use `git clean -fdx` on a deployment: it removes

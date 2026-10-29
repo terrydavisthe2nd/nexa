@@ -100,9 +100,10 @@ Signing out clears the account's cached keys. Clearing browser data removes the
 local copy, but signing in again can restore it from the server's encrypted
 backup. Neither action revokes keys or content already copied elsewhere.
 
-The Electron desktop app uses the web client. Native Android implements the same
-cryptographic formats, with its own device storage and app-lock implementation;
-the IndexedDB description above applies to the web client.
+The desktop app runs this same web client in a Tauri window, so its keys and
+lock are the web client's. Native Android implements the same cryptographic
+formats, with its own device storage and app-lock implementation; the IndexedDB
+description above applies to the web client.
 
 Implementation: [web keystore](web/src/crypto/keystore.ts),
 [web app lock](web/src/lib/appLock.ts),

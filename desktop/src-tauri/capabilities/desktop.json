@@ -1,0 +1,37 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "The Nexa web app running in the desktop window",
+  "windows": [
+    "main"
+  ],
+  "remote": {
+    "urls": [
+      "https://nexa.fish",
+      "https://nexa.fish/*",
+      "https://nexa.fish/**",
+      "https://www.nexa.fish",
+      "https://www.nexa.fish/*",
+      "https://www.nexa.fish/**",
+      "https://mathtest.lol",
+      "https://mathtest.lol/*",
+      "https://mathtest.lol/**",
+      "https://www.mathtest.lol",
+      "https://www.mathtest.lol/*",
+      "https://www.mathtest.lol/**",
+      "https://chat.evilion.xyz",
+      "https://chat.evilion.xyz/*",
+      "https://chat.evilion.xyz/**",
+      "http://localhost:*",
+      "http://localhost:*/*",
+      "http://localhost:*/**",
+      "http://127.0.0.1:*",
+      "http://127.0.0.1:*/*",
+      "http://127.0.0.1:*/**"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "allow-desktop-commands"
+  ]
+}
