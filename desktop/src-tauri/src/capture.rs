@@ -1,5 +1,18 @@
 use crate::types::ScreenAccess;
 
+pub mod session;
+pub use session::{CaptureConfig, CaptureState, Sinks, SoundSource, Source};
+
+#[cfg(target_os = "windows")]
+#[path = "capture/windows.rs"]
+mod platform;
+#[cfg(target_os = "macos")]
+#[path = "capture/macos.rs"]
+mod platform;
+#[cfg(target_os = "linux")]
+#[path = "capture/linux.rs"]
+mod platform;
+
 #[cfg(target_os = "macos")]
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
@@ -76,9 +89,3 @@ pub fn open_screen_settings() {
 pub fn reset_screen_access() {
     reset_access();
 }
-
-/// The system picker is what captures a screen now. The page's own picker
-/// asks for sources through this event, which is never sent, so the browser's
-/// picker takes over instead.
-#[tauri::command]
-pub fn choose_display_source(_request_id: String, _source_id: String, _with_audio: bool) {}

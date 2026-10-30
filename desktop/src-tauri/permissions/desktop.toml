@@ -30,6 +30,8 @@ commands.allow = [
   "screen_access",
   "open_screen_settings",
   "reset_screen_access",
-  "choose_display_source",
+  "capture_sources",
+  "capture_start",
+  "capture_stop",
   "open_original"
 ]

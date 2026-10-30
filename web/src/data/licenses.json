@@ -1187,6 +1187,22 @@
   },
   {
    "part": "desktop",
+   "name": "apple-cf",
+   "version": "0.11.7",
+   "license": "MIT",
+   "url": "https://github.com/doom-fish/apple-cf-rs",
+   "copyright": "Copyright (c) 2026 Per Johansson"
+  },
+  {
+   "part": "desktop",
+   "name": "apple-metal",
+   "version": "0.10.4",
+   "license": "MIT",
+   "url": "https://github.com/doom-fish/apple-metal-rs",
+   "copyright": "Copyright (c) 2026 Per Johansson"
+  },
+  {
+   "part": "desktop",
    "name": "arboard",
    "version": "3.7.0",
    "license": "MIT",
@@ -1688,6 +1704,20 @@
   },
   {
    "part": "desktop",
+   "name": "cxx",
+   "version": "1.0.205",
+   "license": "MIT",
+   "url": "https://github.com/dtolnay/cxx"
+  },
+  {
+   "part": "desktop",
+   "name": "cxxbridge-macro",
+   "version": "1.0.205",
+   "license": "MIT",
+   "url": "https://github.com/dtolnay/cxx"
+  },
+  {
+   "part": "desktop",
    "name": "darling",
    "version": "0.24.1",
    "license": "MIT",
@@ -1849,6 +1879,14 @@
    "license": "MIT",
    "url": "https://github.com/niklak/dom_query",
    "copyright": "Copyright (c) 2023 Mykola Humanov"
+  },
+  {
+   "part": "desktop",
+   "name": "doom-fish-utils",
+   "version": "0.4.3",
+   "license": "MIT",
+   "url": "https://github.com/doom-fish/doom-fish-utils",
+   "copyright": "Copyright (c) 2026 Per Johansson"
   },
   {
    "part": "desktop",
@@ -2785,6 +2823,13 @@
   },
   {
    "part": "desktop",
+   "name": "lazy_static",
+   "version": "1.5.1",
+   "license": "MIT",
+   "url": "https://github.com/rust-lang-nursery/lazy-static.rs"
+  },
+  {
+   "part": "desktop",
    "name": "libappindicator",
    "version": "0.9.0",
    "license": "MIT",
@@ -2823,11 +2868,41 @@
   },
   {
    "part": "desktop",
+   "name": "libpulse-binding",
+   "version": "2.30.1",
+   "license": "MIT",
+   "url": "https://github.com/jnqnfe/pulse-binding-rust",
+   "copyright": "Copyright (c) 2019 Lyndon Brown"
+  },
+  {
+   "part": "desktop",
+   "name": "libpulse-sys",
+   "version": "1.23.0",
+   "license": "MIT",
+   "url": "https://github.com/jnqnfe/pulse-binding-rust",
+   "copyright": "Copyright (c) 2019 Lyndon Brown"
+  },
+  {
+   "part": "desktop",
    "name": "libredox",
    "version": "0.1.25",
    "license": "MIT",
    "url": "https://gitlab.redox-os.org/redox-os/libredox.git",
    "copyright": "Copyright (c) 2023 4lDO2"
+  },
+  {
+   "part": "desktop",
+   "name": "libwebrtc",
+   "version": "0.3.55",
+   "license": "Apache-2.0",
+   "url": "https://github.com/livekit/rust-sdks"
+  },
+  {
+   "part": "desktop",
+   "name": "link-cplusplus",
+   "version": "1.0.12",
+   "license": "MIT",
+   "url": "https://github.com/dtolnay/link-cplusplus"
   },
   {
    "part": "desktop",
@@ -3013,6 +3088,22 @@
    "license": "MIT",
    "url": "https://github.com/jhpratt/num-conv",
    "copyright": "Copyright (c) Jacob Pratt"
+  },
+  {
+   "part": "desktop",
+   "name": "num-derive",
+   "version": "0.4.2",
+   "license": "MIT",
+   "url": "https://github.com/rust-num/num-derive",
+   "copyright": "Copyright (c) 2014 The Rust Project Developers"
+  },
+  {
+   "part": "desktop",
+   "name": "num-integer",
+   "version": "0.1.47",
+   "license": "MIT",
+   "url": "https://github.com/rust-num/num-integer",
+   "copyright": "Copyright (c) 2014 The Rust Project Developers"
   },
   {
    "part": "desktop",
@@ -3646,6 +3737,13 @@
   },
   {
    "part": "desktop",
+   "name": "rtrb",
+   "version": "0.3.6",
+   "license": "MIT",
+   "url": "https://github.com/mgeier/rtrb"
+  },
+  {
+   "part": "desktop",
    "name": "rustc-hash",
    "version": "2.1.3",
    "license": "MIT",
@@ -3765,6 +3863,14 @@
    "license": "MIT",
    "url": "https://github.com/bluss/scopeguard",
    "copyright": "Copyright (c) 2016-2019 Ulrik Sverdrup \"bluss\" and scopeguard developers"
+  },
+  {
+   "part": "desktop",
+   "name": "screencapturekit",
+   "version": "11.1.1",
+   "license": "MIT",
+   "url": "https://github.com/doom-fish/screencapturekit-rs",
+   "copyright": "Copyright (c) 2023 Per Johansson, Svt Labs"
   },
   {
    "part": "desktop",
@@ -4370,6 +4476,14 @@
   },
   {
    "part": "desktop",
+   "name": "tokio-stream",
+   "version": "0.1.19",
+   "license": "MIT",
+   "url": "https://github.com/tokio-rs/tokio",
+   "copyright": "Copyright (c) Tokio Contributors"
+  },
+  {
+   "part": "desktop",
    "name": "tokio-tungstenite",
    "version": "0.28.0",
    "license": "MIT",
@@ -4658,6 +4772,14 @@
   },
   {
    "part": "desktop",
+   "name": "wasapi",
+   "version": "0.26.0",
+   "license": "MIT",
+   "url": "https://github.com/HEnquist/wasapi-rs",
+   "copyright": "Copyright (c) 2020 Henrik Enquist"
+  },
+  {
+   "part": "desktop",
    "name": "wasi",
    "version": "0.11.1+wasi-snapshot-preview1",
    "license": "MIT",
@@ -4811,6 +4933,13 @@
    "version": "1.0.11",
    "license": "CDLA-Permissive-2.0",
    "url": "https://github.com/rustls/webpki-roots"
+  },
+  {
+   "part": "desktop",
+   "name": "webrtc-sys",
+   "version": "0.3.52",
+   "license": "Apache-2.0",
+   "url": "https://github.com/livekit/rust-sdks"
   },
   {
    "part": "desktop",

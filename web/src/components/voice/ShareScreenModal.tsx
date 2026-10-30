@@ -208,6 +208,8 @@ export function ShareScreenModal({ onClose }: { onClose: () => void }) {
             description={
               !audioSupported
                 ? t("voice.shareScreen.thisComputerCanTShareIts")
+                : bridge?.captureScreen
+                  ? t("desktop.displayPicker.applicationAudioHint")
                 : audioHasCall
                   ? t("voice.shareScreen.everyoneWatchingHearsWhatYourComputer")
                   : windowAudio

@@ -32,14 +32,11 @@ want(access.get("status") in ("granted", "denied", "not-determined", "restricted
      "screen access has an unknown status: %r" % access)
 want(isinstance(access.get("usable"), bool), "screen access has no usability decision")
 media = report.get("media") or {}
-for key in ("getDisplayMedia", "getUserMedia", "mediaRecorder", "audioContext", "worklet"):
+for key in ("captureScreen", "stopScreen", "peerConnection", "getUserMedia", "mediaRecorder", "audioContext", "worklet"):
     want(media.get(key) == "function", "media API %s is missing: %r" % (key, media))
 want(media.get("secure") is True, "the app did not load a secure context")
-if report.get("platform") == "win32":
-    want(media.get("shareAudio") is True, "the Windows bridge disabled shared audio")
-    own_audio = (media.get("supportedConstraints") or {}).get("restrictOwnAudio") is True
-    want(media.get("shareAudioMode") == ("own" if own_audio else "all"),
-         "the Windows bridge misreported whether the call's own sound is excluded")
+want(media.get("shareAudio") is True and media.get("shareAudioMode") == "application",
+     "native sound must require a separately selected application")
 window = report.get("window") or {}
 want(window.get("visible") is True, "the window is not visible")
 rpc = report.get("rpc") or {}

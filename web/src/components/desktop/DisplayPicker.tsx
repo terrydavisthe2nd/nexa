@@ -2,6 +2,7 @@ import { ExternalLink, Monitor, MonitorUp, RotateCcw, RotateCw, ShieldAlert } fr
 import { useId, useState } from "react";
 import { Button } from "@/components/common/Button";
 import { Modal } from "@/components/common/Modal";
+import { Select } from "@/components/common/Select";
 import type { DisplaySourceRequest } from "@/lib/desktopBridge";
 import { desktopBridge } from "@/lib/desktopBridge";
 import { useUI } from "@/stores/ui";
@@ -15,7 +16,7 @@ import { t } from "@/i18n";
  * this one. Whether the share carries sound was already chosen in that
  * dialog, so the picker only asks what to share.
  */
-export function DisplayPicker({ request, onChoose }: { request: DisplaySourceRequest; onChoose: (sourceId: string | null, withAudio: boolean) => void }) {
+export function DisplayPicker({ request, onChoose }: { request: DisplaySourceRequest; onChoose: (sourceId: string | null, withAudio: boolean, soundId?: string | null) => void }) {
   if (request.permission) return <ScreenPermission stale={request.permission.stale} onClose={() => onChoose(null, false)} />;
   return <SourceGrid request={request} onChoose={onChoose} />;
 }
@@ -95,7 +96,7 @@ export function ScreenPermission({ stale, onClose }: { stale: boolean; onClose: 
   );
 }
 
-function SourceGrid({ request, onChoose }: { request: DisplaySourceRequest; onChoose: (sourceId: string | null, withAudio: boolean) => void }) {
+function SourceGrid({ request, onChoose }: { request: DisplaySourceRequest; onChoose: (sourceId: string | null, withAudio: boolean, soundId?: string | null) => void }) {
   const screens = request.sources.filter((x) => x.kind === "screen");
   const windows = request.sources.filter((x) => x.kind === "window");
   const [tab, setTab] = useState<"screen" | "window">(screens.length ? "screen" : "window");
@@ -104,6 +105,8 @@ function SourceGrid({ request, onChoose }: { request: DisplaySourceRequest; onCh
   // still enabled, sent the whole screen for a dialog showing a list of windows.
   const [picks, setPicks] = useState<{ screen: string | null; window: string | null }>(() => ({ screen: screens.length === 1 ? screens[0]!.id : null, window: null }));
   const gridId = useId();
+  const [soundId, setSoundId] = useState("");
+  const choose = (id: string) => onChoose(id, audio && (!request.sounds || !!soundId), soundId || null);
   const onTabKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
     if (!step) return;
@@ -130,7 +133,7 @@ function SourceGrid({ request, onChoose }: { request: DisplaySourceRequest; onCh
     // Enter on a source shares it: a double click was the only one-gesture path to sharing.
     if (e.key === "Enter") {
       e.preventDefault();
-      onChoose(shown[at]!.id, audio);
+      choose(shown[at]!.id);
       return;
     }
     const rtl = getComputedStyle(e.currentTarget).direction === "rtl";
@@ -153,7 +156,7 @@ function SourceGrid({ request, onChoose }: { request: DisplaySourceRequest; onCh
       footer={
         <>
           <Button variant="ghost" onClick={() => onChoose(null, false)}>{t("chat.editMessage.cancel")}</Button>
-          <Button disabled={!picked} onClick={() => picked && onChoose(picked, audio)} data-testid="display-share"><MonitorUp size={16} /> {t("desktop.displayPicker.share")}</Button>
+          <Button disabled={!picked} onClick={() => picked && choose(picked)} data-testid="display-share"><MonitorUp size={16} /> {t("desktop.displayPicker.share")}</Button>
         </>
       }
     >
@@ -179,7 +182,7 @@ function SourceGrid({ request, onChoose }: { request: DisplaySourceRequest; onCh
               // one stop for the group: the pick, or the first source while nothing on this tab is picked
               tabIndex={picked === src.id || (!picked && i === 0) ? 0 : -1}
               onClick={() => pick(src.id)}
-              onDoubleClick={() => onChoose(src.id, audio)}
+              onDoubleClick={() => choose(src.id)}
               onKeyDown={(e) => onSourceKey(e, i)}
               data-testid="display-source"
             >
@@ -191,6 +194,16 @@ function SourceGrid({ request, onChoose }: { request: DisplaySourceRequest; onCh
             </button>
           ))}
         </div>
+        </div>
+      )}
+      {request.sounds && shareAudioRequested() && (
+        <div className={s.soundChoice}>
+          <label htmlFor={`${gridId}-sound`}>{t("desktop.displayPicker.audioApplication")}</label>
+          <Select id={`${gridId}-sound`} value={soundId} onChange={(e) => setSoundId(e.target.value)} aria-describedby={`${gridId}-sound-hint`}>
+            <option value="">{t("desktop.displayPicker.noAudio")}</option>
+            {request.sounds.map((sound) => <option key={sound.id} value={sound.id}>{sound.name}</option>)}
+          </Select>
+          <p id={`${gridId}-sound-hint`}>{t("desktop.displayPicker.applicationAudioHint")}</p>
         </div>
       )}
     </Modal>

@@ -1542,27 +1542,23 @@ serves inert media types with no-store and a sandbox CSP, and expires each origi
 minutes. Files stay in memory (at most eight, 256 MiB, dropping the oldest); nothing is written to
 disk or uploaded.
 
-Screen sharing uses the webview's own picker. Electron's custom picker fed a chosen window into
-`getDisplayMedia` and could share one window's sound; no system webview exposes that hook (WebView2's
-screen-capture event can only cancel, not choose), so Nexa's picker is not drawn and the system
-picker answers instead. On macOS the `displayCapture` permission alone is not enough for WKWebView:
-`window.rs` sets the private `_setScreenCaptureEnabled:` preference on
-`WKWebView.configuration.preferences`, which turns on the
-ScreenCaptureKit picker WebKit already ships, and `capture.rs` checks and opens Screen Recording in
-System Settings. This requires an updated WebKit; Safari 17.6 fixed display capture when the
-embedder supplies only the public camera/microphone delegate, as Wry does. Windows enables Share
-Audio through WebView2's picker and reports `shareAudioMode: own` only when the engine supports
-`restrictOwnAudio`; otherwise the dialog warns that system sound includes the call. The web asks
-for `windowAudio: window` when sound is on and `exclude` when off, rather than requesting every
-program's sound for a selected window. Current WebView2 accepts that hint
-(`restrictOwnAudio` is in `getSupportedConstraints`), but the bridge still reports
-`windowAudio: false`, since the app cannot attach a window's audio itself and no CI run has
-captured a real call's sound to prove the engine applies it on every Windows version.
-The Mac and Linux bridges report `shareAudio: false`. WKWebView's display
-capture path returns no audio track; native ScreenCaptureKit supports audio, but this shell does
-not bridge it into the call. WebKitGTK has no display audio. Native window audio and the custom
-picker remain feature gaps. The page's
-`DisplayPicker` never receives sources. `desktop/README.md` links the WebKit implementation.
+Native screen sharing is under qualification on `desktop-native-capture`, not released. The shell's
+`capture/session.rs` connects native video and stereo PCM sources to the webview through a same-host
+libwebrtc peer, without browser capture, a bundled browser or a LiveKit service. Signaling uses
+Tauri commands, with no network signaling listener or STUN/TURN servers. Host ICE candidates can
+use LAN interfaces; this is not a strict loopback-only transport. The page still publishes and
+encrypts the received tracks through the existing call transports. Explicit stop, hangup and page
+navigation cancel native capture too, not just the page's tracks.
+
+`capture/windows.rs` uses libwebrtc desktop capture and WASAPI include-process-tree sound;
+`capture/macos.rs` uses ScreenCaptureKit filters and streams (the app now requires macOS 13);
+`capture/linux.rs` uses X11 or the Wayland portal for video and a selected PulseAudio playback
+producer monitor for sound, including pipewire-pulse. The reused `DisplayPicker` selects picture
+and sound independently. Sound belongs to an application or playback producer, never one window
+alone; failed selection never falls back to microphone or whole-output capture. Linux ends a
+share when its selected playback producer moves or disappears. Own-process/helper exclusions are
+conservative but still require real receiver-side qualification on packaged apps. See
+`docs/desktop-share-audio-research.md` for the source evidence and remaining release gates.
 
 A call keeps its timers. Windows builds pass `--disable-background-timer-throttling`,
 `--disable-backgrounding-occluded-windows` and `--disable-renderer-backgrounding` to WebView2; the
@@ -1596,12 +1592,11 @@ Windows (NSIS), Linux (AppImage and deb) and macOS for x64 and arm64, signs the 
 attaches `latest.json` and creates a draft release. Pushes to `tauri-desktop-tests` or
 `desktop-native-capture`, pull requests and manual runs build without signing or creating a release.
 The workflow typechecks the web app and runs its media contract tests before installer builds.
-The native-capture contract tests are test-first work in progress; no native capture backend has
-been added. The current proposal and its source-reviewed limitations are in
+Native capture implementation and receiver-side qualification are in progress. The source-reviewed limitations are in
 `docs/desktop-share-audio-research.md`. Native smoke
 jobs run on Linux, Windows and both Macs before installer builds. `desktop/tests/smoke/run.py` runs
 the debug binary against a loopback page and checks the bridge, partial settings updates, media
-API availability and the Windows shared-audio capability report. Real external IPC and WebSocket
+API availability and the native-capture bridge contract. Real external IPC and WebSocket
 clients check READY, identity, activity acknowledgements, bridge activity state/events, clearing,
 disconnect cleanup and disabling/re-enabling the listeners. Those probes disable forwarding and
 do not prove the relay to an installed Discord client. Linux and macOS use disposable

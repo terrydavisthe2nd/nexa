@@ -8,6 +8,7 @@ import type { VoiceSettings } from "@/stores/settings";
 import { DENOISE_RATE } from "./denoise";
 import { type SharePlan, shareVideoConstraints } from "./shareQuality";
 import { VIDEO_CAP } from "./videoCap";
+import { desktopBridge } from "@/lib/desktopBridge";
 
 import { t } from "@/i18n";
 /** Why the microphone that opened is the one that opened. */
@@ -118,13 +119,19 @@ export async function hasSeveralCameras(): Promise<boolean> {
 }
 
 /** Whether this browser can share a screen at all; phone browsers cannot. */
-export const canShareScreen = typeof navigator !== "undefined" && typeof navigator.mediaDevices?.getDisplayMedia === "function";
+export const canShareScreen = !!desktopBridge()?.captureScreen || (typeof navigator !== "undefined" && typeof navigator.mediaDevices?.getDisplayMedia === "function");
 
 let shareAudioAsked = false;
 
 /** Whether the share being picked right now asked for sound; the desktop app's picker follows it. */
 export function shareAudioRequested(): boolean {
   return shareAudioAsked;
+}
+
+/** Track.stop() alone cannot stop an OS recorder owned by the desktop shell. */
+export function stopScreen(stream?: MediaStream): void {
+  desktopBridge()?.stopScreen?.(stream);
+  stream?.getTracks().forEach((track) => track.stop());
 }
 
 export async function getScreen(plan: SharePlan, withAudio = true): Promise<MediaStream> {
@@ -139,7 +146,12 @@ export async function getScreen(plan: SharePlan, withAudio = true): Promise<Medi
   // every program's sound. Engines without this hint ignore it.
   const opts = { video, audio, systemAudio: withAudio ? "include" : "exclude", windowAudio: withAudio ? "window" : "exclude", surfaceSwitching: "include", selfBrowserSurface: "exclude" } as DisplayMediaStreamOptions & { systemAudio: string; windowAudio: string; surfaceSwitching: string; selfBrowserSurface: string };
   shareAudioAsked = withAudio;
-  const stream = await navigator.mediaDevices.getDisplayMedia(opts);
+  const native = desktopBridge();
+  // A denied native share stays denied. Never reopen browser/system capture
+  // with different sound scope behind the person's selection.
+  const stream = native?.captureScreen
+    ? await native.captureScreen({ width: (video.width as ConstrainULongRange).max!, height: (video.height as ConstrainULongRange).max!, fps: plan.fps, audio: withAudio })
+    : await navigator.mediaDevices.getDisplayMedia(opts);
   // How the encoder treats the picture. A share that keeps sharp ("detail",
   // or "text" at 15 fps, for slides) keeps its full size and gives up frames
   // when the link is short. A smooth one is for motion, and gets no hint at

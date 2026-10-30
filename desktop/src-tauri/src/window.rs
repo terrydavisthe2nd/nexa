@@ -52,6 +52,11 @@ pub fn create(app: &AppHandle, settings: &DesktopSettings) -> tauri::Result<Webv
         .min_inner_size(360.0, 400.0)
         .visible(!settings.start_minimized)
         .initialization_script(crate::bridge::SCRIPT)
+        .on_page_load(|webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Started {
+                webview.state::<crate::capture::CaptureState>().stop(None);
+            }
+        })
         .on_permission_request(|_webview, permission| {
             use tauri::webview::{PermissionKind, PermissionResponse};
             match permission {
@@ -231,6 +236,9 @@ pub fn request_attention_command(app: AppHandle, on: bool) {
 
 #[tauri::command]
 pub async fn set_call_active(app: AppHandle, on: bool) {
+    if !on {
+        app.state::<crate::capture::CaptureState>().stop(None);
+    }
     let was = app
         .try_state::<AppState>()
         .map(|state| {

@@ -63,6 +63,9 @@
               userAgent: navigator.userAgent,
               shareAudio: b.shareAudio,
               shareAudioMode: b.shareAudioMode,
+              captureScreen: typeof b.captureScreen,
+              stopScreen: typeof b.stopScreen,
+              peerConnection: typeof RTCPeerConnection,
               supportedConstraints: navigator.mediaDevices?.getSupportedConstraints(),
             };
             await post("screen-access");

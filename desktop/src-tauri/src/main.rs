@@ -39,6 +39,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(shortcuts::plugin())
         .manage(state::AppState::default())
+        .manage(capture::CaptureState::default())
         .setup(|app| {
             let loaded = settings::load(app.handle());
             {
@@ -91,7 +92,9 @@ fn main() {
             capture::screen_access,
             capture::open_screen_settings,
             capture::reset_screen_access,
-            capture::choose_display_source,
+            capture::session::capture_sources,
+            capture::session::capture_start,
+            capture::session::capture_stop,
             originals::open_original,
         ])
         .run(tauri::generate_context!())

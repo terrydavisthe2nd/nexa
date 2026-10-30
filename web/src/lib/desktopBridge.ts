@@ -4,7 +4,7 @@ import { isDemo } from "./demoMode";
  * `window.evilionDesktop`. In a browser there is none, and everything that
  * depends on it stays out of the way.
  *
- * desktop/src/preload/index.ts implements this; keep the two in step.
+ * desktop/src-tauri/bridge.js implements this; keep the two in step.
  */
 
 /** The words the desktop app shows outside the page. desktop/src/shared/bridge.ts holds the other copy. */
@@ -108,6 +108,8 @@ export interface DisplaySource {
 export interface DisplaySourceRequest {
   requestId: string;
   sources: DisplaySource[];
+  /** Native application sound, selected independently from the picture. */
+  sounds?: { id: string; name: string }[];
   /** The system can capture sound along with the picture (Windows). */
   audio: boolean;
   /** Set instead of sources when this computer will not let the app record the screen. */
@@ -122,6 +124,10 @@ export interface WindowState {
 }
 
 export interface EvilionDesktop {
+  /** Native capture handed to the webview over a same-host media peer. */
+  captureScreen?(options: { width: number; height: number; fps: number; audio: boolean }): Promise<MediaStream>;
+  /** Also cancels a pending native picker when no stream is given. */
+  stopScreen?(stream?: MediaStream): void;
   /** Open decrypted media in the default web browser (app 1.2.10 and later). */
   openOriginal?(bytes: Uint8Array, type: string, name: string): Promise<void>;
   version: string;
@@ -170,7 +176,7 @@ export interface EvilionDesktop {
   setCallActive(active: boolean): void;
   onDisplaySources(cb: (req: DisplaySourceRequest) => void): () => void;
   /** Answers a display source request; a null source cancels the share. */
-  chooseDisplaySource(requestId: string, sourceId: string | null, withAudio: boolean): void;
+  chooseDisplaySource(requestId: string, sourceId: string | null, withAudio: boolean, soundId?: string | null): void;
   /** Mute or Deafen chosen from the tray icon. */
   onTrayAction(cb: (action: "mute" | "deafen") => void): () => void;
   /** Brings the window back from the tray or the taskbar and focuses it (app 1.0.1 and later). */

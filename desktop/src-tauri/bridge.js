@@ -56,12 +56,99 @@
     return "linux";
   })();
 
-  // WebView2 can return system audio from its own screen picker. WebKit's
-  // display streams are video-only; an audio-state selector cannot add a track.
-  var shareAudio = platform === "win32";
-  var constraints = navigator.mediaDevices && navigator.mediaDevices.getSupportedConstraints
-    ? navigator.mediaDevices.getSupportedConstraints() : {};
-  var shareAudioMode = shareAudio ? (constraints.restrictOwnAudio ? "own" : "all") : "none";
+  var sourceListeners = new Set();
+  var capture = null;
+
+  function stopCapture(stream, ended) {
+    var active = capture;
+    if (!active || (stream && stream !== active.stream)) return;
+    capture = null;
+    clearTimeout(active.timer);
+    if (active.reject) active.reject(new DOMException("Capture cancelled", "AbortError"));
+    if (active.peer) active.peer.close();
+    if (active.unlisten) active.unlisten();
+    active.stream.getTracks().forEach(function (track) {
+      track.stop();
+      if (ended) track.dispatchEvent(new Event("ended"));
+    });
+    invoke("capture_stop", { id: active.id }).catch(function () {});
+  }
+
+  function waitPeer(peer, event, done) {
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () { finish(new Error("Native media connection timed out")); }, 15000);
+      function finish(error) {
+        clearTimeout(timer);
+        peer.removeEventListener(event, check);
+        if (error) reject(error); else resolve();
+      }
+      function check() {
+        if (peer.connectionState === "failed" || peer.connectionState === "closed") {
+          finish(new Error("Native media connection closed"));
+        } else if (done()) finish();
+      }
+      peer.addEventListener(event, check);
+      check();
+    });
+  }
+
+  async function captureScreen(options) {
+    if (capture) throw new DOMException("Capture already active", "InvalidStateError");
+    var active = { id: crypto.randomUUID(), stream: new MediaStream(), peer: null, timer: null, reject: null, choose: null, unlisten: null };
+    capture = active;
+    try {
+      active.timer = setTimeout(function () { if (capture === active) stopCapture(); }, 180000);
+      var request = await invoke("capture_sources", { id: active.id });
+      if (capture !== active) throw new DOMException("Capture cancelled", "AbortError");
+      var choice = await new Promise(function (resolve, reject) {
+        active.choose = resolve;
+        active.reject = reject;
+        if (!sourceListeners.size) { reject(new Error("Screen picker is not ready")); return; }
+        sourceListeners.forEach(function (callback) { callback(request); });
+      });
+      active.reject = null;
+      active.choose = null;
+      if (!choice.sourceId) throw new DOMException("Capture cancelled", "NotAllowedError");
+      clearTimeout(active.timer);
+      active.timer = setTimeout(function () { if (capture === active) stopCapture(null, true); }, 60000);
+      var withSound = !!options.audio && choice.withAudio;
+      if (withSound && !choice.soundId) throw new DOMException("Select an audio application", "NotReadableError");
+      var pc = new RTCPeerConnection({ iceServers: [] });
+      active.peer = pc;
+      pc.ontrack = function (event) { active.stream.addTrack(event.track); };
+      pc.addTransceiver("video", { direction: "recvonly" });
+      if (withSound) pc.addTransceiver("audio", { direction: "recvonly" });
+      var offer = await pc.createOffer();
+      // Keep the same-host handoff stereo, before Nexa's encrypted call leg.
+      offer.sdp = offer.sdp.replace(/(a=fmtp:\d+ [^\r\n]*useinbandfec=1[^\r\n]*)/g, "$1;stereo=1;sprop-stereo=1;maxaveragebitrate=192000");
+      await pc.setLocalDescription(offer);
+      await waitPeer(pc, "icegatheringstatechange", function () { return pc.iceGatheringState === "complete"; });
+      var answer = await invoke("capture_start", {
+        id: active.id,
+        config: { sourceId: choice.sourceId, soundId: withSound ? choice.soundId : null, width: options.width, height: options.height, fps: options.fps },
+        offer: pc.localDescription.sdp,
+      });
+      if (capture !== active) throw new DOMException("Capture cancelled", "AbortError");
+      await pc.setRemoteDescription({ type: "answer", sdp: answer });
+      await waitPeer(pc, "connectionstatechange", function () { return pc.connectionState === "connected"; });
+      if (!active.stream.getVideoTracks().length || (withSound && !active.stream.getAudioTracks().length)) {
+        throw new Error("Native capture did not provide the requested tracks");
+      }
+      pc.onconnectionstatechange = function () {
+        if (pc.connectionState === "failed" || pc.connectionState === "closed") stopCapture(active.stream, true);
+      };
+      active.unlisten = listen("desktop://capture-ended", function (event) {
+        if (event.id === active.id) stopCapture(active.stream, true);
+      });
+      clearTimeout(active.timer);
+      return active.stream;
+    } catch (error) {
+      if (capture === active) stopCapture();
+      throw error instanceof DOMException ? error : new DOMException(String(error), "NotReadableError");
+    }
+  }
+
+  window.addEventListener("pagehide", function () { stopCapture(); });
 
   function bytesOf(value) {
     if (value instanceof Uint8Array) return value;
@@ -77,13 +164,12 @@
     platform: platform,
     version: "2.0.0",
     versions: { electron: null, chrome: null, node: null },
-    // The page draws its own share picker only when a shell can answer it.
-    // This one lets the system picker answer getDisplayMedia instead.
-    shareAudio: shareAudio,
-    shareAudioMode: shareAudioMode,
-    // Window-only sound depends on the installed WebView2 runtime and Windows
-    // version. Request it, but do not promise it before native capture testing.
-    windowAudio: false,
+    captureScreen: captureScreen,
+    stopScreen: function (stream) { stopCapture(stream); },
+    // Sound is an explicitly selected external application, not an output mix.
+    shareAudio: true,
+    shareAudioMode: "application",
+    windowAudio: true,
 
     setBadge: function (count) {
       return invoke("set_badge", { count: count | 0 });
@@ -130,14 +216,13 @@
     },
 
     onDisplaySources: function (callback) {
-      return listen("desktop://display-sources", callback);
+      sourceListeners.add(callback);
+      return function () { sourceListeners.delete(callback); };
     },
-    chooseDisplaySource: function (requestId, sourceId, withAudio) {
-      return invoke("choose_display_source", {
-        requestId: requestId,
-        sourceId: sourceId,
-        withAudio: !!withAudio,
-      });
+    chooseDisplaySource: function (requestId, sourceId, withAudio, soundId) {
+      if (capture && capture.id === requestId && capture.choose) {
+        capture.choose({ sourceId: sourceId, withAudio: !!withAudio, soundId: soundId });
+      }
     },
     shareAudioFailed: function () {
       return Promise.resolve(false);

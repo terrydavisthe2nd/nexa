@@ -21,7 +21,7 @@ import { participantsOf, useVoice } from "@/stores/voice";
 import { useVoiceLocal } from "@/stores/voiceLocal";
 import { FrameCrypto } from "./e2ee";
 import { hasGuestKeys, openRelayedKeys, sealKeysForGuest } from "./guestKeys";
-import { LevelMeter, audioContext, getCamera, getMic, getScreen, holdAudio, lastInputChoice, sensitivityToThreshold, sentStream, type CameraFacing } from "./media";
+import { LevelMeter, audioContext, getCamera, getMic, getScreen, stopScreen, holdAudio, lastInputChoice, sensitivityToThreshold, sentStream, type CameraFacing } from "./media";
 import { MeshTransport, type SignalPayload } from "./mesh";
 import { asGuest, iceConfig, me, sendState } from "./session";
 import { pushToTalkOn } from "./callPerms";
@@ -494,7 +494,7 @@ export function leave(notify: boolean): void {
   s.mic?.getTracks().forEach((t) => t.stop());
   s.micRaw?.getTracks().forEach((t) => t.stop());
   s.camera?.getTracks().forEach((t) => t.stop());
-  s.screen?.getTracks().forEach((t) => t.stop());
+  stopScreen(s.screen ?? undefined);
   if (notify && s.announced) sendState(null);
   playSound("leave");
 }
@@ -805,7 +805,7 @@ export async function toggleScreen(quality?: { plan: SharePlan; audio?: boolean 
   const s = session;
   if (!s || s.screenPending) return;
   if (s.screen) {
-    s.screen.getTracks().forEach((t) => t.stop());
+    stopScreen(s.screen);
     s.screen = null;
     s.transport.setLocalScreen(null);
     useVoice.getState().setLocalScreen(null);
@@ -836,7 +836,7 @@ export async function toggleScreen(quality?: { plan: SharePlan; audio?: boolean 
     if (!stream) return;
     if (session !== s) {
       // hung up while the picker was open
-      stream.getTracks().forEach((t) => t.stop());
+      stopScreen(stream);
       return;
     }
     s.screen = stream;
@@ -1032,4 +1032,3 @@ export function onReady(): void {
   s.transport.reconnected();
   sendState(s.channelId, true);
 }
-

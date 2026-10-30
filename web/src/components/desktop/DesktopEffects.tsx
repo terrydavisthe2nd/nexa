@@ -196,8 +196,8 @@ export function DesktopEffects() {
   return (
     <DisplayPicker
       request={picker}
-      onChoose={(sourceId, withAudio) => {
-        desktopBridge()?.chooseDisplaySource(picker.requestId, sourceId, withAudio);
+      onChoose={(sourceId, withAudio, soundId) => {
+        desktopBridge()?.chooseDisplaySource(picker.requestId, sourceId, withAudio, soundId);
         setPicker(null);
       }}
     />

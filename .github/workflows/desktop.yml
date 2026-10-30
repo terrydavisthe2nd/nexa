@@ -8,6 +8,7 @@ on:
       - "web/src/voice/**"
       - "web/src/lib/desktopBridge.ts"
       - ".github/workflows/desktop.yml"
+      - ".github/actions/native-media/**"
     tags:
       - "desktop-v*"
   workflow_dispatch:
@@ -17,6 +18,7 @@ on:
       - "web/src/voice/**"
       - "web/src/lib/desktopBridge.ts"
       - ".github/workflows/desktop.yml"
+      - ".github/actions/native-media/**"
 
 permissions:
   contents: read
@@ -50,6 +52,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - uses: ./.github/actions/native-media
 
       - name: Install Linux dependencies
         run: |
@@ -93,6 +97,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - uses: ./.github/actions/native-media
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -176,6 +182,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - uses: ./.github/actions/native-media
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-22.04'

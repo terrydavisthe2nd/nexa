@@ -16,7 +16,8 @@ desktop/
     src/updater.rs    signed updates from GitHub Releases
     src/originals.rs  Open Original from memory over loopback
     src/rpc/          Discord Rich Presence
-    src/capture.rs    the screen-recording permission
+    src/capture.rs    screen-recording permission and native capture entry
+    src/capture/      same-host media peer and OS video/application sound
     permissions/      what the remote page may ask for
     tauri.conf.json   window, bundle and updater settings
   ui/                 a placeholder frontend; the window loads the live site
@@ -38,7 +39,23 @@ desktop/
 - Open Original: decrypted media is served from memory on 127.0.0.1, never
   written to disk.
 
-## What the shell cannot do the way Electron did
+## Native screen sharing (qualification branch)
+
+`desktop-native-capture` implements OS video and selected-application sound,
+handed to the page over a same-host libwebrtc peer. It does not bundle Chromium,
+use a LiveKit service, or fall back to browser screen capture. The page keeps
+Nexa's existing call encryption and publication. ICE uses no STUN/TURN, but host
+candidates can use LAN interfaces, not only loopback.
+
+Windows uses native desktop capture and WASAPI process-tree audio. macOS uses
+ScreenCaptureKit and requires macOS 13. Linux uses native X11/portal video and
+an explicitly selected PulseAudio or pipewire-pulse playback producer. Picture
+and sound are separate choices. Sound is application/producer scoped, not
+per-window; it never falls back to the whole output or microphone. Real-media
+qualification, helper exclusion and installer-size measurements remain release
+gates. This branch is not a released or deployed feature.
+
+## Differences in the previously released shell
 
 - **A window's own sound.** This shell does not yet bridge native application
   audio into the call. WKWebView's `getDisplayMedia` path returns screen/window
