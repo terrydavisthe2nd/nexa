@@ -3,10 +3,11 @@
 rustflags = ["-C", "target-feature=+crt-static"]
 
 # Keep libwebrtc's Objective-C categories from being stripped at link time.
+# The ScreenCaptureKit bridge also needs the OS Swift runtime search path.
 [target.x86_64-apple-darwin]
-rustflags = ["-C", "link-arg=-ObjC"]
-rustdocflags = ["-C", "link-arg=-ObjC"]
+rustflags = ["-C", "link-arg=-ObjC", "-C", "link-arg=-Wl,-rpath,/usr/lib/swift"]
+rustdocflags = ["-C", "link-arg=-ObjC", "-C", "link-arg=-Wl,-rpath,/usr/lib/swift"]
 
 [target.aarch64-apple-darwin]
-rustflags = ["-C", "link-arg=-ObjC"]
-rustdocflags = ["-C", "link-arg=-ObjC"]
+rustflags = ["-C", "link-arg=-ObjC", "-C", "link-arg=-Wl,-rpath,/usr/lib/swift"]
+rustdocflags = ["-C", "link-arg=-ObjC", "-C", "link-arg=-Wl,-rpath,/usr/lib/swift"]
