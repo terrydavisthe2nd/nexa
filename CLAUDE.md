@@ -1550,6 +1550,10 @@ use LAN interfaces; this is not a strict loopback-only transport. The page still
 encrypts the received tracks through the existing call transports. Explicit stop, hangup and page
 navigation cancel native capture too, not just the page's tracks.
 
+The native-media composite Action installs Clang 21 on Linux and selects Xcode 26 on
+macOS. ScreenCaptureKit's pinned Swift/Metal dependency needs SDK 26 declarations even
+when the application's deployment target is macOS 13.
+
 `capture/windows.rs` uses libwebrtc desktop capture and WASAPI include-process-tree sound;
 `capture/macos.rs` uses ScreenCaptureKit filters and streams (the app now requires macOS 13);
 `capture/linux.rs` uses X11 or the Wayland portal for video and a selected PulseAudio playback

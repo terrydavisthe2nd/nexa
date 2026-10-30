@@ -36,7 +36,7 @@ describe("DisplayPicker", () => {
     expect(onChoose).not.toHaveBeenCalled();
     fireEvent.click(screen.getByText("Editor").closest("button")!);
     fireEvent.click(share());
-    expect(onChoose).toHaveBeenCalledWith("window:2", false);
+    expect(onChoose).toHaveBeenCalledWith("window:2", false, null);
   });
 
   it("keeps each tab's pick, and gives the Windows tab a stop for the keyboard", () => {
@@ -60,7 +60,7 @@ describe("DisplayPicker", () => {
     render(<DisplayPicker request={request} onChoose={onChoose} />);
     fireEvent.click(tabs()[1]!);
     fireEvent.keyDown(screen.getAllByRole("radio")[1]!, { key: "Enter" });
-    expect(onChoose).toHaveBeenCalledWith("window:2", false);
+    expect(onChoose).toHaveBeenCalledWith("window:2", false, null);
   });
 });
 

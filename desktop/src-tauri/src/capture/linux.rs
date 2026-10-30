@@ -485,10 +485,8 @@ fn property_pid(properties: &Proplist) -> Option<u32> {
 }
 
 fn input(info: &SinkInputInfo<'_>) -> Option<Input> {
-    // Module-owned/anonymous producers may already be a mix of other clients.
-    if info.owner_module.is_some() {
-        return None;
-    }
+    // Ordinary native-protocol clients also belong to a server module. Require
+    // an attributable client below rather than excluding every module owner.
     if info
         .proplist
         .get_str("media.class")
@@ -579,7 +577,7 @@ impl Pulse {
             .ok_or("PulseAudio context is unavailable")?;
         context
             .connect(None, pulse::context::FlagSet::NOAUTOSPAWN, None)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("{e}"))?;
         let watch = Rc::new(RefCell::new(Watch::default()));
         let mut this = Self {
             context,
@@ -721,10 +719,7 @@ impl Pulse {
             .introspect()
             .get_client_info(input.client, move |item| {
                 if let ListResult::Item(client) = item {
-                    // A module or server-owned producer is not an original app.
-                    if client.owner_module.is_none() {
-                        *output.borrow_mut() = property_pid(&client.proplist);
-                    }
+                    *output.borrow_mut() = property_pid(&client.proplist);
                 }
             });
         self.wait(op)?;
@@ -872,7 +867,7 @@ impl Pulse {
         // alone would capture every app, including Nexa, on that output.
         tap.0
             .set_monitor_stream(current.index)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("{e}"))?;
         let attr = pulse::def::BufferAttr {
             maxlength: MAX_AUDIO_BYTES as u32,
             fragsize: 1920,
@@ -933,7 +928,7 @@ impl Pulse {
                 if stop.load(Ordering::Acquire) {
                     break;
                 }
-                let pcm = match tap.0.peek().map_err(|e| e.to_string())? {
+                let pcm = match tap.0.peek().map_err(|e| format!("{e}"))? {
                     PeekResult::Empty => break,
                     PeekResult::Hole(size) if size <= MAX_AUDIO_BYTES && size % 4 == 0 => {
                         vec![0; size / 2]
@@ -941,7 +936,7 @@ impl Pulse {
                     PeekResult::Data(bytes) if bytes.len() <= MAX_AUDIO_BYTES => decode_pcm(bytes)?,
                     _ => return Err("invalid or oversized producer audio packet".into()),
                 };
-                tap.0.discard().map_err(|e| e.to_string())?;
+                tap.0.discard().map_err(|e| format!("{e}"))?;
                 if enabled.load(Ordering::Acquire) {
                     for packet in pcm.chunks(960) {
                         sinks.audio(packet)?;

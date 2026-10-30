@@ -3,6 +3,18 @@ description: Install native screen and application-audio capture prerequisites
 runs:
   using: composite
   steps:
+    - name: Select the macOS native media SDK
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        set -euo pipefail
+        # The pinned ScreenCaptureKit bridge also compiles availability-guarded
+        # Metal 26 declarations, so it needs SDK 26 even when targeting macOS 13.
+        xcode=$(find /Applications -maxdepth 1 -name 'Xcode_26*.app' | sort -V | tail -1)
+        test -n "$xcode"
+        sudo xcode-select --switch "$xcode/Contents/Developer"
+        xcodebuild -version
+
     - name: Install Linux native media dependencies
       if: runner.os == 'Linux'
       shell: bash

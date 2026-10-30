@@ -385,16 +385,15 @@ impl Audio {
         }
         let mut client = activate(process.pid, stop)?;
         process.alive()?;
-        let format = WaveFormat::new(32, 32, SampleType::Float, 48_000, 2, None);
+        let format = WaveFormat::new(32, 32, &SampleType::Float, 48_000, 2, None);
         client
             .initialize_client(
                 &format,
-                Direction::Capture,
-                StreamMode::EventsShared {
+                &Direction::Capture,
+                &StreamMode::EventsShared {
                     autoconvert: true,
                     buffer_duration_hns: 0,
                 },
-                None,
             )
             .map_err(error)?;
         let event = client.set_get_eventhandle().map_err(error)?;

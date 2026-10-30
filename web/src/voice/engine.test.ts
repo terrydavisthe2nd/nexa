@@ -18,6 +18,7 @@ vi.mock("./media", () => ({
   getMic: vi.fn(),
   getCamera: vi.fn(),
   getScreen: vi.fn(),
+  stopScreen: vi.fn(),
   holdAudio: () => () => {},
   lastInputChoice: () => "default",
   sensitivityToThreshold: () => 0.1,
