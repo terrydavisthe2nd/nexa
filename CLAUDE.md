@@ -1552,7 +1552,11 @@ navigation cancel native capture too, not just the page's tracks.
 
 The native-media composite Action installs Clang 21 on Linux and selects Xcode 26 on
 macOS. ScreenCaptureKit's pinned Swift/Metal dependency needs SDK 26 declarations even
-when the application's deployment target is macOS 13.
+when the application's deployment target is macOS 13. The desktop's `.cargo/config.toml`
+matches libwebrtc's static MSVC runtime and retains its Objective-C categories on both Macs.
+Stock Ubuntu WebKitGTK 2.52.6 has WebRTC compiled out, so the same-host receiver cannot
+run there. Enabling its public preference or installing GStreamer plugins does not restore
+the constructor. The native media smoke remains a failing qualification gate on that runtime.
 
 `capture/windows.rs` uses libwebrtc desktop capture and WASAPI include-process-tree sound;
 `capture/macos.rs` uses ScreenCaptureKit filters and streams (the app now requires macOS 13);

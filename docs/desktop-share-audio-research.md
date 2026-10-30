@@ -1,7 +1,7 @@
 # Desktop screen sharing with sound
 
-Research date: 2026-10-29. Status: proposed engineering direction, not an
-implemented feature or a report of successful native capture tests.
+Research dates: 2026-10-29 and 2026-10-30. Status: native implementation under
+qualification, with a verified Linux runtime blocker. Not a working release.
 
 ## Conclusion
 
@@ -27,11 +27,32 @@ explicit sound selection rather than guessed window-title matching. Preserve
 the existing Discord-compatible IPC/WebSocket server and relay; an outbound
 Discord RPC client crate does not implement its role.
 
-This is feasible at the API level, not yet proven as a complete Nexa feature.
+This is not yet proven as a complete Nexa feature. The same-host receiver
+design cannot run on the stock Ubuntu WebKitGTK package described below.
 The first milestone must be a real native sender and a separate receiver, not
 another capability flag. Windows, macOS and Linux need separate backends and
 separate evidence. Older OS versions, protected audio, audio-server policies
 and sandbox restrictions prevent an honest promise of every machine or app.
+
+## Verified Linux receiver blocker
+
+Ubuntu's installed `webkit2gtk 2.52.6-0ubuntu0.24.04.1` was compiled with
+`ENABLE_WEB_RTC` disabled. The official amd64 build log explicitly reports
+`Disabling USE_GSTREAMER_WEBRTC since ENABLE_WEB_RTC is disabled` for both
+GTK3 and GTK4. [Exact package build log](https://launchpad.net/~ubuntu-security-proposed/+archive/ubuntu/ppa/+build/33529899/+files/buildlog_ubuntu-noble-amd64.webkit2gtk_2.52.6-0ubuntu0.24.04.1_BUILDING.txt.gz).
+
+A minimal GTK probe reproduced `typeof RTCPeerConnection === "undefined"`
+even with `set_enable_webrtc(true)` applied before constructing the view.
+Installing GStreamer bad/nice/libav plugins did not change that. The native
+capture smoke fails at the same receiver boundary, before it can measure video
+or audio. This is not evidence against the OS capture APIs themselves.
+
+The public setting only changes a preference. The constructor is also guarded
+by the compiled `WEB_RTC` feature. [WebKit 2.52.6 constructor gates](https://github.com/WebKit/WebKit/blob/4fb33923db2f945803df49546f75867980365c08/Source/WebCore/Modules/mediastream/RTCPeerConnection.idl#L79-L86).
+There is no runtime setting that restores omitted code. A custom WebKit build
+with experimental WebRTC enabled is not a proven or upstream-supported
+replacement. Retaining stock Ubuntu WebKit requires a different native media
+transport architecture, not more permission flags or a browser-capture fallback.
 
 ## Follow-up library source review
 
@@ -60,11 +81,11 @@ It is work in progress, not evidence of working native capture.
   Several Windows/Linux paths record the whole default-output mix. A shared
   configuration flag is not evidence that each backend implements exclusion.
 
-These version labels came from inspected source manifests, not a resolved Nexa
-lockfile. No capture dependency has been added yet, and none of these findings
-is a successful build or capture test.
+These version labels originally came from inspected source manifests. The
+native implementation now pins dependencies in `desktop/src-tauri/Cargo.lock`.
+Source review alone is not a successful build or capture test.
 
-## What is actually in this repository
+## Original repository snapshot, before the native branch
 
 - `desktop/src-tauri/bridge.js` advertises sound on Windows only. Its
   `shareAudioMode` comes from recognition of `restrictOwnAudio`, not an audio

@@ -55,6 +55,11 @@ per-window; it never falls back to the whole output or microphone. Real-media
 qualification, helper exclusion and installer-size measurements remain release
 gates. This branch is not a released or deployed feature.
 
+The same-host receiver does not run on stock Ubuntu WebKitGTK 2.52.6, which has
+WebRTC compiled out. The Linux media smoke currently fails at that boundary.
+Runtime preferences and GStreamer plugins cannot restore the missing peer.
+See the [verified blocker and package evidence](../docs/desktop-share-audio-research.md#verified-linux-receiver-blocker).
+
 ## Differences in the previously released shell
 
 - **A window's own sound.** This shell does not yet bridge native application
@@ -91,8 +96,10 @@ gates. This branch is not a released or deployed feature.
 Rust 1.82 or newer, and the platform's Tauri prerequisites
 (https://tauri.app/start/prerequisites/): on Debian/Ubuntu
 `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libgtk-3-dev
-libxdo-dev patchelf`; on Windows, the WebView2 runtime and the MSVC build
-tools; on macOS, Xcode's command line tools.
+libxdo-dev patchelf`, Clang 21 and the native-media development packages listed
+in `.github/actions/native-media/action.yml`; on Windows, the WebView2 runtime
+and the MSVC build tools; on macOS, Xcode 26 for the pinned Swift/Metal bridge.
+The desktop's `.cargo/config.toml` applies libwebrtc's platform linker flags.
 
 ```
 cd desktop/src-tauri
