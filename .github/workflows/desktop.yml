@@ -115,7 +115,9 @@ jobs:
             xvfb \
             x11-utils \
             dbus-x11 \
-            xdotool
+            xdotool \
+            pulseaudio \
+            pulseaudio-utils
 
       - name: Install Python
         uses: actions/setup-python@v5

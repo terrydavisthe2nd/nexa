@@ -37,6 +37,22 @@ for key in ("captureScreen", "stopScreen", "peerConnection", "getUserMedia", "me
 want(media.get("secure") is True, "the app did not load a secure context")
 want(media.get("shareAudio") is True and media.get("shareAudioMode") == "application",
      "native sound must require a separately selected application")
+if report.get("platform") == "linux":
+    capture = report.get("nativeCapture") or {}
+    want(capture.get("red", 0) > 500 and capture.get("blue", 0) > 500,
+         "native video did not deliver the displayed red/blue pattern")
+    want(capture.get("stopped") is True and capture.get("audioOff") is True,
+         "native stop/restart or audio-off did not work")
+    selected = capture.get("selected") or [{}, {}]
+    want(selected[0].get("431", 0) > .04 and selected[1].get("863", 0) > .04,
+         "native application sound did not preserve both stereo tones")
+    want(selected[0].get("863", 1) < .025 and selected[1].get("431", 1) < .025,
+         "native application sound mixed the stereo channels")
+    want(all(channel.get("1291", 1) < .01 and channel.get("1709", 1) < .01 for channel in selected),
+         "native application sound leaked another app or Nexa playback")
+    control = capture.get("unrelatedControl") or [{}, {}]
+    want(all(channel.get("1291", 0) > .04 for channel in control),
+         "the unrelated-app exclusion had no positive control")
 window = report.get("window") or {}
 want(window.get("visible") is True, "the window is not visible")
 rpc = report.get("rpc") or {}

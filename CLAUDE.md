@@ -1599,12 +1599,17 @@ the debug binary against a loopback page and checks the bridge, partial settings
 API availability and the native-capture bridge contract. Real external IPC and WebSocket
 clients check READY, identity, activity acknowledgements, bridge activity state/events, clearing,
 disconnect cleanup and disabling/re-enabling the listeners. Those probes disable forwarding and
-do not prove the relay to an installed Discord client. Linux and macOS use disposable
+do not prove the relay to an installed Discord client. Linux also uses a disposable PulseAudio
+null sink and independent stereo-tone producers to check received native video pixels, selected
+sound, stereo separation, unrelated-sound exclusion, stop/restart and audio-off behavior. Its
+`capture.js` forbids browser display capture and uses a real runner click to start webview audio.
+These media probes have not yet passed on the native-capture implementation. Linux and macOS use disposable
 home/config directories; Windows requires a fresh
 test account and refuses an existing Nexa profile. On Linux it uses Xvfb and sends a real close
 request during call mode, then checks
 logical visibility and restored position, including a call started while hidden. `run.sh` delegates
-to it. These tests do not prove screen capture, window audio or real-call performance. `make
+to it. The Linux media probes do not qualify Windows, macOS, Wayland, packaged-app helper
+exclusion or an encrypted remote call. Real-call performance remains unmeasured. `make
 desktop` builds a local bundle without signing; `make desktop-release` only points at the workflow.
 The old Electron builds (1.2.x) cannot install the Tauri app themselves: existing users download it
 once, and the old `latest*.yml` files and installers in `DESKTOP_DIR` are left as they are. New app

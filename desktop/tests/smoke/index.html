@@ -10,6 +10,7 @@
   <body>
     <h1>Nexa desktop smoke test</h1>
     <pre id="out">waiting for the bridge…</pre>
+    <script src="/capture.js"></script>
     <script>
       (async () => {
         const report = { bridge: false, errors: [], stage: "start" };
@@ -144,6 +145,10 @@
             await b.setIdentity(null);
             await b.rpc.setRelay(report.rpc.relay);
             await post("rpc-tested");
+            if (new URLSearchParams(location.search).has("native-capture")) {
+              await qualifyNativeCapture(b, report, post);
+              await post("native-capture-tested");
+            }
             report.versions = b.versions;
             await b.setStrings({
               open: "Open", mute: "Mute", deafen: "Deafen",

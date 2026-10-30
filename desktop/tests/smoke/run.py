@@ -4,6 +4,7 @@ import base64
 import ctypes
 import hashlib
 import json
+import math
 import os
 import pathlib
 import signal
@@ -14,6 +15,7 @@ import sys
 import tempfile
 import threading
 import time
+import wave
 
 from server import Handler, HTTPServer, REPORT, ROOT
 
@@ -278,6 +280,36 @@ def main():
                     else:
                         raise RuntimeError("Xvfb did not start")
                 env["NEXA_DESKTOP_URL"] += "?window-test=1"
+                # Disposable null output: real producer streams with no sound
+                # sent to the runner's speakers. The native backend receives the
+                # same Pulse socket as these independent paplay processes.
+                pulse_socket = str(pathlib.Path(scratch, "pulse.sock"))
+                env["PULSE_SERVER"] = "unix:" + pulse_socket
+                env["PULSE_SINK"] = "nexa_capture"
+                processes.append(subprocess.Popen([
+                    "pulseaudio", "-n", "--daemonize=no", "--use-pid-file=no", "--exit-idle-time=-1",
+                    "--load=module-native-protocol-unix socket=%s auth-anonymous=1" % pulse_socket,
+                    "--load=module-null-sink sink_name=nexa_capture rate=48000 channels=2",
+                ], env=env, stdout=log, stderr=log))
+                for _ in range(100):
+                    if pathlib.Path(pulse_socket).exists():
+                        break
+                    time.sleep(.05)
+                else:
+                    raise RuntimeError("disposable Pulse server did not start")
+                for name, frequencies in (("Selected", (431, 863)), ("Unrelated", (1291, 1291))):
+                    path = pathlib.Path(scratch, name + ".wav")
+                    # 120 seconds avoids a file restart changing producer IDs.
+                    second = b"".join(struct.pack("<hh", *[
+                        round(8000 * math.sin(2 * math.pi * hz * i / 48000)) for hz in frequencies
+                    ]) for i in range(48000))
+                    with wave.open(str(path), "wb") as audio:
+                        audio.setnchannels(2); audio.setsampwidth(2); audio.setframerate(48000)
+                        audio.writeframes(second * 120)
+                    processes.append(subprocess.Popen([
+                        "paplay", "--client-name=Nexa Tone " + name, "--stream-name=Nexa Tone " + name, str(path),
+                    ], env=env, stdout=log, stderr=log))
+                env["NEXA_DESKTOP_URL"] += "&native-capture=1"
             command = [str(binary)]
             if linux:
                 command = ["dbus-run-session", "--"] + command
@@ -299,13 +331,16 @@ def main():
                              "rpc-reconnect", "rpc-finish") and stage not in handled:
                     http.rpc_result = rpc_probe(stage, report, rpc_clients)
                     handled.add(stage)
-                if linux and stage in ("close-in-call", "hide-before-call") and stage not in handled:
+                if linux and stage in ("native-activate", "close-in-call", "hide-before-call") and stage not in handled:
                     native_pid = subprocess.check_output(
                         ["pgrep", "-P", str(app.pid), "-x", "nexa-desktop"], text=True).strip()
                     window = subprocess.check_output(
                         ["xdotool", "search", "--all", "--pid", native_pid, "--name", "^Nexa$"],
                         env=env, text=True).splitlines()[-1]
-                    if stage == "close-in-call":
+                    if stage == "native-activate":
+                        subprocess.run(["xdotool", "mousemove", "--window", window, "100", "100",
+                                        "click", "1"], env=env, check=True)
+                    elif stage == "close-in-call":
                         close_x11_window(int(window), env["DISPLAY"])
                     else:
                         subprocess.run(["xdotool", "windowunmap", window], env=env, check=True)
