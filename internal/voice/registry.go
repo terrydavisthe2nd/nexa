@@ -166,6 +166,19 @@ func (r *Registry) Participants(ch ids.ID) []State {
 	return out
 }
 
+// SFUUsers lists the accounts whose devices are in calls through the SFU.
+func (r *Registry) SFUUsers() []ids.ID {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]ids.ID, 0, len(r.byUser))
+	for uid, st := range r.byUser {
+		if st.SFUSession != "" {
+			out = append(out, uid)
+		}
+	}
+	return out
+}
+
 // Count returns how many users are in a channel.
 func (r *Registry) Count(ch ids.ID) int {
 	r.mu.RLock()

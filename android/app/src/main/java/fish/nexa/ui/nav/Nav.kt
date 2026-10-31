@@ -26,14 +26,14 @@ sealed interface Route {
      * `/channels/@admin/<path>`: the staff's panel, staff only. The path is the
      * web's own below @admin: "users", "users/<id>[/cases[/<case>]]",
      * "servers[/<id>]", "expressions[/uploads|/packs/<id>]", "cases[/<id>]",
-     * "bugs[/<id>]", "reports[/<id>]", "logs", "announcements".
+     * "bugs[/<id>]", "reports[/<id>]", "calls", "logs", "announcements".
      */
     data class Admin(val path: String = "users") : Route {
         val parts: List<String> get() = path.split('/').filter { it.isNotEmpty() }
         val tab: String get() = parts.firstOrNull()?.takeIf { it in TABS } ?: "users"
 
         companion object {
-            val TABS = listOf("reports", "discovery", "users", "bots", "servers", "expressions", "cases", "bugs", "logs", "announcements")
+            val TABS = listOf("reports", "discovery", "users", "bots", "servers", "expressions", "calls", "cases", "bugs", "logs", "announcements")
         }
     }
     /** `/channels/@me/support`: Nexa's plans, and gifts. */

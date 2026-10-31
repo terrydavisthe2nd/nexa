@@ -127,6 +127,11 @@ func (s *Server) handleSFUSession(w http.ResponseWriter, r *http.Request) {
 		sfuUnavailable(w, err)
 		return
 	}
+	// which account the session is, so Cloudflare's measurement of it can be
+	// put to a name on the staff's Calls page
+	if err := s.Store.RecordRealtimeSession(r.Context(), id, me.ID); err != nil {
+		s.Log.Warn("sfu session not recorded", "err", err)
+	}
 	old, ok := s.Voice.SetSFU(me.ID, st.ChannelID, st.ConnID, id)
 	if !ok {
 		// the call ended or moved while the session was being opened
@@ -404,7 +409,11 @@ func (s *Server) handleSFUSubscribe(w http.ResponseWriter, r *http.Request) {
 		default:
 			p.Mid = got.Mid
 			p.Tag = voice.TrackTag(x.name)
-			s.Meter.Start(req.SessionID, got.Mid, realtime.Source(x.target.SFUSession, x.kind), realtime.RateFor(x.kind, x.target.ScreenBps))
+			rate := realtime.RateFor(x.kind, 0)
+			if x.kind == realtime.KindScreen {
+				rate = realtime.RateFor(x.kind, s.shareMaxBps(r.Context(), x.target))
+			}
+			s.Meter.Start(req.SessionID, got.Mid, realtime.Source(x.target.SFUSession, x.kind), rate, int64(me.ID), int64(x.target.UserID))
 		}
 		out = append(out, p)
 	}
@@ -583,9 +592,18 @@ func (s *Server) handleSFUClose(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]any{"answer": res.Description, "renegotiate": res.Renegotiate})
 }
 
-// closeSFUSession force-closes a retired session in the background. Accounting
-// ends only after confirmed closure. Retry transient failures; an unavailable
-// provider cannot guarantee immediate moderation, so exhausted retries are errors.
+// sfuCloseAfter is when each attempt to retire a session starts, after the
+// first. Each attempt has realtime.CloseTimeout to hear back.
+var sfuCloseAfter = []time.Duration{250 * time.Millisecond, time.Second, 5 * time.Second, 30 * time.Second, 2 * time.Minute, 5 * time.Minute}
+
+// closeSFUSession force-closes a retired session in the background, and the
+// meter charges it until that is confirmed (or Cloudflare says the session is
+// gone or its connection has dropped, which leaves nothing flowing). Should
+// every attempt fail, about eight minutes later the meter stops charging it
+// anyway: a device that left closes its own connection, a session can never
+// again be charged until the process restarts, and Cloudflare's measurement,
+// when the meter has one, holds whatever did flow. Exhausted retries are
+// logged as errors, since moderation cannot rely on the cut-off meanwhile.
 func (s *Server) closeSFUSession(session string) {
 	if session == "" || s.Realtime == nil {
 		return
@@ -596,22 +614,36 @@ func (s *Server) closeSFUSession(session string) {
 	go func() {
 		defer s.sfuClosing.Delete(session)
 		var last error
-		for attempt := 0; attempt < 3; attempt++ {
+		for attempt := 0; attempt <= len(sfuCloseAfter); attempt++ {
 			if attempt > 0 {
-				time.Sleep(time.Duration(attempt*attempt) * 250 * time.Millisecond)
+				time.Sleep(sfuCloseAfter[attempt-1])
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), realtime.CloseTimeout)
 			last = s.Realtime.CloseSession(ctx, session)
 			cancel()
 			if last == nil {
-				if s.Meter != nil {
-					s.Meter.StopSession(session)
-				}
-				return
+				break
 			}
 		}
-		s.Log.Error("sfu session could not be retired after retries", "session", session, "err", last)
+		if last != nil {
+			s.Log.Error("sfu session could not be retired after retries", "session", session, "err", last)
+		}
+		if s.Meter != nil {
+			s.Meter.StopSession(session)
+		}
 	}()
+}
+
+// shareMaxBps is the most a share from someone in a call can send: their
+// plan's limit (a guest has none), which the meter estimates their share at.
+func (s *Server) shareMaxBps(ctx context.Context, st voice.State) int64 {
+	plan := store.PlanFree
+	if !st.Guest {
+		if u, err := s.Store.UserByID(ctx, st.UserID); err == nil {
+			plan = u.Plan
+		}
+	}
+	return s.planLimitsFor(plan).ShareMaxBps
 }
 
 // sfuSyncLive follows actual publication state, never self-reported camera or

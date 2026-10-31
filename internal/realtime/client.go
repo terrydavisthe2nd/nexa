@@ -61,6 +61,21 @@ func (e *Error) Error() string {
 // ErrSessionGone is returned for a session the SFU no longer knows.
 var ErrSessionGone = errors.New("realtime: session not found")
 
+// Disconnected reports the SFU's answer for a session whose PeerConnection it
+// no longer reaches (410 session_error): nothing can flow to that device, so
+// it costs nothing and has nothing left to cut off.
+func Disconnected(err error) bool {
+	var apiErr *Error
+	return errors.As(err, &apiErr) && apiErr.Status == http.StatusGone
+}
+
+// CloseTimeout bounds one attempt to close a session. Cloudflare waits up to
+// five seconds for a session's connection before answering about it, and a
+// device that left has closed its connection, so an attempt held to five
+// seconds gave up just before the answer came: every such session stayed
+// charged until the next restart.
+const CloseTimeout = 20 * time.Second
+
 // Client calls the Realtime API for one app.
 type Client struct {
 	AppID  string
@@ -192,10 +207,11 @@ func (c *Client) SessionTracks(ctx context.Context, session string) ([]Track, er
 
 // CloseSession force-closes every track of a session, so a device that left
 // or was removed stops sending and receiving at once. A session the SFU has
-// already forgotten is not an error.
+// already forgotten, or whose connection it no longer reaches, is not an
+// error: nothing flows to it either way.
 func (c *Client) CloseSession(ctx context.Context, session string) error {
 	tracks, err := c.SessionTracks(ctx, session)
-	if errors.Is(err, ErrSessionGone) {
+	if errors.Is(err, ErrSessionGone) || Disconnected(err) {
 		return nil
 	}
 	if err != nil {
@@ -211,7 +227,7 @@ func (c *Client) CloseSession(ctx context.Context, session string) error {
 		return nil
 	}
 	res, err := c.CloseTracks(ctx, session, mids, nil, true)
-	if errors.Is(err, ErrSessionGone) {
+	if errors.Is(err, ErrSessionGone) || Disconnected(err) {
 		return nil
 	}
 	if err != nil {

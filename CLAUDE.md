@@ -683,7 +683,7 @@ transcripts are held only in the open message component's memory.
   `automod_events`), plans (`billing`, `server_boosts`, `plan_gifts`, `users.plan`,
   `servers.boosts`, `gift_links`), expressions (`emojis`, `sticker_packs`, `stickers`, `sticker_installs`,
   `recent_stickers`, `blocked_images`), files (`blobs`, `uploads`), calls (`guest_links`, `guests`,
-  `realtime_usage`), integrations (`webhooks`, `discord_links`), notes (`notes`, `note_members`,
+  `realtime_usage`, `realtime_measurements`, `realtime_sessions`, `call_usage`, `turn_credentials`), integrations (`webhooks`, `discord_links`), notes (`notes`, `note_members`,
   `note_invites`, `note_links`, `note_files`, `note_versions`, `note_version_files`, `note_keys`,
   `note_updates`, `note_uploads`), Nexa and moderation (`mod_cases`, `mod_messages`,
   `mod_message_files`, `mod_restrictions`, `mod_announcements`, `mod_log`, `mod_reads`, `nexa_reads`,
@@ -840,9 +840,36 @@ same source again reuses its existing subscription. Mute/deafen/Speak/Video rest
 existing provider sessions; `sfu_policy.go` rechecks after upstream negotiations and permission
 changes. Voice states carry `sfu_generation`, which both new call clients use to rebuild permitted
 media after policy changes. Older clients may need to rejoin. Camera/share off closes publication.
-Accounting follows actual tracks and confirmed provider closures; failed closures stay charged.
-Session closure retries transient failures, logging exhausted retries as errors. Provider outages
-can delay moderation, and the monthly meter is an estimate rather than a hard billing cap.
+Accounting follows actual tracks and confirmed provider closures. Cloudflare waits up to five
+seconds for a session's connection before answering about it, so each close attempt gets
+`realtime.CloseTimeout` (20 s), a 410 "disconnected" answer counts as closed, and
+`closeSFUSession` retries on `sfuCloseAfter` (about eight minutes) and then stops charging
+anyway, logging an error: before this, every close that timed out stayed charged until a
+restart, and on 2026-10-31 the meter read 2.3 TB against Cloudflare's real 106 GB and refused
+calls. Shares are estimated at the sharer's plan limit (`shareMaxBps`), never the declared bitrate.
+
+The meter (`internal/realtime/meter.go`) estimates SFU egress from pulled tracks, attributes it
+per account (received by the viewer, sent by the publisher, plus time in calls from
+`SetParticipants`) into `call_usage` by UTC day, and keeps snapshots of the estimate. With
+`REALTIME_ACCOUNT_ID` and `REALTIME_ANALYTICS_TOKEN` (an API token with Account Analytics: Read),
+`StartRealtime` (`api/call_usage.go`) polls Cloudflare's GraphQL Analytics every five minutes
+(`realtime/analytics.go`: `callsUsageAdaptiveGroups` and `callsTurnUsageAdaptiveGroups`,
+account wide, since SFU and TURN share the 1,000 GB allowance) up to `AnalyticsLag` ago:
+`Meter.Measure` stores it in `realtime_measurements`, and the month's usage is then the
+measurement plus the estimate since. The day's egress is put to names by session
+(`realtime_sessions`, recorded when a session opens), by track (track names start with the
+publisher's id) and by TURN `customIdentifier`; what cannot be named is account 0. Staff (Admin
+and up) see it on the Calls tab (`/channels/@admin/calls`, `GET /moderation/calls`, web
+`moderation/CallsTab.tsx`, Android `ui/moderation/Calls.kt`) and in each person's Call Usage
+panel (`GET /moderation/users/{id}/calls`, web `CallUsagePanel.tsx`). `call_usage` is kept 62
+days, `realtime_sessions` three days; the Privacy Policy's section 3l describes both.
+
+TURN (`api/turn.go`, `realtime/turn.go`): credentials last an hour (`turnTTL`), are handed out
+again while 45 minutes remain, are recorded in `turn_credentials` (the username only), and a
+sweep every 15 s revokes any whose account has been out of a call for `turnGrace` (2 minutes,
+which covers a fetch before joining and a channel move; 3 after a restart). Minting has its own
+limit (`limTurn`), stops while calls are paused for anyone not in one, and an account past
+`REALTIME_TURN_DAILY_GB` of measured relay in a UTC day is cut off until the next.
 
 
 `internal/voice` tracks who is in each call. Without Realtime keys calls are peer to peer (a mesh,
@@ -1133,7 +1160,8 @@ addresses (`LISTEN`, `PUBLIC_URL`, `ALT_URLS`, `MOVED_FROM`), storage (`DATA_DIR
 `REDIS_URL`, `WEB_DIST`, `DESKTOP_DIR`, `ANDROID_DIR`, `NODE_ID`), limits (`MAX_UPLOAD_BYTES`,
 `MAX_AVATAR_BYTES`, `MAX_EMOJI_BYTES`, `MAX_STICKER_BYTES`, `SESSION_TTL_DAYS`), sign-up
 (`REGISTRATION` open/invite/closed, `REGISTRATION_KEY`, `ADMIN_USERNAME`, `HCAPTCHA_SITE_KEY`,
-`HCAPTCHA_SECRET_KEY`), calls (`REALTIME_APP_ID`, `REALTIME_APP_SECRET`, `REALTIME_MONTHLY_GB`,
+`HCAPTCHA_SECRET_KEY`), calls (`REALTIME_APP_ID`, `REALTIME_APP_SECRET`, `REALTIME_MONTHLY_GB`, `REALTIME_ACCOUNT_ID`,
+`REALTIME_ANALYTICS_TOKEN`, `REALTIME_TURN_DAILY_GB`,
 `GUEST_LINKS_P2P`, `STUN_URLS`, `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL`, `TURN_KEY_ID`,
 `TURN_API_TOKEN`), outbound (`EGRESS_PROXY`, `WARP_PROXY_PORT`), integrations (`KLIPY_API_KEY`,
 `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TELEGRAM_BOT_TOKEN`, `DISCORD_CLIENT_ID`,

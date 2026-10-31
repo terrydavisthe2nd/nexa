@@ -88,26 +88,37 @@ func TestBanPurgeDeletesAndAnnounces(t *testing.T) {
 // stale; as a package-level map it grew for the life of the process and two
 // Servers in one process handed out each other's signatures.
 func TestTURNCacheIsPerServerAndSwept(t *testing.T) {
-	a, _ := newTestServer(t)
+	a, ts := newTestServer(t)
 	b, _ := newTestServer(t)
-	id := ids.ID(1)
-	a.rememberTURN(id, []map[string]any{{"urls": "turn:a"}})
-	if got := b.reuseTURN(id); got != nil {
-		t.Error("a second server handed out the first one's credential")
+	newFakeTURN(t, a)
+	tok, id := register(t, ts, "alice")
+	uid, _ := ids.Parse(id)
+	name := iceUsername(t, ts, tok)
+	if name == "" {
+		t.Fatal("no credential")
 	}
-	if got := a.reuseTURN(id); len(got) != 1 || got[0]["urls"] != "turn:a" {
-		t.Errorf("own credential not reused: %v", got)
+	b.turnMu.Lock()
+	_, leaked := b.turnCreds[uid]
+	b.turnMu.Unlock()
+	if leaked {
+		t.Error("a second server holds the first one's credential")
 	}
-	// an entry older than the reuse window is dropped the next time one is kept
+	// an expired credential is forgotten by the sweep and never handed out again
 	a.turnMu.Lock()
-	a.turnCreds[id] = turnCred{at: time.Now().Add(-2 * turnReuse), servers: []map[string]any{{"urls": "turn:old"}}, until: time.Now().Add(-turnReuse)}
+	a.turnLive[name].expires = time.Now().Add(-time.Second)
+	hit := a.turnCreds[uid]
+	hit.expires = time.Now().Add(-time.Second)
+	a.turnCreds[uid] = hit
 	a.turnMu.Unlock()
-	a.rememberTURN(ids.ID(2), nil)
+	a.sweepTURN(context.Background())
 	a.turnMu.Lock()
-	_, still := a.turnCreds[id]
+	_, still := a.turnLive[name]
 	a.turnMu.Unlock()
 	if still {
-		t.Error("a stale credential was kept")
+		t.Error("an expired credential was kept")
+	}
+	if again := iceUsername(t, ts, tok); again == name || again == "" {
+		t.Errorf("an expired credential was handed out again: %q", again)
 	}
 }
 

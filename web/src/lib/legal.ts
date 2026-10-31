@@ -11,14 +11,14 @@
  */
 
 /** The effective date of the Terms and Privacy Policy in docs/legal (a test holds the two to it). */
-export const LEGAL_EFFECTIVE = "2026-10-28";
+export const LEGAL_EFFECTIVE = "2026-10-31";
 
 /**
  * What an account agrees to: the effective date, and which revision of that
  * day's wording. Changing it asks every account again, so it moves with any
  * change to what the documents say.
  */
-export const LEGAL_VERSION = `${LEGAL_EFFECTIVE}.2`;
+export const LEGAL_VERSION = `${LEGAL_EFFECTIVE}.1`;
 
 export const CONTACT_EMAIL = "evilionx3@proton.me";
 

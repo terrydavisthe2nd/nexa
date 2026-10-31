@@ -63,8 +63,7 @@ func (s *Server) handleAdminStats(w http.ResponseWriter, r *http.Request) {
 	}
 	var calls any
 	if s.Meter != nil {
-		ctx := r.Context()
-		calls = map[string]any{"month": s.Meter.Month(), "used_bytes": s.Meter.Used(ctx), "limit_bytes": s.Meter.Limit(), "video_paused": !s.Meter.VideoAllowed(ctx), "calls_paused": !s.Meter.CallsAllowed(ctx)}
+		calls = s.Meter.Status(r.Context())
 	}
 	WriteJSON(w, http.StatusOK, map[string]any{"users": st.Users, "servers": st.Servers, "messages": st.Messages, "blobs": st.Blobs, "blob_bytes": st.BlobBytes, "online": online, "version": s.Version, "realtime": calls})
 }

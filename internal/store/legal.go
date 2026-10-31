@@ -91,6 +91,10 @@ type AccountRecord struct {
 	BugThreadLines int              // bug_messages in their reports
 
 	Discord *LegalDiscord // discord_links, user_id = them
+
+	CallDays     []CallUsageDay // call_usage, user_id = them, newest first
+	CallSessions int            // realtime_sessions, user_id = them
+	RelayCreds   int            // turn_credentials, user_id = them
 }
 
 // LegalDiscord is the Discord account linked for showing Discord activity.
@@ -425,12 +429,25 @@ func (s *Store) AccountRecord(ctx context.Context, id ids.ID) (*AccountRecord, e
 		(*Store).legalCrashes,
 		(*Store).legalBugReports,
 		(*Store).legalDiscord,
+		(*Store).legalCalls,
 	} {
 		if err := step(s, ctx, rec, uid); err != nil {
 			return nil, err
 		}
 	}
 	return rec, nil
+}
+
+func (s *Store) legalCalls(ctx context.Context, rec *AccountRecord, uid int64) error {
+	var err error
+	if rec.CallDays, err = s.CallUsageDays(ctx, ids.ID(uid), 100); err != nil {
+		return err
+	}
+	if rec.CallSessions, err = s.RealtimeSessionCount(ctx, ids.ID(uid)); err != nil {
+		return err
+	}
+	rec.RelayCreds, err = s.TurnCredentialCount(ctx, ids.ID(uid))
+	return err
 }
 
 func (s *Store) legalDiscord(ctx context.Context, rec *AccountRecord, uid int64) error {

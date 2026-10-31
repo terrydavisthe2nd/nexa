@@ -1,0 +1,409 @@
+/*
+ * The staff's Calls page and an account's Call Usage panel. Every bar is the
+ * month's allowance, so a share of it is the same length everywhere: what
+ * Cloudflare measured is solid, what is still Nexa's estimate is hatched.
+ */
+
+.allowance,
+.list {
+  border-radius: var(--radius-lg);
+  background: var(--sheen), color-mix(in oklab, var(--bg-surface) 40%, var(--bg-raised));
+  box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--panel-edge), var(--shadow-low);
+  min-width: 0;
+}
+
+/* --- the month ---------------------------------------------------------------- */
+
+.allowance {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+.allowanceHead {
+  display: flex;
+  align-items: center;
+  gap: 4px 12px;
+  flex-wrap: wrap;
+}
+.allowanceTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+.allowanceFigure {
+  margin-inline-start: auto;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+.allowance[data-tone="warn"] .allowanceFigure {
+  color: var(--text-warning);
+}
+.allowance[data-tone="stop"] .allowanceFigure {
+  color: var(--danger);
+}
+.refresh {
+  flex-shrink: 0;
+}
+
+.meter {
+  position: relative;
+  height: 12px;
+  margin: 6px 0 2px;
+  border-radius: 999px;
+  background: var(--bg-input);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--shade, #000) 40%, transparent), 0 0 0 1px var(--border-subtle);
+  overflow: hidden;
+}
+.meterMeasured,
+.meterEstimated {
+  position: absolute;
+  inset-block: 0;
+}
+.meterMeasured {
+  inset-inline-start: 0;
+  border-radius: inherit;
+  background: var(--grad-brand);
+}
+.meterEstimated,
+.barFill[data-estimated] {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--brand) 75%, transparent) 0 4px,
+    color-mix(in srgb, var(--brand) 30%, transparent) 4px 8px
+  );
+}
+.allowance[data-tone="warn"] .meterMeasured {
+  background: var(--warning);
+}
+.allowance[data-tone="stop"] .meterMeasured {
+  background: var(--danger);
+}
+/* where video pauses (90 %) and new calls stop (99 %) */
+.tick {
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  margin-inline-start: -1px;
+  background: color-mix(in srgb, var(--text-strong) 55%, transparent);
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.warning {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--text-warning);
+}
+.allowanceFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin-top: 4px;
+}
+.source {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-subtle);
+}
+.split {
+  display: flex;
+  gap: 22px;
+  margin: 0;
+}
+.split > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.split dt {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+.split dd {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+
+/* --- accounts ----------------------------------------------------------------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.listHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 18px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "avatar who figure"
+    "avatar bar bar";
+  align-items: center;
+  gap: 6px 12px;
+  width: 100%;
+  padding: 12px 18px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.row + .row {
+  border-top: 1px solid var(--border-subtle);
+}
+.row:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.row:disabled {
+  cursor: default;
+}
+.avatar {
+  grid-area: avatar;
+  display: flex;
+}
+.who {
+  grid-area: who;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.nameLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 10px;
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 1px var(--border-subtle);
+  color: var(--text-subtle);
+  font-size: 11.5px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.badge[data-tone="live"] {
+  color: var(--positive);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--positive) 45%, transparent);
+}
+.badge[data-tone="warn"] {
+  color: var(--text-warning);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--warning) 50%, transparent);
+}
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.facts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.bar {
+  grid-area: bar;
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  overflow: hidden;
+}
+.barFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--grad-brand);
+}
+/* one account using a tenth of the month's allowance is worth a look */
+.barFill[data-large] {
+  background: var(--warning);
+}
+.figure {
+  grid-area: figure;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+  white-space: nowrap;
+  text-align: end;
+}
+
+.skeleton {
+  height: 66px;
+  background: linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--bg-surface), var(--text-strong) 5%) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: rowShimmer 1.4s ease-in-out infinite;
+}
+.skeleton + .skeleton {
+  border-top: 1px solid var(--border-subtle);
+}
+@keyframes rowShimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+.unattributed {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+.unattributedText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.unattributedTitle {
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+
+/* --- one account's panel ------------------------------------------------------ */
+
+.usageTable {
+  width: calc(100% - 36px);
+  margin: 0 18px 8px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.usageTable th,
+.usageTable td {
+  padding: 7px 0;
+  text-align: end;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.usageTable thead th {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.usageTable tbody th {
+  text-align: start;
+  font-weight: 600;
+  color: var(--text-subtle);
+}
+.usageTable tbody td {
+  color: var(--text-strong);
+  font-weight: 650;
+}
+.usageTable tbody tr + tr > * {
+  border-top: 1px solid color-mix(in srgb, var(--border-subtle) 60%, transparent);
+}
+.panelFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0 18px 14px;
+}
+.panelFoot .hint {
+  flex: 1 1 220px;
+}
+
+@media (max-width: 560px) {
+  .allowance {
+    padding: 14px 14px;
+  }
+  .allowanceFigure {
+    order: 3;
+    flex-basis: 100%;
+    margin-inline-start: 0;
+  }
+  .refresh {
+    margin-inline-start: auto;
+  }
+  .row {
+    padding: 12px 14px;
+    gap: 6px 10px;
+  }
+  .listHead {
+    padding: 10px 14px;
+  }
+  .figure {
+    font-size: 15px;
+  }
+  .usageTable {
+    width: calc(100% - 28px);
+    margin: 0 14px 8px;
+  }
+  .usageTable th,
+  .usageTable td {
+    font-size: 13.5px;
+  }
+  .panelFoot {
+    padding: 0 14px 14px;
+  }
+}

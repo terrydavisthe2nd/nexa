@@ -25,6 +25,7 @@ import { atLeast, RANK_ICON, rankName, rankOf, useMyRank, type StaffRank } from 
 import type { ModerateIntent } from "./PersonPage";
 import p from "./Sheet.module.css";
 import { PackRows } from "./ExpressionsTab";
+import { CallUsagePanel } from "./CallUsagePanel";
 
 /** The parts of a profile the preview can point at while a field is looked at. */
 type Part = "avatar" | "banner" | "display_name" | "username" | "pronouns" | "about_me" | "status" | null;
@@ -331,6 +332,9 @@ export function ProfileSheet({ user, servers, owner, onModerate, onOpenServer, p
               </div>
             </dl>
           </section>
+
+          {/* what their calls used, for catching anyone running the allowance down */}
+          {atLeast(mine, "admin") && !deleted ? <CallUsagePanel userId={user.id} /> : null}
         </div>
       </div>
     </div>

@@ -1,17 +1,13 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
-	urlpkg "net/url"
 	"slices"
 	"time"
 
-	"evilion.xyz/chat/internal/auth"
 	"evilion.xyz/chat/internal/gateway"
 	"evilion.xyz/chat/internal/ids"
 	"evilion.xyz/chat/internal/perms"
@@ -118,6 +114,20 @@ func (s *Server) WireVoice(hub *gateway.Hub) {
 	}
 	if s.Realtime != nil && s.Meter == nil {
 		s.Meter = realtime.NewMeter(s.Store, s.Cfg.RealtimeMonthlyGB)
+	}
+	if s.Meter != nil {
+		// time in calls is counted for the staff's Calls page
+		s.Meter.SetParticipants(func() []int64 {
+			users := s.Voice.SFUUsers()
+			out := make([]int64, len(users))
+			for i, u := range users {
+				out[i] = int64(u)
+			}
+			return out
+		})
+	}
+	if s.Analytics == nil {
+		s.Analytics = realtime.NewAnalytics(s.Cfg.RealtimeAccountID, s.Cfg.RealtimeAnalyticsToken)
 	}
 	if hub == nil {
 		return
@@ -571,144 +581,6 @@ func (s *Server) handleVoiceICE(w http.ResponseWriter, r *http.Request) {
 		servers = append(servers, relay...)
 	}
 	WriteJSON(w, http.StatusOK, map[string]any{"ice_servers": servers, "sfu": s.Realtime != nil, "guests": s.guestsOn()})
-}
-
-// turnTTL is how long a minted relay credential lasts, and turnReuse how long
-// this server hands the same one back before asking for another. A call keeps
-// the credential it joined with for every reconnect until it asks again, so a
-// credential handed out always has most of its life left: at three hours of
-// four, one reused near the end expired an hour into the call, and a network
-// that needs the relay could not reconnect after that.
-const (
-	turnTTL   = 4 * time.Hour
-	turnReuse = time.Hour
-)
-
-// turnCred is one account's minted relay credential and when it was minted.
-type turnCred struct {
-	at      time.Time
-	servers []map[string]any
-	until   time.Time
-}
-
-// rememberTURN keeps a credential for reuse and forgets the ones that have
-// gone stale. It used to be a package-level map that was never swept, so every
-// account that had ever fetched an ICE config kept an entry for the life of
-// the process, deleted accounts included — and two Servers in one process, as
-// the tests make, handed each other's credentials out.
-func (s *Server) rememberTURN(uid ids.ID, servers []map[string]any, lifetime ...time.Duration) {
-	now := time.Now()
-	reuse := turnReuse
-	if len(lifetime) != 0 {
-		reuse = min(reuse, lifetime[0]-time.Minute)
-	}
-	if reuse <= 0 {
-		return
-	}
-	s.turnMu.Lock()
-	defer s.turnMu.Unlock()
-	if s.turnCreds == nil {
-		s.turnCreds = map[ids.ID]turnCred{}
-	}
-	for id, hit := range s.turnCreds {
-		if now.Sub(hit.at) >= turnReuse || !now.Before(hit.until) {
-			delete(s.turnCreds, id)
-		}
-	}
-	s.turnCreds[uid] = turnCred{at: now, servers: servers, until: now.Add(reuse)}
-}
-
-// reuseTURN returns a credential minted recently enough to hand out again.
-func (s *Server) reuseTURN(uid ids.ID) []map[string]any {
-	s.turnMu.Lock()
-	defer s.turnMu.Unlock()
-	if hit, ok := s.turnCreds[uid]; ok && time.Since(hit.at) < turnReuse && time.Now().Before(hit.until) {
-		return hit.servers
-	}
-	return nil
-}
-
-var turnClient = &http.Client{Timeout: 6 * time.Second}
-
-// cloudflareTURN mints a short-lived relay credential for this user, for the
-// networks where two people cannot reach each other directly. The long-term
-// key never leaves this server. Returns nil when TURN is not configured or
-// the request fails: a call without a relay is better than no call at all.
-func (s *Server) cloudflareTURN(r *http.Request) []map[string]any {
-	me := auth.UserFrom(r.Context())
-	if me == nil {
-		return nil
-	}
-	// Parallel ICE requests share one mint, including on the first request
-	// from a guest before a cached credential exists.
-	value, _, _ := s.turnMint.Do(me.ID.String(), func() (any, error) {
-		return s.mintTURN(r), nil
-	})
-	servers, _ := value.([]map[string]any)
-	return servers
-}
-
-func (s *Server) mintTURN(r *http.Request) []map[string]any {
-	if s.Cfg.TurnKeyID == "" || s.Cfg.TurnAPIToken == "" {
-		return nil
-	}
-	me := auth.UserFrom(r.Context())
-	if me == nil {
-		return nil
-	}
-	ttl := turnTTL
-	guest := auth.GuestFrom(r.Context())
-	if guest != nil {
-		// A guest's relay lasts no longer than the guest may stay. Its cache
-		// deadline also stops reuse a minute before that credential expires.
-		ttl = time.Until(time.UnixMilli(guest.ExpiresAt))
-		if ttl > turnTTL {
-			ttl = turnTTL
-		}
-		if ttl < time.Minute {
-			return nil
-		}
-	}
-	if servers := s.reuseTURN(me.ID); servers != nil {
-		return servers
-	}
-
-	body, _ := json.Marshal(map[string]any{"ttl": int(ttl.Seconds()), "customIdentifier": me.ID.String()})
-	url := "https://rtc.live.cloudflare.com/v1/turn/keys/" + urlpkg.PathEscape(s.Cfg.TurnKeyID) + "/credentials/generate-ice-servers"
-	req, err := http.NewRequestWithContext(r.Context(), "POST", url, bytes.NewReader(body))
-	if err != nil {
-		return nil
-	}
-	req.Header.Set("Authorization", "Bearer "+s.Cfg.TurnAPIToken)
-	req.Header.Set("Content-Type", "application/json")
-	res, err := turnClient.Do(req)
-	if err != nil {
-		s.Log.Warn("turn credentials unavailable", "err", err)
-		return nil
-	}
-	defer res.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
-	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
-		s.Log.Warn("turn credentials refused", "status", res.StatusCode)
-		return nil
-	}
-	var parsed struct {
-		ICEServers json.RawMessage `json:"iceServers"`
-	}
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return nil
-	}
-	// the shape is either one entry or a list, depending on the endpoint
-	var list []map[string]any
-	if err := json.Unmarshal(parsed.ICEServers, &list); err != nil {
-		var one map[string]any
-		if json.Unmarshal(parsed.ICEServers, &one) != nil {
-			return nil
-		}
-		list = []map[string]any{one}
-	}
-	s.rememberTURN(me.ID, list, ttl)
-	return list
 }
 
 func (s *Server) handleVoiceParticipants(w http.ResponseWriter, r *http.Request) {

@@ -300,6 +300,7 @@ func (s *Server) renderLegalReport(rec *store.AccountRecord, by *store.User) str
 	legalEngagement(d, rec)
 	legalLinks(d, rec)
 	legalTransfers(d, rec)
+	legalCalls(d, rec)
 	legalModeration(d, rec)
 	legalExpressions(d, rec)
 	legalKeys(d, rec)
@@ -754,6 +755,44 @@ func legalTransfers(d *legalDoc, rec *store.AccountRecord) {
 	d.blank()
 }
 
+func legalCalls(d *legalDoc, rec *store.AccountRecord) {
+	d.head("CALL USAGE", "call_usage, realtime_sessions, turn_credentials")
+	d.para(
+		"  How much call traffic the account used, by UTC day, kept about two months to",
+		"  catch anyone using up the service's monthly call allowance. Received is media",
+		"  sent to the account's own devices, sent is media its own camera, microphone",
+		"  or screen sent to other people, and relay is media relayed to it through",
+		"  Cloudflare's TURN service. Each day holds Nexa's estimate and, where taken,",
+		"  Cloudflare's measurement. None of it says who was called or what was said:",
+		"  calls are end-to-end encrypted, and these are byte counts and seconds.",
+	)
+	d.field("Days kept:", legalCount(len(rec.CallDays)))
+	d.blank()
+	if len(rec.CallDays) == 0 {
+		d.empty("No call usage rows exist for this account.")
+	}
+	for _, c := range rec.CallDays {
+		line := c.Day + " — " + strconv.FormatInt(c.Seconds, 10) + " seconds in calls; estimated " +
+			legalBytes(c.Received) + " received, " + legalBytes(c.Sent) + " sent"
+		if c.MeasuredAt > 0 {
+			line += "; measured " + legalBytes(c.MReceived) + " received, " + legalBytes(c.MSent) + " sent, " +
+				legalBytes(c.MRelay) + " relayed, as of " + legalTime(c.MeasuredAt)
+		}
+		d.item(line)
+	}
+	if len(rec.CallDays) > 0 {
+		d.blank()
+	}
+	d.field("Call sessions noted:", legalCount(rec.CallSessions))
+	d.note("Which account opened each connection to the call service, by its random id,")
+	d.note("so the measurement can be put to a name. Kept three days.")
+	d.blank()
+	d.field("Relay credentials kept:", legalCount(rec.RelayCreds))
+	d.note("The name of each relay credential handed out, so it can be revoked when its")
+	d.note("call ends (never the password half). Deleted once it expires, within an hour.")
+	d.blank()
+}
+
 func legalModeration(d *legalDoc, rec *store.AccountRecord) {
 	d.head("MODERATION RECORD", "bans, audit_log")
 	d.field("Bans against them:", legalCount(len(rec.BansAgainst)))
@@ -1029,7 +1068,7 @@ func (s *Server) legalProvenance(d *legalDoc, rec *store.AccountRecord, by *stor
 	d.item("guests — rows describe people who joined a call through a link without an")
 	d.cont("account. They are keyed to the link, not to an account, and each is a")
 	d.cont("different person; where this account made such links, the links are above.")
-	d.item("key_flags, polls, realtime_usage, instance_settings, schema bookkeeping —")
+	d.item("key_flags, polls, realtime_usage, realtime_measurements, instance_settings, schema bookkeeping —")
 	d.cont("keyed to a conversation, a message, a month or Nexa as a whole, never to an")
 	d.cont("account.")
 	d.blank()

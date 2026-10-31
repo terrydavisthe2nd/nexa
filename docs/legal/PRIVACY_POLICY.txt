@@ -1,7 +1,7 @@
 NEXA - PRIVACY POLICY
 Site: nexa.fish (also at mathtest.lol, and formerly chat.evilion.xyz)
 Contact the owner (nora) here: evilionx3@proton.me
-Effective: 2026-10-28
+Effective: 2026-10-31
 
 This policy lists exactly what Nexa holds. It is written against the
 actual database, so if something is not listed here, there is no place
@@ -210,9 +210,10 @@ h) Day to day running: unfinished upload progress (expected and
    are built from the error, not from your chats or files), bug reports
    you send (what you write, the screenshots or recordings you add, the
    device details if you choose to include them, and the thread with
-   staff, none of it end-to-end encrypted), one site wide monthly data
-   total for calls (not per account), and server request logs (page,
-   result, size, and duration, with no IP address recorded there).
+   staff, none of it end-to-end encrypted), the site wide monthly data
+   total for calls (what each account used is in 3l), and server
+   request logs (page, result, size, and duration, with no IP address
+   recorded there).
 
 i) Activity and a linked Discord account (optional): what the
    desktop app or a linked Discord account says you are doing, such
@@ -275,15 +276,32 @@ k) Plans (only if you buy one or are given one; not end-to-end
    Nexa when a payment or subscription changes. Your card, name, email
    address and billing address go to Stripe and never reach Nexa.
 
+l) Call usage (not end-to-end encrypted, amounts only): how much call
+   traffic each account used each day (by UTC): the media sent to its
+   own devices, the media its own camera, microphone, and screen sent
+   to other people, the media relayed to it through Cloudflare's TURN
+   service, and how long it was in calls, both as the server estimates
+   them and as Cloudflare measures them. Staff (admins and up) see it
+   in the moderation panel, to catch anyone using up the call
+   allowance everyone shares each month. It says nothing about which
+   calls you were in, who was in them, or what was said. To put
+   Cloudflare's measurement to a name, the server also keeps which
+   account opened each connection to the call service, by its random
+   ID, with when it was opened, and the name of each relay credential
+   it hands out (never the password half), so a credential can be
+   revoked two minutes after its call ends. An account that relays
+   more than the day's limit through TURN gets no relay until the next
+   day.
+
 4. WHAT IS NEVER COLLECTED
 
 No email address. No phone number. No legal name, birth date, age, or
 ID documents. No payment details (Stripe takes those, section 6). No IP addresses beyond the sessions,
 account addresses and guest entries above. No access history beyond
 when each of those addresses was first and last used. No online time
-history. No call records beyond the line in 3c: who joined a call, and
-for how long, is held in memory while the call lasts and otherwise
-exists only inside that line's encrypted summary. No device or
+history. No call records beyond the line in 3c and the amounts in 3l:
+who was in which call is held in memory while the call lasts and
+otherwise exists only inside that line's encrypted summary. No device or
 advertising IDs and no push tokens. No location. No address book
 imports. No link clicks, analytics, or tracking of any kind. No record
 of what you search for: message search runs on your device, using
@@ -298,11 +316,13 @@ drafts live only inside your encrypted settings.
 - Other people see your public profile, your messages once their app
   decrypts them, and the communities and channels you share with
   them.
-- The owner and the staff they appoint see sections 3a to 3j. Staff
-  use a moderation panel that shows public profiles, what servers
-  show everyone, when accounts were last active, which accounts have
-  used the same IP addresses (never the addresses), moderation cases
-  and their threads, the log, announcements, bug reports and safety reports.
+- The owner and the staff they appoint see sections 3a to 3j, and
+  admins and up see 3l. Staff use a moderation panel that shows
+  public profiles, what servers show everyone, when accounts were last
+  active, which accounts have used the same IP addresses (never the
+  addresses), how much call traffic each account used, moderation
+  cases and their threads, the log, announcements, bug reports and
+  safety reports.
   For a reported message, staff can read its complete content and files,
   not the rest of the encrypted conversation.
 - Link previews, pictures and videos linked from elsewhere, GIFs, and
@@ -426,6 +446,9 @@ calls.
 - Bug reports and their threads: until your account is deleted.
 - Plans (3k), with the gifts you were given: while your account
   exists, including after a plan or gift ends.
+- Call usage (3l): about two months (days older than 62 are deleted).
+  Which account opened each call connection: three days. Relay
+  credential names: until the credential expires, within an hour.
 - A linked Discord account: until you unlink it or delete your
   account.
 - Apps: until their maker deletes them or the maker's account. What
@@ -457,7 +480,8 @@ calls.
   direct message conversations, for both people in them. Its profile
   is overwritten, and its sessions, account addresses, relationships,
   settings, keys, second factor, linked Discord account, crash
-  reports, plan records and the gifts given to it are deleted, and a
+  reports, call usage, plan records and the gifts given to it are
+  deleted, and a
   running subscription is cancelled at once. A gift it gave someone
   else stays theirs until it ends, and a gift link it bought can still
   be claimed; one it claimed no longer says who claimed it. Stripe
@@ -506,7 +530,9 @@ of your data. These are Nexa's:
   bug reports.
 - To keep Nexa secure and working (legitimate interests, Nexa's and
   every member's): the captcha, rate limits, the IP addresses in
-  section 3e, crash reports, and backups.
+  section 3e, crash reports, backups, and the call usage in 3l, which
+  keeps calls inside the allowance everyone shares and shows staff
+  anyone using it up.
 - To enforce the rules (legitimate interests): the account addresses
   in section 3e, which show staff the accounts that share one and go
   with the account; and moderation cases and their threads, the

@@ -35,7 +35,7 @@ describe("legal documents", () => {
     expect(list && list.kind === "ol" && list.items.length).toBe(6);
     const seen = privacy.sections.find((s) => s.title.startsWith("What the owner and staff can see"))!;
     const lettered = seen.blocks.filter((b) => b.kind === "item");
-    expect(lettered.map((b) => (b.kind === "item" ? b.label : ""))).toEqual(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"]);
+    expect(lettered.map((b) => (b.kind === "item" ? b.label : ""))).toEqual(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]);
     const moderation = lettered.find((b) => b.kind === "item" && b.label === "g");
     expect(moderation?.kind === "item" && moderation.lead).toBe("Moderation records (not end-to-end encrypted, kept as the record of how Nexa is moderated)");
     expect(moderation?.kind === "item" && moderation.sub.length).toBeGreaterThanOrEqual(5);

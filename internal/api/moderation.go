@@ -25,6 +25,8 @@ func (s *Server) moderationRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/moderation/users", s.staff(rankMod, s.handleModUsers))
 	mux.Handle("GET /api/v1/moderation/users/{id}", s.staff(rankMod, s.handleModUser))
 	mux.Handle("GET /api/v1/moderation/users/{id}/alts", s.staff(rankAdmin, s.handleModAlts))
+	mux.Handle("GET /api/v1/moderation/users/{id}/calls", s.staff(rankAdmin, s.handleModUserCalls))
+	mux.Handle("GET /api/v1/moderation/calls", s.staff(rankAdmin, s.handleModCalls))
 	mux.Handle("GET /api/v1/moderation/users/{id}/purge-preview", s.staff(rankDeveloper, s.handleModPurgePreview))
 	mux.Handle("POST /api/v1/moderation/users/{id}/actions", s.staff(rankMod, s.handleModAction))
 	mux.Handle("GET /api/v1/moderation/cases", s.staff(rankMod, s.handleModCases))

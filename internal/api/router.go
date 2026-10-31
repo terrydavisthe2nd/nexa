@@ -95,6 +95,7 @@ type Server struct {
 	limYouTube *ratelimit.Limiter
 	limRefresh *ratelimit.Limiter
 	limVoice   *ratelimit.Limiter
+	limTurn    *ratelimit.Limiter
 	limGuest   *ratelimit.Limiter
 	limRotate  *ratelimit.Limiter
 	limPass    *ratelimit.Limiter
@@ -200,11 +201,21 @@ type Server struct {
 	// Meter keeps them inside its free allowance (both nil otherwise).
 	Realtime *realtime.Client
 	Meter    *realtime.Meter
-	// turnCreds holds each account's minted relay credential until it is old
-	// enough to be worth minting another.
-	turnMu    sync.Mutex
-	turnCreds map[ids.ID]turnCred
-	turnMint  singleflight.Group
+	// turnCreds holds the relay credential each account is handed again,
+	// turnLive every credential not yet revoked or expired, and turnBlocked
+	// the accounts past their relay for the day (turn.go).
+	turnMu      sync.Mutex
+	turnCreds   map[ids.ID]turnCred
+	turnLive    map[string]*turnGrant
+	turnBlocked map[ids.ID]time.Time
+	turnLoaded  bool
+	turnMint    singleflight.Group
+	// turnBase replaces the TURN API's address, for tests.
+	turnBase string
+	// Analytics reads what Cloudflare measured of the account's Realtime
+	// egress, for the meter and the staff's Calls page (nil without
+	// REALTIME_ACCOUNT_ID and REALTIME_ANALYTICS_TOKEN).
+	Analytics *realtime.Analytics
 	// serverCounts holds the member and online counts the public invite pages
 	// show, so replaying a shared code cannot drive the work behind them.
 	countsMu     sync.Mutex
@@ -275,6 +286,8 @@ func NewServer(cfg config.Config, st *store.Store, log *slog.Logger, bc Broadcas
 		limRefresh: ratelimit.New(ratelimit.Every(60, time.Minute), 30, 10*time.Minute),
 		// a call renegotiates for every camera, share and person joining
 		limVoice: ratelimit.New(ratelimit.Every(240, time.Minute), 120, 10*time.Minute),
+		// relay credentials: a call takes one or two an hour, reused in between
+		limTurn: ratelimit.New(ratelimit.Every(12, time.Hour), 6, 2*time.Hour),
 		// joining a call as a guest, per address: a household or a meeting room, not a crowd of bots
 		limGuest: ratelimit.New(ratelimit.Every(30, time.Hour), 10, 2*time.Hour),
 		// New key epochs, per conversation. Every one of them costs every
@@ -391,7 +404,7 @@ func NewServer(cfg config.Config, st *store.Store, log *slog.Logger, bc Broadcas
 func (s *Server) limiters() map[string]*ratelimit.Limiter {
 	out := map[string]*ratelimit.Limiter{
 		"generic": s.limGeneric, "auth-ip": s.limAuthIP, "auth-user": s.limAuthUsr, "register": s.limReg, "signup": s.limSignup, "message": s.limMsg,
-		"upload": s.limUpload, "unfurl": s.limUnfurl, "proxy": s.limProxy, "youtube": s.limYouTube, "refresh": s.limRefresh, "voice": s.limVoice,
+		"upload": s.limUpload, "unfurl": s.limUnfurl, "proxy": s.limProxy, "youtube": s.limYouTube, "refresh": s.limRefresh, "voice": s.limVoice, "turn": s.limTurn,
 		"guest": s.limGuest, "rotate": s.limRotate, "password": s.limPass, "profile": s.limProfile, "expressions": s.limExpr,
 		"import": s.limImport, "crash": s.limCrash, "bug": s.limBug, "report": s.limReport, "bug-file": s.limBugFile, "key-ask": s.limKeyAsk,
 		"webhook": s.limHook, "webhook-channel": s.limHookCh, "webhook-manage": s.limHookMgr, "poll-vote": s.limVote, "discord": s.limDiscord, "server-tag": s.limTag, "music-search": s.limMusic, "music-preview": s.limPreview,

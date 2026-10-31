@@ -259,6 +259,8 @@ private fun ProfileSheet(user: ModUser, servers: List<ModMembership>, packs: Lis
                 ))
             }
         }
+        // what their calls used, for catching anyone running the allowance down
+        if (mine != null && mine.atLeast(fish.nexa.data.StaffRank.ADMIN) && !deleted) item("calls") { CallUsagePanel(user.id) }
     }
 }
 

@@ -286,6 +286,74 @@ export interface ModServer {
 
 export type ServerSort = "newest" | "oldest" | "members" | "name";
 
+/** The month's Realtime egress against the allowance (SFU and TURN share it). */
+export interface MeterStatus {
+  month: string;
+  used_bytes: number;
+  limit_bytes: number;
+  estimate_bytes: number;
+  /** Whether used_bytes rests on Cloudflare's measurement, which covers up to measured_until. */
+  measured: boolean;
+  measured_sfu_bytes: number;
+  measured_turn_bytes: number;
+  measured_until: number;
+  measured_at: number;
+  video_paused: boolean;
+  calls_paused: boolean;
+}
+
+/**
+ * What one account's calls used over a span of days: media sent to its own
+ * devices, media its own tracks sent others, TURN relay to it (measured only)
+ * and time in calls. Measured is whether Cloudflare measured every day of it;
+ * otherwise the days without a measurement are Nexa's estimate.
+ */
+export interface CallTotals {
+  received_bytes: number;
+  sent_bytes: number;
+  relay_bytes: number;
+  seconds: number;
+  measured: boolean;
+  last_day: string;
+}
+
+export type CallPeriod = "today" | "week" | "month";
+export type CallSort = "usage" | "sent" | "time";
+
+/** One account on the staff's Calls page. */
+export interface ModCallRow extends CallTotals {
+  user_id: Snowflake;
+  /** Null for someone without an account (a guest), or one deleted since. */
+  user: PublicUser | null;
+  in_call: boolean;
+  /** Past its TURN relay for the day, so it gets none until the next UTC day. */
+  relay_cut_off: boolean;
+}
+
+export interface ModCalls {
+  period: CallPeriod;
+  first_day: string;
+  last_day: string;
+  sort: CallSort;
+  accounts: ModCallRow[];
+  has_more: boolean;
+  /** What Cloudflare measured that no account could be named for. */
+  unattributed: CallTotals;
+  /** Whether Cloudflare's measurements are set up, rather than Nexa's estimate alone. */
+  measurements: boolean;
+  turn_daily_limit_bytes: number;
+  meter?: MeterStatus;
+}
+
+export interface ModUserCalls {
+  today: CallTotals;
+  week: CallTotals;
+  month: CallTotals;
+  in_call: boolean;
+  relay_cut_off: boolean;
+  measurements: boolean;
+}
+
 /** An app as the staff's Bots tab lists it. Its id is its bot's. */
 export interface ModApp {
   id: Snowflake;
@@ -478,6 +546,14 @@ export const moderation = {
   /** The accounts seen at the same addresses as this one, the most shared first. */
   alts(id: Snowflake): Promise<{ alts: ModAlt[] }> {
     return api.request("GET", `/moderation/users/${id}/alts`);
+  },
+  /** Accounts by what their calls used over a period, largest first. */
+  calls(p: { period: CallPeriod; sort: CallSort; offset?: number }): Promise<ModCalls> {
+    return api.request("GET", "/moderation/calls", undefined, { query: { period: p.period, sort: p.sort, offset: p.offset } });
+  },
+  /** One account's calls today, over seven days and this month. */
+  userCalls(id: Snowflake): Promise<ModUserCalls> {
+    return api.request("GET", `/moderation/users/${id}/calls`);
   },
   purgePreview(id: Snowflake): Promise<PurgeCounts> {
     return api.request("GET", `/moderation/users/${id}/purge-preview`);

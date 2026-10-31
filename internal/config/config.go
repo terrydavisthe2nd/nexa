@@ -114,9 +114,20 @@ type Config struct {
 	// Without them calls go peer to peer.
 	RealtimeAppID     string
 	RealtimeAppSecret string
-	// RealtimeMonthlyGB is the SFU's free allowance per month. Video pauses
-	// near it and calls stop just short of it, so nothing is ever billed.
+	// RealtimeMonthlyGB is the free Realtime allowance per month, which SFU
+	// and TURN egress share. Video pauses near it and calls stop just short
+	// of it, so nothing is ever billed.
 	RealtimeMonthlyGB int64
+	// RealtimeAccountID and RealtimeAnalyticsToken (an API token that can
+	// read the account's analytics) let the meter use what Cloudflare
+	// measured instead of its own estimate: the month's SFU and TURN egress,
+	// and each account's share of it for the staff's Calls page.
+	RealtimeAccountID      string
+	RealtimeAnalyticsToken string
+	// RealtimeTURNDailyGB is the most TURN relay one account may use in a
+	// UTC day, as Cloudflare measures it, before its relay is cut off until
+	// the next day.
+	RealtimeTURNDailyGB int64
 	// GuestLinksP2P lets guest links work on a server whose calls go peer to
 	// peer. There a link's code alone admits someone who can hear the call,
 	// with no key in it to protect, and guests learn members' addresses, so
@@ -146,20 +157,21 @@ type Config struct {
 // Load builds a Config from getenv, applying defaults and validating values.
 func Load(getenv func(string) string) (Config, error) {
 	c := Config{
-		Listen:            "127.0.0.1:8090",
-		PublicURL:         "https://nexa.fish",
-		DataDir:           "./data",
-		WebDist:           "./web/dist",
-		MaxUploadBytes:    104857600,
-		MaxAvatarBytes:    10 << 20,
-		MaxEmojiBytes:     2 << 20,
-		MaxStickerBytes:   5 << 20,
-		Registration:      "open",
-		RealtimeMonthlyGB: 1000,
-		EgressProxy:       "warp",
-		WarpProxyPort:     40000,
-		LogLevel:          "info",
-		SessionTTL:        90 * 24 * time.Hour,
+		Listen:              "127.0.0.1:8090",
+		PublicURL:           "https://nexa.fish",
+		DataDir:             "./data",
+		WebDist:             "./web/dist",
+		MaxUploadBytes:      104857600,
+		MaxAvatarBytes:      10 << 20,
+		MaxEmojiBytes:       2 << 20,
+		MaxStickerBytes:     5 << 20,
+		Registration:        "open",
+		RealtimeMonthlyGB:   1000,
+		RealtimeTURNDailyGB: 10,
+		EgressProxy:         "warp",
+		WarpProxyPort:       40000,
+		LogLevel:            "info",
+		SessionTTL:          90 * 24 * time.Hour,
 	}
 	str := func(k string, dst *string) {
 		if v := strings.TrimSpace(getenv(k)); v != "" {
@@ -205,6 +217,8 @@ func Load(getenv func(string) string) (Config, error) {
 	str("HCAPTCHA_SECRET_KEY", &c.HCaptchaSecretKey)
 	str("REALTIME_APP_ID", &c.RealtimeAppID)
 	str("REALTIME_APP_SECRET", &c.RealtimeAppSecret)
+	str("REALTIME_ACCOUNT_ID", &c.RealtimeAccountID)
+	str("REALTIME_ANALYTICS_TOKEN", &c.RealtimeAnalyticsToken)
 	str("EGRESS_PROXY", &c.EgressProxy)
 	str("LOG_LEVEL", &c.LogLevel)
 	str("LOG_FILE", &c.LogFile)
@@ -222,6 +236,7 @@ func Load(getenv func(string) string) (Config, error) {
 		{"MAX_EMOJI_BYTES", &c.MaxEmojiBytes},
 		{"MAX_STICKER_BYTES", &c.MaxStickerBytes},
 		{"REALTIME_MONTHLY_GB", &c.RealtimeMonthlyGB},
+		{"REALTIME_TURN_DAILY_GB", &c.RealtimeTURNDailyGB},
 	}
 	for _, kv := range ints {
 		v := strings.TrimSpace(getenv(kv.k))

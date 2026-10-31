@@ -306,7 +306,7 @@ func TestGuestTURNRequestsShareABoundedCredential(t *testing.T) {
 	uid, _ := ids.Parse(id)
 	srv.turnMu.Lock()
 	hit := srv.turnCreds[uid]
-	hit.until = time.Now().Add(-time.Second)
+	hit.expires = time.Now().Add(-time.Second)
 	srv.turnCreds[uid] = hit
 	srv.turnMu.Unlock()
 	do(t, ts, "GET", "/api/v1/voice/ice", guest, nil)

@@ -120,6 +120,8 @@ fun AdminPanel(route: Route.Admin) {
         PanelTab("servers", t("moderation.tabs.servers"), "Server"),
         PanelTab("discovery", t("moderation.tabs.discovery"), "Compass"),
         PanelTab("expressions", t("moderation.tabs.expressions"), "Sticker"),
+        // what calls use, and who uses it, against the month's allowance
+        PanelTab("calls", t("moderation.tabs.calls"), "Phone"),
         // what waits on the staff and is new to this person; reading it, or Mark as Read, takes it off
         PanelTab("cases", t("moderation.tabs.cases"), "FolderOpen", unread.cases.size, t("moderation.needsReplyCount", "count" to unread.cases.size)),
         PanelTab("bugs", t("moderation.tabs.bugs"), "Bug", unread.bugs.size, t("bugs.staff.waitingCount", "count" to unread.bugs.size)),
@@ -150,6 +152,7 @@ fun AdminPanel(route: Route.Admin) {
             when (tab) {
                 "users" -> if (parts.size >= 2) PersonPage(parts[1], cases = parts.getOrNull(2) == "cases", caseId = parts.getOrNull(3)) else UsersTab()
                 "bots" -> BotsTab()
+                "calls" -> CallsTab()
                 "discovery" -> ServersTab(discovery = true)
                 "servers" -> if (parts.size >= 2) StaffServerPage(parts[1]) else ServersTab()
                 "expressions" -> when {

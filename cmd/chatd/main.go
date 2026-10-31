@@ -172,6 +172,9 @@ func main() {
 	// whatever deleted accounts still own goes, now and every hour after
 	srv.StartAccountSweep(ctx)
 	srv.StartBilling(ctx)
+	// TURN credentials revoked once their calls end, Cloudflare's measurement
+	// of what calls used, and the clearing out of old call records
+	srv.StartRealtime(ctx)
 	if warp != nil {
 		go func() {
 			if err := warp.Ensure(ctx); err != nil {

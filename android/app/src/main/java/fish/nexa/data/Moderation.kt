@@ -134,6 +134,64 @@ data class ModAlt(
     @SerialName("last_shared_at") val lastSharedAt: Long = 0,
 )
 
+/** The month's Realtime egress against the allowance, which SFU and TURN share (web MeterStatus). */
+@Serializable
+data class MeterStatus(
+    val month: String = "",
+    @SerialName("used_bytes") val used: Long = 0,
+    @SerialName("limit_bytes") val limit: Long = 0,
+    @SerialName("estimate_bytes") val estimate: Long = 0,
+    /** Whether used rests on Cloudflare's measurement, which covers up to measuredUntil. */
+    val measured: Boolean = false,
+    @SerialName("measured_sfu_bytes") val measuredSfu: Long = 0,
+    @SerialName("measured_turn_bytes") val measuredTurn: Long = 0,
+    @SerialName("measured_until") val measuredUntil: Long = 0,
+    @SerialName("measured_at") val measuredAt: Long = 0,
+    @SerialName("video_paused") val videoPaused: Boolean = false,
+    @SerialName("calls_paused") val callsPaused: Boolean = false,
+)
+
+/**
+ * What one account's calls used over a span of days (web CallTotals): media to
+ * its devices, media its own tracks sent others, TURN relay (measured only) and
+ * time in calls; measured when Cloudflare measured every day of it.
+ */
+@Serializable
+data class CallTotals(
+    @SerialName("received_bytes") val received: Long = 0,
+    @SerialName("sent_bytes") val sent: Long = 0,
+    @SerialName("relay_bytes") val relay: Long = 0,
+    val seconds: Long = 0,
+    val measured: Boolean = false,
+    @SerialName("last_day") val lastDay: String = "",
+)
+
+/** The account a row on the Calls page is about, as its public profile. */
+@Serializable
+data class CallUser(
+    val id: String,
+    val username: String = "",
+    @SerialName("display_name") val displayName: String = "",
+    @SerialName("avatar_id") val avatarId: String? = null,
+    val flags: Long = 0,
+)
+
+/** One account on the staff's Calls page (web ModCallRow). */
+@Serializable
+data class ModCallRow(
+    @SerialName("user_id") val userId: String,
+    /** Null for someone without an account (a guest), or one deleted since. */
+    val user: CallUser? = null,
+    @SerialName("received_bytes") val received: Long = 0,
+    @SerialName("sent_bytes") val sent: Long = 0,
+    @SerialName("relay_bytes") val relay: Long = 0,
+    val seconds: Long = 0,
+    val measured: Boolean = false,
+    @SerialName("in_call") val inCall: Boolean = false,
+    /** Past its TURN relay for the day, so it gets none until the next UTC day. */
+    @SerialName("relay_cut_off") val relayCutOff: Boolean = false,
+)
+
 /** An account in the panel's grid (ModUser). */
 @Serializable
 data class ModUser(
@@ -476,6 +534,39 @@ object Moderation {
         val o = obj(Nexa.api.get("/moderation/apps" + q("q" to q.trim(), "sort" to sort, "offset" to offset.takeIf { it > 0 }, "limit" to limit)))
         peopleIn(o)
         return AppPage(list(o, "apps", ModApp.serializer()), (o["total"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0, bool(o, "has_more"))
+    }
+
+    data class CallsPage(
+        val accounts: List<ModCallRow>,
+        val more: Boolean,
+        val meter: MeterStatus?,
+        /** What Cloudflare measured that no account could be named for. */
+        val unattributed: CallTotals,
+        /** Whether Cloudflare's measurements are set up, rather than Nexa's estimate alone. */
+        val measurements: Boolean,
+        val turnDailyLimit: Long,
+    )
+
+    /** Accounts by what their calls used over a period (today, week, month), largest first. */
+    suspend fun calls(period: String, sort: String, offset: Int): CallsPage {
+        val o = obj(Nexa.api.get("/moderation/calls" + q("period" to period, "sort" to sort, "offset" to offset.takeIf { it > 0 })))
+        return CallsPage(
+            list(o, "accounts", ModCallRow.serializer()),
+            bool(o, "has_more"),
+            decode(MeterStatus.serializer(), o["meter"]),
+            decode(CallTotals.serializer(), o["unattributed"]) ?: CallTotals(),
+            bool(o, "measurements"),
+            (o["turn_daily_limit_bytes"] as? JsonPrimitive)?.contentOrNull?.toLongOrNull() ?: 0L,
+        )
+    }
+
+    data class UserCalls(val today: CallTotals, val week: CallTotals, val month: CallTotals, val inCall: Boolean, val relayCutOff: Boolean, val measurements: Boolean)
+
+    /** One account's calls today, over seven days and this month. */
+    suspend fun userCalls(id: String): UserCalls {
+        val o = obj(Nexa.api.get("/moderation/users/$id/calls"))
+        fun totals(k: String) = decode(CallTotals.serializer(), o[k]) ?: CallTotals()
+        return UserCalls(totals("today"), totals("week"), totals("month"), bool(o, "in_call"), bool(o, "relay_cut_off"), bool(o, "measurements"))
     }
 
     suspend fun servers(q: String, sort: String, offset: Int, limit: Int, discovery: String? = null): ServerPage {

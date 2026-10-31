@@ -180,7 +180,7 @@ func TestSFURetirementRetriesWithoutErasingLiveUsage(t *testing.T) {
 	rt.mu.Lock()
 	rt.refuseCloses = 1
 	rt.mu.Unlock()
-	srv.Meter.Start("listener", "0", realtime.Source("retired", "audio"), realtime.RateFor("audio", 0))
+	srv.Meter.Start("listener", "0", realtime.Source("retired", "audio"), realtime.RateFor("audio", 0), 0, 0)
 	srv.closeSFUSession("retired")
 	time.Sleep(50 * time.Millisecond)
 	if _, charged := srv.Meter.ActiveMid("listener", realtime.Source("retired", "audio")); !charged {
