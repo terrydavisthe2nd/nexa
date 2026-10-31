@@ -178,9 +178,8 @@ jobs:
             args: "--target aarch64-apple-darwin --bundles app,dmg"
             targets: "aarch64-apple-darwin"
     env:
-      # Read by updater.rs through option_env!, so each fork updates from its
-      # own releases instead of the endpoint checked into tauri.conf.json.
-      NEXA_UPDATER_ENDPOINT: "https://github.com/${{ github.repository }}/releases/latest/download/latest.json"
+      # Owner-controlled repository variable, baked into the binary. No runtime override.
+      NEXA_UPDATER_PUBLIC_KEY: ${{ vars.NEXA_UPDATER_PUBLIC_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -232,6 +231,18 @@ jobs:
             echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set. Add the updater private key and its password as repository secrets (see desktop/README.md)."
             exit 1
           fi
+          if [ -z "$NEXA_UPDATER_PUBLIC_KEY" ]; then
+            echo "::error::Set the owner-approved NEXA_UPDATER_PUBLIC_KEY repository variable before releasing."
+            exit 1
+          fi
+          python - <<'PYCONFIG'
+          import json, os, pathlib
+          public_key = os.environ["NEXA_UPDATER_PUBLIC_KEY"].strip()
+          if not public_key:
+              raise SystemExit("NEXA_UPDATER_PUBLIC_KEY must not be blank")
+          config = {"plugins": {"updater": {"pubkey": public_key}}}
+          pathlib.Path(os.environ["RUNNER_TEMP"], "nexa-updater-config.json").write_text(json.dumps(config))
+          PYCONFIG
 
       # A desktop-v* tag creates a draft release with signed updater files.
       - name: Build and publish draft release
@@ -252,7 +263,7 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} --config "${{ runner.temp }}/nexa-updater-config.json"
 
       - name: Keep the installers from this run
         if: ${{ !startsWith(github.ref, 'refs/tags/desktop-v') }}

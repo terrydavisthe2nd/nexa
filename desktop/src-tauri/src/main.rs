@@ -2,6 +2,7 @@
 
 mod bridge;
 mod capture;
+mod downloads;
 mod originals;
 mod rpc;
 mod settings;
@@ -10,6 +11,7 @@ mod state;
 mod strings;
 mod tray;
 mod types;
+mod update_trust;
 mod updater;
 mod window;
 

@@ -1,7 +1,5 @@
 use std::sync::Mutex;
 
-use std::path::{Path, PathBuf};
-
 use tauri::webview::DownloadEvent;
 use tauri::{
     AppHandle, Emitter, Manager, UserAttentionType, WebviewUrl, WebviewWindow,
@@ -73,10 +71,16 @@ pub fn create(app: &AppHandle, settings: &DesktopSettings) -> tauri::Result<Webv
         })
         .on_download(|_webview, event| {
             if let DownloadEvent::Requested { url, destination } = event {
-                if let Some(dir) = dirs::download_dir() {
-                    let _ = std::fs::create_dir_all(&dir);
-                    *destination = unique_path(&dir, &download_name(&url));
+                let Some(dir) = dirs::download_dir() else {
+                    return false;
+                };
+                if std::fs::create_dir_all(&dir).is_err() {
+                    return false;
                 }
+                let Some(path) = crate::downloads::destination(&dir, &download_name(&url)) else {
+                    return false;
+                };
+                *destination = path;
             }
             true
         })
@@ -441,28 +445,4 @@ fn download_name(url: &tauri::Url) -> String {
     urlencoding::decode(raw)
         .map(|name| name.into_owned())
         .unwrap_or_else(|_| raw.to_string())
-}
-
-fn unique_path(dir: &Path, name: &str) -> PathBuf {
-    let candidate = dir.join(name);
-    if !candidate.exists() {
-        return candidate;
-    }
-    let path = Path::new(name);
-    let stem = path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("download");
-    let extension = path.extension().and_then(|value| value.to_str());
-    for number in 2..10_000 {
-        let file = match extension {
-            Some(extension) => format!("{stem} ({number}).{extension}"),
-            None => format!("{stem} ({number})"),
-        };
-        let candidate = dir.join(file);
-        if !candidate.exists() {
-            return candidate;
-        }
-    }
-    dir.join(name)
 }

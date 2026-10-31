@@ -1511,6 +1511,34 @@ This is a public website feature, with no corresponding native Android screen.
 
 ## Desktop app (`desktop/`)
 
+### Tauri migration handoff
+
+The unfinished Electron-to-Tauri migration is isolated on `nexa-desktop-new`, based on
+PR #1 head `49afdd5b33a8fe367f5271d651fb263a20169ea9`. A request to "complete the Tauri
+migration for desktop using the branch" means resume that branch, read `desktop/CLAUDE.md`
+and `docs/desktop-tauri-review.md`, finish the Linux receiver and the recorded qualification
+work, and preserve the two security fixes below. Do not start the migration again from main,
+merge it, deploy it, push it or publish a release without the owner's corresponding instruction.
+Use an isolated worktree when main has unrelated edits. This branch is not release-ready.
+
+Download destinations now use `src-tauri/src/downloads.rs`: decoded names containing path
+separators, parent components, absolute paths, control characters or Windows-special names
+become `download`; collisions and dangling symlinks are skipped, and exhaustion refuses the
+download. Keep the destination within Downloads. A native Save As flow remains review follow-up.
+
+The contributor's updater key was removed. `src-tauri/src/update_trust.rs` fixes the feed to
+`https://github.com/terrydavisthe2nd/nexa/releases/latest/download/latest.json`.
+`NEXA_UPDATER_PUBLIC_KEY` is a build-time, owner-approved Tauri public key, supplied in Actions
+through the repository variable of that name. Without it the app does not poll, download or
+install updates. Neither the key nor the endpoint accepts a runtime environment override.
+Release tags require that public variable plus the existing `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets. The workflow writes a temporary Tauri config with
+the same public key for signed packaging. Verify the private/public pair before releasing.
+No key was generated, rotated, read from private storage or uploaded during this fix. Existing
+Electron PEM keys are a different format from Tauri minisign keys; do not substitute one for
+the other or replace an existing owner key without explicit authorization. The desktop handoff
+has the remaining signing and manual-install cutover details.
+
 The desktop app is Tauri 2 (version in `desktop/src-tauri/Cargo.toml` and
 `tauri.conf.json`, bumped for every release) around the live site. It opens one window on
 https://nexa.fish (`NEXA_DESKTOP_URL` points a development build elsewhere), refuses to navigate
@@ -1519,7 +1547,8 @@ GitHub Actions (`.github/workflows/desktop.yml`) builds it on a `desktop-v*` tag
 release: NSIS on Windows, AppImage and .deb on Linux, separate Intel and Apple Silicon DMGs, with
 signed updater files. The updater private key and its password are repository secrets
 (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) and are never committed; the
-public half is pinned in `tauri.conf.json`. `src-tauri/src/main.rs`
+public half is owner-approved through the build-time `NEXA_UPDATER_PUBLIC_KEY` variable.
+The checked-in config has no trusted key; unconfigured builds cannot update. `src-tauri/src/main.rs`
 registers the plugins and creates the window; `src-tauri/bridge.js` is injected before the page and
 defines `window.evilionDesktop` with the shape `web/src/lib/desktopBridge.ts` expects, so the web app
 needs no changes. `desktop/src-tauri/permissions/desktop.toml` lists every command the remote page
@@ -1584,17 +1613,19 @@ and video-visibility decisions follow what the person sees. Opening it from the 
 restores its original position and taskbar entry before focusing it.
 
 Updates use Tauri's updater plugin (`src-tauri/src/updater.rs`) and the project's GitHub releases.
-Every artifact is verified against the Ed25519 (minisign) public key in `plugins.updater.pubkey`
-before it installs; there is no unsigned fallback. The private key is never committed: it is
+Every artifact is verified against the owner-approved Ed25519 (minisign) public key baked in
+from `NEXA_UPDATER_PUBLIC_KEY` before it installs; there is no unsigned fallback.
+The private key is never committed: it is
 `TAURI_SIGNING_PRIVATE_KEY` and its password `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` in the repository
-secrets, and the matching public key is regenerated only with `npx @tauri-apps/cli signer generate`.
-The app checks 10 s after start and then every minute, downloads a found update by itself, and
+secrets. Never generate or rotate signing material without explicit owner authorization.
+Once the owner-approved public key is configured, the app checks 10 s after start and then every
+minute, downloads a found update by itself, and
 installs only when the page's Update dialog asks (`updates.restart`), so nothing installs on quit.
 Linux deb installs cannot self-update; they get the release page (`manual`). The endpoint is the
-current repository's `releases/latest/download/latest.json`, baked at build time from
-`NEXA_UPDATER_ENDPOINT` so a fork updates from its own releases; the checked-in endpoint is the
-public project's. `src-tauri/tauri.nosign.conf.json` turns updater artifacts off for local and pull
-request builds.
+canonical `terrydavisthe2nd/nexa` repository's `releases/latest/download/latest.json`,
+fixed in `update_trust.rs` and the checked-in config. Runtime endpoint overrides are ignored.
+The checked-in public key is empty, so an unconfigured build has updates disabled.
+`src-tauri/tauri.nosign.conf.json` turns updater artifacts off for local and pull request builds.
 
 Releases are built by `.github/workflows/desktop.yml`, never on the server: a `desktop-v*` tag builds
 Windows (NSIS), Linux (AppImage and deb) and macOS for x64 and arm64, signs the updater artifacts,

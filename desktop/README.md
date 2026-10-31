@@ -34,8 +34,8 @@ desktop/
 - Discord Rich Presence: a local Discord IPC endpoint and WebSocket server, and
   the connection to the real Discord client.
 - Signed updates. Tauri's updater verifies the Ed25519 signature of every
-  artifact against the public key in `tauri.conf.json`; there is no unsigned
-  fallback.
+  artifact against the owner-approved public key baked into the build; there
+  is no unsigned fallback. Updates stay disabled until that key is configured.
 - Open Original: decrypted media is served from memory on 127.0.0.1, never
   written to disk.
 
@@ -173,13 +173,21 @@ The updater key is not in Git. Add these repository secrets:
   path, as Tauri accepts both).
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: its password.
 
-The matching public key is `plugins.updater.pubkey` in `tauri.conf.json`. A new
-key must be generated with `npx @tauri-apps/cli signer generate` and the app
-released once more; never replace a key that releases already trust.
+The owner-approved matching Tauri public key is the repository variable
+`NEXA_UPDATER_PUBLIC_KEY`, baked into the binary at compile time. The release
+workflow also writes it into a temporary Tauri packaging config. The checked-in
+public key is empty; without the build-time variable the app cannot check,
+download or install updates and does not poll a feed. Never generate, replace
+or rotate signing material without explicit owner authorization. Verify the
+private/public pair using a signed artifact before enabling releases.
 
-Compile-time endpoint: the workflow sets `NEXA_UPDATER_ENDPOINT` to the current
-repository's `releases/latest/download/latest.json`, so a fork updates from its
-own releases. Without it the checked-in endpoint is used.
+The feed is fixed to
+`https://github.com/terrydavisthe2nd/nexa/releases/latest/download/latest.json`.
+Runtime endpoint and key overrides are ignored. Forks must make an explicit
+source change to establish their own release trust.
+
+Migration status and the Linux/signing handoff are in [CLAUDE.md](CLAUDE.md)
+and the [PR review record](../docs/desktop-tauri-review.md).
 
 Deb users cannot install updates in place (the updater supports AppImage, NSIS
 and macOS bundles); they get the release page instead.

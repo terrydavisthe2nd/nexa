@@ -39,21 +39,15 @@ fn patch(app: &AppHandle, change: impl FnOnce(&mut UpdateState)) {
     let _ = app.emit("desktop://update", next);
 }
 
-fn endpoint() -> Option<tauri::Url> {
-    let value = std::env::var("NEXA_UPDATER_ENDPOINT")
-        .ok()
-        .or_else(|| option_env!("NEXA_UPDATER_ENDPOINT").map(str::to_string))?;
-    value.parse().ok()
-}
-
 fn builder(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
-    let mut builder = app.updater_builder();
-    if let Some(endpoint) = endpoint() {
-        builder = builder
-            .endpoints(vec![endpoint])
-            .map_err(|error| format!("the update address is not usable: {error}"))?;
-    }
-    builder
+    let key = crate::update_trust::public_key(option_env!("NEXA_UPDATER_PUBLIC_KEY"))?;
+    let endpoint = crate::update_trust::ENDPOINT
+        .parse::<tauri::Url>()
+        .map_err(|error| format!("the update address is not usable: {error}"))?;
+    app.updater_builder()
+        .pubkey(key)
+        .endpoints(vec![endpoint])
+        .map_err(|error| format!("the update address is not usable: {error}"))?
         .build()
         .map_err(|error| format!("the updater could not start: {error}"))
 }
@@ -305,6 +299,10 @@ pub fn install(app: &AppHandle, downloaded_version: Option<&str>) -> Result<(), 
 }
 
 pub fn start(app: &AppHandle) {
+    // Qualification/local builds must not poll any feed without an approved key.
+    if crate::update_trust::public_key(option_env!("NEXA_UPDATER_PUBLIC_KEY")).is_err() {
+        return;
+    }
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(10)).await;

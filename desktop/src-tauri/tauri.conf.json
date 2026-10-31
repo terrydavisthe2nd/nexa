@@ -46,9 +46,9 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/hnrie/nexa/releases/latest/download/latest.json"
+        "https://github.com/terrydavisthe2nd/nexa/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFCOUIyRTZBNjQ0MUZCMkYKUldRdiswRmthaTZicStjZnd4RXlrQ3hYcUoxL3pQSVgyaVZYcHo3cjRRTHZyTXU2VC9vKzJGYisK"
+      "pubkey": ""
     }
   }
 }
