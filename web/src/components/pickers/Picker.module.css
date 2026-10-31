@@ -1,9 +1,9 @@
 .pop { --glyph-cut: var(--bg-floating); position: absolute; inset-inline-end: 0; bottom: calc(100% + 10px); z-index: 50; width: 498px; max-width: calc(100vw - 32px); height: 498px; max-height: 70vh; display: flex; flex-direction: column; background: var(--bg-floating); border-radius: var(--radius-lg); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--panel-edge), var(--shadow-high); overflow: hidden; animation: pop 200ms var(--ease-out); transform-origin: bottom right; }
 [dir="rtl"] .pop { transform-origin: bottom left; }
 @keyframes pop { from { transform: translateY(8px) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
-.titleBar { display: flex; align-items: center; justify-content: space-between; margin: 12px 14px 0 18px; min-height: 36px; }
+.titleBar { display: flex; align-items: center; justify-content: space-between; margin: 12px 16px 0; min-height: 36px; }
 .title { margin: 0; font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--text-strong); }
-.tabs { display: flex; align-items: center; gap: 2px; margin: 12px 14px 0; padding: 3px; border-radius: 12px; background: var(--bg-input); box-shadow: inset 0 1px 2px color-mix(in srgb, var(--shade) 40%, transparent), inset 0 0 0 1px var(--border-subtle); }
+.tabs { display: flex; align-items: center; gap: 2px; margin: 12px 16px 0; padding: 3px; border-radius: 12px; background: var(--bg-input); box-shadow: inset 0 1px 2px color-mix(in srgb, var(--shade) 40%, transparent), inset 0 0 0 1px var(--border-subtle); }
 .tab { height: 30px; padding: 0 12px; border-radius: 9px; font-size: 14.5px; font-weight: 600; color: var(--text-muted); transition: background-color var(--transition), color var(--transition), box-shadow var(--transition); }
 .tab[data-selected="true"] { background: var(--sheen), var(--bg-surface); color: var(--text-strong); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border-subtle), var(--shadow-low); }
 .tab:hover { color: var(--text-strong); }
@@ -46,6 +46,9 @@
   .pop { position: fixed !important; left: 0 !important; right: 0 !important; bottom: var(--kb-inset, 0px) !important; top: auto !important; width: 100% !important; max-width: none; max-height: none; height: 60vh; height: min(60dvh, calc(var(--vvh, 100dvh) - 56px)); padding-top: 14px; padding-bottom: max(0px, calc(env(safe-area-inset-bottom) - var(--kb-inset, 0px))); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
   .pop[data-expanded] { height: calc(var(--vvh, 100dvh) - env(safe-area-inset-top)); border-radius: 0; }
   .grip { display: block; position: absolute; top: 6px; left: 50%; translate: -50% 0; width: 36px; height: 4px; border-radius: 2px; background: var(--border-strong); }
+  /* the sheet's 14px top padding is the grip's room (the dash sits at 6px), so
+     the header starts right under it instead of adding another 12px */
+  .tabs, .titleBar { margin-top: 2px; }
 }
 /* GifGrid: two columns placed by script, scrolling down only */
 .gifScroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }

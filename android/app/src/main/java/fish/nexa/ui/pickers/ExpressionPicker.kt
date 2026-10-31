@@ -197,9 +197,9 @@ private fun PickerSheet(layer: Layer, opener: Pickers.Opener, close: () -> Unit)
             ) {
                 if (opener.draggable) Box(Modifier.padding(top = 6.dp).size(36.dp, 4.dp).background(c.borderStrong, RoundedCornerShape(2.dp)))
             }
-            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 // emoji alone: a title saying what the picker is for, not a bar with one tab in it
-                if (opener.tabs.size == 1) Txt(opener.title ?: t("modals.customStatus.emoji"), style = Nx.type.headerTitle, color = c.textStrong, modifier = Modifier.weight(1f).padding(start = 4.dp, top = 12.dp))
+                if (opener.tabs.size == 1) Txt(opener.title ?: t("modals.customStatus.emoji"), style = Nx.type.headerTitle, color = c.textStrong, modifier = Modifier.weight(1f))
                 else Tabs(opener.tabs, tab, Modifier.weight(1f)) { tab = it }
                 Box(
                     Modifier
@@ -237,7 +237,7 @@ private fun Tabs(tabs: List<Pickers.Tab>, current: Pickers.Tab, modifier: Modifi
     val shape = RoundedCornerShape(12.dp)
     Row(
         modifier
-            .padding(top = 12.dp)
+            .padding(top = 2.dp)
             .background(c.bgInput, shape)
             .ring(shape, c.borderSubtle)
             .padding(3.dp)
