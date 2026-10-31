@@ -271,7 +271,9 @@ in `tools/bots/`, pointed at Nexa as the portal says, used by a person in a head
 `--no-content` tries an app without Message Content, and `--serve --port N` leaves the server and
 its discord.py bot running, for the Android emulator), `tools/discord_e2e.py` (Discord activity sync against the fake Discord in
 `internal/discordsync/fakediscord/cmd/fakediscord`), `tools/sfu_call.py` and `tools/sfu_guest.py`
-(real calls and a guest through Cloudflare Realtime, keys from `chatd.env`), `tools/call_quality.py`
+(real calls and a guest through Cloudflare Realtime, keys from `chatd.env`; sfu_call turns noise
+suppression off for its accounts, since its fake microphone is a steady tone the speech gate
+rightly silences), `tools/call_quality.py`
 (calls over bad networks made by `tools/netsim`), `tools/share_quality.py` (a screen share of hard
 motion through Cloudflare, timed frame by frame as the viewer sees it; the sharer is Chromium,
 Firefox or the desktop app's Electron in a hidden window, `--up-kbps`, `--loss` and `--down-loss`
@@ -1178,7 +1180,11 @@ in `config.go`, `chatd.env.example` and this list.
   `do(t, ts, method, path, token, body)` makes a JSON request; `errCode` reads an error;
   `connectGWReady` / `connectGW` open a gateway socket and `gw.next(event, timeout)` waits for an event.
   For apps (`bot_test.go`): `makeApp` makes one and returns its bot's token, `botDo` makes a
-  request as the bot, `addBot` adds it to a server as the consent page does.
+  request as the bot, `addBot` adds it to a server as the consent page does. For TURN
+  (`turn_test.go`): `newFakeTURN(t, srv)` stands in for Cloudflare's TURN key API and records
+  mints and revocations, `iceUsername` fetches the ICE servers' credential name, `idleTURN` ages a
+  credential's grace, and `putInCall` puts someone in a call without a gateway. The Realtime SFU
+  stand-in is `newRealtimeStandIn` (`sfu_handlers_test.go`).
 - `internal/store`: `newStore(t)`, `mkUser(t, s, name)`.
 - Tests against live services run only with their variables set (`UNFURL_LIVE`, `REALTIME_LIVE`,
   `TELEGRAM_LIVE_TOKEN`, `DISCORD_BOT_TOKEN`); the Discord tests otherwise use `fakediscord`.
@@ -1770,7 +1776,8 @@ notes. CMake also fetches pinned Xiph RNNoise source and weights matching rnnois
   panel's requests, and `events` its open views follow). `ui/nexa/ThreadChat` draws a case thread or
   a bug report as a conversation for both sides, as the web's does. The staff panel is native
   (`ui/moderation`: `Panel` with its tabs, `Users`, `Bots`, `Person`, `Moderate` and the other takedown
-  sheets, `Cases`, `Bugs`, `Servers`, `Expressions`, `Logs`, `Parts`, `Words`), at
+  sheets, `Cases`, `Bugs`, `Servers`, `Expressions`, `Calls` (the Calls tab and Call Usage panel),
+  `Logs`, `Parts`, `Words`), at
   `Route.Admin(path)`, whose path is the web's below `/channels/@admin`.
 - Apps (`data/Apps`, `AppCommands`, `Interactions`, `BotCopies`, `Pickables`, `net/AppModels`) and
   their screens in `ui/apps` (`CommandMode` with `CommandBox` and `CommandList` in the composer,

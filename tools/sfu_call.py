@@ -206,6 +206,18 @@ try:
         carol.page.add_init_script("window.__relayOnly = true")
         PUMP.append(alice.page)
         alice.register("Alice"); bob.register("Bob"); carol.register("Carol")
+        # The fake microphone is a steady tone, which noise suppression (RNNoise
+        # and its speech gate) rightly takes for noise and silences, so these
+        # calls run with it off. Carol is widened for a moment to reach Settings.
+        for sess in (alice, bob, carol):
+            size = sess.page.viewport_size
+            sess.page.set_viewport_size({"width": 1366, "height": 768})
+            sess.open_settings("voice")
+            sess.page.locator("[data-testid=noise-off]").check(force=True)
+            sess.page.wait_for_timeout(800)
+            sess.page.keyboard.press("Escape")
+            sess.page.wait_for_timeout(300)
+            sess.page.set_viewport_size(size)
 
         a = alice.page
         a.goto(srv.base + "/channels/@me", wait_until="networkidle")
