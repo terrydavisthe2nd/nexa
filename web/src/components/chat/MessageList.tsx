@@ -94,6 +94,17 @@ const LEAVE_MS = 3000;
  */
 const REST_MS = 300;
 
+/**
+ * How long a wheel has to be quiet before the gesture counts as over. A
+ * trackpad's momentum arrives as a wheel event every frame, so a gap this long
+ * means it has stopped; waiting longer (it was a second and a half, the touch
+ * fallback) left a page of history held off screen until the reader gave up.
+ */
+const WHEEL_REST_MS = 200;
+
+/** Pages of older messages that may be fetched ahead while a gesture holds the ones before them off screen. */
+const HELD_AHEAD = 100;
+
 /** A row of the list and how far its top sat below the top of the box. */
 type Anchor = { id: string; top: number };
 
@@ -261,6 +272,7 @@ export function MessageList({ channel }: { channel: Channel }) {
   /** When the list last scrolled, to tell a list at rest from one still moving. */
   const lastScroll = useRef(0);
   const trimTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const trimDue = useRef(0);
   // on a touch screen, a message swiped against the reading direction is replied to
   useEffect(() => {
     const el = scrollRef.current;
@@ -297,6 +309,14 @@ export function MessageList({ channel }: { channel: Channel }) {
    */
   const touching = useRef(false);
   const releaseAnchor = useRef<Anchor | null>(null);
+  /**
+   * The row on screen when a long list was cut back. Cutting rows from below a
+   * reader near the top shrinks the scroll range past where they are, and the
+   * browser clamps the position before holdReading can take the cut off
+   * again, which then overshot by the clamp. Put back by where it sits on
+   * screen, the row stays put whatever the browser did.
+   */
+  const trimAnchor = useRef<Anchor | null>(null);
   const [held, setHeld] = useState<{ first: string; last: string } | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [newBelow, setNewBelow] = useState(false);
@@ -349,8 +369,13 @@ export function MessageList({ channel }: { channel: Channel }) {
   }, [allIds, held]);
   // a page of history is in and waits for the list to stop: the loader at the top says more is coming
   const heldAbove = ids.length > 0 && ids[0] !== allIds[0];
+  // how many of those wait, so a fling can fetch a little further ahead but not without end
+  const hiddenAbove = heldAbove ? allIds.indexOf(ids[0]!) : 0;
   // so does a list at its longest, waiting to be cut back before it loads more
   const capped = allIds.length >= WINDOW_CAP;
+  // what the wheel listener below reads between renders: rows waiting above, or a list waiting to be cut back
+  const waitingAbove = useRef(false);
+  waitingAbove.current = hiddenAbove > 0 || capped;
   const byId = state?.byId ?? {};
   // whose a reply's original was, for hiding replies to someone blocked, also
   // from the originals the server sent along (stores/replyTargets)
@@ -527,6 +552,9 @@ export function MessageList({ channel }: { channel: Channel }) {
         setNewBelow(true);
       }
     }
+    const trimmed = trimAnchor.current;
+    trimAnchor.current = null;
+    if (trimmed && !touching.current && !atBottom.current && restoreAnchor(el, trimmed)) reading.current = readReading(el);
     prevNewest.current = newest;
     prevHasNewer.current = hasNewer;
   }, [rows, newest, byId, me?.id, pending.length, hasNewer, returnToPresent, channel.id, dropReading, holdReading, announce, quiet]);
@@ -567,6 +595,8 @@ export function MessageList({ channel }: { channel: Channel }) {
       restoreAnchor(el, anchor);
       reading.current = readReading(el);
     }
+    // what was held is on screen now: the reader may already be near its top
+    if (el && !held) requestAnimationFrame(() => onScrollNow.current());
   }, [held]);
 
   // Picking moves every row over for its check, which rewraps long messages
@@ -622,22 +652,32 @@ export function MessageList({ channel }: { channel: Channel }) {
    * what goes from below it is taken off the scroll position as the rows
    * change (holdReading), and what goes from above it moves nothing.
    */
-  const scheduleTrim = useCallback(() => {
-    if (trimTimer.current) clearTimeout(trimTimer.current);
+  const scheduleTrim = useCallback((after = REST_MS) => {
+    // a check already due sooner stays: scrolling must not keep putting off the one a release asked for
+    const due = performance.now() + after;
+    if (trimTimer.current) {
+      if (trimDue.current <= due) return;
+      clearTimeout(trimTimer.current);
+    }
     const check = () => {
       trimTimer.current = null;
       const el = scrollRef.current;
       const st = useMessages.getState().channels[channel.id];
       if (!el || !st || st.ids.length <= WINDOW) return;
-      if (fingerDown.current || touching.current || st.loading || performance.now() - lastScroll.current < REST_MS) {
+      // Chromium's gesture guard (`touching`) already waits out flings, so a short rest will do there.
+      const restFor = movesUnderTouch() ? WHEEL_REST_MS : REST_MS;
+      if (fingerDown.current || touching.current || st.loading || performance.now() - lastScroll.current < restFor) {
+        trimDue.current = performance.now() + REST_MS;
         trimTimer.current = setTimeout(check, REST_MS);
         return;
       }
       const anchor = atBottom.current ? null : (reading.current?.id ?? readReading(el)?.id ?? null);
+      trimAnchor.current = atBottom.current ? null : readAnchor(el);
       useMessages.getState().trimAround(channel.id, anchor);
       requestAnimationFrame(() => onScrollNow.current());
     };
-    trimTimer.current = setTimeout(check, REST_MS);
+    trimDue.current = due;
+    trimTimer.current = setTimeout(check, after);
   }, [channel.id]);
   useEffect(
     () => () => {
@@ -645,6 +685,11 @@ export function MessageList({ channel }: { channel: Channel }) {
     },
     [],
   );
+  // A gesture just let go is the list at rest: a list at its cap is cut back
+  // now, where polling for a quiet moment kept landing between flicks.
+  useEffect(() => {
+    if (!held && (useMessages.getState().channels[channel.id]?.ids.length ?? 0) > WINDOW) scheduleTrim(0);
+  }, [held, channel.id, scheduleTrim]);
   // messages arriving while the reader sits still (a busy channel at the bottom) grow it too
   useEffect(() => {
     if (allIds.length > WINDOW) scheduleTrim();
@@ -668,10 +713,11 @@ export function MessageList({ channel }: { channel: Channel }) {
     };
   }, [channel.id]);
 
-  const onScroll = useCallback(() => {
+  const onScroll = useCallback((e?: unknown) => {
     const el = scrollRef.current;
     if (!el) return;
-    lastScroll.current = performance.now();
+    // only a real scroll is movement; the list also runs this itself to look for a page
+    if (e) lastScroll.current = performance.now();
     if (allIds.length > WINDOW) scheduleTrim();
     const dist = fromBottom(el);
     // The end of a list that stops short of the present is not the bottom:
@@ -690,7 +736,10 @@ export function MessageList({ channel }: { channel: Channel }) {
       // the row in front of the reader now, which a fling keeps changing
       reading.current = readReading(el) ?? reading.current;
     }
-    if (fromTop(el) < 400 && hasOlder && !olderBusy.current && !loading && loaded && ids.length > 0 && !heldAbove) {
+    // Asked for well before the top, and again while a gesture keeps the last
+    // page off screen, so a fast scroll up finds the next pages already here.
+    const ahead = Math.max(800, el.clientHeight * 2);
+    if (fromTop(el) < ahead && hasOlder && !olderBusy.current && !loading && loaded && ids.length > 0 && hiddenAbove < HELD_AHEAD) {
       // A second scroll event in the same frame still sees `loading` false —
       // the store sets it synchronously, React has not re-rendered — so the
       // guard is a ref of this list's own, set before the call rather than
@@ -700,6 +749,8 @@ export function MessageList({ channel }: { channel: Channel }) {
         .catch(() => {})
         .finally(() => {
           olderBusy.current = false;
+          // a wheel at the top of the list makes no scroll event to ask for the next page
+          requestAnimationFrame(() => onScrollNow.current());
         });
     } else if (dist < 400 && hasNewer && !loading && loaded) {
       // Pages added below the reader are taken back off by the row being read.
@@ -708,7 +759,7 @@ export function MessageList({ channel }: { channel: Channel }) {
         .catch(() => {})
         .finally(() => setNewerBusy(false));
     }
-  }, [channel.id, hasOlder, hasNewer, loading, loaded, ids.length, allIds.length, heldAbove, loadOlder, loadNewer, scheduleTrim]);
+  }, [channel.id, hasOlder, hasNewer, loading, loaded, ids.length, allIds.length, hiddenAbove, loadOlder, loadNewer, scheduleTrim]);
   const onScrollNow = useRef(onScroll);
   onScrollNow.current = onScroll;
 
@@ -738,7 +789,7 @@ export function MessageList({ channel }: { channel: Channel }) {
     };
     const settle = () => {
       wait();
-      rest = setTimeout(release, quietFor);
+      rest = setTimeout(release, wheel && !fingers ? WHEEL_REST_MS : quietFor);
     };
     const hold = () => {
       if (touching.current) return;
@@ -757,6 +808,14 @@ export function MessageList({ channel }: { channel: Channel }) {
     // wheel hits the loaded edge and produces no scroll event.
     const wheeled = (e: WheelEvent) => {
       if (e.ctrlKey || e.deltaY === 0) return;
+      // Pinned against the top of what is loaded, the list cannot move, so
+      // nothing is under way that drawing what is held (or cutting a full
+      // list back) could throw: let go, the rows are put back on the one in
+      // view, and the wheel carries on up through them.
+      if (wheel && touching.current && !fingers && e.deltaY < 0 && waitingAbove.current && fromTop(el) < 2) {
+        release();
+        return;
+      }
       wheel = true;
       hold();
       if (!fingers) settle();
@@ -778,7 +837,7 @@ export function MessageList({ channel }: { channel: Channel }) {
       // Let it rest before changing the scroll range; another wheel resets it.
       if (wheel) {
         wait();
-        rest = setTimeout(release, REST_MS);
+        rest = setTimeout(release, WHEEL_REST_MS);
       } else release();
     };
     el.addEventListener("touchstart", down, { passive: true });

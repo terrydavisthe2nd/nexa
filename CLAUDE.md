@@ -1155,9 +1155,16 @@ the next one's file is here.
 - `components/chat/MessageList.tsx` measures reading positions from the bottom of a reversed scroller.
   In Chromium, incoming history waits for touch and wheel scrolling (trackpad momentum included) to
   settle, restores the visible row in a layout effect if Chromium rebases the scroll range, and arms a
-  quiet fallback from the passive wheel listener when the loaded edge stops a scroll event
-  (`MessageList.test.tsx` covers both inputs, late image heights and browsers without scrollend).
-  Android uses stable row keys in its reversed LazyColumn.
+  quiet fallback from the passive wheel listener when the loaded edge stops a scroll event (a wheel
+  is settled after `WHEEL_REST_MS`, 200 ms, without wheel or scroll; touch keeps 1.5 s). A wheel still
+  turning against the loaded top lets held rows in, or a list at `WINDOW_CAP` be cut back, since
+  nothing is moving there. Older pages are asked for two screens from the top, up to `HELD_AHEAD`
+  rows past what a gesture holds, and the check runs again after each page lands and on release
+  (only real scroll events count as movement for the trim). Cutting a long list back restores the
+  on-screen row (`trimAnchor`), since the browser clamps a shrinking range before `holdReading`
+  runs. Fast wheel scrolling once sat on one held page indefinitely; `MessageList.test.tsx` covers
+  both inputs, late image heights, browsers without scrollend, fetching ahead, the pinned wheel and
+  the clamped trim. Android uses stable row keys in its reversed LazyColumn.
 - Hashtag suggestions and send and edit conversion include visible text, announcement and forum
   channels. Subchats stay listed under the open conversation, and unread ones also under their parent
   until read. Sidebar rows and the Subchats panel count every unread message from others in red (capped

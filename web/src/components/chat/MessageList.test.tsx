@@ -103,7 +103,8 @@ function measure(): void {
   Object.defineProperty(scroller, "scrollHeight", { configurable: true, get: () => Math.max(BOX, content()) });
   Object.defineProperty(scroller, "scrollTop", {
     configurable: true,
-    get: () => scrollTop,
+    // a list that got shorter cannot stay scrolled past its new top: the browser clamps it, as here
+    get: () => (scrollTop = Math.max(-maxScroll(), scrollTop)),
     set: (v: number) => {
       scrollTop = Math.max(-maxScroll(), Math.min(Math.round(v), 0));
     },
@@ -286,7 +287,8 @@ describe("MessageList keeping the reading position", () => {
   it("holds through a stream of unrelated renders, as a DM full of decryptions produces", () => {
     seed(60);
     show();
-    scrollTo(600);
+    // past where the list asks for older messages (two screens from the top)
+    scrollTo(1200);
     const keeping = firstVisible();
     const was = topOf(keeping);
     expect(inFlight.asked).toBe(0);
@@ -495,8 +497,78 @@ describe("MessageList keeping the reading position", () => {
       fireEvent.wheel(scroller, { deltaY: -240 });
       inFlight.land(Array.from({ length: 50 }, (_, i) => String(951 + i)));
       expect(rows()).toHaveLength(60);
-      act(() => vi.advanceTimersByTime(1600));
+      // a wheel quiet for a fifth of a second has stopped, momentum included
+      act(() => vi.advanceTimersByTime(250));
       expect(rows()).toHaveLength(110);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("fetches ahead while a wheel holds a page, without waiting for another scroll", async () => {
+    vi.useFakeTimers();
+    try {
+      asChrome();
+      seed(60);
+      show();
+      scrollTo(150);
+      fireEvent.wheel(scroller, { deltaY: -240 });
+      expect(inFlight.asked).toBe(1);
+      inFlight.land(Array.from({ length: 50 }, (_, i) => String(951 + i)));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20);
+      });
+      // the page is held off screen, and the next one is already asked for
+      expect(rows()).toHaveLength(60);
+      expect(inFlight.asked).toBe(2);
+      fireEvent.wheel(scroller, { deltaY: -240 });
+      inFlight.land(Array.from({ length: 50 }, (_, i) => String(901 + i)));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20);
+      });
+      // two pages ahead is far enough
+      expect(inFlight.asked).toBe(2);
+      act(() => vi.advanceTimersByTime(250));
+      expect(rows()).toHaveLength(160);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets a held page in when the wheel is pinned against the top, keeping the row in view", () => {
+    asChrome();
+    seed(60);
+    show();
+    scrollTo(150);
+    fireEvent.wheel(scroller, { deltaY: -240 });
+    scrollTo(0);
+    inFlight.land(Array.from({ length: 50 }, (_, i) => String(951 + i)));
+    expect(rows()).toHaveLength(60);
+    const keeping = firstVisible();
+    const was = topOf(keeping);
+    // still wheeling up, against an edge the list cannot pass
+    act(() => {
+      fireEvent.wheel(scroller, { deltaY: -240 });
+    });
+    expect(rows()).toHaveLength(110);
+    expect(topOf(keeping)).toBe(was);
+  });
+
+  it("keeps a reader near the top in place when a long list is cut back below them", () => {
+    vi.useFakeTimers();
+    try {
+      seed(400);
+      show();
+      // Near the top of a full list. Cutting it back takes 150 rows from
+      // below, which shrinks the scroll range past where the reader is.
+      scrollTo(100);
+      // the page that asked for lands empty: the start of the conversation
+      inFlight.land([]);
+      const keeping = firstVisible();
+      const was = topOf(keeping);
+      act(() => vi.advanceTimersByTime(1000));
+      expect(rows()).toHaveLength(250);
+      expect(topOf(keeping)).toBe(was);
     } finally {
       vi.useRealTimers();
     }
