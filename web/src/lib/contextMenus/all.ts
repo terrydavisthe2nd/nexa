@@ -6,7 +6,6 @@
  * when a module that defines a menu is missing here.
  */
 export const MENU_MODULES: (() => Promise<unknown>)[] = [
-  () => import("@/components/activity/ActivityToggle"),
   () => import("@/components/chat/chatMoreMenu"),
   () => import("@/components/chat/groupMemberMenu"),
   () => import("@/components/chat/messageMenu"),

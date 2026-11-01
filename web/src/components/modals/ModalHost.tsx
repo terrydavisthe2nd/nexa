@@ -47,6 +47,7 @@ const MemberActionModal = lazyPage(() => import("@/components/server/MemberActio
 const SubchatModal = lazyPage(() => import("./SubchatModal"));
 const ForwardModal = lazyPage(() => import("./ForwardModal").then((m) => ({ default: m.ForwardModal })));
 const AddAccountModal = lazyPage(() => import("./AddAccountModal"));
+const MentionsModal = lazyPage(() => import("@/components/mentions/MentionsModal"));
 const VerifyKeyModal = lazyPage(() => import("./VerifyKeyModal"));
 const KeyChangeModal = lazyPage(() => import("./KeyChangeModal"));
 const ReportContentModal = lazyPage(() => import("@/components/reports/ReportModal"));
@@ -144,6 +145,7 @@ function ModalEntry({ modal }: { modal: ModalState }) {
         {modal?.kind === "profile" ? <ProfileModal onClose={close} userId={modal.props?.["userId"] as string} tab={modal.props?.["tab"] as ProfileTab | undefined} full={!!modal.props?.["full"]} /> : null}
         {modal?.kind === "screenPermission" ? <ScreenPermission stale={Boolean(modal.props?.["stale"])} onClose={close} /> : null}
         {modal?.kind === "addAccount" ? <AddAccountModal onClose={close} /> : null}
+        {modal?.kind === "mentions" ? <MentionsModal onClose={close} /> : null}
         {modal?.kind === "forward" ? <ForwardModal onClose={close} msg={modal.props?.["msg"] as DecryptedMessage} /> : null}
         {modal?.kind === "subchat" ? <SubchatModal onClose={close} channel={modal.props?.["channel"] as never} parentId={modal.props?.["parentId"] as string | undefined} name={modal.props?.["name"] as string | undefined} /> : null}
         {modal?.kind === "serverSettings" ? <ServerSettingsModal onClose={close} serverId={String(modal.props?.["serverId"])} page={modal.props?.["page"] as string | undefined} /> : null}

@@ -380,18 +380,20 @@ fun MessageList(channel: Channel, modifier: Modifier = Modifier) {
     LaunchedEffect(jump) {
         val j = jump ?: return@LaunchedEffect
         if (j.channelId != channelId) return@LaunchedEffect
-        ChatUi.jump = null
         var s = Nexa.messages.get(channelId)
         if (!s.byId.containsKey(j.messageId)) {
+            // the jump stays set until this load ends, so a list recomposed meanwhile (a cold open) still makes it
             Nexa.messages.loadAround(channelId, j.messageId)
             s = Nexa.messages.get(channelId)
             if (!s.byId.containsKey(j.messageId)) {
+                if (ChatUi.jump == j) ChatUi.jump = null
                 Nexa.ui.toast(t("chat.messageList.thatMessageCouldNotBeFound"), "error")
                 return@LaunchedEffect
             }
         }
         val target = s.byId[j.messageId]!!
         if (Nexa.relationships.isBlocked(target.authorId) && Nexa.settings.hideBlockedMessages) {
+            if (ChatUi.jump == j) ChatUi.jump = null
             Nexa.ui.toast(t("people.blocked.jumpHidden"))
             return@LaunchedEffect
         }
@@ -405,6 +407,8 @@ fun MessageList(channel: Channel, modifier: Modifier = Modifier) {
         }
         flashSeq += 1
         flashes = flashes + (j.messageId to flashSeq)
+        // done: clearing it restarts this effect with nothing to do, so it goes last
+        if (ChatUi.jump == j) ChatUi.jump = null
     }
 
     Box(modifier.fillMaxWidth().semantics { contentDescription = t("modals.quickSwitcher.messages") }) {

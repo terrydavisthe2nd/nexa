@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,6 +52,7 @@ import fish.nexa.ui.t
 import fish.nexa.ui.theme.Nx
 import fish.nexa.ui.theme.Radii
 import fish.nexa.ui.theme.panel
+import fish.nexa.ui.theme.ring
 import fish.nexa.voice.VoiceLocal
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -110,8 +113,19 @@ fun UserPanel() {
             DockButton(if (local.deafened || modDeaf) "HeadphoneOff" else "Headphones", if (modDeaf) t("voice.moderation.deafenedByModerator") else if (local.deafened) t("shell.user.undeafen") else t("shell.user.deafen"), off = local.deafened || modDeaf) {
                 if (modDeaf) Nexa.ui.toast(t("voice.moderation.deafenedHint")) else VoiceLocal.toggleDeafen()
             }
-            val sharing = (Nexa.settings.doc.value["shareActivity"] as? kotlinx.serialization.json.JsonPrimitive)?.content != "false"
-            DockButton("Gamepad2", t("settings.privacy.shareMyActivity"), off = !sharing) { Nexa.settings.patch(buildJsonObject { put("shareActivity", !sharing) }) }
+            // every unread mention, from every conversation and server (UserPanel.tsx)
+            val reads by Nexa.readStates.byChannel.collectAsState()
+            val mentionCount = reads.values.sumOf { it.mentions }
+            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                DockButton("AtSign", if (mentionCount > 0) t("mentions.buttonUnread", "count" to mentionCount) else t("mentions.title"), off = false) { fish.nexa.ui.chat.openMentions() }
+                if (mentionCount > 0) {
+                    val pill = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                    Box(
+                        Modifier.align(Alignment.TopEnd).offset(x = 0.dp, y = 2.dp).ring(pill, c.bgSurface, 2.dp).background(c.danger, pill).defaultMinSize(minWidth = 16.dp).height(16.dp).padding(horizontal = 4.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Txt(if (mentionCount > 99) "99+" else mentionCount.toString(), style = Nx.type.hint.copy(fontWeight = FontWeight(700), fontSize = Nx.type.sp(11f), lineHeight = Nx.type.sp(11f)), color = Color.White, maxLines = 1) }
+                }
+            }
             DockButton("Settings", t("settings.settings.userSettings"), off = false) { openSettings() }
             // a new version of the app is downloaded: a green button to install it, as the desktop app's restart button is
             val update by fish.nexa.ui.AppUpdate.state.collectAsState()

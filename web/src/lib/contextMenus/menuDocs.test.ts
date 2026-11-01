@@ -13,7 +13,6 @@ import { menuButtons, menuKinds, menuSubjects } from "./registry";
 
 /** Where each menu opens, in a few plain words. */
 const WHERE: Record<string, string> = {
-  activity: "A right click on the activity button: sharing activity and where it comes from",
   bugStatus: "A bug report's status, in the staff panel",
   callParticipant: "A person in a call's list of who is in it",
   callTile: "A person's tile in a call",

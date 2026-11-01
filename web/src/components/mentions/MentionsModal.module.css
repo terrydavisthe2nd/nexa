@@ -1,0 +1,74 @@
+/* Mentions (MentionsModal.tsx): the filters across the top, then every
+   mention under a line for its day. Each one carries an edge in the colour of
+   why it was yours: the mention highlight for you by name, the role's own
+   colour for a role, a quiet line for everyone. */
+.modal { height: min(780px, calc(100dvh - 32px)); }
+.modal > :last-child { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+
+.bar { flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 14px 20px 14px; box-shadow: inset 0 -1px 0 var(--border-subtle); }
+.hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.kinds { display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--radius-sm); background: var(--bg-input); }
+.kind { padding: 7px 12px; border-radius: calc(var(--radius-sm) - 2px); font-size: 14px; font-weight: 600; color: var(--text-muted); white-space: nowrap; transition: background-color 90ms ease, color 90ms ease; }
+.kind:hover { color: var(--text-strong); }
+.kind[aria-checked="true"] { background: var(--bg-floating); color: var(--text-strong); box-shadow: 0 0 0 1px var(--border-subtle), 0 1px 2px rgba(0, 0, 0, 0.18); }
+.kind:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+.pickers { display: flex; gap: 10px; min-width: 0; }
+.picker { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.picker select { min-width: 150px; max-width: 220px; height: 38px; padding-block: 0; }
+.pickerLabel { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+
+.list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 12px 20px; }
+
+.day { display: flex; align-items: center; gap: 10px; margin: 14px 8px 6px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.day::after { content: ""; flex: 1; height: 1px; background: var(--border-subtle); }
+
+.row { --edge: var(--border-strong); position: relative; margin: 2px 0; padding: 10px 12px 10px 15px; border-radius: var(--radius-sm); cursor: pointer; transition: background-color 90ms ease; }
+.row::before { content: ""; position: absolute; inset-block: 8px; inset-inline-start: 4px; width: 3px; border-radius: 2px; background: var(--edge); }
+.row:hover { background: var(--bg-hover); }
+.row[data-kind="me"] { --edge: var(--mention-fg); background: var(--mention-bg); }
+.row[data-kind="me"]:hover { background: var(--mention-bg-hover); }
+.row[data-kind="role"] { --edge: var(--role, var(--brand)); }
+
+.rowHead { display: flex; align-items: center; gap: 8px; min-width: 0; margin-bottom: 6px; }
+.place { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; color: var(--text-muted); }
+.placeServer { font-weight: 600; color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.placeChannel { display: inline-flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden; }
+.placeChannel > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.tag { flex: none; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 650; color: var(--text-subtle); background: var(--bg-active); }
+.tag[data-kind="me"] { color: var(--mention-fg); background: color-mix(in srgb, var(--mention-fg) 18%, transparent); }
+.tag[data-kind="role"] { color: var(--role, var(--text-subtle)); background: color-mix(in srgb, var(--role, var(--text-muted)) 16%, transparent); }
+.new { flex: none; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; background: var(--danger); }
+
+.jump { flex: none; margin-inline-start: auto; padding: 4px 10px; border-radius: var(--radius-xs); font-size: 13px; font-weight: 600; color: var(--text-subtle); background: var(--bg-active); opacity: 0; transition: opacity 90ms ease, background-color 90ms ease; }
+.row:hover .jump, .jump:focus-visible { opacity: 1; }
+.jump:hover { color: var(--text-strong); background: var(--bg-selected); }
+@media (hover: none) { .jump { opacity: 1; } }
+
+.msg { display: flex; gap: 12px; min-width: 0; }
+.avatar { flex: none; }
+.main { flex: 1; min-width: 0; }
+.who { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.name { font-weight: 600; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.time { flex: none; font-size: 12px; color: var(--text-muted); }
+
+.empty { padding: 48px 24px; text-align: center; color: var(--text-muted); font-size: 14px; }
+.emptyTitle { margin: 0 0 10px; font-size: 15px; color: var(--text-subtle); }
+.retry { color: var(--link); font-weight: 600; }
+.retry:hover { text-decoration: underline; }
+.more { padding: 16px; text-align: center; }
+.end { padding: 18px; text-align: center; font-size: 13px; color: var(--text-muted); }
+
+@media (max-width: 767px) {
+  .modal { height: min(92dvh, calc(var(--vvh, 100dvh) - 12px)); }
+  .bar { padding: 12px 16px; gap: 10px; }
+  .kinds { width: 100%; }
+  .kind { flex: 1; padding: 8px 4px; font-size: 13px; }
+  .pickers { width: 100%; }
+  .picker { flex: 1; }
+  .picker select { min-width: 0; max-width: none; width: 100%; }
+  .list { padding: 4px 6px calc(20px + env(safe-area-inset-bottom)); }
+}
+@media (pointer: coarse) { .kind { min-height: 40px; } .jump { padding: 7px 12px; } }

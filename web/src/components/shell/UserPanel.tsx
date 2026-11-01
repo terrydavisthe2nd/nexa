@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Bell, ChevronRight, Download, Headphones, HeadphoneOff, LogOut, Mic, MicOff, Pencil, Settings } from "lucide-react";
+import { ArrowLeftRight, AtSign, Bell, ChevronRight, Download, Headphones, HeadphoneOff, LogOut, Mic, MicOff, Pencil, Settings } from "lucide-react";
 import { applyUpdate } from "@/lib/appUpdate";
 import { useDesktop } from "@/stores/desktop";
 import { useEffect, useRef, useState } from "react";
@@ -15,7 +15,7 @@ import { useVoiceLocal } from "@/stores/voiceLocal";
 import s from "./UserPanel.module.css";
 import ts from "@/components/common/Toggle.module.css";
 import { openDeviceMenu } from "@/components/voice/deviceMenus";
-import { ActivityToggle } from "@/components/activity/ActivityToggle";
+import { useReadStates } from "@/stores/readStates";
 import { bindText, keybindsOf } from "@/lib/keybinds";
 import { useSettings } from "@/stores/settings";
 import { useMediaQuery } from "@/hooks/useIsMobile";
@@ -37,6 +37,11 @@ function warmSettings(): void {
   void import("@/components/settings/SettingsModal").catch(() => undefined);
 }
 
+/** The same for Mentions. */
+function warmMentions(): void {
+  void import("@/components/mentions/MentionsModal").catch(() => undefined);
+}
+
 export function UserPanel() {
   const me = useAuth((a) => a.me);
   const presence = usePresence((p) => (me ? p.byUser[me.id] : undefined));
@@ -56,6 +61,12 @@ export function UserPanel() {
   const modDeaf = useVoice((v) => !!v.mine?.server_deaf);
   const toast = useUI((u) => u.toast);
   const sounds = useSettings((x) => x.settings.notifications.sounds);
+  // every unread mention, from every conversation and server, on the Mentions button
+  const mentionCount = useReadStates((r) => {
+    let n = 0;
+    for (const id in r.byChannel) n += r.byChannel[id]!.mentions;
+    return n;
+  });
   const [open, setOpen] = useState(false);
   // Switch Accounts' side menu: opened by hovering where a pointer hovers, by a tap or click elsewhere
   const [sub, setSub] = useState(false);
@@ -159,7 +170,12 @@ export function UserPanel() {
             {deafened || modDeaf ? <HeadphoneOff size={20} /> : <Headphones size={20} />}
           </button>
         </Tooltip>
-        <ActivityToggle className={s.icon} />
+        <Tooltip text={t("mentions.title")}>
+          <button className={[s.icon, s.mentions].join(" ")} onPointerDown={warmMentions} onClick={() => openModal("mentions")} aria-label={mentionCount ? t("mentions.buttonUnread", { count: mentionCount }) : t("mentions.title")} data-testid="mentions-button">
+            <AtSign size={20} />
+            {mentionCount ? <span className={s.badge} aria-hidden="true">{mentionCount > 99 ? "99+" : mentionCount}</span> : null}
+          </button>
+        </Tooltip>
         {update?.status === "ready" ? (
           <Tooltip text={t("shell.user.restartToUpdateTo", { version: update.version ?? t("shell.user.theNewVersion") })}>
             <button className={[s.icon, s.update].join(" ")} onClick={() => void applyUpdate("restart")} aria-label={t("settings.desktop.restartToUpdate")} data-testid="update-ready">

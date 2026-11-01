@@ -140,7 +140,7 @@ interface UIState {
 
 let toastSeq = 0;
 /** Modals that replace themselves rather than stacking. */
-const ONE_AT_A_TIME = new Set(["profile", "serverProfile", "memberAction", "verifyKey", "keyChange"]);
+const ONE_AT_A_TIME = new Set(["mentions", "profile", "serverProfile", "memberAction", "verifyKey", "keyChange"]);
 
 let modalSeq = 0;
 

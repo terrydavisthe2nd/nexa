@@ -924,6 +924,29 @@ as Discord holds it:
   the once-per-release prompt kept as `supportPromptSeen`, `MonthMeter.tsx`); Android `data/Plans`,
   `ui/support/Support.kt`.
 
+### Mentions
+
+- The dock's @ button (web `shell/UserPanel.tsx`, Android `ui/shell/Dock.kt`; it took the place of the
+  activity button, and Share my activity now lives only in Settings, Activity and its keybind) shows
+  every unread mention summed from the read states and opens Mentions: web
+  `components/mentions/MentionsModal.tsx` (modal kind `mentions`), Android `openMentions` in
+  `ui/chat/Mentions.kt`. It filters by kind (All, You, Your Roles, @everyone), place (everywhere,
+  direct messages, one server) and sort (newest or oldest first), kept per device (web localStorage
+  `nexa.mentionsView`, Android preferences `mentions`), groups under day lines, tags why each one is
+  yours (`mentionOf` in web `lib/mentions.ts`, `Mentions.why`), marks those past the read marker New and
+  jumps through the route's `jumpTo`.
+- `GET /api/v1/users/@me/mentions` (`api/mention_handlers.go`, `store/mentions.go`) takes `kinds`
+  (me, roles, everyone), `server_id` (an id or `@me`), `channel_id`, `sort=oldest` with `after`, else
+  `before`, and `limit` (at most 50). It reads the caller's open conversations (locked subchats only once
+  unlocked in that session) and every server channel and thread, archived ones included, where they
+  have View Channel and Read Message History, and leaves out their own messages, blocked authors,
+  system messages and @everyone from before they joined. The partial index `messages_mentioning`
+  (migration 0043) holds only messages that mention anyone; the query repeats its condition so both
+  databases use it. Messages come back sealed, and the apps decrypt them.
+- Android's jump into a channel not yet loaded keeps `ChatUi.jump` set until the list has handled it
+  (`MessageList.kt`), and `Messages.loadAround` rethrows cancellation: a cold open recomposes the list
+  mid-load, which once swallowed the cancellation and toasted "That message could not be found".
+
 ### Messages: forwarding and voice messages
 
 - Forwarding goes to one conversation or channel at a time (`body.forward` on send; web

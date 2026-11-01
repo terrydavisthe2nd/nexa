@@ -414,6 +414,10 @@ class MessagesStore(private val api: Api, private val keys: KeyManager) {
                 put(c, dec).copy(loaded = true, loading = false, hasOlder = idx < 0 || idx >= half, hasNewer = page.size - (if (idx < 0) 0 else idx) >= PAGE - half)
             }
             if (dec.isNotEmpty()) onHistory?.invoke(ch, dec)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // the list that asked went away (a cold open recomposes it): the jump is still waiting for the next one
+            if (gen(ch) == g) with(ch) { it.copy(loading = false) }
+            throw e
         } catch (_: Exception) {
             if (gen(ch) == g) with(ch) { it.copy(loading = false, failed = it.failed + 1) }
         }

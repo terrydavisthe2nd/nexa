@@ -731,7 +731,6 @@ Message on someone else's message, for one).
 
 | Menu | Where it opens | Context | Buttons |
 | --- | --- | --- | --- |
-| `activity` | A right click on the activity button: sharing activity and where it comes from | none | `shareActivity`, `richPresence`, `richPresencePrograms`, `discordActivityKinds`, `activitySettings` |
 | `bugStatus` | A bug report's status, in the staff panel | none | `setBugStatus` |
 | `callParticipant` | A person in a call's list of who is in it | `user`, `channel`, `server` | `viewParticipantProfile`, `viewParticipantMemberProfile`, `copyParticipantProfileLink`, `mentionParticipant`, `participantVolume`, `muteParticipant`, `resetParticipantVolume`, `serverMuteParticipant`, `serverDeafenParticipant`, `moveParticipant`, `disconnectParticipant`, `participantFriendship`, `blockParticipant`, `editParticipantNickname`, `editParticipantRoles`, `timeoutParticipant`, `kickParticipant`, `banParticipant`, `removeGuestParticipant`, `copyParticipantId`, `copyParticipantBotId` |
 | `callTile` | A person's tile in a call | `user`, `channel`, `server` | `viewTileProfile`, `stopSharingFromTile`, `watchStream`, `focusTile`, `fullScreenTile`, `streamVolume`, `muteStream`, `resetStreamVolume`, `tileVolume`, `muteTile`, `resetTileVolume`, `serverMuteTile`, `serverDeafenTile`, `moveTile`, `disconnectTile`, `timeoutTile`, `kickTile`, `banTile`, `removeGuestFromTile`, `copyTileUserId`, `copyTileBotId` |
