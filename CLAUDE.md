@@ -63,6 +63,17 @@ seen working (how, under Testing):
 
 Passing unit tests do not replace looking at the screens.
 
+### Android updates go over the air first
+
+Ship Android changes over the air whenever possible, and push a new APK only when OTA cannot carry
+the change. OTA content packs (`fish.nexa.data.Ota`) carry everything the build copies from the web
+except Twemoji: translations, What's New, the Terms, Privacy Policy and their version, sounds and
+seasonal pictures. Anything else (Kotlin, Android resources, Gradle, native code, Twemoji) needs an
+APK; Android cannot load new compiled code into the installed app. So prefer fixes that live in that
+content, keep Android reading such content through `Ota.open`, `Ota.uri` or `Ota.setDataSource`
+(never `assets` directly), and do not mix content into a code change without need. `make build` picks
+the route by itself (see Android, Releases).
+
 ### Build what was asked
 
 Build the literal request. "Custom" packs or themes mean letting people make their own, not adding
@@ -1424,15 +1435,29 @@ cargo-ndk) for notes.
   `tools/android_release.py --server http://10.0.2.2:$PORT --to <scratch dir>` into the same folder (the
   debug network config copied into `src/release/res/xml/` for those builds only) and serve it with
   `ANDROID_DIR`.
+- OTA content packs (`data/Ota.kt`, server `androidOTAPack` in `api/android_handlers.go`):
+  `GET /api/v1/android/ota` describes `ota.json` beside `manifest.json` in `ANDROID_DIR`, offered only
+  while its `version_code` equals the published APK's and `ota-<hash>.zip` is there at its size. The
+  app checks 15 s after start and every 15 minutes in front, downloads the zip, checks size and
+  SHA-256, unpacks only `locales|sounds|seasonal|whatsnew|legal/<flat name>` into `noBackupFilesDir/ota`,
+  and takes it up at the next process start (`Ota.init` in `NexaApp` before anything reads assets); a
+  pack made for another versionCode is ignored and dropped after an APK update. To test it, serve a
+  scratch `ANDROID_DIR` whose manifest says versionCode 3 (what a debug build carries) with a pack for 3.
+- Code fixes still need an APK, but on Android 12+ an app that installed itself updates with no system
+  prompt (`setRequireUserAction(USER_ACTION_NOT_REQUIRED)`, `UPDATE_PACKAGES_WITHOUT_USER_ACTION`;
+  Android 14+ also claims update ownership), so Install is one tap; the first update after a manual
+  install may still ask.
 - `copyWebAssets` copies the web's locales, sounds, emoji sprites, `whatsNew.ts`, seasonal pictures and
   legal documents into the app; `assets/lucide.json`, `assets/emoji/` and `assets/licenses.json` come
   from `android/tools`. Ported logic (markdown, search, themes, the formatting editor, webhook messages,
   crypto, metadata scrubbing, the notes CRDT) is tested against vectors from the web's own code
   (`app/src/test/resources/web-*-vectors.json*`, mostly made by `android/tools/*_vectors.ts`; each
   file's header says how).
-- Releases: `make build` runs `tools/android_release.py --if-changed`, which builds only when `android/`
-  or the web files it copies changed since the release in `downloads/android` (its manifest keeps a
-  `source` hash), numbers it after that one (versionCode + 1 and the last number of versionName + 1,
+- Releases: `make build` runs `tools/android_release.py --if-changed`, which does nothing when nothing
+  the app is made from changed since the release in `downloads/android` (its manifest keeps `source`
+  and `code_source` hashes). When only `OTA_SOURCES` changed and `code_source` still matches, it
+  publishes an OTA content pack for the published APK instead of building (`--ota` forces that and
+  refuses when code changed); otherwise it builds an APK, removing any pack, numbered after the published one (versionCode + 1 and the last number of versionName + 1,
   passed as `-PnexaVersionCode` and `-PnexaVersionName`, so nothing in git changes), signs it with the
   private key configured in `android/signing` and publishes it; chatd offers it at once and phones
   update. `make publish-android` builds one regardless. Builds up to 1.1.0 used an older, lost key and

@@ -52,7 +52,7 @@ object WhatsNew {
 
     /** The releases, newest first, parsed from whatsNew.ts (its RELEASES literal). */
     val releases: List<Release> by lazy {
-        val src = runCatching { Nexa.app.assets.open("whatsnew/whatsNew.ts").bufferedReader().readText() }.getOrDefault("")
+        val src = runCatching { fish.nexa.data.Ota.open("whatsnew/whatsNew.ts").bufferedReader().readText() }.getOrDefault("")
         val body = src.substringAfter("export const RELEASES", "")
         val out = ArrayList<Release>()
         val idRx = Regex("""id:\s*"([^"]+)"""")

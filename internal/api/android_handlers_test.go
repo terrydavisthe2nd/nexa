@@ -150,3 +150,53 @@ func TestAndroidReleasesAreServed(t *testing.T) {
 		t.Errorf("broken manifest: %d %v", res.StatusCode, body)
 	}
 }
+
+func TestAndroidOTAPackIsServedOnlyForThePublishedAPK(t *testing.T) {
+	srv, ts := newTestServer(t)
+	dir := t.TempDir()
+	srv.Cfg.AndroidDir = dir
+	apk := "a build"
+	apkSum := sha256.Sum256([]byte(apk))
+	os.WriteFile(filepath.Join(dir, "nexa-android-universal.apk"), []byte(apk), 0o644)
+	man, _ := json.Marshal(map[string]any{"version": "1.2.3", "version_code": 7, "files": []any{
+		map[string]any{"abi": "universal", "name": "nexa-android-universal.apk", "size": len(apk), "sha256": hex.EncodeToString(apkSum[:])},
+	}})
+	os.WriteFile(filepath.Join(dir, "manifest.json"), man, 0o644)
+
+	if _, body := do(t, ts, "GET", "/api/v1/android/ota", "", nil); body["id"] != nil {
+		t.Fatalf("no pack yet: %v", body)
+	}
+	zip := "PK pretend zip"
+	sum := sha256.Sum256([]byte(zip))
+	h := hex.EncodeToString(sum[:])
+	id := h[:16]
+	name := "ota-" + id + ".zip"
+	os.WriteFile(filepath.Join(dir, name), []byte(zip), 0o644)
+	write := func(code int) {
+		raw, _ := json.Marshal(map[string]any{"id": id, "version_code": code, "name": name, "size": len(zip), "sha256": h})
+		os.WriteFile(filepath.Join(dir, "ota.json"), raw, 0o644)
+	}
+	write(6) // made for an older APK: not offered
+	if _, body := do(t, ts, "GET", "/api/v1/android/ota", "", nil); body["id"] != nil {
+		t.Fatalf("stale pack offered: %v", body)
+	}
+	if res, _ := do(t, ts, "GET", "/android/"+name, "", nil); res.StatusCode != 404 {
+		t.Fatalf("stale pack served: %d", res.StatusCode)
+	}
+	write(7)
+	if _, body := do(t, ts, "GET", "/api/v1/android/ota", "", nil); body["id"] != id || body["sha256"] != h {
+		t.Fatalf("pack: %v", body)
+	}
+	res, err := http.Get(ts.URL + "/android/" + name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	if res.StatusCode != 200 || string(got) != zip {
+		t.Fatalf("download: %d %q", res.StatusCode, got)
+	}
+	if res, _ := do(t, ts, "GET", "/android/ota-0000000000000000.zip", "", nil); res.StatusCode != 404 {
+		t.Fatalf("unknown pack: %d", res.StatusCode)
+	}
+}

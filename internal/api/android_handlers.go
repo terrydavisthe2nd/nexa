@@ -61,6 +61,7 @@ type androidFile struct {
 
 func (s *Server) androidRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/android/latest", s.handleAndroidLatest)
+	mux.HandleFunc("GET /api/v1/android/ota", s.handleAndroidOTA)
 	mux.HandleFunc("GET /android/{file}", s.handleAndroidFile)
 	mux.HandleFunc("HEAD /android/{file}", s.handleAndroidFile)
 	// the folder itself, or anything nested, is not a page of the app
@@ -122,6 +123,10 @@ func (s *Server) handleAndroidLatest(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAndroidFile(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("file")
+	if androidOTAName.MatchString(name) {
+		s.serveAndroidOTA(w, r, name)
+		return
+	}
 	if !androidFileName.MatchString(name) || strings.Contains(name, "..") {
 		WriteError(w, ErrNotFound)
 		return
@@ -189,4 +194,77 @@ func (s *Server) handleAssetLinks(w http.ResponseWriter, r *http.Request) {
 			"sha256_cert_fingerprints": []string{rel.SigningSHA256},
 		},
 	}})
+}
+
+// Over-the-air content packs (fish.nexa.data.Ota): the web files the app
+// copies in (translations, What's New, legal text, sounds, seasonal art),
+// zipped by tools/android_release.py when nothing else changed since the
+// published APK, and described by ota.json beside manifest.json. A pack names
+// the one versionCode it was made for; the app ignores any other.
+var androidOTAName = regexp.MustCompile(`^ota-[0-9a-f]{16,64}\.zip$`)
+
+type androidOTA struct {
+	ID          string `json:"id"`
+	VersionCode int64  `json:"version_code"`
+	Name        string `json:"name"`
+	Size        int64  `json:"size"`
+	SHA256      string `json:"sha256"`
+}
+
+// androidOTAPack reads ota.json, offering the pack only while it was made for
+// the published APK and its file is there at the published size.
+func (s *Server) androidOTAPack() (androidOTA, string, bool) {
+	rel, dir := s.androidManifest()
+	if dir == "" || rel.VersionCode == 0 {
+		return androidOTA{}, "", false
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "ota.json"))
+	if err != nil {
+		return androidOTA{}, "", false
+	}
+	var p androidOTA
+	if json.Unmarshal(raw, &p) != nil || p.VersionCode != rel.VersionCode || !androidOTAName.MatchString(p.Name) ||
+		!androidSHA256.MatchString(p.SHA256) || p.Name != "ota-"+p.ID+".zip" {
+		return androidOTA{}, "", false
+	}
+	st, err := os.Stat(filepath.Join(dir, p.Name))
+	if err != nil || !st.Mode().IsRegular() || st.Size() != p.Size {
+		return androidOTA{}, "", false
+	}
+	return p, dir, true
+}
+
+func (s *Server) handleAndroidOTA(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache")
+	p, _, ok := s.androidOTAPack()
+	if !ok {
+		WriteJSON(w, http.StatusOK, map[string]any{})
+		return
+	}
+	WriteJSON(w, http.StatusOK, p)
+}
+
+func (s *Server) serveAndroidOTA(w http.ResponseWriter, r *http.Request, name string) {
+	p, dir, ok := s.androidOTAPack()
+	if !ok || p.Name != name {
+		WriteError(w, ErrNotFound)
+		return
+	}
+	f, err := os.Open(filepath.Join(dir, name))
+	if err != nil {
+		WriteError(w, ErrNotFound)
+		return
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil || st.Size() != p.Size {
+		WriteError(w, ErrNotFound)
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Type", "application/zip")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("ETag", `"`+p.SHA256+`"`)
+	h.Set("Cache-Control", "public, max-age=31536000, immutable") // the name carries the hash
+	http.ServeContent(w, r, name, st.ModTime(), f)
 }

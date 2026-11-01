@@ -12,6 +12,7 @@ import fish.nexa.ui.auth.CaptchaHost
 class NexaApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        fish.nexa.data.Ota.init(this)
         Nexa.init(this)
         I18n.init(this)
         I18n.use(null)
@@ -46,6 +47,7 @@ class NexaApp : Application() {
         fish.nexa.voice.Pip.install(this)
         Nexa.scope.launch { Nexa.auth.bootstrap() }
         watchNetwork()
+        fish.nexa.data.Ota.start()
     }
 
     /**

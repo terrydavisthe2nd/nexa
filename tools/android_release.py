@@ -27,6 +27,16 @@ not kept in git: each server builds and publishes its own.
   --to DIR          where to publish (default downloads/android)
   --server URL      the server the build talks to (default https://nexa.fish)
 
+Over the air first: with --if-changed, when only the web content the app copies in
+changed (OTA_SOURCES: translations, What's New, legal text, sounds, seasonal art)
+and the code it was built from did not, no APK is built. The content is zipped
+into ota-<hash>.zip with ota.json beside manifest.json, for the published APK's
+versionCode only, and the app (fish.nexa.data.Ota) takes it up on its next start.
+Anything else (Kotlin, resources, Gradle, twemoji) builds a new APK, which carries
+its content itself and removes the pack.
+
+  --ota             publish a content pack now (refused when the code changed)
+
 Android installs an update only over a lower versionCode signed with the same
 key, which is why the private local key must be backed up and never replaced.
 """
@@ -107,13 +117,19 @@ def sha256(path: Path) -> str:
 
 # What the app is made from: android/ and the web client's files its build copies in
 # (CopyWebAssets in android/app/build.gradle.kts).
-SOURCES = ("android", "web/src/i18n/locales", "web/public/sounds", "web/src/assets/twemoji-sprites", "web/src/assets/seasonal",
-           "web/src/lib/whatsNew.ts", "docs/legal", "web/src/lib/legal.ts")
+# Code needs an APK; content can go over the air (OTA_FILES must match fish.nexa.data.Ota's ALLOWED).
+CODE_SOURCES = ("android", "web/src/assets/twemoji-sprites")
+OTA_SOURCES = ("web/src/i18n/locales", "web/public/sounds", "web/src/assets/seasonal", "web/src/lib/whatsNew.ts", "docs/legal", "web/src/lib/legal.ts")
+SOURCES = CODE_SOURCES + OTA_SOURCES
+# (source folder or file, name in the pack, which files): as CopyWebAssets copies them
+OTA_FILES = (("web/src/i18n/locales", "locales", ".json"), ("web/public/sounds", "sounds", ".m4a"),
+             ("web/src/assets/seasonal", "seasonal", ".svg"), ("docs/legal", "legal", ".txt"))
+OTA_SINGLE = (("web/src/lib/whatsNew.ts", "whatsnew/whatsNew.ts"), ("web/src/lib/legal.ts", "legal/legal.ts"))
 
 
-def source_hash(server: str) -> str:
+def source_hash(server: str, sources: tuple[str, ...] = SOURCES) -> str:
     """One hash of every file the app is built from, as it is on disk now (git's list, so build output is left out)."""
-    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *SOURCES], cwd=ROOT, capture_output=True)
+    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *sources], cwd=ROOT, capture_output=True)
     if out.returncode != 0:
         fail("git could not list the app's sources")
     h = hashlib.sha256(server.encode() + b"\0")
@@ -123,6 +139,58 @@ def source_hash(server: str) -> str:
             continue  # deleted but not yet committed
         h.update(name.encode() + b"\0" + sha256(path).encode() + b"\0")
     return h.hexdigest()
+
+
+def drop_ota(dest: Path) -> None:
+    for f in [dest / "ota.json", *dest.glob("ota-*.zip")]:
+        if f.exists():
+            f.unlink()
+            print(f"  removed {f.name}")
+
+
+def publish_ota(dest: Path, previous: dict, ota_source: str) -> int:
+    """Zips the current content for the published APK and writes ota.json."""
+    code = int(previous.get("version_code") or 0)
+    if not code:
+        fail("no APK is published for a content pack to go with")
+    try:
+        old = json.loads((dest / "ota.json").read_text())
+    except (OSError, ValueError):
+        old = {}
+    if old.get("source") == ota_source and old.get("version_code") == code and (dest / old.get("name", "-")).is_file():
+        print(f"the content pack for {previous.get('version')} ({code}) is up to date; nothing to publish")
+        return 0
+    entries: list[tuple[str, Path]] = []
+    for folder, into, ext in OTA_FILES:
+        for f in sorted((ROOT / folder).iterdir()):
+            if f.is_file() and f.name.endswith(ext):
+                entries.append((f"{into}/{f.name}", f))
+    for src, into in OTA_SINGLE:
+        entries.append((into, ROOT / src))
+    fd, tmp = tempfile.mkstemp(dir=dest, prefix=".ota-", suffix=".zip")
+    os.close(fd)
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, f in entries:
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))  # the same content, the same bytes
+            info.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(info, f.read_bytes())
+    digest = sha256(Path(tmp))
+    pid = digest[:16]
+    name = f"ota-{pid}.zip"
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, dest / name)
+    pack = {"id": pid, "version_code": code, "name": name, "size": (dest / name).stat().st_size, "sha256": digest,
+            "source": ota_source, "released_at": int(time.time() * 1000)}
+    fd, tmp = tempfile.mkstemp(dir=dest, prefix=".ota-", suffix=".json")
+    with os.fdopen(fd, "w") as f:
+        f.write(json.dumps(pack, indent=2) + "\n")
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, dest / "ota.json")
+    for stale in dest.glob("ota-*.zip"):
+        if stale.name != name:
+            stale.unlink()
+    print(f"published content pack {pid} over the air for Nexa for Android {previous.get('version')} ({code}); phones take it up on their next start")
+    return 0
 
 
 def next_version(previous: dict) -> tuple[int, str]:
@@ -223,6 +291,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Build and publish the Android app's release APKs into the repository.")
     ap.add_argument("--notes", default="", help="what changed, which the app can show when it offers the update")
     ap.add_argument("--if-changed", action="store_true", help="do nothing when the app's sources match the published build (what make build runs)")
+    ap.add_argument("--ota", action="store_true", help="publish the web content as an over-the-air pack for the published APK (refused when the code changed)")
     ap.add_argument("--skip-build", action="store_true", help="publish the APKs already built in android/app/build/outputs/apk/release")
     ap.add_argument("--from", dest="src", help="publish the release APKs in this folder (implies --skip-build)")
     ap.add_argument("--to", default=str(ROOT / "downloads/android"), help="where to publish (default downloads/android)")
@@ -242,6 +311,15 @@ def main() -> int:
     if args.if_changed and published and previous.get("source") == source:
         print(f"Nexa for Android {previous.get('version')} ({previous.get('version_code')}) is up to date; nothing to build")
         return 0
+    code_source = source_hash(args.server, CODE_SOURCES)
+    ota_source = source_hash(args.server, OTA_SOURCES)
+    # OTA whenever we can: the code is what the published APK was built from, only content moved
+    code_same = bool(published) and previous.get("code_source") == code_source
+    if args.ota and not code_same:
+        fail("the app's code changed since the published APK (or it predates code hashes): this needs a new APK")
+    if (args.ota or args.if_changed) and code_same:
+        dest.mkdir(parents=True, exist_ok=True)
+        return publish_ota(dest, previous, ota_source)
 
     src = Path(args.src) if args.src else OUTPUT
     if not args.src and not args.skip_build:
@@ -304,6 +382,8 @@ def main() -> int:
         os.replace(tmp, dest / name)
         files.append({"abi": abi, "name": name, "size": (dest / name).stat().st_size, "sha256": sha256(dest / name)})
         print(f"  {abi:12} {name}  {files[-1]['size'] / (1 << 20):.1f} MB")
+    # the new APK carries its own content: a pack made for the old one goes
+    drop_ota(dest)
     keep = {f["name"] for f in files}
     for stale in dest.glob("*.apk"):
         if stale.name not in keep:
@@ -323,6 +403,7 @@ def main() -> int:
     if not args.src and not args.skip_build:
         # what it was built from, so --if-changed knows when the next one is due
         manifest["source"] = source
+        manifest["code_source"] = code_source
     if args.notes:
         manifest["notes"] = args.notes
     fd, tmp = tempfile.mkstemp(dir=dest, prefix=".manifest-", suffix=".json")

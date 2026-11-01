@@ -69,7 +69,7 @@ import kotlinx.coroutines.launch
  * agreed to it on this device, which is where the web keeps it too.
  */
 object Legal {
-    private val src: String by lazy { runCatching { Nexa.app.assets.open("legal/legal.ts").bufferedReader().readText() }.getOrDefault("") }
+    private val src: String by lazy { runCatching { fish.nexa.data.Ota.open("legal/legal.ts").bufferedReader().readText() }.getOrDefault("") }
 
     val effective: String by lazy { Regex("""LEGAL_EFFECTIVE\s*=\s*"([^"]+)"""").find(src)?.groupValues?.get(1) ?: "" }
 
@@ -176,8 +176,8 @@ object Legal {
         return doc
     }
 
-    val terms: Doc by lazy { parse(runCatching { Nexa.app.assets.open("legal/TERMS_OF_SERVICE.txt").bufferedReader().readText() }.getOrDefault(""), "terms") }
-    val privacy: Doc by lazy { parse(runCatching { Nexa.app.assets.open("legal/PRIVACY_POLICY.txt").bufferedReader().readText() }.getOrDefault(""), "privacy") }
+    val terms: Doc by lazy { parse(runCatching { fish.nexa.data.Ota.open("legal/TERMS_OF_SERVICE.txt").bufferedReader().readText() }.getOrDefault(""), "terms") }
+    val privacy: Doc by lazy { parse(runCatching { fish.nexa.data.Ota.open("legal/PRIVACY_POLICY.txt").bufferedReader().readText() }.getOrDefault(""), "privacy") }
 
     /**
      * TermsGate.tsx: after signing in, until this account agrees to the

@@ -348,6 +348,11 @@ object AppUpdate {
             setAppPackageName(ctx.packageName)
             setSize(apk.length())
             if (Build.VERSION.SDK_INT >= 26) setInstallReason(PackageManager.INSTALL_REASON_USER)
+            // Android 12+: once Nexa installed itself, its updates go in without Android's own prompt
+            // (UPDATE_PACKAGES_WITHOUT_USER_ACTION), so a fix lands with one tap on Install
+            if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            // Android 14+: claim update ownership, so other stores do not take updates over silently
+            if (Build.VERSION.SDK_INT >= 34) setRequestUpdateOwnership(true)
         }
         val id = installer.createSession(params)
         try {

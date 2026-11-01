@@ -22,7 +22,7 @@ data class Season(
     val snow: Boolean = false,
 ) {
     /** Its picture, copied from the web's assets/seasonal by the build's copyWebAssets. */
-    val art: String get() = "file:///android_asset/seasonal/${artOf ?: id}.svg"
+    val art: String get() = fish.nexa.data.Ota.uri("seasonal/${artOf ?: id}.svg")
 }
 
 /**

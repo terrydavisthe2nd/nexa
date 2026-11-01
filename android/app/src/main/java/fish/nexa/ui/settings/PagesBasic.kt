@@ -211,7 +211,7 @@ object SoundPreview {
                     val asset = FILES[id]
                     when {
                         custom != null -> mp.setDataSource(custom.path)
-                        asset != null -> Nexa.app.assets.openFd("sounds/$asset").use { fd -> mp.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length) }
+                        asset != null -> fish.nexa.data.Ota.setDataSource(mp, "sounds/$asset")
                         else -> {
                             mp.release()
                             return@runCatching false

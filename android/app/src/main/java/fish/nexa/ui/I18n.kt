@@ -52,7 +52,7 @@ object I18n {
     val locale: Locale get() = Locale.forLanguageTag(tag)
 
     private fun load(tag: String): JsonObject = try {
-        appContext.assets.open("locales/$tag.json").use { json.parseToJsonElement(it.readBytes().decodeToString()) as JsonObject }
+        fish.nexa.data.Ota.open("locales/$tag.json").use { json.parseToJsonElement(it.readBytes().decodeToString()) as JsonObject }
     } catch (_: Exception) {
         JsonObject(emptyMap())
     }

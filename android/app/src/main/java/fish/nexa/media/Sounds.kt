@@ -169,7 +169,7 @@ object Sounds {
         }
         val asset = name.file ?: return null
         return prepare(name, gain, loop) {
-            Nexa.app.assets.openFd("sounds/$asset").use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+            fish.nexa.data.Ota.setDataSource(this, "sounds/$asset")
         }
     }
 
