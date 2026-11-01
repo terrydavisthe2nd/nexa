@@ -89,9 +89,21 @@ built-in ones. If an extra seems worth having, suggest it instead of shipping it
    Android signing is private local configuration under `android/signing/` (see its README): keep a
    private backup and never replace or regenerate an existing release key. `nexa` is the canonical
    source repository; keep deployment settings and signing material out of Git rather than in a separate
-   private source branch. Run `python3 tools/privacy_check.py` before committing and the full history
-   privacy and Gitleaks checks before publishing (workflow in `docs/REPOSITORY.md`).
-3. After a round of app changes, leave a throwaway server running the new build and give the owner its
+   private source branch. Run `python3 tools/privacy_check.py` before committing.
+3. Before every push, run both history checks as separate commands and push only after both have
+   printed a pass ("Repository privacy checks passed (all reachable history)" and Gitleaks' "no leaks
+   found"); never chain the push after them with `&&` through a pipe (`| tail` hides a failure) or
+   push when either is missing or fails:
+
+   ```
+   python3 tools/privacy_check.py --history
+   gitleaks git --redact --log-opts="--all --full-history" .
+   ```
+
+   On the build server Gitleaks 8.30.1 is `~/.local/bin/gitleaks`; if it is missing, reinstall it with
+   `GOBIN=$HOME/.local/bin go install github.com/zricethezav/gitleaks/v8@v8.30.1` rather than skipping
+   the scan (`docs/REPOSITORY.md` has the workflow).
+4. After a round of app changes, leave a throwaway server running the new build and give the owner its
    address. WebCrypto needs https or localhost, so from another machine it is reached through an SSH
    tunnel to localhost, not the LAN address. Do not deploy until they say "deploy".
 
