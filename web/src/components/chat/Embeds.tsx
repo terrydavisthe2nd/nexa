@@ -194,7 +194,7 @@ function CardPicture({ e, src, large }: { e: UnfurlResult; src: string; large: b
   const name = imageNameFromUrl(src);
   const show = () => setOpen(true);
   // a width and a shape rather than a height, so a narrow screen shrinks it whole instead of squeezing it
-  const fit = large ? fitCard(e.image_w, e.image_h, 400, 300) : undefined;
+  const fit = large ? fitCard(e.image_w, e.image_h, 360, 240) : undefined;
   return (
     <>
       <img

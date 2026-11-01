@@ -257,32 +257,32 @@ private fun LinkCard(e: Unfurl, from: String) {
     val shape = Radii.Md
     Box(
         Modifier
-            .widthIn(max = 516.dp)
+            .widthIn(max = 440.dp)
             .shadowLow(shape, c)
             .ring(shape, c.borderSubtle)
             .clip(shape)
             .background(c.embedBg)
             .background(sheen(c))
             .topEdge(shape, c.edgeLight)
-            .startBar(bar),
+            .startBar(bar, 3.dp),
     ) {
-        Column(Modifier.padding(start = 13.dp, end = 16.dp, top = 10.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(start = 11.dp, end = 12.dp, top = 8.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     CardHead(e)
                     e.title?.let { title ->
                         Txt(
-                            title, style = Nx.type.body.copy(fontWeight = FontWeight(600), lineHeight = Nx.type.sp(20.8f)), color = c.link,
+                            title, style = Nx.type.body.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(600), lineHeight = Nx.type.sp(19.5f)), color = c.link,
                             modifier = Modifier.pressable(remember { MutableInteractionSource() }) { openExternal(e.url) },
-                            maxLines = 3,
+                            maxLines = 2,
                         )
                     }
-                    e.description?.let { d -> Folding(linkify(d, c.link), Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f), lineHeight = Nx.type.sp(19.6f), color = c.text), 6) }
+                    e.description?.let { d -> Folding(linkify(d, c.link), Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.2f), color = c.text), 3) }
                 }
                 if (!image.isNullOrEmpty() && !big && e.media == null && yt == null && !player) {
                     AsyncImage(
                         image, t("chat.embeds.linkPreviewImage"), imageLoader = Media.loader, contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(80.dp).clip(Radii.Sm).pressable(remember { MutableInteractionSource() }) {
+                        modifier = Modifier.size(64.dp).clip(Radii.Sm).pressable(remember { MutableInteractionSource() }) {
                             openLightbox(listOf(LightboxItem(fileNameOf(image, "image"), src = image, from = from)), 0)
                         },
                     )
@@ -296,11 +296,11 @@ private fun LinkCard(e: Unfurl, from: String) {
                     AudioPlayer(android.net.Uri.parse(media), fileNameOf(e.url, t("chat.embeds.audio")), null, null, null, null, null)
                 }
                 !image.isNullOrEmpty() && big -> {
-                    val fit = Fit.within(e.imageW, e.imageH, 400, 300)
+                    val fit = Fit.within(e.imageW, e.imageH, 360, 240)
                     AsyncImage(
                         image, e.title ?: e.siteName ?: t("chat.embeds.linkPreviewImage"), imageLoader = Media.loader, contentScale = ContentScale.Fit,
                         modifier = Modifier
-                            .then(if (fit != null) Modifier.width(fit.width.dp).aspectRatio(fit.width.toFloat() / fit.height) else Modifier.widthIn(max = 400.dp).heightIn(max = 300.dp))
+                            .then(if (fit != null) Modifier.width(fit.width.dp).aspectRatio(fit.width.toFloat() / fit.height) else Modifier.widthIn(max = 360.dp).heightIn(max = 240.dp))
                             .clip(Radii.Sm)
                             .pressable(remember { MutableInteractionSource() }) { openLightbox(listOf(LightboxItem(fileNameOf(image, "image"), src = image, from = from)), 0) },
                     )
@@ -346,7 +346,7 @@ private fun CardHead(e: Unfurl) {
 private fun PlayerPoster(e: Unfurl, poster: String?) {
     Box(
         Modifier
-            .widthIn(max = 400.dp)
+            .widthIn(max = 360.dp)
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
             .clip(Radii.Sm)

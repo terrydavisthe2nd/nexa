@@ -29,8 +29,8 @@ interface YouTubeRef {
 }
 
 /** The size a lone picture or a tile grid takes at most. */
-const MEDIA_W = 484;
-const MEDIA_H = 400;
+const MEDIA_W = 416;
+const MEDIA_H = 320;
 
 function fit(w: number | undefined, h: number | undefined, maxW = MEDIA_W, maxH = MEDIA_H): { width: number; height: number } | null {
   if (!w || !h) return null;
@@ -378,7 +378,7 @@ function PostView({ post, icon, link, quoted, video }: { post: SocialPost; icon:
       {/* a video's description is long and mostly links: the video comes first, its words after */}
       {video ? <Media post={post} link={link} compact={quoted} video={video} /> : null}
       {text ? (
-        <Fold lines={quoted ? 4 : video ? 3 : 10} signature={text}>
+        <Fold lines={quoted ? 3 : video ? 2 : 6} signature={text}>
           {words}
         </Fold>
       ) : null}

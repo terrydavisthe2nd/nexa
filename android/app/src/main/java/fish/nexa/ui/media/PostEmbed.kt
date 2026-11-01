@@ -167,7 +167,7 @@ fun PostEmbed(e: Unfurl) {
     val shape = Radii.Md
     Column(
         Modifier
-            .widthIn(max = 516.dp)
+            .widthIn(max = 440.dp)
             .fillMaxWidth()
             .shadowLow(shape, c)
             .ring(shape, c.borderSubtle)
@@ -176,8 +176,8 @@ fun PostEmbed(e: Unfurl) {
             .background(sheen(c))
             .background(Brush.radialGradient(0f to tint.copy(alpha = 0.14f), 0.72f to Color.Transparent, center = Offset.Zero, radius = 700f))
             .topEdge(shape, c.edgeLight)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         PostView(post, e.icon, post.url ?: e.url, quoted = false, video = video, tint = tint)
     }
@@ -192,7 +192,7 @@ private fun PostView(post: SocialPost, icon: String?, link: String?, quoted: Boo
     val second = if (reddit) (if (post.community != null) post.name else null) else if (post.name != null && post.handle != null) "@${post.handle}" else null
     val site = post.site ?: ""
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Face(mediaSrc(post.avatar), mediaSrc(icon), first, if (quoted) 20 else 40, tint)
+        Face(mediaSrc(post.avatar), mediaSrc(icon), first, if (quoted) 20 else 32, tint)
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Txt(
@@ -219,11 +219,11 @@ private fun PostView(post: SocialPost, icon: String?, link: String?, quoted: Boo
         t("chat.post.forwardedFrom", "name" to post.community), style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f)), color = c.textMuted,
         modifier = if (post.communityUrl != null) Modifier.pressable(remember { MutableInteractionSource() }) { openExternal(post.communityUrl) } else Modifier,
     )
-    post.title?.let { Txt(it, style = Nx.type.name.copy(fontSize = Nx.type.sp(16f), fontWeight = FontWeight(650), lineHeight = Nx.type.sp(20.8f)), color = c.textStrong, maxLines = 3) }
+    post.title?.let { Txt(it, style = Nx.type.name.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(650), lineHeight = Nx.type.sp(19.5f)), color = c.textStrong, maxLines = 2) }
     if (video != null && video.first != null) PostMediaBlock(post, link, quoted, video)
     post.text?.takeIf { it.isNotEmpty() }?.let { text ->
         val words = remember(text, post.links, post.platform) { postText(text, post.links, post.platform, c.link) }
-        Folding(words, Nx.type.body.copy(fontSize = Nx.type.sp(if (quoted) 14f else 15f), lineHeight = Nx.type.sp(21.75f), color = c.text), if (quoted) 4 else if (video != null) 3 else 10)
+        Folding(words, Nx.type.body.copy(fontSize = Nx.type.sp(14f), lineHeight = Nx.type.sp(20.3f), color = c.text), if (quoted) 3 else if (video != null) 2 else 6)
     }
     if (video == null || video.first == null) PostMediaBlock(post, link, quoted, null)
     post.poll?.let { PostPollView(it, tint) }
@@ -264,7 +264,7 @@ private fun Face(avatar: String?, icon: String?, name: String, size: Int, tint: 
     }
     Box(Modifier.size(size.dp).clip(CircleShape).background(mixSrgb(c.bgSurface, tint, 0.18f)), contentAlignment = Alignment.Center) {
         if (!icon.isNullOrEmpty()) AsyncImage(icon, null, imageLoader = Media.loader, modifier = Modifier.size((size * 0.56f).dp).clip(RoundedCornerShape(4.dp)))
-        else Txt(name.trimStart('@', '/').take(1).uppercase(), style = Nx.type.body.copy(fontSize = Nx.type.sp(if (size < 30) 10f else 16f), fontWeight = FontWeight(700)), color = c.textMuted)
+        else Txt(name.trimStart('@', '/').take(1).uppercase(), style = Nx.type.body.copy(fontSize = Nx.type.sp(if (size < 30) 10f else 14f), fontWeight = FontWeight(700)), color = c.textMuted)
     }
 }
 
@@ -336,13 +336,13 @@ private fun PostMediaBlock(post: SocialPost, link: String?, quoted: Boolean, vid
 @Composable
 private fun PostGrid(shown: List<PostMedia>, extra: Int, quoted: Boolean, link: String?, site: String, items: List<LightboxItem>, photos: List<PostMedia>) {
     val c = Nx.colors
-    val alone = if (shown.size == 1 && !quoted) Fit.within(shown[0].w, shown[0].h, 484, 400) else null
+    val alone = if (shown.size == 1 && !quoted) Fit.within(shown[0].w, shown[0].h, 416, 320) else null
     val shape = Radii.Sm
     val grid = Modifier
         .then(
             when {
                 alone != null -> Modifier.width(alone.width.dp).aspectRatio(alone.width.toFloat() / alone.height)
-                shown.size == 1 -> Modifier.widthIn(max = 484.dp).heightIn(max = 400.dp)
+                shown.size == 1 -> Modifier.widthIn(max = 416.dp).heightIn(max = 320.dp)
                 quoted -> Modifier.widthIn(max = 280.dp).fillMaxWidth().aspectRatio(16f / 10f)
                 else -> Modifier.fillMaxWidth().aspectRatio(16f / 9f)
             },
