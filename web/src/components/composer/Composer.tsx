@@ -114,8 +114,8 @@ export function acToken(text: string, caret: number, channels: boolean, smartEmo
   const command = /^\/([\p{L}\p{N}_-]*(?: [\p{L}\p{N}_-]*){0,2})$/u.exec(before);
   if (command) return { kind: "command", query: command[1]!.toLowerCase(), start: 0 };
   if (smartEmoji && /(?:^|\s):$/.test(before)) return { kind: "emoji", query: "", start: caret - 1 };
-  // names in any script: someone called Émile or سارة is found by typing their name
-  const m = /(?:^|\s)(@[\p{L}\p{N}_.-]*|#[\p{L}\p{N}_-]*|:[\w+-]{2,}|^\/\w*)$/iu.exec(before);
+  // names in any script, channel names of up to five words: someone called Émile or سارة is found by typing their name
+  const m = /(?:^|\s)(@[\p{L}\p{N}_.-]*|#[\p{L}\p{N}_-]*(?: [\p{L}\p{N}_-]*){0,4}|:[\w+-]{2,}|^\/\w*)$/iu.exec(before);
   if (!m) return null;
   const token = m[1]!;
   const start = caret - token.length;

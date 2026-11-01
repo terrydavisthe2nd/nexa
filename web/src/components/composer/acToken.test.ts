@@ -16,3 +16,9 @@ describe("what asks for suggestions", () => {
     expect(acToken(":he", 3, false, true)).toEqual({ kind: "emoji", query: "he", start: 0 });
   });
 });
+
+describe("a channel name with spaces", () => {
+  it("keeps asking for channels past a space", () => {
+    expect(acToken("see #plans for", 14, true)).toEqual({ kind: "channel", query: "plans for", start: 4 });
+  });
+});

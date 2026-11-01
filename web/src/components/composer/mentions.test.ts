@@ -97,3 +97,11 @@ describe("humanizeMentions", () => {
     expect(humanizeMentions("<:party:5> <a:other:6>", users, { emoji: (token) => token === "<:party:5>" })).toBe(":party: <a:other:6>");
   });
 });
+
+describe("channel names with spaces", () => {
+  it("link as a whole, in any capitals", () => {
+    const channels = [{ id: "1", name: "Plans for the Weekend" }, { id: "2", name: "Plans" }];
+    expect(extractMentions("see #plans for the weekend!", {}, { channels }).text).toBe("see <#1>!");
+    expect(extractMentions("see #Plans now", {}, { channels }).text).toBe("see <#2> now");
+  });
+});
