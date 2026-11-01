@@ -278,11 +278,19 @@ export function ContextMenuHost() {
     const onResize = () => {
       if (Math.abs(window.innerWidth - width) > 1) close();
     };
+    // Only a scroll the person makes closes the menu. The message list moves
+    // by itself as messages arrive while scrolled up (keeping the reading
+    // position), and that used to close a menu someone was still reading.
+    let handScrolled = 0;
+    const onHand = (e: Event) => {
+      if (!inside(e.target)) handScrolled = performance.now();
+    };
     const onScroll = (e: Event) => {
       // Behind a sheet nothing can be scrolled by hand. What moves there is
       // the app settling as the keyboard goes away, which it does whenever a
       // menu is opened while typing (lib/keyboardInset.ts says when).
       if (sheet || inside(e.target) || document.documentElement.hasAttribute("data-keyboard-moving")) return;
+      if (performance.now() - handScrolled > 1000) return;
       close();
     };
     // Escape belongs to the menu while it is open, and to nothing else. The
@@ -324,7 +332,11 @@ export function ContextMenuHost() {
     document.addEventListener("mousedown", onDown);
     window.addEventListener("resize", onResize);
     document.addEventListener("scroll", onScroll, true);
+    document.addEventListener("wheel", onHand, { capture: true, passive: true });
+    document.addEventListener("touchmove", onHand, { capture: true, passive: true });
     return () => {
+      document.removeEventListener("wheel", onHand, true);
+      document.removeEventListener("touchmove", onHand, true);
       document.removeEventListener("keydown", onKey, true);
       document.removeEventListener("mousedown", onDown);
       window.removeEventListener("resize", onResize);

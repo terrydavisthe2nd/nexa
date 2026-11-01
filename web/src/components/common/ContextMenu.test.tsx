@@ -319,8 +319,17 @@ describe("ContextMenuHost and what moves behind it", () => {
     render(<ContextMenuHost />);
     open();
     await settle();
+    fireEvent.wheel(document.body);
     fireEvent.scroll(document.body);
     expect(useUI.getState().contextMenu).toBeNull();
+  });
+
+  it("stays open when the list behind moves by itself, as new messages arrive while scrolled up", async () => {
+    render(<ContextMenuHost />);
+    open();
+    await settle();
+    fireEvent.scroll(document.body);
+    expect(useUI.getState().contextMenu).not.toBeNull();
   });
 
   it("stays open while it is scrolled itself", async () => {
@@ -337,6 +346,7 @@ describe("ContextMenuHost and what moves behind it", () => {
     await settle();
     // opened while typing: the menu takes the focus, the keyboard goes, and the lists behind find their new height
     document.documentElement.setAttribute("data-keyboard-moving", "");
+    fireEvent.wheel(document.body);
     fireEvent.scroll(document.body);
     expect(useUI.getState().contextMenu).not.toBeNull();
   });
@@ -346,6 +356,7 @@ describe("ContextMenuHost and what moves behind it", () => {
     render(<ContextMenuHost />);
     open();
     await settle();
+    fireEvent.touchMove(document.body);
     fireEvent.scroll(document.body);
     expect(useUI.getState().contextMenu).not.toBeNull();
   });
