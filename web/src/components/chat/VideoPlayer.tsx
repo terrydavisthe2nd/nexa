@@ -279,6 +279,7 @@ export function VideoPlayer({ src, frame, name, width, height, poster, spoiler =
     const el = video.current;
     const target = e.target as HTMLElement;
     if (!el || (target !== e.currentTarget && target.getAttribute("role") !== "slider")) return;
+    reveal();
     switch (e.key) {
       case " ":
       case "k":
@@ -390,6 +391,9 @@ export function VideoPlayer({ src, frame, name, width, height, poster, spoiler =
       tabIndex={0}
       onKeyDown={onKey}
       onPointerMove={(e) => e.pointerType === "mouse" && reveal()}
+      onPointerLeave={(e) => {
+        if (e.pointerType === "mouse" && video.current && !video.current.paused) setUi(false);
+      }}
       data-testid="video-player"
     >
       {frame ? (

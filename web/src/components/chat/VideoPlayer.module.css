@@ -23,9 +23,8 @@ iframe.video { border: 0; pointer-events: none; }
 .bar { position: absolute; left: 0; right: 0; bottom: 0; direction: ltr; padding: 18px 8px 6px; background: linear-gradient(transparent, rgba(0, 0, 0, 0.75)); opacity: 0; pointer-events: none; transition: opacity 160ms ease; }
 .player[data-full="true"] .bar { padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); padding-bottom: max(6px, env(safe-area-inset-bottom)); }
 .player[data-ui="true"] .bar { opacity: 1; pointer-events: auto; }
-@media (hover: hover) {
-  .player:hover .bar, .player:focus-within .bar { opacity: 1; pointer-events: auto; }
-}
+.player[data-ui="true"] .bar:hover, .bar:has(:focus-visible) { opacity: 1; pointer-events: auto; }
+.player[data-ui="false"][data-full="true"] { cursor: none; }
 .player[data-spoiler="true"] .bar { display: none; }
 .track { position: relative; height: 14px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
 .track::before { content: ""; position: absolute; left: 0; right: 0; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.25); }
