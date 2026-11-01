@@ -15,7 +15,7 @@
 
 import type { SoundName } from "./sounds";
 
-export const SOUND_NAMES: readonly SoundName[] = ["message", "mention", "friend", "ring", "outgoing", "join", "leave", "mute", "unmute"];
+export const SOUND_NAMES: readonly SoundName[] = ["message", "mention", "friend", "ring", "outgoing", "join", "leave", "mute", "unmute", "deafen", "undeafen", "shareStart", "shareStop"];
 
 /** Nexa's own sounds: the pack that comes with the app. */
 export const NEXA_PACK = "nexa";

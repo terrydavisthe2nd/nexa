@@ -68,7 +68,7 @@ describe("sounds", () => {
     s.preloadSounds();
     await settle();
     const ac = made();
-    expect(ac.decoded).toBe(8);
+    expect(ac.decoded).toBe(12);
     expect(await s.playSound("message")).toBe(true);
     expect(await s.playSound("friend")).toBe(true);
     expect(ac.sources).toBe(2);
@@ -256,11 +256,11 @@ describe("sounds in an iPhone home-screen app", () => {
     s.preloadSounds();
     await settle();
     expect(FakeAudioContext.made).toHaveLength(0);
-    expect(fetch).toHaveBeenCalledTimes(8);
+    expect(fetch).toHaveBeenCalledTimes(12);
     tap();
     await settle();
-    expect(made().decoded).toBe(8);
-    expect(fetch).toHaveBeenCalledTimes(8);
+    expect(made().decoded).toBe(12);
+    expect(fetch).toHaveBeenCalledTimes(12);
   });
 
   it("let audio go after the last sound, and start it again for the next without a tap", async () => {

@@ -7494,6 +7494,20 @@
   "reports.reportTab": "Denúncia",
   "reports.saved": "Análise salva",
   "reports.historyTab": "Histórico",
+  "settings.notifications.deafen": "Ensurdecer",
+  "settings.notifications.shareStart": "Início do compartilhamento de tela",
+  "settings.notifications.shareStop": "Fim do compartilhamento de tela",
+  "settings.notifications.undeafen": "Desensurdecer",
+  "settings.sounds.soundDeafen": "Ensurdecer",
+  "settings.sounds.soundShareStart": "Início do compartilhamento de tela",
+  "settings.sounds.soundShareStop": "Fim do compartilhamento de tela",
+  "settings.sounds.soundUndeafen": "Desensurdecer",
+  "settings.sounds.whenDeafen": "Quando você deixa de ouvir a chamada.",
+  "settings.sounds.whenShareStart": "Quando você começa a compartilhar sua tela.",
+  "settings.sounds.whenShareStop": "Quando seu compartilhamento de tela termina.",
+  "settings.sounds.whenUndeafen": "Quando você volta a ouvir a chamada.",
   "whatsNew.r20261029.maintenanceBody": "Uma contagem regressiva aparece 2 horas e 30 minutos antes de uma reinicialização programada do servidor para você se preparar para uma breve interrupção.",
-  "whatsNew.r20261029.maintenanceTitle": "Avisos de Manutenção"
+  "whatsNew.r20261029.maintenanceTitle": "Avisos de Manutenção",
+  "whatsNew.r20261031.callSoundsBody": "Ensurdecer, desensurdecer e iniciar ou encerrar um compartilhamento de tela agora tocam sons próprios. Você pode desligá-los ou trocá-los em Configurações, Sons.",
+  "whatsNew.r20261031.callSoundsTitle": "Novos sons de chamada"
 }

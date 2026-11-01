@@ -57,13 +57,17 @@ object Sounds {
         JOIN("join", null),
         LEAVE("leave", "leave-call.m4a"),
         MUTE("mute", "mute.m4a"),
-        UNMUTE("unmute", "unmute.m4a");
+        UNMUTE("unmute", "unmute.m4a"),
+        DEAFEN("deafen", "deafen.m4a"),
+        UNDEAFEN("undeafen", "undeafen.m4a"),
+        SHARE_START("shareStart", "share-start.m4a"),
+        SHARE_STOP("shareStop", "share-stop.m4a");
 
         /** A ring rings as a phone does; call sounds go where the call's audio goes; the rest are notifications. */
         val usage: Int
             get() = when (this) {
                 RING -> AudioAttributes.USAGE_NOTIFICATION_RINGTONE
-                OUTGOING, JOIN, LEAVE, MUTE, UNMUTE -> AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING
+                OUTGOING, JOIN, LEAVE, MUTE, UNMUTE, DEAFEN, UNDEAFEN, SHARE_START, SHARE_STOP -> AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING
                 else -> AudioAttributes.USAGE_NOTIFICATION
             }
 
@@ -283,6 +287,10 @@ object Sounds {
         Name.LEAVE -> listOf(Tone(784.0, 0.0, 0.08, "triangle"), Tone(523.3, 0.08, 0.12, "triangle"))
         Name.MUTE -> listOf(Tone(440.0, 0.0, 0.07, "square", 0.08), Tone(330.0, 0.07, 0.10, "square", 0.08))
         Name.UNMUTE -> listOf(Tone(330.0, 0.0, 0.07, "square", 0.08), Tone(440.0, 0.07, 0.10, "square", 0.08))
+        Name.DEAFEN -> listOf(Tone(392.0, 0.0, 0.07, "square", 0.08), Tone(261.6, 0.07, 0.12, "square", 0.08))
+        Name.UNDEAFEN -> listOf(Tone(261.6, 0.0, 0.07, "square", 0.08), Tone(392.0, 0.07, 0.12, "square", 0.08))
+        Name.SHARE_START -> listOf(Tone(659.3, 0.0, 0.08, "triangle"), Tone(880.0, 0.08, 0.08, "triangle"), Tone(1318.5, 0.16, 0.14, "triangle"))
+        Name.SHARE_STOP -> listOf(Tone(1318.5, 0.0, 0.08, "triangle"), Tone(880.0, 0.08, 0.08, "triangle"), Tone(659.3, 0.16, 0.14, "triangle"))
         Name.RING, Name.OUTGOING -> listOf(Tone(659.3, 0.0, 0.25, "sine", 0.15), Tone(880.0, 0.30, 0.25, "sine", 0.15))
     }
 

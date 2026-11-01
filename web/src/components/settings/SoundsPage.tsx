@@ -1,4 +1,4 @@
-import { AtSign, Check, LogIn, LogOut, MessageSquare, Mic, MicOff, PhoneIncoming, PhoneOutgoing, Play, Plus, RotateCcw, Sparkles, Trash2, Upload, UserPlus, type LucideIcon } from "lucide-react";
+import { AtSign, Headphones, HeadphoneOff, MonitorOff, MonitorUp, Check, LogIn, LogOut, MessageSquare, Mic, MicOff, PhoneIncoming, PhoneOutgoing, Play, Plus, RotateCcw, Sparkles, Trash2, Upload, UserPlus, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/common/Button";
 import { Toggle } from "@/components/common/Toggle";
@@ -14,7 +14,7 @@ import st from "./Settings.module.css";
 
 import { t } from "@/i18n";
 
-const SOUND_ICON: Record<SoundName, LucideIcon> = { message: MessageSquare, mention: AtSign, friend: UserPlus, ring: PhoneIncoming, outgoing: PhoneOutgoing, join: LogIn, leave: LogOut, mute: MicOff, unmute: Mic };
+const SOUND_ICON: Record<SoundName, LucideIcon> = { message: MessageSquare, mention: AtSign, friend: UserPlus, ring: PhoneIncoming, outgoing: PhoneOutgoing, join: LogIn, leave: LogOut, mute: MicOff, unmute: Mic, deafen: HeadphoneOff, undeafen: Headphones, shareStart: MonitorUp, shareStop: MonitorOff };
 
 function soundLabel(name: SoundName): string {
   return {
@@ -27,6 +27,10 @@ function soundLabel(name: SoundName): string {
     leave: t("settings.sounds.soundLeave"),
     mute: t("settings.sounds.soundMute"),
     unmute: t("settings.sounds.soundUnmute"),
+    deafen: t("settings.sounds.soundDeafen"),
+    undeafen: t("settings.sounds.soundUndeafen"),
+    shareStart: t("settings.sounds.soundShareStart"),
+    shareStop: t("settings.sounds.soundShareStop"),
   }[name];
 }
 function soundWhen(name: SoundName): string {
@@ -40,6 +44,10 @@ function soundWhen(name: SoundName): string {
     leave: t("settings.sounds.whenLeave"),
     mute: t("settings.sounds.whenMute"),
     unmute: t("settings.sounds.whenUnmute"),
+    deafen: t("settings.sounds.whenDeafen"),
+    undeafen: t("settings.sounds.whenUndeafen"),
+    shareStart: t("settings.sounds.whenShareStart"),
+    shareStop: t("settings.sounds.whenShareStop"),
   }[name];
 }
 

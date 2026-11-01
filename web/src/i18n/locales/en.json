@@ -7380,6 +7380,20 @@
   "reports.reportTab": "Report",
   "reports.saved": "Review Saved",
   "reports.historyTab": "History",
+  "settings.notifications.deafen": "Deafen",
+  "settings.notifications.shareStart": "Screen Share Starts",
+  "settings.notifications.shareStop": "Screen Share Ends",
+  "settings.notifications.undeafen": "Undeafen",
+  "settings.sounds.soundDeafen": "Deafen",
+  "settings.sounds.soundShareStart": "Screen Share Starts",
+  "settings.sounds.soundShareStop": "Screen Share Ends",
+  "settings.sounds.soundUndeafen": "Undeafen",
+  "settings.sounds.whenDeafen": "When you stop hearing the call.",
+  "settings.sounds.whenShareStart": "When you start sharing your screen.",
+  "settings.sounds.whenShareStop": "When your screen share ends.",
+  "settings.sounds.whenUndeafen": "When you can hear the call again.",
   "whatsNew.r20261029.maintenanceBody": "A countdown appears 2 hours 30 minutes before a scheduled server restart, so you can plan around a short interruption.",
-  "whatsNew.r20261029.maintenanceTitle": "Maintenance Notices"
+  "whatsNew.r20261029.maintenanceTitle": "Maintenance Notices",
+  "whatsNew.r20261031.callSoundsBody": "Deafening, undeafening and starting or ending a screen share now each play their own sound. You can turn them off or swap them in Settings, Sounds.",
+  "whatsNew.r20261031.callSoundsTitle": "New Call Sounds"
 }

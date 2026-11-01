@@ -7380,6 +7380,20 @@
   "reports.reportTab": "Rapport",
   "reports.saved": "Granskning sparad",
   "reports.historyTab": "Historik",
+  "settings.notifications.deafen": "Stäng av ljud",
+  "settings.notifications.shareStart": "Skärmdelning startar",
+  "settings.notifications.shareStop": "Skärmdelning slutar",
+  "settings.notifications.undeafen": "Slå på ljud",
+  "settings.sounds.soundDeafen": "Stäng av ljud",
+  "settings.sounds.soundShareStart": "Skärmdelning startar",
+  "settings.sounds.soundShareStop": "Skärmdelning slutar",
+  "settings.sounds.soundUndeafen": "Slå på ljud",
+  "settings.sounds.whenDeafen": "När du slutar höra samtalet.",
+  "settings.sounds.whenShareStart": "När du börjar dela din skärm.",
+  "settings.sounds.whenShareStop": "När din skärmdelning slutar.",
+  "settings.sounds.whenUndeafen": "När du hör samtalet igen.",
   "whatsNew.r20261029.maintenanceBody": "En nedräkning visas 2 timmar och 30 minuter före en planerad omstart av servern så att du kan planera för ett kort avbrott.",
-  "whatsNew.r20261029.maintenanceTitle": "Underhållsmeddelanden"
+  "whatsNew.r20261029.maintenanceTitle": "Underhållsmeddelanden",
+  "whatsNew.r20261031.callSoundsBody": "Att stänga av och slå på ljudet och att starta eller avsluta en skärmdelning spelar nu egna ljud. Du kan stänga av eller byta dem under Inställningar, Ljud.",
+  "whatsNew.r20261031.callSoundsTitle": "Nya samtalsljud"
 }

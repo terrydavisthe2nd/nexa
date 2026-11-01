@@ -7143,6 +7143,20 @@
   "reports.reportTab": "신고",
   "reports.saved": "검토 저장됨",
   "reports.historyTab": "기록",
+  "settings.notifications.deafen": "헤드셋 음소거",
+  "settings.notifications.shareStart": "화면 공유 시작",
+  "settings.notifications.shareStop": "화면 공유 종료",
+  "settings.notifications.undeafen": "헤드셋 음소거 해제",
+  "settings.sounds.soundDeafen": "헤드셋 음소거",
+  "settings.sounds.soundShareStart": "화면 공유 시작",
+  "settings.sounds.soundShareStop": "화면 공유 종료",
+  "settings.sounds.soundUndeafen": "헤드셋 음소거 해제",
+  "settings.sounds.whenDeafen": "통화 소리를 끌 때.",
+  "settings.sounds.whenShareStart": "화면 공유를 시작할 때.",
+  "settings.sounds.whenShareStop": "화면 공유가 끝날 때.",
+  "settings.sounds.whenUndeafen": "통화 소리를 다시 들을 때.",
   "whatsNew.r20261029.maintenanceBody": "예정된 서버 재시작 2시간 30분 전부터 카운트다운이 표시되어 짧은 중단에 대비할 수 있습니다.",
-  "whatsNew.r20261029.maintenanceTitle": "유지 보수 알림"
+  "whatsNew.r20261029.maintenanceTitle": "유지 보수 알림",
+  "whatsNew.r20261031.callSoundsBody": "헤드셋 음소거와 해제, 화면 공유 시작과 종료에 각각 고유한 소리가 납니다. 설정의 소리에서 끄거나 바꿀 수 있어요.",
+  "whatsNew.r20261031.callSoundsTitle": "새 통화 소리"
 }

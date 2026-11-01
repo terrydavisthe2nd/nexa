@@ -2,7 +2,7 @@ import { AudioKeeper, isHomeScreenApp } from "./audioKeeper";
 import { DEFAULT_SOUNDS, SOUND_NAMES, sourceOf, type SoundFile, type SoundSettings, type SoundSource } from "./soundPacks";
 
 import { t as tr_ } from "@/i18n";
-export type SoundName = "message" | "mention" | "friend" | "ring" | "outgoing" | "join" | "leave" | "mute" | "unmute";
+export type SoundName = "message" | "mention" | "friend" | "ring" | "outgoing" | "join" | "leave" | "mute" | "unmute" | "deafen" | "undeafen" | "shareStart" | "shareStop";
 
 /** The account's sound packs, volume and the sounds switched off (lib/soundPacks.ts), as set by configureSounds. */
 let config: SoundSettings = DEFAULT_SOUNDS;
@@ -180,6 +180,10 @@ const FILES: Partial<Record<SoundName, string>> = {
   leave: "/sounds/leave-call.m4a",
   mute: "/sounds/mute.m4a",
   unmute: "/sounds/unmute.m4a",
+  deafen: "/sounds/deafen.m4a",
+  undeafen: "/sounds/undeafen.m4a",
+  shareStart: "/sounds/share-start.m4a",
+  shareStop: "/sounds/share-stop.m4a",
 };
 
 /** How loud the recordings play; they are mastered near full scale. */
@@ -328,6 +332,20 @@ function synth(ac: AudioContext, name: SoundName): number {
     case "unmute":
       tone(ac, 330, 0, 0.07, "square", 0.08);
       return tone(ac, 440, 0.07, 0.1, "square", 0.08);
+    case "deafen":
+      tone(ac, 392, 0, 0.07, "square", 0.08);
+      return tone(ac, 261.6, 0.07, 0.12, "square", 0.08);
+    case "undeafen":
+      tone(ac, 261.6, 0, 0.07, "square", 0.08);
+      return tone(ac, 392, 0.07, 0.12, "square", 0.08);
+    case "shareStart":
+      tone(ac, 659.3, 0, 0.08, "triangle");
+      tone(ac, 880, 0.08, 0.08, "triangle");
+      return tone(ac, 1318.5, 0.16, 0.14, "triangle");
+    case "shareStop":
+      tone(ac, 1318.5, 0, 0.08, "triangle");
+      tone(ac, 880, 0.08, 0.08, "triangle");
+      return tone(ac, 659.3, 0.16, 0.14, "triangle");
     case "ring":
     case "outgoing":
       tone(ac, 659.3, 0, 0.25, "sine", 0.15);

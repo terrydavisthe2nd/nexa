@@ -190,6 +190,7 @@ object SoundPreview {
     private val FILES = mapOf(
         "message" to "message.m4a", "mention" to "mention.m4a", "friend" to "friend-request.m4a", "ring" to "incoming-call.m4a",
         "outgoing" to "outgoing-call.m4a", "leave" to "leave-call.m4a", "mute" to "mute.m4a", "unmute" to "unmute.m4a",
+        "deafen" to "deafen.m4a", "undeafen" to "undeafen.m4a", "shareStart" to "share-start.m4a", "shareStop" to "share-stop.m4a",
     )
 
     private fun attributes() = android.media.AudioAttributes.Builder()
@@ -241,6 +242,10 @@ object SoundPreview {
             "leave" -> Triple(listOf(Tone(784.0, 0.0, 0.08), Tone(523.3, 0.08, 0.12)), "triangle", 0.18)
             "mute" -> Triple(listOf(Tone(440.0, 0.0, 0.07), Tone(330.0, 0.07, 0.10)), "square", 0.08)
             "unmute" -> Triple(listOf(Tone(330.0, 0.0, 0.07), Tone(440.0, 0.07, 0.10)), "square", 0.08)
+            "deafen" -> Triple(listOf(Tone(392.0, 0.0, 0.07), Tone(261.6, 0.07, 0.12)), "square", 0.08)
+            "undeafen" -> Triple(listOf(Tone(261.6, 0.0, 0.07), Tone(392.0, 0.07, 0.12)), "square", 0.08)
+            "shareStart" -> Triple(listOf(Tone(659.3, 0.0, 0.08), Tone(880.0, 0.08, 0.08), Tone(1318.5, 0.16, 0.14)), "triangle", 0.18)
+            "shareStop" -> Triple(listOf(Tone(1318.5, 0.0, 0.08), Tone(880.0, 0.08, 0.08), Tone(659.3, 0.16, 0.14)), "triangle", 0.18)
             else -> Triple(listOf(Tone(659.3, 0.0, 0.25), Tone(880.0, 0.30, 0.25)), "sine", 0.15)
         }
         val rate = 44_100
@@ -378,6 +383,8 @@ fun NotificationsPage(openPage: (String, String?) -> Unit) {
             "message" to "profile.profileCard.message", "mention" to "settings.notifications.mention", "friend" to "settings.notifications.friendRequest",
             "ring" to "settings.notifications.incomingCall", "outgoing" to "settings.notifications.outgoingCall", "leave" to "settings.notifications.leaveCall",
             "mute" to "settings.notifications.mute", "unmute" to "settings.notifications.unmute",
+            "deafen" to "settings.notifications.deafen", "undeafen" to "settings.notifications.undeafen",
+            "shareStart" to "settings.notifications.shareStart", "shareStop" to "settings.notifications.shareStop",
         )) NxButton(t(key), { SoundPreview.preview(id, null) }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM)
         NxButton(t("android.settings.notifications.testNotification"), { testNotification() }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM)
     }

@@ -681,6 +681,7 @@ internal object Engine {
                 s.screen = capture
                 s.transport.setLocalScreen(capture.track, plan.bitrate, fps, plan.smooth)
                 Voice.update { it.copy(localScreen = capture.track) }
+                fish.nexa.media.Sounds.play(fish.nexa.media.Sounds.Name.SHARE_START)
                 Calls.sendState(s.channelId)
                 CallService.update()
             } finally {
@@ -696,6 +697,7 @@ internal object Engine {
         s.transport.setLocalScreen(null, 0, 0)
         Voice.update { it.copy(localScreen = null, focused = if (it.focused == "${me()}:screen") null else it.focused) }
         cap.release()
+        fish.nexa.media.Sounds.play(fish.nexa.media.Sounds.Name.SHARE_STOP)
         Calls.sendState(s.channelId)
         CallService.update()
     }

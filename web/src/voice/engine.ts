@@ -809,6 +809,7 @@ export async function toggleScreen(quality?: { plan: SharePlan; audio?: boolean 
     s.screen = null;
     s.transport.setLocalScreen(null);
     useVoice.getState().setLocalScreen(null);
+    playSound("shareStop");
   } else {
     const v = useSettings.getState().settings.voice;
     const plan = quality?.plan ?? sharePlan(v, shareAllowance());
@@ -844,6 +845,7 @@ export async function toggleScreen(quality?: { plan: SharePlan; audio?: boolean 
     if (video) video.onended = () => void toggleScreen();
     s.transport.setLocalScreen(stream, plan.bitrate, plan.fps, plan.smooth);
     useVoice.getState().setLocalScreen(stream);
+    playSound("shareStart");
   }
   sendState(s.channelId);
 }

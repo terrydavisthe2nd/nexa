@@ -92,7 +92,7 @@ import kotlin.math.roundToLong
 
 // ---- the model (lib/soundPacks.ts), read as another device may have written it ----
 
-val SOUND_NAMES = listOf("message", "mention", "friend", "ring", "outgoing", "join", "leave", "mute", "unmute")
+val SOUND_NAMES = listOf("message", "mention", "friend", "ring", "outgoing", "join", "leave", "mute", "unmute", "deafen", "undeafen", "shareStart", "shareStop")
 private const val NEXA_PACK = "nexa"
 private const val MAX_PACKS = 8
 private const val PACK_NAME_MAX = 40
@@ -357,6 +357,7 @@ private suspend fun tidySoundFiles(s: SoundSettings) {
 private val SOUND_ICONS = mapOf(
     "message" to "MessageSquare", "mention" to "AtSign", "friend" to "UserPlus", "ring" to "PhoneIncoming", "outgoing" to "PhoneOutgoing",
     "join" to "LogIn", "leave" to "LogOut", "mute" to "MicOff", "unmute" to "Mic",
+    "deafen" to "HeadphoneOff", "undeafen" to "Headphones", "shareStart" to "MonitorUp", "shareStop" to "MonitorOff",
 )
 
 private fun cap(id: String) = id.replaceFirstChar { it.uppercase() }

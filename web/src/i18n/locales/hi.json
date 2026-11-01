@@ -7380,6 +7380,20 @@
   "reports.reportTab": "रिपोर्ट",
   "reports.saved": "समीक्षा सहेजी गई",
   "reports.historyTab": "इतिहास",
+  "settings.notifications.deafen": "सुनना बंद करें",
+  "settings.notifications.shareStart": "स्क्रीन शेयर शुरू",
+  "settings.notifications.shareStop": "स्क्रीन शेयर खत्म",
+  "settings.notifications.undeafen": "सुनना फिर शुरू करें",
+  "settings.sounds.soundDeafen": "सुनना बंद करें",
+  "settings.sounds.soundShareStart": "स्क्रीन शेयर शुरू",
+  "settings.sounds.soundShareStop": "स्क्रीन शेयर खत्म",
+  "settings.sounds.soundUndeafen": "सुनना फिर शुरू करें",
+  "settings.sounds.whenDeafen": "जब आप कॉल सुनना बंद करते हैं।",
+  "settings.sounds.whenShareStart": "जब आप अपनी स्क्रीन शेयर करना शुरू करते हैं।",
+  "settings.sounds.whenShareStop": "जब आपका स्क्रीन शेयर खत्म होता है।",
+  "settings.sounds.whenUndeafen": "जब आप कॉल फिर से सुन सकते हैं।",
   "whatsNew.r20261029.maintenanceBody": "निर्धारित सर्वर पुनरारंभ से 2 घंटे 30 मिनट पहले उलटी गिनती दिखाई देती है, ताकि आप थोड़ी देर के व्यवधान के लिए तैयारी कर सकें।",
-  "whatsNew.r20261029.maintenanceTitle": "रखरखाव सूचनाएँ"
+  "whatsNew.r20261029.maintenanceTitle": "रखरखाव सूचनाएँ",
+  "whatsNew.r20261031.callSoundsBody": "सुनना बंद करने, फिर शुरू करने और स्क्रीन शेयर शुरू या खत्म करने पर अब अपनी-अपनी आवाज़ बजती है। इन्हें सेटिंग्स, साउंड्स में बंद या बदल सकते हैं।",
+  "whatsNew.r20261031.callSoundsTitle": "कॉल की नई आवाज़ें"
 }

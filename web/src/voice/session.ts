@@ -608,7 +608,9 @@ export function installVoice(): void {
   // the line a call this device started gets, to write how it went onto
   dispatchHooks.onMessage.push((m) => callLine(m));
   useVoiceLocal.subscribe((st, prev) => {
-    if (st.muted !== prev.muted) playSound(st.muted ? "mute" : "unmute");
+    // deafening mutes as well, and plays its own sound rather than both
+    if (st.deafened !== prev.deafened) playSound(st.deafened ? "deafen" : "undeafen");
+    else if (st.muted !== prev.muted) playSound(st.muted ? "mute" : "unmute");
     engine?.setOutputMuted(engine.outputSilenced());
     engine?.applyTransmit();
     // Only a call the server has been told about: during the microphone

@@ -7143,6 +7143,20 @@
   "reports.reportTab": "举报",
   "reports.saved": "审核已保存",
   "reports.historyTab": "历史",
+  "settings.notifications.deafen": "关闭听筒",
+  "settings.notifications.shareStart": "开始共享屏幕",
+  "settings.notifications.shareStop": "结束共享屏幕",
+  "settings.notifications.undeafen": "打开听筒",
+  "settings.sounds.soundDeafen": "关闭听筒",
+  "settings.sounds.soundShareStart": "开始共享屏幕",
+  "settings.sounds.soundShareStop": "结束共享屏幕",
+  "settings.sounds.soundUndeafen": "打开听筒",
+  "settings.sounds.whenDeafen": "当你不再收听通话时。",
+  "settings.sounds.whenShareStart": "当你开始共享屏幕时。",
+  "settings.sounds.whenShareStop": "当你的屏幕共享结束时。",
+  "settings.sounds.whenUndeafen": "当你重新收听通话时。",
   "whatsNew.r20261029.maintenanceBody": "计划重启服务器前 2 小时 30 分钟会显示倒计时，方便你提前安排，避免短暂中断带来的影响。",
-  "whatsNew.r20261029.maintenanceTitle": "维护通知"
+  "whatsNew.r20261029.maintenanceTitle": "维护通知",
+  "whatsNew.r20261031.callSoundsBody": "关闭和打开听筒、开始和结束屏幕共享现在都有各自的提示音。你可以在设置的声音中关闭或替换它们。",
+  "whatsNew.r20261031.callSoundsTitle": "新的通话音效"
 }

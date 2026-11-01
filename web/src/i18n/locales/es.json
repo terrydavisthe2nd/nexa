@@ -7493,6 +7493,20 @@
   "reports.reportTab": "Denuncia",
   "reports.saved": "Revisión guardada",
   "reports.historyTab": "Historial",
+  "settings.notifications.deafen": "Ensordecer",
+  "settings.notifications.shareStart": "Empieza a compartir pantalla",
+  "settings.notifications.shareStop": "Termina de compartir pantalla",
+  "settings.notifications.undeafen": "Dejar de ensordecer",
+  "settings.sounds.soundDeafen": "Ensordecer",
+  "settings.sounds.soundShareStart": "Empieza a compartir pantalla",
+  "settings.sounds.soundShareStop": "Termina de compartir pantalla",
+  "settings.sounds.soundUndeafen": "Dejar de ensordecer",
+  "settings.sounds.whenDeafen": "Cuando dejas de oír la llamada.",
+  "settings.sounds.whenShareStart": "Cuando empiezas a compartir tu pantalla.",
+  "settings.sounds.whenShareStop": "Cuando termina tu pantalla compartida.",
+  "settings.sounds.whenUndeafen": "Cuando vuelves a oír la llamada.",
   "whatsNew.r20261029.maintenanceBody": "Aparece una cuenta atrás 2 horas y 30 minutos antes de un reinicio programado del servidor para que puedas prever una breve interrupción.",
-  "whatsNew.r20261029.maintenanceTitle": "Avisos de Mantenimiento"
+  "whatsNew.r20261029.maintenanceTitle": "Avisos de Mantenimiento",
+  "whatsNew.r20261031.callSoundsBody": "Ensordecer, dejar de ensordecer y empezar o terminar de compartir pantalla ahora tienen su propio sonido. Puedes desactivarlos o cambiarlos en Ajustes, Sonidos.",
+  "whatsNew.r20261031.callSoundsTitle": "Nuevos sonidos de llamada"
 }

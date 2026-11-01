@@ -7143,6 +7143,20 @@
   "reports.reportTab": "報告",
   "reports.saved": "審査を保存しました",
   "reports.historyTab": "履歴",
+  "settings.notifications.deafen": "スピーカーミュート",
+  "settings.notifications.shareStart": "画面共有の開始",
+  "settings.notifications.shareStop": "画面共有の終了",
+  "settings.notifications.undeafen": "スピーカーミュート解除",
+  "settings.sounds.soundDeafen": "スピーカーミュート",
+  "settings.sounds.soundShareStart": "画面共有の開始",
+  "settings.sounds.soundShareStop": "画面共有の終了",
+  "settings.sounds.soundUndeafen": "スピーカーミュート解除",
+  "settings.sounds.whenDeafen": "通話の音を聞こえなくしたとき。",
+  "settings.sounds.whenShareStart": "画面共有を始めたとき。",
+  "settings.sounds.whenShareStop": "画面共有が終わったとき。",
+  "settings.sounds.whenUndeafen": "通話の音がまた聞こえるようにしたとき。",
   "whatsNew.r20261029.maintenanceBody": "サーバーの再起動予定時刻の2時間30分前からカウントダウンが表示され、短い中断に備えられます。",
-  "whatsNew.r20261029.maintenanceTitle": "メンテナンスのお知らせ"
+  "whatsNew.r20261029.maintenanceTitle": "メンテナンスのお知らせ",
+  "whatsNew.r20261031.callSoundsBody": "スピーカーミュートとその解除、画面共有の開始と終了に、それぞれ専用のサウンドが鳴るようになりました。設定のサウンドでオフにしたり差し替えたりできます。",
+  "whatsNew.r20261031.callSoundsTitle": "新しい通話サウンド"
 }

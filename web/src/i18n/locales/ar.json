@@ -8238,6 +8238,20 @@
   "reports.reportTab": "البلاغ",
   "reports.saved": "تم حفظ المراجعة",
   "reports.historyTab": "السجل",
+  "settings.notifications.deafen": "كتم الصوت الوارد",
+  "settings.notifications.shareStart": "بدء مشاركة الشاشة",
+  "settings.notifications.shareStop": "انتهاء مشاركة الشاشة",
+  "settings.notifications.undeafen": "إلغاء كتم الصوت الوارد",
+  "settings.sounds.soundDeafen": "كتم الصوت الوارد",
+  "settings.sounds.soundShareStart": "بدء مشاركة الشاشة",
+  "settings.sounds.soundShareStop": "انتهاء مشاركة الشاشة",
+  "settings.sounds.soundUndeafen": "إلغاء كتم الصوت الوارد",
+  "settings.sounds.whenDeafen": "عندما تتوقف عن سماع المكالمة.",
+  "settings.sounds.whenShareStart": "عندما تبدأ مشاركة شاشتك.",
+  "settings.sounds.whenShareStop": "عندما تنتهي مشاركة شاشتك.",
+  "settings.sounds.whenUndeafen": "عندما تعود لسماع المكالمة.",
   "whatsNew.r20261029.maintenanceBody": "يظهر عد تنازلي قبل إعادة تشغيل الخادم المجدولة بساعتين و30 دقيقة، لتتمكن من الاستعداد لانقطاع قصير.",
-  "whatsNew.r20261029.maintenanceTitle": "إشعارات الصيانة"
+  "whatsNew.r20261029.maintenanceTitle": "إشعارات الصيانة",
+  "whatsNew.r20261031.callSoundsBody": "أصبح لكتم الصوت الوارد وإلغائه وبدء مشاركة الشاشة وإنهائها صوت خاص بكل منها. يمكنك إيقافها أو تبديلها من الإعدادات، الأصوات.",
+  "whatsNew.r20261031.callSoundsTitle": "أصوات مكالمات جديدة"
 }

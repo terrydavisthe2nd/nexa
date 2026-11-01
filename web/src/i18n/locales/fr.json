@@ -7493,6 +7493,20 @@
   "reports.reportTab": "Signalement",
   "reports.saved": "Examen enregistré",
   "reports.historyTab": "Historique",
+  "settings.notifications.deafen": "Mettre en sourdine le son",
+  "settings.notifications.shareStart": "Début du partage d’écran",
+  "settings.notifications.shareStop": "Fin du partage d’écran",
+  "settings.notifications.undeafen": "Réactiver le son",
+  "settings.sounds.soundDeafen": "Mettre en sourdine le son",
+  "settings.sounds.soundShareStart": "Début du partage d’écran",
+  "settings.sounds.soundShareStop": "Fin du partage d’écran",
+  "settings.sounds.soundUndeafen": "Réactiver le son",
+  "settings.sounds.whenDeafen": "Quand vous n’entendez plus l’appel.",
+  "settings.sounds.whenShareStart": "Quand vous commencez à partager votre écran.",
+  "settings.sounds.whenShareStop": "Quand votre partage d’écran se termine.",
+  "settings.sounds.whenUndeafen": "Quand vous entendez de nouveau l’appel.",
   "whatsNew.r20261029.maintenanceBody": "Un compte à rebours apparaît 2 heures et 30 minutes avant un redémarrage programmé du serveur pour vous permettre de prévoir une courte interruption.",
-  "whatsNew.r20261029.maintenanceTitle": "Avis de Maintenance"
+  "whatsNew.r20261029.maintenanceTitle": "Avis de Maintenance",
+  "whatsNew.r20261031.callSoundsBody": "Couper ou réactiver le son, et démarrer ou arrêter un partage d’écran ont maintenant chacun leur propre son. Vous pouvez les désactiver ou les remplacer dans Paramètres, Sons.",
+  "whatsNew.r20261031.callSoundsTitle": "Nouveaux sons d’appel"
 }

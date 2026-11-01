@@ -83,6 +83,10 @@ export default function NotificationsPage({ onSounds }: { onSounds?: () => void 
         <Button size="sm" variant="secondary" onClick={() => void testSound("leave")}>{t("settings.notifications.leaveCall")}</Button>
         <Button size="sm" variant="secondary" onClick={() => void testSound("mute")}>{t("settings.notifications.mute")}</Button>
         <Button size="sm" variant="secondary" onClick={() => void testSound("unmute")}>{t("settings.notifications.unmute")}</Button>
+        <Button size="sm" variant="secondary" onClick={() => void testSound("deafen")}>{t("settings.notifications.deafen")}</Button>
+        <Button size="sm" variant="secondary" onClick={() => void testSound("undeafen")}>{t("settings.notifications.undeafen")}</Button>
+        <Button size="sm" variant="secondary" onClick={() => void testSound("shareStart")}>{t("settings.notifications.shareStart")}</Button>
+        <Button size="sm" variant="secondary" onClick={() => void testSound("shareStop")}>{t("settings.notifications.shareStop")}</Button>
         <Button size="sm" variant="secondary" onClick={() => void testNotification()}>{t("settings.notifications.desktopNotification")}</Button>
       </div>
       {soundHint ? (

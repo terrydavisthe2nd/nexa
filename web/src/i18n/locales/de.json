@@ -7380,6 +7380,20 @@
   "reports.reportTab": "Meldung",
   "reports.saved": "Prüfung gespeichert",
   "reports.historyTab": "Verlauf",
+  "settings.notifications.deafen": "Taubschalten",
+  "settings.notifications.shareStart": "Bildschirmübertragung startet",
+  "settings.notifications.shareStop": "Bildschirmübertragung endet",
+  "settings.notifications.undeafen": "Taubschaltung aufheben",
+  "settings.sounds.soundDeafen": "Taubschalten",
+  "settings.sounds.soundShareStart": "Bildschirmübertragung startet",
+  "settings.sounds.soundShareStop": "Bildschirmübertragung endet",
+  "settings.sounds.soundUndeafen": "Taubschaltung aufheben",
+  "settings.sounds.whenDeafen": "Wenn du den Anruf nicht mehr hörst.",
+  "settings.sounds.whenShareStart": "Wenn du anfängst, deinen Bildschirm zu teilen.",
+  "settings.sounds.whenShareStop": "Wenn deine Bildschirmübertragung endet.",
+  "settings.sounds.whenUndeafen": "Wenn du den Anruf wieder hörst.",
   "whatsNew.r20261029.maintenanceBody": "Ein Countdown erscheint 2 Stunden und 30 Minuten vor einem geplanten Serverneustart, damit du die kurze Unterbrechung einplanen kannst.",
-  "whatsNew.r20261029.maintenanceTitle": "Wartungshinweise"
+  "whatsNew.r20261029.maintenanceTitle": "Wartungshinweise",
+  "whatsNew.r20261031.callSoundsBody": "Taubschalten, Aufheben und das Starten oder Beenden einer Bildschirmübertragung haben jetzt eigene Klänge. Du kannst sie unter Einstellungen, Klänge ausschalten oder austauschen.",
+  "whatsNew.r20261031.callSoundsTitle": "Neue Anrufklänge"
 }

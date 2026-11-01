@@ -7827,6 +7827,20 @@
   "reports.reportTab": "Жалоба",
   "reports.saved": "Проверка сохранена",
   "reports.historyTab": "История",
+  "settings.notifications.deafen": "Отключить звук",
+  "settings.notifications.shareStart": "Начало демонстрации экрана",
+  "settings.notifications.shareStop": "Конец демонстрации экрана",
+  "settings.notifications.undeafen": "Включить звук",
+  "settings.sounds.soundDeafen": "Отключить звук",
+  "settings.sounds.soundShareStart": "Начало демонстрации экрана",
+  "settings.sounds.soundShareStop": "Конец демонстрации экрана",
+  "settings.sounds.soundUndeafen": "Включить звук",
+  "settings.sounds.whenDeafen": "Когда вы перестаёте слышать звонок.",
+  "settings.sounds.whenShareStart": "Когда вы начинаете показывать экран.",
+  "settings.sounds.whenShareStop": "Когда демонстрация экрана заканчивается.",
+  "settings.sounds.whenUndeafen": "Когда вы снова слышите звонок.",
   "whatsNew.r20261029.maintenanceBody": "Обратный отсчёт появляется за 2 часа 30 минут до планового перезапуска сервера, чтобы вы могли учесть короткий перерыв.",
-  "whatsNew.r20261029.maintenanceTitle": "Уведомления об Обслуживании"
+  "whatsNew.r20261029.maintenanceTitle": "Уведомления об Обслуживании",
+  "whatsNew.r20261031.callSoundsBody": "Отключение и включение звука, а также начало и конец демонстрации экрана теперь звучат по-своему. Их можно выключить или заменить в Настройках, раздел Звуки.",
+  "whatsNew.r20261031.callSoundsTitle": "Новые звуки звонков"
 }

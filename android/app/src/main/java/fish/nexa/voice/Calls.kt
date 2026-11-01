@@ -93,7 +93,9 @@ object Calls {
         scope.launch {
             var prev = VoiceLocal.state.value
             VoiceLocal.state.collect { st ->
-                if (st.muted != prev.muted) Sounds.play(if (st.muted) Sounds.Name.MUTE else Sounds.Name.UNMUTE)
+                // deafening mutes as well, and plays its own sound rather than both
+                if (st.deafened != prev.deafened) Sounds.play(if (st.deafened) Sounds.Name.DEAFEN else Sounds.Name.UNDEAFEN)
+                else if (st.muted != prev.muted) Sounds.play(if (st.muted) Sounds.Name.MUTE else Sounds.Name.UNMUTE)
                 prev = st
                 Engine.setOutputMuted(Engine.outputSilenced())
                 Engine.applyTransmit()
