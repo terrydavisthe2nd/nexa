@@ -166,6 +166,8 @@ data class Channel(
     val thread: ThreadMeta? = null,
     /** A forum channel's own settings. */
     val forum: ForumSettings? = null,
+    /** Where a link channel leads: a whole http or https address. */
+    val url: String? = null,
     /** On a channel threads start in: how many quiet minutes close a new thread (absent: three days). */
     @SerialName("default_auto_archive") val defaultAutoArchive: Int? = null,
     /** On a thread, as listed or announced: how many people are in it. */
@@ -176,7 +178,12 @@ data class Channel(
     val isVoice get() = type == "voice"
     val isCategory get() = type == "category"
     val isAnnouncement get() = type == "announcement"
-    val isForum get() = type == "forum"
+    /** A channel that only holds posts: a forum, or a media channel (a forum of pictures and videos). */
+    val isForum get() = type == "forum" || type == "media"
+    /** A forum whose posts are pictures and videos, shown as a gallery. */
+    val isMedia get() = type == "media"
+    /** An entry in the channel list that opens an address; it holds no messages. */
+    val isLink get() = type == "link"
     /** A thread, or a forum's post (which is one). */
     val isThread get() = type == "thread" || type == "private_thread"
     /** Where messages are read and written in a server: text and announcement channels, and threads. */
@@ -184,7 +191,7 @@ data class Channel(
     /** Holds messages that count as unread: a text-like channel, or the chat of a voice channel. */
     val hasChat get() = isTextLike || type == "voice"
     /** Channels threads start in (a forum's posts are its threads). */
-    val holdsThreads get() = type == "text" || type == "announcement" || type == "forum"
+    val holdsThreads get() = type == "text" || type == "announcement" || isForum
 }
 
 /** How a thread stands (web ThreadMeta). */
@@ -220,6 +227,8 @@ data class ForumSettings(
     val layout: String = "list",
     @SerialName("require_tag") val requireTag: Boolean = false,
     @SerialName("pinned_post") val pinnedPost: Snowflake? = null,
+    /** A media channel whose pictures and videos offer no download buttons. */
+    @SerialName("hide_downloads") val hideDownloads: Boolean = false,
 )
 
 /** A thread as the message it was started from shows it. */

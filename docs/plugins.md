@@ -536,7 +536,7 @@ interface Channel {
   id: string;
   serverId: string | null;
   type: "text" | "voice" | "category" | "dm" | "group_dm" | "subchat"
-      | "announcement" | "forum" | "thread" | "private_thread";
+      | "announcement" | "forum" | "media" | "link" | "thread" | "private_thread";
   name: string;
   topic: string;
   position: number;
@@ -931,7 +931,7 @@ Message on someone else's message, for one).
 | `callTile` | A person's tile in a call | `user`, `channel`, `server` | `viewTileProfile`, `stopSharingFromTile`, `watchStream`, `focusTile`, `fullScreenTile`, `streamVolume`, `muteStream`, `resetStreamVolume`, `tileVolume`, `muteTile`, `resetTileVolume`, `serverMuteTile`, `serverDeafenTile`, `moveTile`, `disconnectTile`, `timeoutTile`, `kickTile`, `banTile`, `removeGuestFromTile`, `copyTileUserId`, `copyTileBotId` |
 | `camera` | The arrow beside the camera button in a call | none | `cameraDevices`, `videoSettings` |
 | `category` | A category in a server's channel list | `channel`, `server` | `reportCategoryContent`, `collapseCategory`, `moveCategory`, `createChannelInCategory`, `editCategory`, `deleteCategory`, `copyCategoryId` |
-| `channel` | A channel in a server's channel list | `channel`, `server` | `reportChannelContent`, `openChannelInTab`, `markChannelRead`, `inviteToChannel`, `inviteGuestsToCall`, `copyChannelLink`, `muteChannel`, `moveChannel`, `editChannel`, `deleteChannel`, `copyChannelId` |
+| `channel` | A channel in a server's channel list | `channel`, `server` | `reportChannelContent`, `openChannelInTab`, `markChannelRead`, `inviteToChannel`, `inviteGuestsToCall`, `copyChannelLink`, `copyLinkChannelAddress`, `muteChannel`, `moveChannel`, `editChannel`, `deleteChannel`, `copyChannelId` |
 | `chatMore` | The More button at the top of a conversation | `channel`, `server` | `joinThreadFromMore`, `closeThreadFromMore`, `lockThreadFromMore`, `threadSettingsFromMore`, `deleteThreadFromMore`, `pinnedMessages`, `threadList`, `followChannel`, `subchatList`, `inviteFromMore`, `toggleMemberList`, `inviteGuestsFromMore`, `reportBugFromMore` |
 | `composerPlus` | The plus button in the message box, when it offers a choice | none | `uploadFile`, `createPoll` |
 | `composerTools` | The tools button of the message box on a phone (formatting, preview, emoji) | none | `formattingEditor`, `messagePreview`, `emojiPicker` |
@@ -1188,6 +1188,9 @@ by code that names them.
 - `api.composer` and the `composer.write` permission.
 - `api.navigation`, the `navigation` permission and the `locationChanged`
   event.
+- Channel types `"media"` (a forum of picture and video posts; `createThread`
+  starts a post in one as in a forum) and `"link"` (a channel list entry that
+  opens an address and holds no messages).
 - `api.utils`: mentions, timestamps, escaping, dates from ids and permission
   checks.
 

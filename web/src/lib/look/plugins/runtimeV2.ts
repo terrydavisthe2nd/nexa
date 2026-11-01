@@ -632,7 +632,7 @@ export function buildApiV2(host: V2Host): { api: Record<string, unknown>; stop: 
       need(can, "servers.channels.write", "channels.createThread");
       const parent = await channelFor(str(options.parentId));
       if (!parent) throw new Error(`there is no channel ${options.parentId}`);
-      if (parent.type === "forum") {
+      if (parent.type === "forum" || parent.type === "media") {
         if (!options.content?.trim()) throw new Error("a forum post needs content: its first message");
         const post = await startForumPost(parent, { name: String(options.name), body: options.content, ...(options.appliedTags ? { appliedTags: options.appliedTags.map(str) } : {}) });
         if (!post) throw new Error("AutoMod stopped the post");

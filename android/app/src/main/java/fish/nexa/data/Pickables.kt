@@ -30,6 +30,7 @@ object Pickables {
         "thread" -> 11
         "private_thread" -> 12
         "forum" -> 15
+        "media" -> 16
         else -> 0
     }
 

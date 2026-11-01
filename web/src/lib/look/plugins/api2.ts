@@ -214,7 +214,7 @@ export interface EditableMember {
 
 // --- channels -------------------------------------------------------------------
 
-export type ChannelType = "text" | "voice" | "category" | "dm" | "group_dm" | "subchat" | "announcement" | "forum" | "thread" | "private_thread";
+export type ChannelType = "text" | "voice" | "category" | "dm" | "group_dm" | "subchat" | "announcement" | "forum" | "media" | "link" | "thread" | "private_thread";
 
 export interface ChannelOverwrite {
   channelId: string;

@@ -48,7 +48,7 @@ export function installDemoRuntime() {
     const ch: Channel = { id: id(), server_id: server, type, name, topic: "", position: channels.size,
       parent_id: parent, nsfw: false, slowmode_seconds: 0, user_limit: 0, owner_id: me.id,
       icon_id: null, last_message_id: null, created_at: Date.now(), recipient_ids: [], key_conv_id: server, overwrites: [] };
-    if (type === "forum") ch.forum = { tags: [], default_reaction: "", sort: "activity", layout: "list", require_tag: false, pinned_post: null };
+    if (type === "forum" || type === "media") ch.forum = { tags: [], default_reaction: "", sort: "activity", layout: type === "media" ? "gallery" : "list", require_tag: false, pinned_post: null };
     channels.set(ch.id, ch);
     return ch;
   };

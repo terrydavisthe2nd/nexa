@@ -1,5 +1,5 @@
 import { useMediaAnimation } from "@/lib/mediaAnimation";
-import { ChevronDown, ChevronRight, Plus, Settings, UserPlus, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronRight, Plus, Settings, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { Channel } from "@/api/types";
@@ -20,6 +20,7 @@ import { useViewAs } from "@/stores/viewAs";
 import { channelTree, selectThreads, useChannels } from "@/stores/channels";
 import { useThreads } from "@/stores/threads";
 import { holdsThreads } from "@/lib/threads";
+import { linkDestination, openLinkChannel } from "@/lib/linkChannel";
 import { isUnread, useReadStates } from "@/stores/readStates";
 import { canI, useServers } from "@/stores/servers";
 import { useSettings } from "@/stores/settings";
@@ -362,12 +363,16 @@ export function ServerSidebar({ serverId }: { serverId: string }) {
         <button
           className={s.channel}
           onClick={() => {
+            // a link channel opens its address and leaves the open channel where it is
+            if (ch.type === "link") return openLinkChannel(ch, nav);
             nav(`/channels/${serverId}/${ch.id}`);
             // closes the phone drawer even when this channel was already open
             useUI.getState().setLeftOpen(false);
             if (ch.type === "voice") void joinVoice(ch.id);
           }}
           aria-current={active === ch.id ? "page" : undefined}
+          data-link={ch.type === "link" || undefined}
+          title={ch.type === "link" ? linkDestination(ch.url)?.host : undefined}
         >
           <span className={s.icon}><ChannelGlyph channel={ch} size={20} locked={priv && ch.type !== "voice"} /></span>
           <span className={s.name}>{ch.name}</span>
@@ -377,9 +382,10 @@ export function ServerSidebar({ serverId }: { serverId: string }) {
           {mentions > 0 ? <span className="visually-hidden">{`, ${t("sidebar.serverSidebar.mentionsCount", { count: mentions })}`}</span> : unread && !selected ? <span className="visually-hidden">{`, ${t("sidebar.serverSidebar.unread")}`}</span> : null}
           {ch.type === "voice" ? <CallTimer channelId={ch.id} pill className={s.callTimer} /> : null}
           {ch.type === "voice" && ch.user_limit > 0 ? <span className={s.limit}>{Object.keys(voiceByChannel[ch.id] ?? {}).length}/{ch.user_limit}</span> : null}
+          {ch.type === "link" ? <ArrowUpRight size={14} className={s.leaves} aria-hidden="true" /> : null}
         </button>
         <span className={s.actions}>
-          {canI(st, P.CREATE_INSTANT_INVITE, ch.id) ? (
+          {ch.type !== "link" && canI(st, P.CREATE_INSTANT_INVITE, ch.id) ? (
             <Tooltip text={t("server.invites.createInvite")} side="top">
               <button className={s.action} aria-label={t("server.invites.createInvite")} onClick={() => openModal("invite", { serverId, channelId: ch.id })}><UserPlus size={16} /></button>
             </Tooltip>

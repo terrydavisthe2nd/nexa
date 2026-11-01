@@ -525,7 +525,8 @@ SIGINT or SIGTERM.
   `ephemeral_messages` (15 minutes), `ephemeral_files`, `interaction_files` (a day), `bot_copies`,
   `roles.managed_by` for a bot's role), the instance (`instance_settings`).
 - Channel types: `dm`, `group_dm`, `subchat`, `text`, `voice`, `category`, `announcement`, `forum`,
-  `thread`, `private_thread`. A channel's `key_conv_id` names the conversation whose keys encrypt it:
+  `media`, `link`, `thread`, `private_thread`. `store.IsForum` is forum or media (posts only),
+  `store.HoldsNoMessages` is category or link (no messages, invites, read states, mentions or own key). A channel's `key_conv_id` names the conversation whose keys encrypt it:
   itself for DMs and private channels, the server otherwise.
 
 ### Permissions
@@ -949,6 +950,26 @@ as Discord holds it:
 - Android's jump into a channel not yet loaded keeps `ChatUi.jump` set until the list has handled it
   (`MessageList.kt`), and `Messages.loadAround` rethrows cancellation: a cold open recomposes the list
   mid-load, which once swallowed the cancellation and toasted "That message could not be found".
+
+### Link and media channels (modelled on Fluxer's)
+
+- A link channel (`link`) is a channel list entry that opens `channels.url` (migration 0044, both
+  databases): a whole http or https address with a host and no userinfo, at most 1024 bytes
+  (`cleanLinkURL` in `server_handlers.go`; web `lib/linkChannel.ts` `linkDestination`, Android
+  `ui/shell/LinkChannels.kt`). Set on create (`url`, required) and changed by PATCH; the name keeps
+  capitals like a voice channel's; no Private toggle at creation, no invites, no page (a path to one
+  goes to the server). Pressing it opens a Nexa address in the app (`followAppLink` in
+  `shell/AppLinks.tsx`, Android `AppLinks` and `Nav.openPath`), anything else after a confirm showing
+  the full address. Overwrites offer only View Channel, Manage Channels and Manage Roles. Bots never
+  see link channels (`channelType` returns false).
+- A media channel (`media`, protocol type 16, Discord templates' 16) is a forum whose layout is always
+  `gallery` (forced in `parseForum` and the PATCH), drawn as tall tiles (web `data-media` in
+  `Forum.module.css`, Android `MediaRow`, two to a row on phones). A post needs a picture or video and
+  posting needs Attach Files; the server cannot see attachment types, so the apps hold that.
+  `forum.hide_downloads` (Hide download buttons; protocol flag 1 << 15) makes the apps leave the
+  download, save, copy and open buttons off its posts' pictures and videos (web `lib/mediaDownloads.ts`
+  with the `NoDownloads` context in `Attachments`, `Lightbox`, `VideoPlayer`, and `messageMenu`;
+  Android `data/MediaDownloads`); a forum never keeps it.
 
 ### Messages: forwarding and voice messages
 

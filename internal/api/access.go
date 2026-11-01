@@ -41,10 +41,11 @@ func (s *Server) channel(w http.ResponseWriter, r *http.Request, need string) (*
 		WriteError(w, ErrNotFound)
 		return nil, nil
 	}
-	// A category only holds channels. Anything posted to one would reach its
-	// viewers where no client can show it, or ever mark it read.
-	if ch.Type == "category" && need != NeedView && need != NeedManage {
-		WriteError(w, E(http.StatusBadRequest, "not_text", "A category has no messages of its own."))
+	// A category only holds channels and a link channel only opens an
+	// address. Anything posted to one would reach its viewers where no client
+	// can show it, or ever mark it read.
+	if store.HoldsNoMessages(ch.Type) && need != NeedView && need != NeedManage {
+		WriteError(w, E(http.StatusBadRequest, "not_text", "This channel has no messages of its own."))
 		return nil, nil
 	}
 	ok, err := s.canAccess(r, u, ch, need)

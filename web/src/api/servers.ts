@@ -39,6 +39,8 @@ export interface ChannelPatch {
   type?: "text" | "announcement";
   default_auto_archive?: number;
   forum?: Partial<Omit<ForumSettings, "tags">> & { tags: { id?: Snowflake; name: string; emoji: string; moderated: boolean }[] };
+  /** Link channels: where it leads. */
+  url?: string;
   /** Threads: */
   archived?: boolean;
   locked?: boolean;
@@ -118,7 +120,7 @@ function cropQuery(crop?: Crop): string {
 
 export interface DiscordTemplatePreviewChannel {
   id: number;
-  type: "category" | "text" | "voice" | "announcement" | "forum";
+  type: "category" | "text" | "voice" | "announcement" | "forum" | "media";
   name: string;
   topic?: string;
   parent_index: number;
@@ -217,7 +219,7 @@ export const servers = {
   channels(id: Snowflake): Promise<Channel[]> {
     return api.request<Channel[]>("GET", `/servers/${id}/channels`);
   },
-  createChannel(id: Snowflake, body: { type: "text" | "voice" | "category" | "announcement" | "forum"; name: string; parent_id?: Snowflake | null }): Promise<Channel & { key_actions?: { needs_own_key: boolean; conv_id: Snowflake } }> {
+  createChannel(id: Snowflake, body: { type: "text" | "voice" | "category" | "announcement" | "forum" | "media" | "link"; name: string; parent_id?: Snowflake | null; url?: string }): Promise<Channel & { key_actions?: { needs_own_key: boolean; conv_id: Snowflake } }> {
     // key_actions: made in a private category, the channel needs its own key now
     return api.request("POST", `/servers/${id}/channels`, body);
   },

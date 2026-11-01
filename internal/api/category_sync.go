@@ -67,7 +67,8 @@ func (s *Server) copyOverwrites(ctx context.Context, ch *store.Channel, from []s
 // markIfPrivate marks a channel @everyone can no longer see to encrypt under
 // a key of its own, and answers whether it did.
 func (s *Server) markIfPrivate(ctx context.Context, ch *store.Channel) bool {
-	if ch.Type == "category" || !s.channelBecamePrivate(ctx, ch) {
+	// a category and a link channel hold no messages, so need no key of their own
+	if store.HoldsNoMessages(ch.Type) || !s.channelBecamePrivate(ctx, ch) {
 		return false
 	}
 	tr := true

@@ -146,7 +146,7 @@ func (s *Server) handleThreadCreate(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, E(http.StatusBadRequest, "invalid_name", "A thread's name is 1 to 100 characters."))
 		return
 	}
-	forum := parent.Type == store.ChannelForum
+	forum := store.IsForum(parent.Type)
 	switch {
 	case forum:
 		// a forum post is a message in the forum: Send Messages there
@@ -383,7 +383,7 @@ func (s *Server) handleThreadList(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	before, _ := strconv.ParseInt(q.Get("before"), 10, 64)
 	limit, _ := strconv.Atoi(q.Get("limit"))
-	tq := store.ThreadQuery{Parent: parent.ID, Archived: q.Get("archived") == "1", Before: before, Limit: limit, Query: q.Get("q"), Sort: q.Get("sort"), Forum: parent.Type == store.ChannelForum, Viewer: me.ID}
+	tq := store.ThreadQuery{Parent: parent.ID, Archived: q.Get("archived") == "1", Before: before, Limit: limit, Query: q.Get("q"), Sort: q.Get("sort"), Forum: store.IsForum(parent.Type), Viewer: me.ID}
 	for _, raw := range strings.Split(q.Get("tags"), ",") {
 		if id, err := ids.Parse(strings.TrimSpace(raw)); err == nil {
 			tq.Tags = append(tq.Tags, id)
@@ -422,7 +422,7 @@ func (s *Server) handleThreadList(w http.ResponseWriter, r *http.Request) {
 		out = append(out, sum)
 		forumIDs = append(forumIDs, th.ID)
 	}
-	if parent.Type == store.ChannelForum && len(forumIDs) > 0 {
+	if store.IsForum(parent.Type) && len(forumIDs) > 0 {
 		firsts, err := s.Store.FirstMessages(ctx, forumIDs, me.ID)
 		if err == nil {
 			for i := range out {
@@ -650,7 +650,7 @@ func (s *Server) handleForumPin(pin bool) http.HandlerFunc {
 		if forum == nil {
 			return
 		}
-		if forum.Type != store.ChannelForum || forum.Forum == nil {
+		if !store.IsForum(forum.Type) || forum.Forum == nil {
 			WriteError(w, E(http.StatusBadRequest, "not_forum", "Only a forum has a pinned post."))
 			return
 		}
@@ -791,7 +791,7 @@ func (s *Server) threadPatch(w http.ResponseWriter, r *http.Request, th *store.C
 			return
 		}
 		parent, err := s.Store.ChannelByID(ctx, *th.ParentID)
-		if err != nil || parent.Type != store.ChannelForum {
+		if err != nil || !store.IsForum(parent.Type) {
 			WriteError(w, E(http.StatusBadRequest, "not_forum", "Only forum posts wear tags."))
 			return
 		}
@@ -963,7 +963,7 @@ func (s *Server) isForumPost(ctx context.Context, th *store.Channel) bool {
 		return false
 	}
 	parent, err := s.Store.ChannelByID(ctx, *th.ParentID)
-	return err == nil && parent.Type == store.ChannelForum
+	return err == nil && store.IsForum(parent.Type)
 }
 
 // announcePost tells everyone of a forum post once its first message is in.
@@ -1001,7 +1001,7 @@ func (s *Server) mentionedIntoThread(r *http.Request, th *store.Channel, me *sto
 // given ids; the sort, the layout, and whether a post needs a tag. The pinned
 // post is kept as it was: pinning has a route of its own.
 func cleanForum(old, next *store.ForumSettings) (*store.ForumSettings, *Error) {
-	out := &store.ForumSettings{Tags: []store.ForumTag{}, DefaultReaction: strings.TrimSpace(next.DefaultReaction), RequireTag: next.RequireTag, Sort: next.Sort, Layout: next.Layout}
+	out := &store.ForumSettings{Tags: []store.ForumTag{}, DefaultReaction: strings.TrimSpace(next.DefaultReaction), RequireTag: next.RequireTag, Sort: next.Sort, Layout: next.Layout, HideDownloads: next.HideDownloads}
 	if old != nil {
 		out.PinnedPost = old.PinnedPost
 	}

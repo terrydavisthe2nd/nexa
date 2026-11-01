@@ -119,7 +119,7 @@ fun Attachments(list: List<AttachmentMeta>, cm: ChatMessage?, ctx: ListCtx?, fil
             val inline = att.size <= INLINE_MAX
             when {
                 inline && type.startsWith("image/") -> if (tiles == null) ImageAttachment(att, cm, tile = null, onOpen = { open(att) }, fill = fill)
-                type.startsWith("video/") -> VideoAttachment(att, fill = fill)
+                type.startsWith("video/") -> VideoAttachment(att, fill = fill, noDownload = fish.nexa.data.MediaDownloads.hidden(cm?.m?.channelId))
                 inline && type.startsWith("audio/") -> AudioAttachment(att)
                 else -> FileCard(att)
             }

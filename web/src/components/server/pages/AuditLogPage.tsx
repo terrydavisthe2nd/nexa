@@ -103,6 +103,10 @@ function channelKind(type: string | undefined): string {
       return t("modals.createChannel.announcement");
     case "forum":
       return t("modals.createChannel.forum");
+    case "media":
+      return t("modals.createChannel.media");
+    case "link":
+      return t("modals.createChannel.link");
     case "thread":
       return t("threads.create.public");
     case "private_thread":
@@ -314,6 +318,8 @@ export default function AuditLogPage({ serverId }: { serverId: string }) {
         return [t("server.channelIcon.title"), str ? (str.startsWith("custom:") ? t("server.auditLog.changed") : str) : t("server.channelIcon.default")];
       case "forum":
         return [t("server.auditLog.forumSettings"), t("server.auditLog.changed")];
+      case "url":
+        return [t("channelLink.address"), str || none()];
       case "applied_tags":
         return [t("forum.settings.tags"), Array.isArray(v) ? t("server.auditLog.itemsCount", { count: v.length }) : none()];
       case "enabled":

@@ -193,7 +193,7 @@ func (s *Store) ChannelsForUser(ctx context.Context, uid ids.ID) ([]ids.ID, erro
 		}
 		for _, ch := range snap.channelOrder {
 			// read states are for channels and for threads still going
-			if snap.channels[ch] == "category" || snap.archived[ch] {
+			if HoldsNoMessages(snap.channels[ch]) || snap.archived[ch] {
 				continue
 			}
 			if snap.channelPerms(ch, uid, now).Has(perms.ViewChannel) {

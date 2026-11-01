@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import fish.nexa.Nexa
 import fish.nexa.data.P
@@ -210,12 +211,23 @@ internal fun CreateChannelSheet(layer: Layer, serverId: String, parentId: String
     val parent = parentId?.let { Nexa.channels.get(it) }
     var type by remember { mutableStateOf("text") }
     var name by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+    var urlProblem by remember { mutableStateOf<String?>(null) }
     var private by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    // voice and link names keep their capitals and spaces; the rest are written as text channels' are
+    val freeName = type == "voice" || type == "link"
+    val link = type == "link"
     fun create() {
-        val clean = if (type != "voice") channelSlug(name) else name.trim()
+        val clean = if (!freeName) channelSlug(name) else name.trim()
         if (clean.isEmpty() || busy) return
+        // a link channel opens its address, so it has to be one the apps will open
+        val dest = if (link) fish.nexa.ui.shell.LinkChannels.destination(url) else null
+        if (link && dest == null) {
+            urlProblem = t("channelLink.badAddress")
+            return
+        }
         busy = true
         scope.launch {
             var made: Channel? = null
@@ -224,6 +236,7 @@ internal fun CreateChannelSheet(layer: Layer, serverId: String, parentId: String
                     put("type", type)
                     put("name", clean)
                     if (parentId != null) put("parent_id", parentId)
+                    if (dest != null) put("url", dest.href)
                 }) as JsonObject
                 val res = fish.nexa.net.wireJson.decodeFromJsonElement(Channel.serializer(), raw)
                 made = res
@@ -233,7 +246,7 @@ internal fun CreateChannelSheet(layer: Layer, serverId: String, parentId: String
                     Nexa.keys.ensureConvKey(res.id)
                     refreshChannels(serverId)
                 }
-                if (private) {
+                if (private && !link) {
                     // @everyone may not see it, and it gets its own key, so members outside it never hold one
                     val ow = Nexa.api.request("PUT", "/channels/${res.id}/permissions/$serverId", buildJsonObject {
                         put("type", "role")
@@ -246,7 +259,8 @@ internal fun CreateChannelSheet(layer: Layer, serverId: String, parentId: String
                     refreshChannels(serverId)
                 }
                 close()
-                Nav.go(Route.Server(serverId, res.id))
+                // a link channel has no page of its own: it waits in the list to be opened
+                if (!link) Nav.go(Route.Server(serverId, res.id))
             } catch (e: Exception) {
                 val ch = made
                 if (ch != null && private) {
@@ -267,7 +281,7 @@ internal fun CreateChannelSheet(layer: Layer, serverId: String, parentId: String
         }
     }
     Sheet(layer, title = t("modals.createChannel.createChannel"), maxWidth = 460.dp, footer = {
-        FooterButtons(t("modals.createChannel.createChannel"), ::create, close, enabled = name.isNotBlank(), busy = busy)
+        FooterButtons(t("modals.createChannel.createChannel"), ::create, close, enabled = name.isNotBlank() && (!link || url.isNotBlank()), busy = busy)
     }) {
         if (parent != null) DialogHint(t("modals.createChannel.inCategory", "name" to parent.name))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -285,18 +299,34 @@ internal fun CreateChannelSheet(layer: Layer, serverId: String, parentId: String
                 type = "forum"
                 name = typedChannelName(name)
             }
+            ChoiceCard(type == "media", t("modals.createChannel.media"), t("modals.createChannel.mediaDesc"), icon = "Images") {
+                type = "media"
+                name = typedChannelName(name)
+            }
+            ChoiceCard(type == "link", t("modals.createChannel.link"), t("modals.createChannel.linkDesc"), icon = "Link2") { type = "link" }
         }
         NxTextField(
-            name, { v -> name = (if (type != "voice") typedChannelName(v) else v).take(100) },
+            name, { v -> name = (if (!freeName) typedChannelName(v) else v).take(100) },
             label = t("modals.createChannel.channelName"),
             required = true,
-            placeholder = t("modals.createChannel.namePlaceholder"),
+            placeholder = if (link) t("channelLink.namePlaceholder") else t("modals.createChannel.namePlaceholder"),
+            imeAction = if (link) ImeAction.Next else ImeAction.Done,
+            onIme = if (link) null else ::create,
+            capitalize = freeName,
+        )
+        if (link) NxTextField(
+            url, { v -> url = v.take(1024); urlProblem = null },
+            label = t("channelLink.address"),
+            required = true,
+            placeholder = "https://",
+            hint = t("channelLink.addressHint"),
+            error = urlProblem,
+            keyboardType = KeyboardType.Uri,
             imeAction = ImeAction.Done,
             onIme = ::create,
-            capitalize = type == "voice",
         )
-        ToggleRow(private, { private = it }, t("modals.createChannel.privateChannel"), t("modals.createChannel.onlySelectedMembersAndRolesWill"))
-        if (private) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (!link) ToggleRow(private, { private = it }, t("modals.createChannel.privateChannel"), t("modals.createChannel.onlySelectedMembersAndRolesWill"))
+        if (private && !link) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon("Lock", Nx.colors.textMuted, size = 12.dp)
             Txt(t("modals.createChannel.addRolesOrMembersFromThe"), style = Nx.type.hint, color = Nx.colors.textMuted)
         }

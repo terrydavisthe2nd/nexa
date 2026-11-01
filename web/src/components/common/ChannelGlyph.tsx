@@ -1,5 +1,5 @@
 import { useMediaAnimation } from "@/lib/mediaAnimation";
-import { Hash, Lock, Megaphone, MessageSquareText, MessagesSquare, Volume2 } from "lucide-react";
+import { Hash, Images, Link2, Lock, Megaphone, MessageSquareText, MessagesSquare, Volume2 } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import type { Channel } from "@/api/types";
 import { emojiUrl, iconUrl } from "@/api/users";
@@ -62,6 +62,10 @@ export function TypeIcon({ type, size }: { type: Channel["type"]; size: number }
       return <Megaphone size={size} />;
     case "forum":
       return <MessagesSquare size={size} />;
+    case "media":
+      return <Images size={size} />;
+    case "link":
+      return <Link2 size={size} />;
     case "thread":
     case "private_thread":
       return <MessageSquareText size={size} />;

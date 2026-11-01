@@ -172,7 +172,7 @@ func (s *Server) reportTarget(r *http.Request, kind string, id, contextServer id
 		if err != nil {
 			return nil, err
 		}
-		t.Snapshot = map[string]any{"name": ch.Name, "topic": ch.Topic, "icon_id": ch.IconID, "glyph": ch.Glyph, "type": ch.Type, "forum": ch.Forum}
+		t.Snapshot = map[string]any{"name": ch.Name, "topic": ch.Topic, "icon_id": ch.IconID, "glyph": ch.Glyph, "type": ch.Type, "forum": ch.Forum, "url": ch.URL}
 	case "message":
 		m, err := s.Store.MessageByID(ctx, id, me.ID)
 		if err != nil {

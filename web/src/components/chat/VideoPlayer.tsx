@@ -1,3 +1,4 @@
+import { useNoDownloads } from "@/lib/mediaDownloads";
 import { Download, Maximize2, Minimize2, MoreVertical, Pause, PictureInPicture2, Play, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Tooltip } from "@/components/common/Tooltip";
@@ -25,11 +26,11 @@ const SPEEDS = [0.5, 1, 1.5, 2];
 const CONTROLS_LINGER = 2800;
 
 /** On a player too narrow for every control, speed, picture in picture and download wait in a menu. */
-const videoMoreMenu = defineMenu<{ speed: number; setSpeed: (v: number) => void; pip?: () => void; download: () => void }>("videoMore", [
+const videoMoreMenu = defineMenu<{ speed: number; setSpeed: (v: number) => void; pip?: () => void; download?: () => void }>("videoMore", [
   [button("playbackSpeed", ({ speed, setSpeed }) => ({ id: "speed", label: tr_("chat.audioPlayer.playbackSpeed"), slider: { value: speed, min: 0.5, max: 2, step: 0.5, unit: "×", onChange: setSpeed } }))],
   [
     button("pictureInPicture", ({ pip }) => !!pip && { id: "pip", label: tr_("chat.videoPlayer.pictureInPicture"), onSelect: pip }),
-    button("downloadVideo", ({ download }) => ({ id: "download", label: tr_("chat.attachments.download"), onSelect: download })),
+    button("downloadVideo", ({ download }) => !!download && { id: "download", label: tr_("chat.attachments.download"), onSelect: download }),
   ],
 ]);
 
@@ -118,6 +119,8 @@ interface Props {
 
 /** The app's own video player: themed controls, keyboard, PiP and a download. */
 export function VideoPlayer({ src, frame, name, width, height, poster, spoiler = false, audio, fill = false, onDownload, onFail, sizeHint }: Props) {
+  // a media channel that hides downloads offers none for its videos
+  const noDownload = useNoDownloads();
   const video = useRef<HTMLVideoElement | null>(null);
   /** The video element in use, once there is one: the player's own, or the one in its frame. */
   const [media, setMedia] = useState<HTMLVideoElement | null>(null);
@@ -354,7 +357,7 @@ export function VideoPlayer({ src, frame, name, width, height, poster, spoiler =
     e.stopPropagation();
     const anchor = menuAnchor(e.currentTarget);
     // over the bar it sits on, lined up with the button's end, rather than a guessed 200px to the left
-    videoMoreMenu.open({ speed, setSpeed, ...(pipOk ? { pip } : {}), download }, { x: anchor.left, y: anchor.top, anchor, above: true });
+    videoMoreMenu.open({ speed, setSpeed, ...(pipOk ? { pip } : {}), ...(noDownload ? {} : { download }) }, { x: anchor.left, y: anchor.top, anchor, above: true });
     reveal();
   };
 
@@ -403,7 +406,7 @@ export function VideoPlayer({ src, frame, name, width, height, poster, spoiler =
           <div className={s.surface} onClick={onSurface} onDoubleClick={toggleFull} />
         </>
       ) : (
-        <video ref={ownVideo} className={s.video} src={src} poster={poster} playsInline preload="metadata" onClick={onSurface} onDoubleClick={toggleFull} />
+        <video ref={ownVideo} className={s.video} src={src} poster={poster} playsInline preload="metadata" onClick={onSurface} onDoubleClick={toggleFull} {...(noDownload ? { controlsList: "nodownload", onContextMenu: (e: React.MouseEvent) => e.preventDefault() } : {})} />
       )}
       {audio ? <audio ref={sound} src={audio} preload="metadata" hidden /> : null}
       {!revealed ? (
@@ -412,7 +415,7 @@ export function VideoPlayer({ src, frame, name, width, height, poster, spoiler =
       {failed ? (
         <div className={s.failed}>
           <span>{tr_("chat.videoPlayer.thisBrowserCannotPlayThisVideo")}</span>
-          {onDownload ? (
+          {noDownload ? null : onDownload ? (
             <button type="button" className={s.failedDownload} onClick={onDownload}>{tr_("chat.videoPlayer.downloadIt")}</button>
           ) : (
             <a className={s.failedDownload} href={src} download={name}>{tr_("chat.videoPlayer.downloadIt")}</a>
@@ -464,13 +467,13 @@ export function VideoPlayer({ src, frame, name, width, height, poster, spoiler =
               <button className={[s.ctl, s.wideOnly].join(" ")} aria-label={tr_("chat.videoPlayer.pictureInPicture")} onClick={pip}><PictureInPicture2 size={18} /></button>
             </Tooltip>
           ) : null}
-          <Tooltip text={tr_("chat.attachments.download")} side="top">
+          {noDownload ? null : <Tooltip text={tr_("chat.attachments.download")} side="top">
             {onDownload ? (
               <button type="button" className={[s.ctl, s.wideOnly].join(" ")} aria-label={tr_("chat.videoPlayer.downloadVideo")} onClick={(e) => { e.stopPropagation(); onDownload(); }}><Download size={18} /></button>
             ) : (
               <a className={[s.ctl, s.wideOnly].join(" ")} href={src} download={name} aria-label={tr_("chat.videoPlayer.downloadVideo")} onClick={(e) => e.stopPropagation()}><Download size={18} /></a>
             )}
-          </Tooltip>
+          </Tooltip>}
           <button className={[s.ctl, s.narrowOnly].join(" ")} aria-label={tr_("chat.chat.more")} onClick={more} data-testid="video-more"><MoreVertical size={18} /></button>
           {fullOk ? (
             <Tooltip text={full ? tr_("chat.videoPlayer.exitFullScreen") : tr_("chat.videoPlayer.fullScreen")} side="top">

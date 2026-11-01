@@ -1,6 +1,7 @@
 import { Check, Minus, X } from "lucide-react";
 import { Toggle } from "@/components/common/Toggle";
 import { P, permGroups, has, type PermName } from "@/lib/perms";
+import type { Channel } from "@/api/types";
 import s from "./PermissionGrid.module.css";
 
 import { t } from "@/i18n";
@@ -10,7 +11,7 @@ import { t } from "@/i18n";
  * permissions.
  */
 export function permsForChannel(type: string | undefined): PermName[] {
-  const kind = type === "announcement" ? "text" : type;
+  const kind = type === "announcement" ? "text" : type === "media" ? "forum" : type;
   const out: PermName[] = [];
   for (const g of permGroups()) {
     for (const it of g.items) {
@@ -72,7 +73,7 @@ export function OverwriteGrid({
   deny: bigint;
   onChange: (allow: bigint, deny: bigint) => void;
   editable: boolean;
-  channelType: "text" | "voice" | "category" | undefined;
+  channelType: Channel["type"] | undefined;
   /** What the editor holds in this channel; the rest are shown but fixed. */
   grantable?: bigint;
 }) {

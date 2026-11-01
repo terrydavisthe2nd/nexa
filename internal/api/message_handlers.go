@@ -473,7 +473,7 @@ func (s *Server) handleMessageCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// a forum holds posts, each a thread with a first message of its own
-	if ch.Type == store.ChannelForum {
+	if store.IsForum(ch.Type) {
 		WriteError(w, E(http.StatusBadRequest, "forum_posts_only", "Start a post to say something in a forum."))
 		return
 	}

@@ -80,6 +80,8 @@ private fun channelKind(type: String?): String = when (type) {
     "category" -> t("server.auditLog.category")
     "announcement" -> t("modals.createChannel.announcement")
     "forum" -> t("modals.createChannel.forum")
+    "media" -> t("modals.createChannel.media")
+    "link" -> t("modals.createChannel.link")
     "thread" -> t("threads.create.public")
     "private_thread" -> t("threads.create.private")
     else -> t("modals.createChannel.text")

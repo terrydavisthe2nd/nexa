@@ -447,7 +447,7 @@ export function Composer({ channel }: { channel: Channel }) {
       const q = tok.query;
       const all = useChannels.getState().byId;
       items = Object.values(all)
-        .filter((c) => c.server_id === channel.server_id && ["text", "announcement", "forum"].includes(c.type) && (!q || c.name.toLowerCase().includes(q)) && canI(serverState, P.VIEW_CHANNEL, c.id))
+        .filter((c) => c.server_id === channel.server_id && ["text", "announcement", "forum", "media"].includes(c.type) && (!q || c.name.toLowerCase().includes(q)) && canI(serverState, P.VIEW_CHANNEL, c.id))
         .sort((a, b) => byPrefix(q, a.name) - byPrefix(q, b.name) || a.position - b.position)
         .slice(0, 8)
         .map((c) => ({ kind: "channel", channel: c, category: c.parent_id ? all[c.parent_id]?.name : undefined }));

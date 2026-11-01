@@ -89,6 +89,7 @@ private fun templateChannelIcon(type: String): String = when (type) {
     "voice" -> "Volume2"
     "announcement" -> "Megaphone"
     "forum" -> "MessagesSquare"
+    "media" -> "Images"
     else -> "Hash"
 }
 
@@ -167,7 +168,7 @@ internal fun CreateServerSheet(layer: Layer, close: () -> Unit) {
         }
         close()
         val first = (view.systemChannelId?.let { sys -> view.channels.firstOrNull { it.id == sys } })
-            ?: view.channels.firstOrNull { it.type == "text" || it.type == "announcement" || it.type == "forum" }
+            ?: view.channels.firstOrNull { it.type == "text" || it.type == "announcement" || it.type == "forum" || it.type == "media" }
         Nav.go(Route.Server(view.id, first?.id))
         Nav.leftOpen = false
     }

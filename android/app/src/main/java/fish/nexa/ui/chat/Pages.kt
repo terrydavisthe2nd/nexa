@@ -125,7 +125,7 @@ fun ServerPage(route: Route.Server) {
                 Txt(t("server.openingServer"), style = Nx.type.body.copy(fontSize = Nx.type.sp(15f)), color = Nx.colors.textMuted)
             }
         }
-        ch == null || ch.serverId != route.serverId || ch.isCategory -> NoChannel(route.serverId)
+        ch == null || ch.serverId != route.serverId || ch.isCategory || ch.isLink -> NoChannel(route.serverId)
         ch.type == "voice" -> fish.nexa.ui.voice.VoiceChannelPage(ch, openChat = route.jumpTo != null)
         ch.isForum -> fish.nexa.ui.forum.ForumView(ch)
         else -> ChatView(ch.id)

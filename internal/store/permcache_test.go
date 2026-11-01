@@ -35,7 +35,7 @@ func newPermWorld(t *testing.T) *permWorld {
 			t.Fatal(err)
 		}
 	}
-	ch, err := s.CreateServerChannel(ctx, w.srv.ID, "text", "staff", nil)
+	ch, err := s.CreateServerChannel(ctx, w.srv.ID, "text", "staff", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func TestPermissionCacheChannels(t *testing.T) {
 	w := newPermWorld(t)
 	ctx := context.Background()
 	before, _ := w.s.ChannelsForUser(ctx, w.alice.ID)
-	ch, err := w.s.CreateServerChannel(ctx, w.srv.ID, "text", "new", nil)
+	ch, err := w.s.CreateServerChannel(ctx, w.srv.ID, "text", "new", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

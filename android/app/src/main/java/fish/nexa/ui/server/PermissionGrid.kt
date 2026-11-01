@@ -42,15 +42,17 @@ object PermInfo {
     private val VOICE = setOf("voice")
     private val BOTH = setOf("text", "voice")
     private val NONE = emptySet<String>()
+    /** What a link channel's overwrites can set: only who sees it and who manages it. */
+    private val WITH_LINK = setOf("text", "voice", "link")
 
     /** The groups and permissions in the order the web lists them. */
     fun groups(): List<PermGroup> = listOf(
         PermGroup(
             t("perms.generalServerPermissions"),
             listOf(
-                PermItem(P.VIEW_CHANNEL, t("perms.viewChannels"), t("perms.allowsMembersToViewChannelsBy"), BOTH),
-                PermItem(P.MANAGE_CHANNELS, t("perms.manageChannels"), t("perms.allowsMembersToCreateEditOr"), BOTH),
-                PermItem(P.MANAGE_ROLES, t("perms.manageRoles"), t("perms.allowsMembersToCreateNewRoles"), BOTH),
+                PermItem(P.VIEW_CHANNEL, t("perms.viewChannels"), t("perms.allowsMembersToViewChannelsBy"), WITH_LINK),
+                PermItem(P.MANAGE_CHANNELS, t("perms.manageChannels"), t("perms.allowsMembersToCreateEditOr"), WITH_LINK),
+                PermItem(P.MANAGE_ROLES, t("perms.manageRoles"), t("perms.allowsMembersToCreateNewRoles"), WITH_LINK),
                 PermItem(P.MANAGE_EMOJIS, t("perms.manageExpressions"), t("perms.allowsMembersToAddOrRemove"), NONE),
                 PermItem(P.MANAGE_WEBHOOKS, t("perms.manageWebhooks"), t("perms.manageWebhooksDescription"), TEXT),
                 PermItem(P.VIEW_AUDIT_LOG, t("perms.viewAuditLog"), t("perms.allowsMembersToViewARecord"), NONE),
@@ -106,10 +108,15 @@ object PermInfo {
 
     /** PermissionGrid.tsx permsForChannel: the bits an overwrite can set on this kind of channel (a category: all of them). */
     fun forChannel(type: String?): Set<Long> {
+        // announcement channels, forums and media channels take a text channel's
+        val kind = when (type) {
+            "announcement", "forum", "media" -> "text"
+            else -> type
+        }
         val out = LinkedHashSet<Long>()
         for (g in groups()) for (it in g.items) {
             if (it.channel.isEmpty()) continue
-            if (type == null || type == "category" || type in it.channel) out += it.bit
+            if (kind == null || kind == "category" || kind in it.channel) out += it.bit
         }
         return out
     }

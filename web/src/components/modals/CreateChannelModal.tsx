@@ -1,4 +1,4 @@
-import { Hash, Lock, Megaphone, MessagesSquare, Volume2 } from "lucide-react";
+import { Hash, Images, Link2, Lock, Megaphone, MessagesSquare, Volume2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError } from "@/api/client";
@@ -8,6 +8,7 @@ import { Button } from "@/components/common/Button";
 import { Modal } from "@/components/common/Modal";
 import { Field, TextInput } from "@/components/common/TextInput";
 import { Toggle } from "@/components/common/Toggle";
+import { linkDestination } from "@/lib/linkChannel";
 import { P, permString } from "@/lib/perms";
 import { useChannels } from "@/stores/channels";
 import { useKeys } from "@/stores/keys";
@@ -30,7 +31,10 @@ export function slug(name: string): string {
   return typedChannelName(name.trim()).replace(/^-+|-+$/g, "");
 }
 
-type Kind = "text" | "voice" | "announcement" | "forum";
+type Kind = "text" | "voice" | "announcement" | "forum" | "media" | "link";
+
+/** Kinds whose names keep their capitals and spaces, as a voice channel's do. */
+const freeName = (k: Kind) => k === "voice" || k === "link";
 
 /** The kinds of channel there are, each with what it is for. */
 const KINDS: { kind: Kind; icon: typeof Hash; label: string; desc: string }[] = [
@@ -38,7 +42,11 @@ const KINDS: { kind: Kind; icon: typeof Hash; label: string; desc: string }[] = 
   { kind: "voice", icon: Volume2, label: "modals.createChannel.voice", desc: "modals.createChannel.hangOutTogetherWithVoiceVideo" },
   { kind: "announcement", icon: Megaphone, label: "modals.createChannel.announcement", desc: "modals.createChannel.announcementDesc" },
   { kind: "forum", icon: MessagesSquare, label: "modals.createChannel.forum", desc: "modals.createChannel.forumDesc" },
+  { kind: "media", icon: Images, label: "modals.createChannel.media", desc: "modals.createChannel.mediaDesc" },
+  { kind: "link", icon: Link2, label: "modals.createChannel.link", desc: "modals.createChannel.linkDesc" },
 ];
+
+const KIND_ICON: Record<Kind, typeof Hash> = { text: Hash, voice: Volume2, announcement: Megaphone, forum: MessagesSquare, media: Images, link: Link2 };
 
 export function CreateChannelModal({ onClose, serverId, parentId }: { onClose: () => void; serverId: string; parentId?: string | undefined }) {
   const nav = useNavigate();
@@ -49,19 +57,29 @@ export function CreateChannelModal({ onClose, serverId, parentId }: { onClose: (
   // a name typed as a voice channel's becomes a text channel's when the type changes
   const setType = (next: Kind) => {
     setTypeState(next);
-    if (next !== "voice") setName((n) => typedChannelName(n));
+    if (!freeName(next)) setName((n) => typedChannelName(n));
   };
   const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [urlProblem, setUrlProblem] = useState<string | null>(null);
+  const link = type === "link";
   const [priv, setPriv] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const create = async () => {
-    const clean = type !== "voice" ? slug(name) : name.trim();
+    const clean = !freeName(type) ? slug(name) : name.trim();
     if (!clean || busy) return;
+    // a link channel opens its address, so it has to be one the apps will open
+    const dest = link ? linkDestination(url) : null;
+    if (link && !dest) {
+      setUrlProblem(t("channelLink.badAddress"));
+      return;
+    }
     setBusy(true);
     let made: Channel | null = null;
     try {
-      const body: { type: Kind; name: string; parent_id?: string | null } = { type, name: clean };
+      const body: { type: Kind; name: string; parent_id?: string | null; url?: string } = { type, name: clean };
+      if (dest) body.url = dest.href;
       if (parentId) body.parent_id = parentId;
       const ch = await serversApi.createChannel(serverId, body);
       made = ch;
@@ -71,7 +89,7 @@ export function CreateChannelModal({ onClose, serverId, parentId }: { onClose: (
         await useKeys.getState().ensureConvKey(ch.id);
         upsert(await serversApi.channels(serverId));
       }
-      if (priv) {
+      if (priv && !link) {
         // deny @everyone view, then give the channel its own key so members outside it never hold one
         const res = await serversApi.putOverwrite(ch.id, serverId, { type: "role", allow: "0", deny: permString(P.VIEW_CHANNEL) });
         upsert(await serversApi.channels(serverId));
@@ -79,7 +97,8 @@ export function CreateChannelModal({ onClose, serverId, parentId }: { onClose: (
         upsert(await serversApi.channels(serverId));
       }
       onClose();
-      nav(`/channels/${serverId}/${ch.id}`);
+      // a link channel has no page of its own: it waits in the list to be opened
+      if (!link) nav(`/channels/${serverId}/${ch.id}`);
     } catch (err) {
       if (made && priv) {
         // It exists but may still be open to everyone or lack its own key. Take it back down, so
@@ -102,7 +121,7 @@ export function CreateChannelModal({ onClose, serverId, parentId }: { onClose: (
   };
 
   return (
-    <Modal open onClose={onClose} title={t("modals.createChannel.createChannel")} width={460} footer={<><Button variant="ghost" onClick={onClose}>{t("chat.editMessage.cancel")}</Button><Button onClick={() => void create()} loading={busy} disabled={!name.trim()}>{t("modals.createChannel.createChannel")}</Button></>}>
+    <Modal open onClose={onClose} title={t("modals.createChannel.createChannel")} width={460} footer={<><Button variant="ghost" onClick={onClose}>{t("chat.editMessage.cancel")}</Button><Button onClick={() => void create()} loading={busy} disabled={!name.trim() || (link && !url.trim())}>{t("modals.createChannel.createChannel")}</Button></>}>
       <div className={s.form}>
         {parent ? <p className={s.hint}>{t("modals.createChannel.inCategory", { name: parent.name })}</p> : null}
         {/* `as="div"`: the doc comment on Field says it in as many words — a
@@ -121,12 +140,23 @@ export function CreateChannelModal({ onClose, serverId, parentId }: { onClose: (
         </Field>
         <Field label={t("modals.createChannel.channelName")} required>
           <div className={s.hashInput}>
-            {type === "voice" ? <Volume2 size={16} /> : type === "announcement" ? <Megaphone size={16} /> : type === "forum" ? <MessagesSquare size={16} /> : <Hash size={16} />}
-            <TextInput value={name} onChange={(e) => setName(type !== "voice" ? typedChannelName(e.target.value) : e.target.value)} placeholder={t("modals.createChannel.namePlaceholder")} maxLength={100} autoFocus autoCapitalize={type !== "voice" ? "none" : undefined} onKeyDown={(e) => e.key === "Enter" && void create()} data-testid="channel-name" />
+            {(() => {
+              const Icon = KIND_ICON[type];
+              return <Icon size={16} />;
+            })()}
+            <TextInput value={name} onChange={(e) => setName(!freeName(type) ? typedChannelName(e.target.value) : e.target.value)} placeholder={link ? t("channelLink.namePlaceholder") : t("modals.createChannel.namePlaceholder")} maxLength={100} autoFocus autoCapitalize={!freeName(type) ? "none" : undefined} onKeyDown={(e) => e.key === "Enter" && void create()} data-testid="channel-name" />
           </div>
         </Field>
-        <Toggle checked={priv} onChange={setPriv} label={t("modals.createChannel.privateChannel")} description={t("modals.createChannel.onlySelectedMembersAndRolesWill")} />
-        {priv ? <p className={s.fine}><Lock size={12} /> {t("modals.createChannel.addRolesOrMembersFromThe")}</p> : null}
+        {link ? (
+          <Field label={t("channelLink.address")} required hint={t("channelLink.addressHint")} error={urlProblem ?? undefined}>
+            <TextInput type="url" inputMode="url" value={url} onChange={(e) => { setUrl(e.target.value); setUrlProblem(null); }} placeholder="https://" maxLength={1024} autoCapitalize="none" spellCheck={false} dir="ltr" onKeyDown={(e) => e.key === "Enter" && void create()} data-testid="channel-url" />
+          </Field>
+        ) : (
+          <>
+            <Toggle checked={priv} onChange={setPriv} label={t("modals.createChannel.privateChannel")} description={t("modals.createChannel.onlySelectedMembersAndRolesWill")} />
+            {priv ? <p className={s.fine}><Lock size={12} /> {t("modals.createChannel.addRolesOrMembersFromThe")}</p> : null}
+          </>
+        )}
       </div>
     </Modal>
   );

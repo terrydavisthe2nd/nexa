@@ -180,7 +180,8 @@ fun openMessageMenu(cm: ChatMessage, ctx: ListCtx, image: ImageTarget? = null) {
     if (cm.m.type.startsWith("system_")) return
     val items = ArrayList<MenuItem>()
     if (!cm.local) items += fish.nexa.ui.reports.reportItem(fish.nexa.data.ReportContext(kind = "message", id = cm.id, evidence = fish.nexa.data.Reports.evidence(cm)))
-    image?.let { items += imageMenuItems(it) }
+    // a media channel that hides downloads offers neither for its pictures
+    image?.takeIf { !fish.nexa.data.MediaDownloads.hidden(cm.m.channelId) }?.let { items += imageMenuItems(it) }
     val canReactHere = canReact(cm, ctx)
     if (canReactHere) items += MenuItem.Action(t("chat.messageItem.addReaction"), separatorAfter = true) { openReactionPicker(cm, ctx) }
     if (canEdit(cm)) items += MenuItem.Action(t("chat.messageItem.editMessage")) {

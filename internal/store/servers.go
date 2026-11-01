@@ -1067,8 +1067,8 @@ const (
 	MaxServerRoles    = 250
 )
 
-func (s *Store) CreateServerChannel(ctx context.Context, serverID ids.ID, typ, name string, parent *ids.ID) (*Channel, error) {
-	c := &Channel{ServerID: &serverID, Type: typ, Name: name, ParentID: parent}
+func (s *Store) CreateServerChannel(ctx context.Context, serverID ids.ID, typ, name string, parent *ids.ID, url string) (*Channel, error) {
+	c := &Channel{ServerID: &serverID, Type: typ, Name: name, ParentID: parent, URL: url}
 	err := s.Tx(ctx, func(tx *db.Tx) error {
 		// categories are ordered among categories, channels among the other
 		// channels under the same parent

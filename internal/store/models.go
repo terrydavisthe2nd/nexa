@@ -292,8 +292,10 @@ type Channel struct {
 	// Thread is how a thread stands (types thread and private_thread); nil
 	// on every other channel.
 	Thread *ThreadMeta `json:"thread,omitempty"`
-	// Forum is a forum channel's own settings; nil on every other channel.
+	// Forum is a forum or media channel's own settings; nil on every other channel.
 	Forum *ForumSettings `json:"forum,omitempty"`
+	// URL is where a link channel leads; empty on every other channel.
+	URL string `json:"url,omitempty"`
 	// DefaultAutoArchive is, on a channel threads start in, how many quiet
 	// minutes close a new one (0: three days).
 	DefaultAutoArchive int `json:"default_auto_archive,omitempty"`
@@ -306,13 +308,25 @@ const (
 	ChannelPrivateThread = "private_thread"
 	ChannelAnnouncement  = "announcement"
 	ChannelForum         = "forum"
+	// ChannelMedia is a forum whose posts are pictures and videos, drawn as a gallery.
+	ChannelMedia = "media"
+	// ChannelLink is an entry in the channel list that opens an address; it holds no messages.
+	ChannelLink = "link"
 )
+
+// IsForum reports whether a channel only holds posts: a forum or a media channel.
+func IsForum(t string) bool { return t == ChannelForum || t == ChannelMedia }
+
+// HoldsNoMessages reports whether a server channel has no messages of its
+// own: a category, which holds channels, and a link channel, which opens an
+// address.
+func HoldsNoMessages(t string) bool { return t == "category" || t == ChannelLink }
 
 // IsThread reports whether a channel type is a thread.
 func IsThread(t string) bool { return t == ChannelThread || t == ChannelPrivateThread }
 
 // HoldsThreads reports whether threads can be started in a channel of this type.
-func HoldsThreads(t string) bool { return t == "text" || t == ChannelAnnouncement || t == ChannelForum }
+func HoldsThreads(t string) bool { return t == "text" || t == ChannelAnnouncement || IsForum(t) }
 
 // Talkable reports whether people write messages straight into a channel of
 // this type: a forum only holds posts, which are threads.
@@ -329,9 +343,11 @@ type ThreadMeta struct {
 	AppliedTags []ids.ID `json:"applied_tags"`
 }
 
-// ForumSettings are a forum channel's own: the tags its posts can wear, the
-// reaction offered on every post, how posts are sorted and drawn at first,
-// whether a post needs a tag, and the one post pinned at the top.
+// ForumSettings are a forum or media channel's own: the tags its posts can
+// wear, the reaction offered on every post, how posts are sorted and drawn at
+// first (a media channel is always a gallery), whether a post needs a tag,
+// the one post pinned at the top, and, in a media channel, whether the apps
+// leave out the download buttons on its pictures and videos.
 type ForumSettings struct {
 	Tags            []ForumTag `json:"tags"`
 	DefaultReaction string     `json:"default_reaction"`
@@ -339,6 +355,7 @@ type ForumSettings struct {
 	Layout          string     `json:"layout"`
 	RequireTag      bool       `json:"require_tag"`
 	PinnedPost      *ids.ID    `json:"pinned_post"`
+	HideDownloads   bool       `json:"hide_downloads,omitempty"`
 }
 
 // ForumTag is one tag a forum's posts can wear. A moderated one only people
@@ -580,8 +597,10 @@ type ChannelPatch struct {
 	Locked      *bool
 	AutoArchive *int
 	AppliedTags *[]ids.ID
-	// forums
+	// forums and media channels
 	Forum *ForumSettings
+	// link channels
+	URL *string
 }
 
 // Message flag bits, at the same values as Discord's.

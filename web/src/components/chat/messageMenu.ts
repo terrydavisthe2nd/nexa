@@ -1,3 +1,4 @@
+import { downloadsHidden } from "@/lib/mediaDownloads";
 import { reportItem, messageEvidence } from "@/lib/reporting";
 import { canForward } from "@/lib/forward";
 import { rankedKeys, unicodeKey } from "@/lib/emojiUsage";
@@ -151,7 +152,8 @@ export interface MessageMenuCtx {
 
 /** The menu for a message; opened on one of its pictures, the picture's own actions come first. */
 export const messageMenu = defineMenu<MessageMenuCtx>("message", [
-  imageButtons(["copyMessageImage", "saveMessageImage"], (c) => c.image),
+  // a media channel that hides downloads offers neither for its pictures
+  imageButtons(["copyMessageImage", "saveMessageImage"], (c) => (downloadsHidden(c.msg.channel_id) ? null : c.image)),
   // where reacting is not allowed the item is not offered, rather than failing after the pick
   [button("addReaction", ({ msg, openReactionPicker }) => canReact(msg) && { id: "react", label: t("chat.messageItem.addReaction"), onSelect: openReactionPicker })],
   [

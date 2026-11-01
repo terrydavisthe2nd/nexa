@@ -10,7 +10,8 @@ function inApp(): boolean {
   return window.location.pathname.startsWith("/channels") && useAuth.getState().status === "ready";
 }
 
-function follow(link: AppLink, anchor: Element, nav: NavigateFunction): void {
+/** Opens a link to one of the app's own pages inside it; `anchor` is the link that was clicked, if one was. */
+export function followAppLink(link: AppLink, nav: NavigateFunction, anchor?: Element): void {
   const ui = useUI.getState();
   if (link.kind === "invite") {
     // Inside the app an invite opens over the conversation it was in; from
@@ -32,7 +33,7 @@ function follow(link: AppLink, anchor: Element, nav: NavigateFunction): void {
     return;
   }
   // a link in a dialog (a profile, a topic) leads away from it
-  if (anchor.closest("[data-modal-layer]")) ui.closeAllModals();
+  if (anchor?.closest("[data-modal-layer]")) ui.closeAllModals();
   if (link.kind === "app") {
     // adding an app brings the person back to where they were
     nav(link.path, { state: inApp() ? { from: window.location.pathname + window.location.search } : undefined });
@@ -71,7 +72,7 @@ export function AppLinks() {
       const link = appLink(href);
       if (!link) return;
       e.preventDefault();
-      follow(link, anchor, nav);
+      followAppLink(link, nav, anchor);
     };
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);

@@ -511,7 +511,7 @@ fun LoopingVideo(url: String, poster: String?) {
 /** An uploaded video: streamed as it decrypts, its first frame and length fetched by themselves when it is small. */
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoAttachment(att: AttachmentMeta, fill: Boolean = false) {
+fun VideoAttachment(att: AttachmentMeta, fill: Boolean = false, noDownload: Boolean = false) {
     Saving.Track()
     val download = {
         Saving.save(att.name, att.type, write = { out -> Downloads.writeAttachment(att, out) {} }) { err ->
@@ -523,7 +523,8 @@ fun VideoAttachment(att: AttachmentMeta, fill: Boolean = false) {
         spoiler = att.spoiler == true,
         sizeHint = if (att.size > AUTO_LOAD_MAX) Time.bytes(att.size) else null,
         eager = att.size <= AUTO_LOAD_MAX,
-        onDownload = download,
+        // a media channel that hides downloads offers none for its videos
+        onDownload = if (noDownload) null else download,
         fill = fill,
     )
 }

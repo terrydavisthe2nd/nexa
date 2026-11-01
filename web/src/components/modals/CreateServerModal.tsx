@@ -1,4 +1,4 @@
-import { ChevronRight, Hash, Lock, Megaphone, MessagesSquare, PanelsTopLeft, Volume2 } from "lucide-react";
+import { ChevronRight, Hash, Images, Lock, Megaphone, MessagesSquare, PanelsTopLeft, Volume2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError } from "@/api/client";
@@ -23,6 +23,7 @@ function ChannelGlyph({ type }: { type: DiscordTemplatePreviewChannel["type"] })
   if (type === "voice") return <Volume2 size={13} />;
   if (type === "announcement") return <Megaphone size={13} />;
   if (type === "forum") return <MessagesSquare size={13} />;
+  if (type === "media") return <Images size={13} />;
   return <Hash size={13} />;
 }
 
@@ -109,7 +110,7 @@ export function CreateServerModal({ onClose }: { onClose: () => void }) {
     onClose();
     const first =
       (view.system_channel_id ? view.channels.find((c) => c.id === view.system_channel_id) : undefined) ??
-      view.channels.find((c) => c.type === "text" || c.type === "announcement" || c.type === "forum");
+      view.channels.find((c) => c.type === "text" || c.type === "announcement" || c.type === "forum" || c.type === "media");
     nav(first ? `/channels/${view.id}/${first.id}` : `/channels/${view.id}`);
   };
 

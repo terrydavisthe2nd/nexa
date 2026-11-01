@@ -183,7 +183,7 @@ export interface Session {
   current: boolean;
 }
 
-export type ChannelType = "text" | "voice" | "category" | "dm" | "group_dm" | "subchat" | "announcement" | "forum" | "thread" | "private_thread";
+export type ChannelType = "text" | "voice" | "category" | "dm" | "group_dm" | "subchat" | "announcement" | "forum" | "media" | "link" | "thread" | "private_thread";
 
 export interface Channel {
   id: Snowflake;
@@ -211,8 +211,10 @@ export interface Channel {
   glyph?: string;
   /** How a thread stands (types thread and private_thread). */
   thread?: ThreadMeta;
-  /** A forum channel's own settings. */
+  /** A forum or media channel's own settings. */
   forum?: ForumSettings;
+  /** Where a link channel leads: a whole http or https address. */
+  url?: string;
   /** On a channel threads start in: how many quiet minutes close a new thread (absent: three days). */
   default_auto_archive?: number;
   /** On a thread, as listed or announced: how many people are in it. */
@@ -248,6 +250,8 @@ export interface ForumSettings {
   layout: "list" | "gallery";
   require_tag: boolean;
   pinned_post: Snowflake | null;
+  /** A media channel whose pictures and videos offer no download buttons. */
+  hide_downloads?: boolean;
 }
 
 /** A thread as a message it started from shows it. */

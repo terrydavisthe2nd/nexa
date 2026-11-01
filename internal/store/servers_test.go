@@ -74,7 +74,7 @@ func TestServerLifecycleAndPerms(t *testing.T) {
 		t.Error("mod channel perms")
 	}
 	// private channel: deny @everyone view, allow the mod role
-	private, err := s.CreateServerChannel(ctx, srv.ID, "text", "staff", &textCat.ID)
+	private, err := s.CreateServerChannel(ctx, srv.ID, "text", "staff", &textCat.ID, "")
 	if err != nil || private.Position != 1 {
 		t.Fatalf("create channel: %v %+v", err, private)
 	}

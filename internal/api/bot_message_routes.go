@@ -326,7 +326,7 @@ func (s *Server) postBotMessage(r *http.Request, bot *store.User, app *store.App
 		} else if !p.Has(perms.SendMessages) {
 			return nil, dErrMissingPerms
 		}
-		if ch.Type == store.ChannelForum {
+		if store.IsForum(ch.Type) {
 			return nil, dErr(http.StatusBadRequest, 40058, "Cannot send a message in a forum channel")
 		}
 		if ch.Type == "category" {

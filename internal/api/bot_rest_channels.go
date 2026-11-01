@@ -465,7 +465,7 @@ func (s *Server) botThreadCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b := botOf(r)
-	if ch.Type == store.ChannelForum {
+	if store.IsForum(ch.Type) {
 		// a forum post: the thread and its first message, which the bot
 		// sends as it sends any message
 		raw, files, err := s.readWebhookBody(w, r, b.user.ID)

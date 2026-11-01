@@ -337,7 +337,7 @@ func (s *Store) Threads(ctx context.Context, q ThreadQuery) ([]*Channel, error) 
 // before a moment: an app that started one and then failed to post in it.
 func (s *Store) EmptyForumPosts(ctx context.Context, before int64, limit int) ([]*Channel, error) {
 	return s.queryChannels(ctx, `SELECT `+channelReadCols+` FROM channels WHERE type = 'thread' AND last_message_id IS NULL
-		AND parent_id IN (SELECT id FROM channels WHERE type = 'forum') AND id < ? LIMIT ?`, int64(ids.FromTime(time.UnixMilli(before))), limit)
+		AND parent_id IN (SELECT id FROM channels WHERE type IN ('forum','media')) AND id < ? LIMIT ?`, int64(ids.FromTime(time.UnixMilli(before))), limit)
 }
 
 // DueThreads lists threads that have been quiet longer than they are set to

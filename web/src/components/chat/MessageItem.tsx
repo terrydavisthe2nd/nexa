@@ -1,3 +1,4 @@
+import { useDownloadsHidden } from "@/lib/mediaDownloads";
 import { PersonName } from "@/components/common/PersonName";
 import { useMediaAnimation } from "@/lib/mediaAnimation";
 import { Check, CornerUpRight, Hash, Link2, Lock, MailOpen, Megaphone, MessageSquareText, MoreHorizontal, Pencil, Pin, PinOff, Reply, RotateCw, ShieldAlert, SmilePlus, Trash2 } from "lucide-react";
@@ -446,6 +447,8 @@ function MessageContent({ msg, name, id, pending, upload }: { msg: DecryptedMess
   // Use External Emoji and Use External Stickers, held by every reader: what
   // the author may not use here draws as words
   const serverId = useChannels((c) => c.byId[msg.channel_id]?.server_id ?? null);
+  // a media channel can leave the download buttons off its pictures and videos
+  const noDownload = useDownloadsHidden(msg.channel_id);
   const noOutsideEmoji = useServers((x) => (serverId ? authorHas(x.byId[serverId], msg, P.USE_EXTERNAL_EMOJIS) === false : false));
   const noOutsideStickers = useServers((x) => (serverId ? authorHas(x.byId[serverId], msg, P.USE_EXTERNAL_STICKERS) === false : false));
   const ownEmoji = useExpressions((x) => (serverId ? x.emojis[serverId] : undefined));
@@ -498,7 +501,7 @@ function MessageContent({ msg, name, id, pending, upload }: { msg: DecryptedMess
         )}
         {msg.payload?.sticker ? stickerOutside ? <span className={s.edited}>{msg.payload.sticker.name ? `:${msg.payload.sticker.name}:` : t("chat.messageItem.sticker")}</span> : <StickerView sticker={msg.payload.sticker} /> : null}
         {msg.payload?.poll && !hook ? <PersonPoll msg={msg} poll={msg.payload.poll} pending={!!pending} /> : null}
-        {upload ? <UploadCard channelId={msg.channel_id} tmpId={msg.id} upload={upload} failed={pending === "failed"} /> : msg.payload?.att?.length ? <Attachments list={msg.payload.att} from={name} /> : null}
+        {upload ? <UploadCard channelId={msg.channel_id} tmpId={msg.id} upload={upload} failed={pending === "failed"} /> : msg.payload?.att?.length ? <Attachments list={msg.payload.att} from={name} noDownload={noDownload} /> : null}
         {embeds ? <Embeds list={embeds} onRemove={!pending && canRemoveEmbeds(msg) ? (ev) => confirmRemoveEmbeds(msg, ev.shiftKey) : undefined} /> : null}
         {hook?.application_id ? (
           // an app's buttons and menus do something, once it is really sent and known to the server

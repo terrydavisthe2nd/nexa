@@ -4,7 +4,7 @@ import { AtSign, BellPlus, ChevronLeft, MessageCircle, MessageSquareText, MoreVe
 import { ThreadsPanel } from "@/components/threads/ThreadsPanel";
 import { ThreadActions, ThreadParentLink, ThreadStateBar, useThreadMenu } from "@/components/threads/ThreadBar";
 import { isThread } from "@/stores/threads";
-import { holdsThreads } from "@/lib/threads";
+import { holdsThreads, isForum } from "@/lib/threads";
 import { parse, plainText } from "@/markdown";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -158,7 +158,7 @@ export function ChatView({ channel }: { channel: Channel }) {
   const topicLine = useMemo(() => (channel.topic ? plainText(parse(channel.topic)).replace(/\s+/g, " ").trim() : ""), [channel.topic]);
   const thread = isThread(channel);
   // threads start in text and announcement channels (a forum's posts are its threads)
-  const threadsHere = !!channel.server_id && holdsThreads(channel) && channel.type !== "forum";
+  const threadsHere = !!channel.server_id && holdsThreads(channel) && !isForum(channel);
   const isServer = !!serverId && !!serverState;
   // on a phone a thread's choices are at the top of the More menu (ThreadBar)
   const threadMenu = useThreadMenu(isServer && thread ? channel : null, true);

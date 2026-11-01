@@ -23,14 +23,19 @@ export function autoArchiveLabel(minutes: number): string {
   }
 }
 
-/** Whether threads start in a channel of this kind: text, announcement and forum channels. */
+/** Whether a channel only holds posts: a forum, or a media channel (a forum of pictures and videos). */
+export function isForum(ch: Pick<Channel, "type"> | undefined | null): boolean {
+  return ch?.type === "forum" || ch?.type === "media";
+}
+
+/** Whether threads start in a channel of this kind: text, announcement, forum and media channels. */
 export function holdsThreads(ch: Pick<Channel, "type"> | undefined): boolean {
-  return ch?.type === "text" || ch?.type === "announcement" || ch?.type === "forum";
+  return ch?.type === "text" || ch?.type === "announcement" || isForum(ch);
 }
 
 /** Whether this account may start a thread in a channel (a private one when asked). */
 export function canStartThread(ch: Channel | undefined, priv = false): boolean {
-  if (!ch?.server_id || !holdsThreads(ch) || ch.type === "forum") return false;
+  if (!ch?.server_id || !holdsThreads(ch) || isForum(ch)) return false;
   const st = useServers.getState().byId[ch.server_id];
   if (priv) return ch.type === "text" && canI(st, P.CREATE_PRIVATE_THREADS, ch.id);
   return canI(st, P.CREATE_PUBLIC_THREADS, ch.id);

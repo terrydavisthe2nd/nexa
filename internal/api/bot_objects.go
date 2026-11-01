@@ -347,6 +347,7 @@ const (
 	dChanPrivateThread      = 12
 	dChanStage              = 13
 	dChanForum              = 15
+	dChanMedia              = 16
 )
 
 // channelType is a channel's type as the protocol numbers it; ok is false
@@ -367,6 +368,8 @@ func (b *dBuilder) channelType(ch *store.Channel) (int, bool) {
 		return dChanAnnouncement, true
 	case store.ChannelForum:
 		return dChanForum, true
+	case store.ChannelMedia:
+		return dChanMedia, true
 	case store.ChannelPrivateThread:
 		return dChanPrivateThread, true
 	case store.ChannelThread:
@@ -393,6 +396,8 @@ func nexaChannelType(t int) (string, bool) {
 		return store.ChannelAnnouncement, true
 	case dChanForum:
 		return store.ChannelForum, true
+	case dChanMedia:
+		return store.ChannelMedia, true
 	case dChanPublicThread, dChanAnnouncementThread:
 		return store.ChannelThread, true
 	case dChanPrivateThread:
@@ -481,6 +486,8 @@ type dChannel struct {
 const (
 	dChanFlagPinned     = 1 << 1
 	dChanFlagRequireTag = 1 << 4
+	// dChanFlagHideMediaDownloads is a media channel that hides the download options on its media.
+	dChanFlagHideMediaDownloads = 1 << 15
 )
 
 func intp(v int) *int { return &v }
@@ -517,7 +524,7 @@ func (b *dBuilder) channelObj(ch *store.Channel) (dChannel, bool) {
 		}
 	}
 	switch t {
-	case dChanText, dChanAnnouncement, dChanForum:
+	case dChanText, dChanAnnouncement, dChanForum, dChanMedia:
 		topic := ch.Topic
 		out.Topic = &topic
 		out.RateLimitPerUser = intp(ch.SlowmodeSeconds)
@@ -586,7 +593,7 @@ func (b *dBuilder) channelObj(ch *store.Channel) (dChannel, bool) {
 			}
 		}
 	}
-	if t == dChanForum {
+	if t == dChanForum || t == dChanMedia {
 		out.Topic = nil
 		topic := ch.Topic
 		out.Topic = &topic
@@ -614,6 +621,9 @@ func (b *dBuilder) channelObj(ch *store.Channel) (dChannel, bool) {
 			}
 			if f.RequireTag {
 				out.Flags |= dChanFlagRequireTag
+			}
+			if t == dChanMedia && f.HideDownloads {
+				out.Flags |= dChanFlagHideMediaDownloads
 			}
 		}
 		out.DefaultForumLayout = &layout

@@ -118,7 +118,7 @@ export function RuleEditor({ serverId, rule, kind, onDone }: { serverId: string;
     [channels, serverId],
   );
   const exemptable = useMemo(
-    () => Object.values(channels).filter((c) => c.server_id === serverId && (c.type === "text" || c.type === "announcement" || c.type === "forum" || c.type === "voice")).sort((a, b) => a.position - b.position),
+    () => Object.values(channels).filter((c) => c.server_id === serverId && (c.type === "text" || c.type === "announcement" || c.type === "forum" || c.type === "media" || c.type === "voice")).sort((a, b) => a.position - b.position),
     [channels, serverId],
   );
   const roles = rolesByPosition(server).filter((r) => r.id !== serverId);

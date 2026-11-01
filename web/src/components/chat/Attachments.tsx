@@ -1,3 +1,4 @@
+import { NoDownloads, useNoDownloads } from "@/lib/mediaDownloads";
 import { Download, FileIcon, Play } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { DecryptError } from "@/crypto/keys";
@@ -317,6 +318,7 @@ function VideoAttachment({ att, fill }: { att: AttachmentMeta; fill?: boolean })
  * is played.
  */
 function StreamedVideo({ att, fill, onFallBack }: { att: AttachmentMeta; fill?: boolean; onFallBack: () => void }) {
+  const noDownload = useNoDownloads();
   const ref = useRef<HTMLDivElement>(null);
   const [near, setNear] = useState(false);
   const [stream, setStream] = useState<VideoStream | null>(null);
@@ -383,7 +385,7 @@ function StreamedVideo({ att, fill, onFallBack }: { att: AttachmentMeta; fill?: 
   return (
     <div ref={ref} className={s.mediaSlot}>
       {stream ? (
-        <VideoPlayer frame={stream.frame} name={att.name} width={att.w} height={att.h} spoiler={att.spoiler ?? false} fill={fill} onDownload={save} onFail={failed} sizeHint={formatBytes(att.size)} />
+        <VideoPlayer frame={stream.frame} name={att.name} width={att.w} height={att.h} spoiler={att.spoiler ?? false} fill={fill} onDownload={noDownload ? undefined : save} onFail={failed} sizeHint={formatBytes(att.size)} />
       ) : (
         <div className={s.videoPending} style={videoBox(att, fill)} />
       )}
@@ -491,7 +493,7 @@ function FileAttachment({ att }: { att: AttachmentMeta }) {
  * A message's files, or one of a note's (`fill`: as wide as the note gives
  * it, a picture in its own shape, rather than fitted into a message's frame).
  */
-export function Attachments({ list, from, fill }: { list: AttachmentMeta[]; from?: string; fill?: boolean }) {
+export function Attachments({ list, from, fill, noDownload = false }: { list: AttachmentMeta[]; from?: string; fill?: boolean; noDownload?: boolean }) {
   // The message's pictures are one set in the viewer, a step apart. A spoiler
   // is left out unless it is the one opened: stepping onto it would give it away.
   const [viewing, setViewing] = useState<string | null>(null);
@@ -503,6 +505,7 @@ export function Attachments({ list, from, fill }: { list: AttachmentMeta[]; from
   // two pictures or more share one grid, in the order they were sent, ahead of the message's other files
   const tiles = pictures.length > 1 ? mosaicLayout(pictures.length) : null;
   return (
+    <NoDownloads.Provider value={noDownload}>
     <div className={s.att}>
       {tiles ? (
         <div className={s.mosaic} data-count={pictures.length} data-testid="picture-grid">
@@ -523,5 +526,6 @@ export function Attachments({ list, from, fill }: { list: AttachmentMeta[]; from
       })}
       {viewing ? <Lightbox items={gallery} start={Math.max(0, gallery.findIndex((g) => g.att?.blob_id === viewing))} onClose={() => setViewing(null)} /> : null}
     </div>
+    </NoDownloads.Provider>
   );
 }

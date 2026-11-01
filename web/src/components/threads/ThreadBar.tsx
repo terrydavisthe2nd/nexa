@@ -27,7 +27,7 @@ export function ThreadParentLink({ thread }: { thread: Channel }) {
   return (
     <button className={chat.hParent} onClick={() => nav(`/channels/${thread.server_id}/${parent.id}`)} data-testid="thread-parent">
       <ChevronLeft size={14} />
-      <span className={chat.hParentText}>{parent.type === "forum" ? t("threads.bar.inForum", { name: parent.name }) : t("threads.bar.inChannel", { name: parent.name })}</span>
+      <span className={chat.hParentText}>{parent.type === "forum" || parent.type === "media" ? t("threads.bar.inForum", { name: parent.name }) : t("threads.bar.inChannel", { name: parent.name })}</span>
     </button>
   );
 }

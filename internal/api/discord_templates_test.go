@@ -246,7 +246,7 @@ func TestDiscordTemplatePreviewAndImport(t *testing.T) {
 		t.Errorf("questions forum: %v", questions)
 	}
 	forum := questions["forum"].(map[string]any)
-	if forum["sort"] != "created" || forum["layout"] != "grid" || forum["default_reaction"] != "👍" || len(forum["tags"].([]any)) != 2 {
+	if forum["sort"] != "created" || forum["layout"] != "gallery" || forum["default_reaction"] != "👍" || len(forum["tags"].([]any)) != 2 {
 		t.Errorf("questions forum settings: %v", forum)
 	}
 	office := channelNamed(view, "Office Hours")

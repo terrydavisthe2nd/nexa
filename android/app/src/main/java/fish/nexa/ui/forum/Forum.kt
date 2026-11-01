@@ -137,7 +137,10 @@ fun ForumView(channel: Channel) {
     val forum = channel.forum
     val allTags = forum?.tags ?: emptyList()
     var sort by remember(channel.id) { mutableStateOf(forum?.sort ?: "activity") }
-    var layout by remember(channel.id) { mutableStateOf(prefs().getString("layout:${channel.id}", null) ?: forum?.layout ?: "list") }
+    // a media channel's posts are pictures and videos, always shown as a gallery two to a row
+    val media = channel.isMedia
+    var chosenLayout by remember(channel.id) { mutableStateOf(prefs().getString("layout:${channel.id}", null) ?: forum?.layout ?: "list") }
+    val layout = if (media) "gallery" else chosenLayout
     var q by remember(channel.id) { mutableStateOf("") }
     val filter = remember(channel.id) { mutableStateListOf<String>() }
     var posts by remember(channel.id) { mutableStateOf<List<Post>?>(null) }
@@ -149,7 +152,8 @@ fun ForumView(channel: Channel) {
     var guidelines by remember(channel.id) { mutableStateOf(prefs().getBoolean("guide:${channel.id}", true)) }
     var reload by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
-    val canPost = Nexa.servers.canI(st, P.SEND_MESSAGES, channel.id)
+    // a media post is made of files, so posting there also needs Attach Files
+    val canPost = Nexa.servers.canI(st, P.SEND_MESSAGES, channel.id) && (!media || Nexa.servers.canI(st, P.ATTACH_FILES, channel.id))
     DisposableEffectOpen(channel)
 
     suspend fun opened(list: List<ThreadListing>): List<Post> = withContext(Dispatchers.Default) {
@@ -222,13 +226,14 @@ fun ForumView(channel: Channel) {
                     openMenu(
                         listOf(
                             MenuItem.Action(t("forum.sort.activity"), checked = sort == "activity") { sort = "activity" },
-                            MenuItem.Action(t("forum.sort.created"), checked = sort == "created", separatorAfter = true) { sort = "created" },
+                            MenuItem.Action(t("forum.sort.created"), checked = sort == "created", separatorAfter = !media) { sort = "created" },
+                        ) + if (media) emptyList() else listOf(
                             MenuItem.Action(t("forum.layout.list"), checked = layout == "list") {
-                                layout = "list"
+                                chosenLayout = "list"
                                 prefs().edit().putString("layout:${channel.id}", "list").apply()
                             },
                             MenuItem.Action(t("forum.layout.gallery"), checked = layout == "gallery") {
-                                layout = "gallery"
+                                chosenLayout = "gallery"
                                 prefs().edit().putString("layout:${channel.id}", "gallery").apply()
                             },
                         ),
@@ -251,18 +256,21 @@ fun ForumView(channel: Channel) {
                 ordered.isEmpty() -> item("empty") {
                     val filtered = q.isNotBlank() || filter.isNotEmpty()
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon("MessagesSquare", c.textMuted, size = 36.dp)
+                        Icon(if (media) "Images" else "MessagesSquare", c.textMuted, size = 36.dp)
                         Txt(if (filtered) t("forum.noMatches") else t("forum.noPosts"), style = Nx.type.heading.copy(fontSize = Nx.type.sp(18f)), color = c.textStrong, align = TextAlign.Center)
                         Txt(
                             when {
                                 filtered -> t("forum.noMatchesHint")
-                                canPost -> t("forum.noPostsHint")
-                                else -> t("forum.noPostsReadOnly")
+                                canPost -> t(if (media) "media.noPostsHint" else "forum.noPostsHint")
+                                else -> t(if (media) "media.noPostsReadOnly" else "forum.noPostsReadOnly")
                             },
                             style = Nx.type.body, color = c.textMuted, align = TextAlign.Center, modifier = Modifier.widthIn(max = 340.dp),
                         )
                         if (!filtered && canPost) NxButton(t("forum.newPost"), { openNewPost(channel.id) }, size = ButtonSize.MD, icon = "Plus", modifier = Modifier.padding(top = 6.dp))
                     }
+                }
+                media -> items(ordered.chunked(2), key = { row -> row.first().listing.channel.id }) { row ->
+                    MediaRow(row) { p -> PostCard(p, allTags, layout, pinned = p.listing.channel.id == pinnedId, media = true, modifier = Modifier.weight(1f)) { open(p.listing.channel) } }
                 }
                 else -> items(ordered, key = { it.listing.channel.id }) { p ->
                     PostCard(p, allTags, layout, pinned = p.listing.channel.id == pinnedId) { open(p.listing.channel) }
@@ -284,7 +292,10 @@ fun ForumView(channel: Channel) {
                         if (shut.isEmpty()) Txt(t("forum.noClosed"), style = Nx.type.body, color = c.textMuted, align = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(16.dp))
                         else Txt(t("forum.closedPosts"), style = Nx.type.heading.copy(fontSize = Nx.type.sp(16f)), color = c.textStrong, modifier = Modifier.padding(top = 10.dp, start = 4.dp))
                     }
-                    items(shut, key = { "closed-" + it.listing.channel.id }) { p -> PostCard(p, allTags, layout, pinned = false) { open(p.listing.channel) } }
+                    if (media) items(shut.chunked(2), key = { row -> "closed-" + row.first().listing.channel.id }) { row ->
+                        MediaRow(row) { p -> PostCard(p, allTags, layout, pinned = false, media = true, modifier = Modifier.weight(1f)) { open(p.listing.channel) } }
+                    }
+                    else items(shut, key = { "closed-" + it.listing.channel.id }) { p -> PostCard(p, allTags, layout, pinned = false) { open(p.listing.channel) } }
                     if (closedMore) item("closedMore") {
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                             NxButton(t("forum.loadMore"), { loadClosed() }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM)
@@ -429,9 +440,18 @@ private fun TagFilter(all: List<ForumTag>, on: List<String>, toggle: (String) ->
     }
 }
 
+/** Two media posts side by side (Forum.module.css .list[data-media] at phone width); an odd last one keeps its half. */
+@Composable
+private fun MediaRow(row: List<Post>, card: @Composable androidx.compose.foundation.layout.RowScope.(Post) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (p in row) card(p)
+        if (row.size == 1) Spacer(Modifier.weight(1f))
+    }
+}
+
 /** One post as the forum lists it: what it is called, its tags, how it starts, and how lively it is. */
 @Composable
-private fun PostCard(post: Post, allTags: List<ForumTag>, layout: String, pinned: Boolean, onOpen: () -> Unit) {
+private fun PostCard(post: Post, allTags: List<ForumTag>, layout: String, pinned: Boolean, media: Boolean = false, modifier: Modifier = Modifier.fillMaxWidth(), onOpen: () -> Unit) {
     val c = Nx.colors
     val channels by Nexa.channels.byId.collectAsState()
     val th = channels[post.listing.channel.id] ?: post.listing.channel
@@ -441,6 +461,8 @@ private fun PostCard(post: Post, allTags: List<ForumTag>, layout: String, pinned
     @Suppress("UNUSED_VARIABLE") val automodVersion by Automod.version.collectAsState()
     val held = post.first?.let { Automod.heldBy(it, Nexa.users.meId) } != null
     val pic = if (held) null else firstPicture(post.first?.payload?.att)
+    // a media post that is a video with no picture shows that it plays
+    val video = media && !held && pic == null && post.first?.payload?.att.orEmpty().any { it.type.startsWith("video/") && it.spoiler != true }
     val replies = maxOf(0, (th.thread?.messageCount ?: 1) - 1)
     val isClosed = th.thread?.archived == true
     val tags = allTags.filter { it.id in (th.thread?.appliedTags ?: emptyList()) }
@@ -448,8 +470,7 @@ private fun PostCard(post: Post, allTags: List<ForumTag>, layout: String, pinned
     val pressed by interaction.collectIsPressedAsState()
     val shape = Radii.Lg
     Column(
-        Modifier
-            .fillMaxWidth()
+        modifier
             .ring(shape, if (pressed) c.border else c.borderSubtle)
             .clip(shape)
             .background(if (pressed) c.bgHover else c.bgRaised, shape)
@@ -457,17 +478,24 @@ private fun PostCard(post: Post, allTags: List<ForumTag>, layout: String, pinned
             .pressable(interaction, onClick = onOpen)
             .semantics { contentDescription = th.name },
     ) {
-        if (layout == "gallery") Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(c.bgSurface), contentAlignment = Alignment.Center) {
-            if (pic != null) PostPicture(pic, Modifier.fillMaxSize()) else Icon("MessagesSquare", c.textMuted, size = 28.dp)
+        // a media post's picture is the post: a tall tile, with the words stepping back to a caption
+        if (layout == "gallery") Box(Modifier.fillMaxWidth().aspectRatio(if (media) 4f / 5f else 16f / 9f).background(c.bgSurface), contentAlignment = Alignment.Center) {
+            when {
+                pic != null -> PostPicture(pic, Modifier.fillMaxSize())
+                video -> Box(Modifier.size(52.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+                    Icon("Play", Color.White, size = 22.dp, filled = true, modifier = Modifier.padding(start = 3.dp))
+                }
+                else -> Icon(if (media) "Images" else "MessagesSquare", c.textMuted, size = 28.dp)
+            }
         }
-        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().padding(if (media) 10.dp else 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (media) 4.dp else 6.dp)) {
                 if (pinned || isClosed || tags.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (pinned) Pill("Pin", t("forum.post.pinned"), c.textBrand, c.brand.copy(alpha = 0.16f))
                     if (isClosed) Pill("Archive", t("threads.chip.closed"), c.textMuted, c.bgActive)
                     for (tag in tags) TagPill(tag)
                 }
-                Txt(th.name, style = Nx.type.name.copy(fontSize = Nx.type.sp(16.5f), fontWeight = FontWeight(700)), color = c.textStrong, maxLines = 2)
+                Txt(th.name, style = Nx.type.name.copy(fontSize = Nx.type.sp(if (media) 15f else 16.5f), fontWeight = FontWeight(700)), color = c.textStrong, maxLines = if (media) 1 else 2)
                 val words = when {
                     held -> t("automod.held.text")
                     post.first?.error != null -> t("chat.messageItem.waitingForTheEncryptionKey")
@@ -483,7 +511,7 @@ private fun PostCard(post: Post, allTags: List<ForumTag>, layout: String, pinned
                     }
                     append(words)
                 }
-                androidx.compose.foundation.text.BasicText(line, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f), lineHeight = Nx.type.sp(19.6f), color = c.textMuted), maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                androidx.compose.foundation.text.BasicText(line, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f), lineHeight = Nx.type.sp(19.6f), color = c.textMuted), maxLines = if (media) 1 else 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Avatar(author, shown, Nexa.users.get(author)?.avatarId, 18.dp)
                     Row(Modifier.semantics { contentDescription = t("forum.post.repliesLong", "count" to replies) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -556,6 +584,9 @@ private fun NewPostSheet(layer: Layer, forumId: String, close: () -> Unit) {
     val scope = rememberCoroutineScope()
     val manage = Nexa.servers.canI(st, P.MANAGE_THREADS, forumId)
     val canAttach = Nexa.servers.canI(st, P.ATTACH_FILES, forumId)
+    // a media channel's post is its pictures and videos; the words are a caption
+    val media = forum.isMedia
+    fun isMediaFile(type: String) = type.startsWith("image/") || type.startsWith("video/")
     val tags = forum.forum?.tags ?: emptyList()
     val notice = AutomodNotices.byChannel[forumId]
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -563,6 +594,11 @@ private fun NewPostSheet(layer: Layer, forumId: String, close: () -> Unit) {
             for (u in uris) {
                 if (files.size >= MAX_POST_FILES) break
                 val s = Staging.stage(u, forumId) ?: continue
+                if (media && !isMediaFile(s.type)) {
+                    Nexa.ui.toast(t("media.post.notMedia", "name" to s.name), "error")
+                    s.file.delete()
+                    continue
+                }
                 if (!fish.nexa.data.Uploads.fits(s.file.length(), forumId)) {
                     Nexa.ui.toast(t("forum.post.fileTooBig", "name" to s.name), "error")
                     s.file.delete()
@@ -578,6 +614,7 @@ private fun NewPostSheet(layer: Layer, forumId: String, close: () -> Unit) {
         problem = null
         when {
             name.isEmpty() -> problem = t("forum.post.needTitle")
+            media && files.none { isMediaFile(it.type) } -> problem = t("media.post.needMedia")
             body.isEmpty() && files.isEmpty() -> problem = t("forum.post.needWords")
             forum.forum?.requireTag == true && applied.isEmpty() -> problem = t("forum.post.needTag")
         }
@@ -606,8 +643,33 @@ private fun NewPostSheet(layer: Layer, forumId: String, close: () -> Unit) {
             }
         }
     }
+    // `.files`: the picked files as small cards, with the button after them
+    val picker: @Composable () -> Unit = { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            for (f in files.toList()) Row(
+                Modifier.heightIn(min = 40.dp).ring(Radii.Sm, c.borderSubtle).background(c.bgSurface, Radii.Sm).padding(start = 8.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (f.preview != null && f.type.startsWith("image/")) AsyncImage(java.io.File(f.preview), null, Modifier.size(32.dp).clip(RoundedCornerShape(6.dp)), contentScale = ContentScale.Crop)
+                else Icon(if (f.type.startsWith("video/")) "Play" else "File", c.textMuted, size = 20.dp)
+                Txt(f.name, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f)), color = c.text, maxLines = 1, modifier = Modifier.widthIn(max = 150.dp))
+                Txt(fish.nexa.ui.Time.bytes(f.size), style = Nx.type.hint.copy(fontSize = Nx.type.sp(12f)), color = c.textMuted, maxLines = 1)
+                Box(
+                    Modifier.size(36.dp).clip(RoundedCornerShape(6.dp)).pressable(remember { MutableInteractionSource() }) {
+                        files.remove(f)
+                        f.file.delete()
+                    }.semantics { contentDescription = t("composer.composer.removeNamed", "name" to f.name) },
+                    contentAlignment = Alignment.Center,
+                ) { Icon("X", c.icon, size = 14.dp) }
+            }
+            if (files.size < MAX_POST_FILES) NxButton(
+                if (media) t("media.post.addMedia") else t("forum.post.addFiles"),
+                { pick.launch(if (media) arrayOf("image/*", "video/*") else arrayOf("*/*")) },
+                kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = if (media) "ImagePlus" else "Paperclip",
+            )
+        } }
     Sheet(layer, title = t("forum.newPostIn", "name" to forum.name), maxWidth = 620.dp, footer = {
-        FooterButtons(t("forum.post.submit"), ::post, close, enabled = title.isNotBlank(), busy = busy)
+        FooterButtons(t("forum.post.submit"), ::post, close, enabled = title.isNotBlank() && (!media || files.isNotEmpty()), busy = busy)
     }) {
         if (notice != null) Row(
             Modifier.fillMaxWidth().background(c.bgSurface, Radii.Sm).padding(12.dp),
@@ -651,36 +713,19 @@ private fun NewPostSheet(layer: Layer, forumId: String, close: () -> Unit) {
             }
             Txt(t("forum.post.tagsHint", "count" to 5), style = Nx.type.hint, color = c.textMuted)
         }
+        if (media) fish.nexa.ui.server.Field(t("media.post.media"), required = true) {
+            if (canAttach) picker() else Txt(t("media.post.cantAttach"), style = Nx.type.bodySmall, color = c.textDanger)
+        }
         fish.nexa.ui.server.Field(t("forum.post.message")) {
             fish.nexa.ui.format.FormattedTextField(
                 text, { text = it }, Send.MAX_MESSAGE_LENGTH,
-                placeholder = t("forum.post.messagePlaceholder"),
+                placeholder = if (media) t("media.post.captionPlaceholder") else t("forum.post.messagePlaceholder"),
                 title = t("forum.post.message"),
                 serverId = serverId,
-                minLines = 6,
+                minLines = if (media) 3 else 6,
             )
         }
-        // `.files`: the picked files as small cards, with the button after them
-        if (canAttach) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-            for (f in files.toList()) Row(
-                Modifier.heightIn(min = 40.dp).ring(Radii.Sm, c.borderSubtle).background(c.bgSurface, Radii.Sm).padding(start = 8.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (f.preview != null && f.type.startsWith("image/")) AsyncImage(java.io.File(f.preview), null, Modifier.size(32.dp).clip(RoundedCornerShape(6.dp)), contentScale = ContentScale.Crop)
-                else Icon("File", c.textMuted, size = 20.dp)
-                Txt(f.name, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f)), color = c.text, maxLines = 1, modifier = Modifier.widthIn(max = 150.dp))
-                Txt(fish.nexa.ui.Time.bytes(f.size), style = Nx.type.hint.copy(fontSize = Nx.type.sp(12f)), color = c.textMuted, maxLines = 1)
-                Box(
-                    Modifier.size(36.dp).clip(RoundedCornerShape(6.dp)).pressable(remember { MutableInteractionSource() }) {
-                        files.remove(f)
-                        f.file.delete()
-                    }.semantics { contentDescription = t("composer.composer.removeNamed", "name" to f.name) },
-                    contentAlignment = Alignment.Center,
-                ) { Icon("X", c.icon, size = 14.dp) }
-            }
-            if (files.size < MAX_POST_FILES) NxButton(t("forum.post.addFiles"), { pick.launch(arrayOf("*/*")) }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "Paperclip")
-        }
+        if (canAttach && !media) picker()
         problem?.let { Txt(it, style = Nx.type.bodySmall, color = c.textDanger) }
     }
 }

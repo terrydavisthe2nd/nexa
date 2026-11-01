@@ -204,7 +204,7 @@ export const channelMenu = defineMenu<ChannelMenuCtx>("channel", [
   // a voice channel has no chat to open beside another one
   [openInTabButton<ChannelMenuCtx>("openChannelInTab", ({ channelId }) => {
     const ch = serverChannel(channelId);
-    return ch && ch.type !== "voice" ? { serverId: ch.server_id, channelId } : null;
+    return ch && ch.type !== "voice" && ch.type !== "link" ? { serverId: ch.server_id, channelId } : null;
   })],
   [button("markChannelRead", ({ channelId }) => {
     const ch = serverChannel(channelId);
@@ -218,7 +218,7 @@ export const channelMenu = defineMenu<ChannelMenuCtx>("channel", [
   [
     button("inviteToChannel", ({ channelId, openModal }) => {
       const ch = serverChannel(channelId);
-      return !!ch && canI(useServers.getState().byId[ch.server_id], P.CREATE_INSTANT_INVITE, channelId) && { id: "invite", label: t("chat.chat.invitePeople"), onSelect: () => openModal("invite", { serverId: ch.server_id, channelId }) };
+      return !!ch && ch.type !== "link" && canI(useServers.getState().byId[ch.server_id], P.CREATE_INSTANT_INVITE, channelId) && { id: "invite", label: t("chat.chat.invitePeople"), onSelect: () => openModal("invite", { serverId: ch.server_id, channelId }) };
     }),
     // a voice channel's call takes guests without an account, through a link
     button("inviteGuestsToCall", ({ channelId, openModal }) => {
@@ -227,7 +227,12 @@ export const channelMenu = defineMenu<ChannelMenuCtx>("channel", [
     }),
     button("copyChannelLink", ({ channelId }) => {
       const ch = serverChannel(channelId);
-      return ch && { id: "link", label: t("sidebar.serverMenu.copyLink"), onSelect: () => copy(`${window.location.origin}/channels/${ch.server_id}/${ch.id}`) };
+      return ch && ch.type !== "link" && { id: "link", label: t("sidebar.serverMenu.copyLink"), onSelect: () => copy(`${window.location.origin}/channels/${ch.server_id}/${ch.id}`) };
+    }),
+    // a link channel's own link is where it leads
+    button("copyLinkChannelAddress", ({ channelId }) => {
+      const ch = serverChannel(channelId);
+      return ch?.type === "link" && !!ch.url && { id: "address", label: t("channelLink.copyAddress"), onSelect: () => copy(ch.url!) };
     }),
   ],
   [button("muteChannel", ({ channelId }) => {

@@ -11,7 +11,7 @@ import (
 	"evilion.xyz/chat/internal/ids"
 )
 
-const channelCols = `id, server_id, type, name, topic, position, parent_id, nsfw, slowmode_seconds, user_limit, owner_id, icon_id, last_message_id, created_at, updated_at, glyph, archived, archived_at, thread_locked, auto_archive, starter_id, message_count, applied_tags, forum`
+const channelCols = `id, server_id, type, name, topic, position, parent_id, nsfw, slowmode_seconds, user_limit, owner_id, icon_id, last_message_id, created_at, updated_at, glyph, archived, archived_at, thread_locked, auto_archive, starter_id, message_count, applied_tags, forum, url`
 
 // channelReadCols adds what is read but never written back through insertChannel.
 // The comparison is spelled as a CASE so it comes back as 0/1 on both
@@ -33,9 +33,9 @@ func scanChannel(r rowScanner) (*Channel, error) {
 	var locked int64
 	var archived, threadLocked int64
 	var autoArchive, messages int
-	var tags, forum string
+	var tags, forum, url string
 	if err := r.Scan(&c.ID, &server, &c.Type, &c.Name, &c.Topic, &c.Position, &parent, &nsfw, &c.SlowmodeSeconds, &c.UserLimit, &owner, &icon, &last, &c.CreatedAt, &updated, &c.Glyph,
-		&archived, &archivedAt, &threadLocked, &autoArchive, &starter, &messages, &tags, &forum, &locked); err != nil {
+		&archived, &archivedAt, &threadLocked, &autoArchive, &starter, &messages, &tags, &forum, &url, &locked); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -50,9 +50,11 @@ func scanChannel(r rowScanner) (*Channel, error) {
 			StarterID: idPtr(starter), Messages: messages, AppliedTags: parseIDsJSONOrEmpty(tags)}
 	case HoldsThreads(c.Type):
 		c.DefaultAutoArchive = autoArchive
-		if c.Type == ChannelForum {
-			c.Forum = parseForum(forum)
+		if IsForum(c.Type) {
+			c.Forum = parseForum(forum, c.Type)
 		}
+	case c.Type == ChannelLink:
+		c.URL = url
 	}
 	// the default key conversation; callers that know about private-channel epochs refine it
 	if c.ServerID != nil {
@@ -89,9 +91,9 @@ func (s *Store) insertChannel(ctx context.Context, q querier, c *Channel) error 
 		}
 		forum = string(b)
 	}
-	_, err := q.ExecContext(ctx, `INSERT INTO channels (`+channelCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := q.ExecContext(ctx, `INSERT INTO channels (`+channelCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		int64(c.ID), nullID(c.ServerID), c.Type, c.Name, c.Topic, c.Position, nullID(c.ParentID), boolInt(c.NSFW), c.SlowmodeSeconds, c.UserLimit, nullID(c.OwnerID), nullID(c.IconID), nullID(c.LastMessageID), c.CreatedAt, c.CreatedAt, c.Glyph,
-		archived, nil, threadLocked, autoArchive, nullID(starter), 0, tags, forum)
+		archived, nil, threadLocked, autoArchive, nullID(starter), 0, tags, forum, c.URL)
 	return err
 }
 
@@ -103,9 +105,9 @@ func parseIDsJSONOrEmpty(s string) []ids.ID {
 	return parseIDsJSON(s)
 }
 
-// parseForum reads a forum channel's settings, filling in what an empty or
-// older column leaves out.
-func parseForum(s string) *ForumSettings {
+// parseForum reads a forum or media channel's settings, filling in what an
+// empty or older column leaves out. A media channel is always a gallery.
+func parseForum(s, typ string) *ForumSettings {
 	f := &ForumSettings{}
 	if s != "" {
 		_ = json.Unmarshal([]byte(s), f)
@@ -116,8 +118,13 @@ func parseForum(s string) *ForumSettings {
 	if f.Sort == "" {
 		f.Sort = "activity"
 	}
-	if f.Layout == "" {
+	if f.Layout != "list" && f.Layout != "gallery" {
 		f.Layout = "list"
+	}
+	if typ == ChannelMedia {
+		f.Layout = "gallery"
+	} else {
+		f.HideDownloads = false
 	}
 	return f
 }
@@ -706,6 +713,9 @@ func (s *Store) UpdateChannel(ctx context.Context, id ids.ID, p ChannelPatch) er
 			return err
 		}
 		set("forum", string(b))
+	}
+	if p.URL != nil {
+		set("url", *p.URL)
 	}
 	if len(sets) == 0 {
 		return nil

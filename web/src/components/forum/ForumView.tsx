@@ -1,5 +1,5 @@
 import { PersonName } from "@/components/common/PersonName";
-import { Archive, ChevronDown, ChevronUp, LayoutGrid, LayoutList, MessageSquare, MessagesSquare, Pin, Plus, SlidersHorizontal, Tag as TagIcon } from "lucide-react";
+import { Archive, ChevronDown, ChevronUp, Images, LayoutGrid, LayoutList, MessageSquare, MessagesSquare, Pin, Play, Plus, SlidersHorizontal, Tag as TagIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { threads as threadsApi } from "@/api/threads";
@@ -35,15 +35,15 @@ import s from "./Forum.module.css";
 type Sort = "activity" | "created";
 type Layout = "list" | "gallery";
 
-/** A forum's View menu: how posts are sorted and laid out. */
-const forumViewMenu = defineMenu<{ sort: Sort; layout: Layout; setSort: (s: Sort) => void; setLayout: (l: Layout) => void }>("forumView", [
+/** A forum's View menu: how posts are sorted and laid out (a media channel is always a gallery). */
+const forumViewMenu = defineMenu<{ sort: Sort; layout: Layout; media: boolean; setSort: (s: Sort) => void; setLayout: (l: Layout) => void }>("forumView", [
   [
     button("sortForumByActivity", ({ sort, setSort }) => ({ id: "activity", label: t("forum.sort.activity"), checked: sort === "activity", onSelect: () => setSort("activity") })),
     button("sortForumByCreated", ({ sort, setSort }) => ({ id: "created", label: t("forum.sort.created"), checked: sort === "created", onSelect: () => setSort("created") })),
   ],
   [
-    button("forumListLayout", ({ layout, setLayout }) => ({ id: "list", label: t("forum.layout.list"), checked: layout === "list", onSelect: () => setLayout("list") })),
-    button("forumGalleryLayout", ({ layout, setLayout }) => ({ id: "gallery", label: t("forum.layout.gallery"), checked: layout === "gallery", onSelect: () => setLayout("gallery") })),
+    button("forumListLayout", ({ layout, media, setLayout }) => !media && ({ id: "list", label: t("forum.layout.list"), checked: layout === "list", onSelect: () => setLayout("list") })),
+    button("forumGalleryLayout", ({ layout, media, setLayout }) => !media && ({ id: "gallery", label: t("forum.layout.gallery"), checked: layout === "gallery", onSelect: () => setLayout("gallery") })),
   ],
 ]);
 
@@ -78,7 +78,7 @@ function TagChips({ tags }: { tags: ForumTag[] }) {
 }
 
 /** One post as the forum lists it: what it is called, its tags, how it starts, and how lively it is. */
-function PostCard({ post, tags, layout, pinned, onOpen }: { post: Post; tags: ForumTag[]; layout: Layout; pinned: boolean; onOpen: () => void }) {
+function PostCard({ post, tags, layout, pinned, media, onOpen }: { post: Post; tags: ForumTag[]; layout: Layout; pinned: boolean; media: boolean; onOpen: () => void }) {
   const th = useChannels((c) => c.byId[post.thread.id]) ?? post.thread;
   const author = th.owner_id ?? post.first?.author_id ?? "";
   const shown = useShownName(th.id, author || undefined);
@@ -89,15 +89,17 @@ function PostCard({ post, tags, layout, pinned, onOpen }: { post: Post; tags: Fo
     return text ? plainText(parse(text)).replace(/\s+/g, " ").trim() : "";
   }, [post.first]);
   const pic = useMemo(() => (held ? null : firstPicture(post.first?.payload?.att)), [post.first, held]);
+  // a media post that is a video with no picture shows that it plays
+  const video = useMemo(() => (!held && !pic && media ? (post.first?.payload?.att ?? []).some((a) => a.type.startsWith("video/") && !a.spoiler) : false), [post.first, held, pic, media]);
   const url = usePictureURL(pic);
   const replies = Math.max(0, (th.thread?.message_count ?? 1) - 1);
   const closed = !!th.thread?.archived;
   return (
-    <article className={s.post} data-layout={layout} data-testid="forum-post" data-post={th.id}>
+    <article className={s.post} data-layout={layout} data-media={media || undefined} data-testid="forum-post" data-post={th.id}>
       <button type="button" className={s.postHit} onClick={onOpen} aria-label={th.name} />
       {layout === "gallery" ? (
-        <div className={s.galleryPic} data-empty={!pic || undefined}>
-          {url ? <img src={url} alt="" loading="lazy" decoding="async" /> : <MessagesSquare size={28} aria-hidden="true" />}
+        <div className={s.galleryPic} data-empty={!pic || undefined} data-video={video || undefined}>
+          {url ? <img src={url} alt="" loading="lazy" decoding="async" /> : video ? <span className={s.play}><Play size={22} aria-hidden="true" /></span> : media ? <Images size={28} aria-hidden="true" /> : <MessagesSquare size={28} aria-hidden="true" />}
         </div>
       ) : null}
       <div className={s.postMain}>
@@ -162,11 +164,14 @@ export default function ForumView({ channel }: { channel: Channel }) {
   const forum = channel.forum;
   const allTags = useMemo(() => forum?.tags ?? [], [forum?.tags]);
   const layoutKey = `ec:forumLayout:${channel.id}`;
+  // a media channel's posts are pictures and videos, always shown as a gallery
+  const media = channel.type === "media";
   const [sort, setSort] = useState<Sort>(forum?.sort ?? "activity");
-  const [layout, setLayoutState] = useState<Layout>(() => {
+  const [chosenLayout, setLayoutState] = useState<Layout>(() => {
     const saved = storage.get(layoutKey);
     return saved === "list" || saved === "gallery" ? saved : (forum?.layout ?? "list");
   });
+  const layout: Layout = media ? "gallery" : chosenLayout;
   const setLayout = (l: Layout) => {
     setLayoutState(l);
     storage.set(layoutKey, l);
@@ -182,7 +187,8 @@ export default function ForumView({ channel }: { channel: Channel }) {
   const [guidelines, setGuidelines] = useState(() => storage.get(`ec:forumGuide:${channel.id}`) !== "0");
   const [writing, setWriting] = useState(false);
   const gen = useRef(0);
-  const canPost = canI(st, P.SEND_MESSAGES, channel.id);
+  // a media post is made of files, so posting there also needs Attach Files
+  const canPost = canI(st, P.SEND_MESSAGES, channel.id) && (!media || canI(st, P.ATTACH_FILES, channel.id));
 
   const decrypt = useCallback(async (list: ThreadListing[]): Promise<Post[]> => {
     return Promise.all(list.map(async (th) => ({ thread: th, first: th.first_message ? await decryptForStore(th.first_message) : null })));
@@ -261,7 +267,7 @@ export default function ForumView({ channel }: { channel: Channel }) {
   const toggleTag = (id: string) => setFilter((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   const viewMenu = (el: HTMLElement) => {
     const anchor = menuAnchor(el, "end");
-    forumViewMenu.open({ sort, layout, setSort, setLayout }, { x: anchor.right, y: anchor.bottom + 4, anchor, label: t("forum.view.title") });
+    forumViewMenu.open({ sort, layout, media, setSort, setLayout }, { x: anchor.right, y: anchor.bottom + 4, anchor, label: t("forum.view.title") });
   };
   const empty = ordered !== null && ordered.length === 0;
 
@@ -317,14 +323,14 @@ export default function ForumView({ channel }: { channel: Channel }) {
                     <option value="created">{t("forum.sort.created")}</option>
                   </select>
                 </label>
-                <div className={s.layoutSwitch} role="radiogroup" aria-label={t("forum.settings.layout")}>
+                {media ? null : <div className={s.layoutSwitch} role="radiogroup" aria-label={t("forum.settings.layout")}>
                   <button type="button" role="radio" aria-checked={layout === "list"} aria-label={t("forum.layout.list")} title={t("forum.layout.list")} onClick={() => setLayout("list")}>
                     <LayoutList size={18} aria-hidden="true" />
                   </button>
                   <button type="button" role="radio" aria-checked={layout === "gallery"} aria-label={t("forum.layout.gallery")} title={t("forum.layout.gallery")} onClick={() => setLayout("gallery")}>
                     <LayoutGrid size={18} aria-hidden="true" />
                   </button>
-                </div>
+                </div>}
               </>
             )}
           </div>
@@ -351,9 +357,9 @@ export default function ForumView({ channel }: { channel: Channel }) {
           {ordered === null && !failed ? <div className={s.note}>{t("forum.loading")}</div> : null}
           {empty ? (
             <div className={s.empty}>
-              <MessagesSquare size={36} aria-hidden="true" />
+              {media ? <Images size={36} aria-hidden="true" /> : <MessagesSquare size={36} aria-hidden="true" />}
               <h2>{q || filter.length ? t("forum.noMatches") : t("forum.noPosts")}</h2>
-              <p>{q || filter.length ? t("forum.noMatchesHint") : canPost ? t("forum.noPostsHint") : t("forum.noPostsReadOnly")}</p>
+              <p>{q || filter.length ? t("forum.noMatchesHint") : canPost ? t(media ? "media.noPostsHint" : "forum.noPostsHint") : t(media ? "media.noPostsReadOnly" : "forum.noPostsReadOnly")}</p>
               {!q && !filter.length && canPost ? (
                 <button type="button" className={s.newPost} onClick={() => setWriting(true)}>
                   <Plus size={18} aria-hidden="true" />
@@ -363,9 +369,9 @@ export default function ForumView({ channel }: { channel: Channel }) {
             </div>
           ) : null}
           {ordered?.length ? (
-            <div className={s.list} data-layout={layout}>
+            <div className={s.list} data-layout={layout} data-media={media || undefined}>
               {ordered.map((p) => (
-                <PostCard key={p.thread.id} post={p} tags={tagsOf(p.thread, allTags)} layout={layout} pinned={p.thread.id === pinnedId} onOpen={() => open(p.thread)} />
+                <PostCard key={p.thread.id} post={p} tags={tagsOf(p.thread, allTags)} layout={layout} pinned={p.thread.id === pinnedId} media={media} onOpen={() => open(p.thread)} />
               ))}
             </div>
           ) : null}
@@ -382,9 +388,9 @@ export default function ForumView({ channel }: { channel: Channel }) {
               <>
                 {closed.length ? <h2 className={s.closedHead}>{t("forum.closedPosts")}</h2> : <div className={s.note}>{t("forum.noClosed")}</div>}
                 {closed.length ? (
-                  <div className={s.list} data-layout={layout}>
+                  <div className={s.list} data-layout={layout} data-media={media || undefined}>
                     {closed.map((p) => (
-                      <PostCard key={p.thread.id} post={p} tags={tagsOf(p.thread, allTags)} layout={layout} pinned={false} onOpen={() => open(p.thread)} />
+                      <PostCard key={p.thread.id} post={p} tags={tagsOf(p.thread, allTags)} layout={layout} pinned={false} media={media} onOpen={() => open(p.thread)} />
                     ))}
                   </div>
                 ) : null}

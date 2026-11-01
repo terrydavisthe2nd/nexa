@@ -16,6 +16,7 @@ import { useServers } from "@/stores/servers";
 import { rememberChannel } from "@/stores/serverNav";
 import { useUI } from "@/stores/ui";
 import { useUsers } from "@/stores/users";
+import { isForum } from "@/lib/threads";
 import s from "./ServerPage.module.css";
 
 import { t as tr_ } from "@/i18n";
@@ -165,8 +166,9 @@ export default function ServerPage() {
   }
   if (!channel || channel.server_id !== serverId) return <NoChannels />;
   if (channel.type === "voice") return <VoiceRoom channel={channel} />;
-  if (channel.type === "category") return <Navigate to={`/channels/${serverId}`} replace state={navState} />;
-  if (channel.type === "forum") {
+  // a link channel only opens its address (lib/linkChannel), so a path to one leads to the server
+  if (channel.type === "category" || channel.type === "link") return <Navigate to={`/channels/${serverId}`} replace state={navState} />;
+  if (isForum(channel)) {
     return (
       <Suspense fallback={<PaneSpinner text={tr_("forum.loading")} />}>
         <ForumView channel={channel} />

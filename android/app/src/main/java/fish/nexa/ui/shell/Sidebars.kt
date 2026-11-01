@@ -251,7 +251,9 @@ fun ChannelGlyph(ch: Channel, size: androidx.compose.ui.unit.Dp, tint: Color, mo
             ch.isVoice -> Icon("Volume2", tint, size = size)
             ch.isText -> Icon("Hash", tint, size = size)
             ch.isAnnouncement -> Icon("Megaphone", tint, size = size)
+            ch.isMedia -> Icon("Images", tint, size = size)
             ch.isForum -> Icon("MessagesSquare", tint, size = size)
+            ch.isLink -> Icon("Link2", tint, size = size)
             ch.isThread -> Icon("MessageSquareText", tint, size = size)
         }
         if (private || voiceOwn) {
@@ -299,10 +301,15 @@ private fun ChannelRow(serverId: String, ch: Channel, selected: Boolean, threads
                     .height(40.dp)
                     .selectedRow(selected, pressed)
                     .pressable(interaction, onLongClick = { openMenu(channelMenu(serverId, ch)) }) {
-                        if (ch.isVoice) {
-                            Nav.go(Route.Server(serverId, ch.id))
-                            joinVoice(ch.id)
-                        } else Nav.go(Route.Server(serverId, ch.id))
+                        when {
+                            // a link channel opens its address and leaves the open channel where it is
+                            ch.isLink -> LinkChannels.open(ch)
+                            ch.isVoice -> {
+                                Nav.go(Route.Server(serverId, ch.id))
+                                joinVoice(ch.id)
+                            }
+                            else -> Nav.go(Route.Server(serverId, ch.id))
+                        }
                     }
                     .padding(start = 8.dp, end = 4.dp)
                     .semantics {
@@ -333,6 +340,8 @@ private fun ChannelRow(serverId: String, ch: Channel, selected: Boolean, threads
                 }
                 if (ch.isVoice && people.isNotEmpty()) fish.nexa.ui.voice.CallTimer(ch.id, pill = true)
                 if (ch.isVoice && ch.userLimit > 0) Txt("${people.size}/${ch.userLimit}", style = Nx.type.hint, color = c.textMuted)
+                // a link channel leads out of the app, which the arrow says before it is pressed
+                if (ch.isLink) Icon("ArrowUpRight", if (pressed) c.text else c.textMuted, size = 14.dp, modifier = Modifier.padding(end = 4.dp))
                 if (mentions > 0) CountBadge(mentions, Modifier.padding(start = 4.dp))
             }
         }
@@ -512,8 +521,10 @@ private fun channelMenu(serverId: String, ch: Channel): List<MenuItem> {
     val items = ArrayList<MenuItem>()
     items += fish.nexa.ui.reports.reportItem(fish.nexa.data.ReportContext(kind = "channel", id = ch.id))
     if (ch.isTextLike) items += MenuItem.Action(t("sidebar.dmMenu.markAsRead"), disabled = ch.lastMessageId == null, separatorAfter = true) { Unread.markRead(ch.id) }
-    if (Nexa.servers.canI(st, P.CREATE_INSTANT_INVITE, ch.id)) items += MenuItem.Action(t("chat.chat.invitePeople")) { openInvite(serverId, ch.id) }
-    items += MenuItem.Action(t("sidebar.serverMenu.copyLink"), separatorAfter = true) { copyText("${Nexa.api.baseUrl}/channels/$serverId/${ch.id}") }
+    if (!ch.isLink && Nexa.servers.canI(st, P.CREATE_INSTANT_INVITE, ch.id)) items += MenuItem.Action(t("chat.chat.invitePeople")) { openInvite(serverId, ch.id) }
+    // a link channel's own link is where it leads
+    if (ch.isLink) ch.url?.let { url -> items += MenuItem.Action(t("channelLink.copyAddress"), separatorAfter = true) { copyText(url) } }
+    else items += MenuItem.Action(t("sidebar.serverMenu.copyLink"), separatorAfter = true) { copyText("${Nexa.api.baseUrl}/channels/$serverId/${ch.id}") }
     if (ch.isTextLike || ch.isForum) {
         val muted = ch.id in Unread.mutedIds()
         items += MenuItem.Action(if (muted) t("sidebar.serverMenu.unmuteChannel") else t("sidebar.serverMenu.muteChannel"), separatorAfter = true) { Unread.setMuted(ch.id, !muted) }

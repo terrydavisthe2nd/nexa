@@ -162,7 +162,10 @@ private fun ChannelOverviewPage(ch: Channel) {
     val scope = rememberCoroutineScope()
     val channels by Nexa.channels.byId.collectAsState()
     val thread = ch.isThread
+    // a media channel is a forum of pictures and videos, always shown as a gallery
     val forum = ch.isForum
+    val media = ch.isMedia
+    val link = ch.isLink
     val textLike = ch.isText || ch.isAnnouncement
     // names are written as text channels' are: lower case, dashes for spaces
     val slugged = textLike || forum
@@ -184,6 +187,8 @@ private fun ChannelOverviewPage(ch: Channel) {
     var layoutEdit by remember { mutableStateOf<String?>(null) }
     var sortEdit by remember { mutableStateOf<String?>(null) }
     var requireTagEdit by remember { mutableStateOf<Boolean?>(null) }
+    var hideDownloadsEdit by remember { mutableStateOf<Boolean?>(null) }
+    var urlEdit by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val savedTags = remember(ch.forum?.tags) { ch.forum?.tags.orEmpty().map { TagEdit(it.id, it.name, it.emoji, it.moderated) } }
     val name = nameEdit ?: ch.name
@@ -203,22 +208,33 @@ private fun ChannelOverviewPage(ch: Channel) {
     val layout = layoutEdit ?: ch.forum?.layout ?: "list"
     val sort = sortEdit ?: ch.forum?.sort ?: "activity"
     val requireTag = requireTagEdit ?: (ch.forum?.requireTag == true)
-    val forumDirty = forum && (!sameTags(tags, savedTags) || layout != (ch.forum?.layout ?: "list") || sort != (ch.forum?.sort ?: "activity") || requireTag != (ch.forum?.requireTag == true))
+    val hideDownloads = hideDownloadsEdit ?: (ch.forum?.hideDownloads == true)
+    val url = urlEdit ?: ch.url ?: ""
+    val forumDirty = forum && (!sameTags(tags, savedTags) || layout != (ch.forum?.layout ?: "list") || sort != (ch.forum?.sort ?: "activity") || requireTag != (ch.forum?.requireTag == true) ||
+        (media && hideDownloads != (ch.forum?.hideDownloads == true)))
     val dirty = name != ch.name || topic != ch.topic || slow != ch.slowmodeSeconds || nsfw != ch.nsfw || limit != ch.userLimit || glyph != savedGlyph ||
         (textLike && announce != ch.isAnnouncement) ||
         ((textLike || forum) && defaultArchive != (ch.defaultAutoArchive ?: 4320)) ||
         (thread && (archive != (ch.thread?.autoArchive ?: 4320) || locked != (ch.thread?.locked == true) || applied != ch.thread?.appliedTags.orEmpty())) ||
+        (link && url != (ch.url ?: "")) ||
         forumDirty
     fun reset() {
         nameEdit = null; topicEdit = null; slowEdit = null; nsfwEdit = null; limitEdit = null; glyphEdit = null
         announceEdit = null; defaultArchiveEdit = null; archiveEdit = null; lockedEdit = null; appliedEdit = null
-        tagsEdit = null; layoutEdit = null; sortEdit = null; requireTagEdit = null
+        tagsEdit = null; layoutEdit = null; sortEdit = null; requireTagEdit = null; hideDownloadsEdit = null; urlEdit = null
     }
     fun save() {
+        val urlChanged = link && url != (ch.url ?: "")
+        val dest = if (urlChanged) fish.nexa.ui.shell.LinkChannels.destination(url) else null
+        if (urlChanged && dest == null) {
+            Nexa.ui.toast(t("channelLink.badAddress"), "error")
+            return
+        }
         busy = true
         scope.launch {
             try {
                 val body = buildJsonObject {
+                    if (dest != null) put("url", dest.href)
                     if (name != ch.name) put("name", if (slugged) slugChannelName(name) else name.trim())
                     if (topic != ch.topic) put("topic", topic)
                     if (slow != ch.slowmodeSeconds) put("slowmode_seconds", slow)
@@ -241,9 +257,10 @@ private fun ChannelOverviewPage(ch: Channel) {
                                 put("moderated", tg.moderated)
                             }
                         }))
-                        put("layout", layout)
+                        put("layout", if (media) "gallery" else layout)
                         put("sort", sort)
                         put("require_tag", requireTag)
+                        if (media) put("hide_downloads", hideDownloads)
                     })
                 }
                 val saved = Nexa.api.request("PATCH", "/channels/${ch.id}", Channel.serializer(), body)
@@ -272,6 +289,14 @@ private fun ChannelOverviewPage(ch: Channel) {
                     ChannelGlyph(ch.copy(type = if (textLike) (if (announce) "announcement" else "text") else ch.type, glyph = glyph.takeIf { it != PICTURE }, iconId = ch.iconId.takeIf { glyph == PICTURE }), 16.dp, Nx.colors.textMuted, cut = Nx.colors.bgInput)
                 },
             )
+            if (link) NxTextField(
+                url, { urlEdit = it.take(1024) },
+                label = t("channelLink.address"),
+                required = true,
+                placeholder = "https://",
+                hint = t("channelLink.addressHint"),
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri,
+            )
             if (!thread) Field(
                 if (ch.isCategory) t("server.channelIcon.categoryTitle") else t("server.channelIcon.title"),
                 hint = if (ch.isCategory) t("server.channelIcon.categoryHint") else t("server.channelIcon.hint"),
@@ -290,8 +315,9 @@ private fun ChannelOverviewPage(ch: Channel) {
             if (textLike) ToggleLine(t("follows.settings.announcement"), announce, { announceEdit = it }, description = t("follows.settings.announcementDesc"))
             if (forum) ForumTagsEditor(tags) { tagsEdit = it }
             if (forum) ToggleLine(t("forum.settings.requireTag"), requireTag, { requireTagEdit = it }, description = t("forum.settings.requireTagDesc"))
+            if (media) ToggleLine(t("media.settings.hideDownloads"), hideDownloads, { hideDownloadsEdit = it }, description = t("media.settings.hideDownloadsDesc"))
             if (forum) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.weight(1f)) {
+                if (!media) Box(Modifier.weight(1f)) {
                     Field(t("forum.settings.layout")) {
                         SelectField(listOf("list" to t("forum.layout.list"), "gallery" to t("forum.layout.gallery")), layout, { layoutEdit = it }, title = t("forum.settings.layout"))
                     }

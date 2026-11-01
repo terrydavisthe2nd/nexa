@@ -15,6 +15,7 @@ import { requestReplyTarget, retryReplyTarget, usedReplyTarget, useReplyTargets 
 import { useUI } from "@/stores/ui";
 import { useUsers } from "@/stores/users";
 import chat from "@/components/chat/Chat.module.css";
+import { isForum } from "@/lib/threads";
 import s from "./Threads.module.css";
 
 /**
@@ -24,7 +25,7 @@ import s from "./Threads.module.css";
 export function ThreadIntro({ thread }: { thread: Channel }) {
   const parent = useChannels((c) => (thread.parent_id ? c.byId[thread.parent_id] : undefined));
   const starter = useShownName(thread.id, thread.owner_id ?? undefined);
-  const post = parent?.type === "forum";
+  const post = isForum(parent);
   const where = parent ? (post ? parent.name : `#${parent.name}`) : "";
   const tags = post ? (thread.thread?.applied_tags ?? []).map((id) => parent?.forum?.tags.find((x) => x.id === id)).filter((x): x is ForumTag => !!x) : [];
   const line = post ? "chat.messageList.postStart" : thread.type === "private_thread" ? "chat.messageList.privateThreadStart" : "chat.messageList.threadStart";

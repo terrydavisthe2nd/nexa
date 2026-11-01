@@ -1,4 +1,4 @@
-import { File as FileIcon, Paperclip, X } from "lucide-react";
+import { File as FileIcon, ImagePlus, Paperclip, Play, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError } from "@/api/client";
@@ -25,6 +25,11 @@ import s from "./Forum.module.css";
 const MAX_POST_TAGS = 5;
 const MAX_POST_FILES = 10;
 
+/** What a media channel's posts are made of: pictures and videos. */
+export function isMediaFile(type: string): boolean {
+  return type.startsWith("image/") || type.startsWith("video/");
+}
+
 /**
  * Starting a post: its title, the tags it is filed under, and what it says,
  * with files. The post goes up with its first message, which is sealed for
@@ -36,6 +41,8 @@ export function NewPostDialog({ forum, onClose }: { forum: Channel; onClose: () 
   const tags = forum.forum?.tags ?? [];
   const mod = canI(st, P.MANAGE_THREADS, forum.id);
   const canAttach = canI(st, P.ATTACH_FILES, forum.id);
+  // a media channel's post is its pictures and videos; the words are a caption
+  const media = forum.type === "media";
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [applied, setApplied] = useState<string[]>([]);
@@ -60,6 +67,10 @@ export function NewPostDialog({ forum, onClose }: { forum: Channel; onClose: () 
   const addFiles = async (list: FileList) => {
     const picked: Staged[] = [];
     for (const f of Array.from(list)) {
+      if (media && !isMediaFile(f.type)) {
+        useUI.getState().toast(t("media.post.notMedia", { name: f.name }), "error");
+        continue;
+      }
       if (!fitsUploadLimit(f.size, forum.id)) {
         if (planForFile(f.size) && myPlan() !== "pro") offerPlan({ kind: "file", name: f.name, size: f.size });
         else useUI.getState().toast(t("forum.post.fileTooBig", { name: f.name }), "error");
@@ -75,6 +86,7 @@ export function NewPostDialog({ forum, onClose }: { forum: Channel; onClose: () 
     const body = text.trim();
     setProblem(null);
     if (!name) return setProblem(t("forum.post.needTitle"));
+    if (media && !files.some((f) => isMediaFile(f.file.type))) return setProblem(t("media.post.needMedia"));
     if (!body && files.length === 0) return setProblem(t("forum.post.needWords"));
     if (forum.forum?.require_tag && applied.length === 0) return setProblem(t("forum.post.needTag"));
     setBusy(true);
@@ -92,6 +104,30 @@ export function NewPostDialog({ forum, onClose }: { forum: Channel; onClose: () 
     }
   };
 
+  const picker = (
+    <div className={s.files}>
+      {files.map((f) => (
+        <div key={f.id} className={s.fileCard}>
+          {f.preview && f.file.type.startsWith("image/") ? <img src={f.preview} alt="" /> : f.file.type.startsWith("video/") ? <Play size={20} aria-hidden="true" /> : <FileIcon size={20} aria-hidden="true" />}
+          <span className={s.fileName} dir="auto">{f.name}</span>
+          <span className={s.fileSize}>{formatBytes(f.file.size)}</span>
+          <button type="button" className={s.fileRemove} aria-label={t("composer.composer.removeNamed", { name: f.name })} onClick={() => {
+            if (f.preview) URL.revokeObjectURL(f.preview);
+            setFiles((cur) => cur.filter((x) => x.id !== f.id));
+          }}>
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+      {files.length < MAX_POST_FILES ? (
+        <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>
+          {media ? <ImagePlus size={16} aria-hidden="true" /> : <Paperclip size={16} aria-hidden="true" />} {media ? t("media.post.addMedia") : t("forum.post.addFiles")}
+        </Button>
+      ) : null}
+      <input ref={fileRef} type="file" multiple hidden accept={media ? "image/*,video/*" : undefined} onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ""; }} />
+    </div>
+  );
+
   return (
     <Modal
       open
@@ -101,7 +137,7 @@ export function NewPostDialog({ forum, onClose }: { forum: Channel; onClose: () 
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>{t("chat.editMessage.cancel")}</Button>
-          <Button onClick={() => void post()} loading={busy} disabled={!title.trim()} data-testid="forum-post-submit">{t("forum.post.submit")}</Button>
+          <Button onClick={() => void post()} loading={busy} disabled={!title.trim() || (media && files.length === 0)} data-testid="forum-post-submit">{t("forum.post.submit")}</Button>
         </>
       }
     >
@@ -125,32 +161,19 @@ export function NewPostDialog({ forum, onClose }: { forum: Channel; onClose: () 
             </div>
           </Field>
         ) : null}
-        <Field as="div" label={t("forum.post.message")}>
-          <FormattedText value={text} onChange={setText} max={MAX_MESSAGE_LENGTH} rows={6} placeholder={t("forum.post.messagePlaceholder")} title={t("forum.post.message")} serverId={forum.server_id ?? undefined} testId="forum-post-text" />
-        </Field>
-        {canAttach ? (
-          <div className={s.files}>
-            {files.map((f) => (
-              <div key={f.id} className={s.fileCard}>
-                {f.preview && f.file.type.startsWith("image/") ? <img src={f.preview} alt="" /> : <FileIcon size={20} aria-hidden="true" />}
-                <span className={s.fileName} dir="auto">{f.name}</span>
-                <span className={s.fileSize}>{formatBytes(f.file.size)}</span>
-                <button type="button" className={s.fileRemove} aria-label={t("composer.composer.removeNamed", { name: f.name })} onClick={() => {
-                  if (f.preview) URL.revokeObjectURL(f.preview);
-                  setFiles((cur) => cur.filter((x) => x.id !== f.id));
-                }}>
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-            {files.length < MAX_POST_FILES ? (
-              <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>
-                <Paperclip size={16} aria-hidden="true" /> {t("forum.post.addFiles")}
-              </Button>
-            ) : null}
-            <input ref={fileRef} type="file" multiple hidden onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ""; }} />
-          </div>
+        {media ? (
+          <Field as="div" label={t("media.post.media")} required>
+            {canAttach ? (
+              picker
+            ) : (
+              <p className={s.problem}>{t("media.post.cantAttach")}</p>
+            )}
+          </Field>
         ) : null}
+        <Field as="div" label={t("forum.post.message")}>
+          <FormattedText value={text} onChange={setText} max={MAX_MESSAGE_LENGTH} rows={media ? 3 : 6} placeholder={media ? t("media.post.captionPlaceholder") : t("forum.post.messagePlaceholder")} title={t("forum.post.message")} serverId={forum.server_id ?? undefined} testId="forum-post-text" />
+        </Field>
+        {canAttach && !media ? picker : null}
         {problem ? <p className={s.problem} role="alert">{problem}</p> : null}
       </div>
     </Modal>

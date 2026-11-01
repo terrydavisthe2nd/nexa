@@ -321,8 +321,10 @@ func discordChannelType(t int) string {
 		return "category"
 	case 5:
 		return store.ChannelAnnouncement
-	case 15, 16:
+	case 15:
 		return store.ChannelForum
+	case 16:
+		return store.ChannelMedia
 	default:
 		return ""
 	}
@@ -563,7 +565,7 @@ func buildTemplateSpec(tpl *discordGuildTemplate, customName string) (store.Temp
 			}
 		}
 		topicLimit := maxTopic
-		if c.typ == store.ChannelForum {
+		if store.IsForum(c.typ) {
 			topicLimit = maxForumTopic
 		}
 		topic := ""
@@ -580,13 +582,13 @@ func buildTemplateSpec(tpl *discordGuildTemplate, customName string) (store.Temp
 			autoArchive = *c.raw.DefaultAutoArchiveDuration
 		}
 		var forum *store.ForumSettings
-		if c.typ == store.ChannelForum {
+		if store.IsForum(c.typ) {
 			f := &store.ForumSettings{Sort: "activity", Layout: "list", Tags: []store.ForumTag{}}
 			if c.raw.DefaultSortOrder != nil && *c.raw.DefaultSortOrder == 1 {
 				f.Sort = "created"
 			}
 			if c.raw.DefaultForumLayout != nil && *c.raw.DefaultForumLayout == 2 {
-				f.Layout = "grid"
+				f.Layout = "gallery"
 			}
 			if c.raw.DefaultReactionEmoji != nil && c.raw.DefaultReactionEmoji.EmojiName != nil {
 				if em, ok := parseEmoji(*c.raw.DefaultReactionEmoji.EmojiName); ok {

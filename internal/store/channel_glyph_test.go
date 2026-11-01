@@ -52,7 +52,7 @@ func TestChannelGlyph(t *testing.T) {
 		t.Fatalf("cleared: %q", got.Glyph)
 	}
 	// a voice channel takes an emoji the same way
-	c, err := s.CreateServerChannel(ctx, srv.ID, "voice", "Music", nil)
+	c, err := s.CreateServerChannel(ctx, srv.ID, "voice", "Music", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

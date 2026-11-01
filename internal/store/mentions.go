@@ -55,7 +55,7 @@ func (s *Store) MentionChannels(ctx context.Context, uid ids.ID, onlyServer ids.
 			continue
 		}
 		for _, ch := range snap.channelOrder {
-			if snap.channels[ch] == "category" {
+			if HoldsNoMessages(snap.channels[ch]) {
 				continue
 			}
 			if snap.channelPerms(ch, uid, now).Has(perms.ViewChannel | perms.ReadMessageHistory) {

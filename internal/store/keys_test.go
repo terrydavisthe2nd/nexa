@@ -128,7 +128,7 @@ func TestNeedsAcrossKindsOfConversation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	private, err := s.CreateServerChannel(ctx, srv.ID, "text", "p", nil)
+	private, err := s.CreateServerChannel(ctx, srv.ID, "text", "p", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

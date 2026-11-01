@@ -34,6 +34,8 @@ export function protocolChannelType(ch: Pick<Channel, "type">): number {
       return 12;
     case "forum":
       return 15;
+    case "media":
+      return 16;
     default:
       return 0;
   }

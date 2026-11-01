@@ -208,8 +208,10 @@ private fun TopBar(item: LightboxItem, index: Int, count: Int, close: () -> Unit
             close()
             item.jump.invoke()
         }
-        if (item.type?.contains("svg") != true) Tool("ExternalLink", t("chat.attachments.openOriginal")) { scope.launch { openOriginal(item) } }
-        Tool("Download", t("chat.attachments.download")) { save(item) }
+        // a media channel that hides downloads offers no save or open here either
+        val noDownload = fish.nexa.data.MediaDownloads.hidden(item.cm?.m?.channelId)
+        if (!noDownload && item.type?.contains("svg") != true) Tool("ExternalLink", t("chat.attachments.openOriginal")) { scope.launch { openOriginal(item) } }
+        if (!noDownload) Tool("Download", t("chat.attachments.download")) { save(item) }
         Tool("X", t("chat.attachments.close"), strong = true, iconSize = 22) { close() }
     }
 }
@@ -435,7 +437,7 @@ private fun ZoomablePicture(
                     onTap = { if (scale <= 1.01f) onClose() },
                     onLongPress = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        openMenu(imageMenuItems(ImageTarget(item.att, item.src, item.name, item.type, item.cm), separatorAfter = false), haptic = false)
+                        if (!fish.nexa.data.MediaDownloads.hidden(item.cm?.m?.channelId)) openMenu(imageMenuItems(ImageTarget(item.att, item.src, item.name, item.type, item.cm), separatorAfter = false), haptic = false)
                     },
                 )
             },

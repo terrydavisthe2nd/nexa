@@ -1,3 +1,4 @@
+import { useNoDownloads } from "@/lib/mediaDownloads";
 import { ChevronLeft, ChevronRight, Download, ExternalLink, MessageSquare, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -77,6 +78,8 @@ function useItemSrc(item: LightboxItem): { src: string | null; failed: boolean; 
  * the side arrows, ← and →, or a swipe.
  */
 export function Lightbox({ items, start = 0, onClose }: { items: LightboxItem[]; start?: number; onClose: () => void }) {
+  // a media channel that hides downloads offers no save, copy or open here either
+  const noDownload = useNoDownloads();
   const count = items.length;
   const [index, setIndex] = useState(() => Math.min(Math.max(0, start), Math.max(0, count - 1)));
   const item = items[index] ?? items[0]!;
@@ -166,7 +169,7 @@ export function Lightbox({ items, start = 0, onClose }: { items: LightboxItem[];
           </span>
           )}
           {/* an SVG opened on its own is a page in this app's origin that can reach out to other servers */}
-          {src && !svg ? <a className={s.tool} href={src} target="_blank" rel="noopener noreferrer" onClick={(event) => {
+          {src && !svg && !noDownload ? <a className={s.tool} href={src} target="_blank" rel="noopener noreferrer" onClick={(event) => {
             const desktop = desktopBridge();
             if (!desktop?.openOriginal) return;
             event.preventDefault();
@@ -177,7 +180,7 @@ export function Lightbox({ items, start = 0, onClose }: { items: LightboxItem[];
               await desktop.openOriginal!(new Uint8Array(await file.arrayBuffer()), file.type, item.name);
             })().catch(() => useUI.getState().toast(t("chat.attachments.imageUnloadable"), "error"));
           }} aria-label={t("chat.attachments.openOriginal")} title={t("chat.attachments.openOriginal")}><ExternalLink size={20} /></a> : null}
-          {src ? <button type="button" className={s.tool} onClick={() => void saveImage(src, item.name).catch(() => useUI.getState().toast(t("chat.messageMenu.couldNotSaveThePicture"), "error"))} aria-label={t("chat.attachments.download")} title={t("chat.attachments.download")}><Download size={20} /></button> : null}
+          {src && !noDownload ? <button type="button" className={s.tool} onClick={() => void saveImage(src, item.name).catch(() => useUI.getState().toast(t("chat.messageMenu.couldNotSaveThePicture"), "error"))} aria-label={t("chat.attachments.download")} title={t("chat.attachments.download")}><Download size={20} /></button> : null}
           <button ref={closeBtn} type="button" className={[s.tool, s.close].join(" ")} aria-label={t("chat.attachments.close")} title={t("chat.attachments.close")} onClick={onClose}><X size={22} /></button>
         </div>
       </div>
@@ -247,6 +250,7 @@ export function Lightbox({ items, start = 0, onClose }: { items: LightboxItem[];
                 const att = item.att;
                 // copied and saved whole, even while the copy is what shows
                 const full = !src && att ? () => attachmentObjectURL(att, undefined, PRIORITY.open) : undefined;
+                if (noDownload) return;
                 imageMenu.open({ src: src ?? copy!, name: item.name, ...(full ? { full } : {}) }, { x: e.clientX, y: e.clientY });
               }}
             />

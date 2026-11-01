@@ -31,7 +31,8 @@ import { unlessUnsaved } from "@/stores/unsaved";
 import { isolate } from "./bidi";
 import { slug, typedChannelName } from "@/components/modals/CreateChannelModal";
 import { FormattedText } from "@/components/common/FormattedText";
-import { AUTO_ARCHIVE, autoArchiveLabel } from "@/lib/threads";
+import { AUTO_ARCHIVE, autoArchiveLabel, isForum } from "@/lib/threads";
+import { linkDestination } from "@/lib/linkChannel";
 const SLOWMODE = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600];
 const IntegrationsPage = lazyPage(() => import("./pages/IntegrationsPage"));
 
@@ -53,7 +54,7 @@ export default function ChannelSettingsModal({ onClose, channelId, page: initial
   const hooks = (channel.type === "text" || channel.type === "announcement") && canI(useServers.getState().byId[channel.server_id], P.MANAGE_WEBHOOKS, channel.id);
   const groups: NavGroup[] = [
     {
-      head: isolate((isCat || isThreadCh ? "" : "#") + channel.name),
+      head: isolate((isCat || isThreadCh || channel.type === "link" ? "" : "#") + channel.name),
       items: [
         { id: "overview", label: tr_("server.channelSettings.overview") },
         // a thread answers to its channel's permissions
@@ -90,7 +91,9 @@ interface ChannelEdits {
   layout?: "list" | "gallery";
   sort?: "activity" | "created";
   requireTag?: boolean;
+  hideDownloads?: boolean;
   applied?: string[];
+  url?: string;
 }
 
 /** A forum tag as it is being edited: one not saved yet has no id. */
@@ -121,12 +124,15 @@ function OverviewPage({ channel }: { channel: Channel }) {
   const [edits, setEdits] = useState<ChannelEdits>({});
   const [busy, setBusy] = useState(false);
   const thread = channel.type === "thread" || channel.type === "private_thread";
-  const forum = channel.type === "forum";
+  // a media channel is a forum of pictures and videos, always shown as a gallery
+  const forum = isForum(channel);
+  const media = channel.type === "media";
+  const link = channel.type === "link";
   const textLike = channel.type === "text" || channel.type === "announcement";
   // names are written as text channels' are: lower case, dashes for spaces
   const slugged = textLike || forum;
   const parent = useChannels((c) => (thread && channel.parent_id ? c.byId[channel.parent_id] : undefined));
-  const postTags = parent?.type === "forum" ? (parent.forum?.tags ?? []) : [];
+  const postTags = isForum(parent) ? (parent?.forum?.tags ?? []) : [];
   const savedTags: TagEdit[] = useMemo(() => (channel.forum?.tags ?? []).map((tg) => ({ id: tg.id, name: tg.name, emoji: tg.emoji, moderated: tg.moderated })), [channel.forum?.tags]);
   const name = edits.name ?? channel.name;
   const topic = edits.topic ?? channel.topic;
@@ -144,11 +150,13 @@ function OverviewPage({ channel }: { channel: Channel }) {
   const layout = edits.layout ?? channel.forum?.layout ?? "list";
   const sort = edits.sort ?? channel.forum?.sort ?? "activity";
   const requireTag = edits.requireTag ?? !!channel.forum?.require_tag;
+  const hideDownloads = edits.hideDownloads ?? !!channel.forum?.hide_downloads;
+  const url = edits.url ?? channel.url ?? "";
   const applied = edits.applied ?? channel.thread?.applied_tags ?? [];
   const set = (e: ChannelEdits) => setEdits((cur) => ({ ...cur, ...e }));
   const reset = () => setEdits({});
   const mayManageThreads = canI(server, P.MANAGE_THREADS, channel.id);
-  const forumDirty = forum && (!sameTags(tags, savedTags) || layout !== (channel.forum?.layout ?? "list") || sort !== (channel.forum?.sort ?? "activity") || requireTag !== !!channel.forum?.require_tag);
+  const forumDirty = forum && (!sameTags(tags, savedTags) || layout !== (channel.forum?.layout ?? "list") || sort !== (channel.forum?.sort ?? "activity") || requireTag !== !!channel.forum?.require_tag || (media && hideDownloads !== !!channel.forum?.hide_downloads));
   const dirty =
     name !== channel.name ||
     topic !== channel.topic ||
@@ -159,11 +167,18 @@ function OverviewPage({ channel }: { channel: Channel }) {
     (textLike && announce !== (channel.type === "announcement")) ||
     ((textLike || forum) && defaultArchive !== (channel.default_auto_archive ?? 4320)) ||
     (thread && (archive !== (channel.thread?.auto_archive ?? 4320) || locked !== !!channel.thread?.locked || !sameList(applied, channel.thread?.applied_tags ?? []))) ||
+    (link && url !== (channel.url ?? "")) ||
     forumDirty;
   const save = async () => {
+    const dest = link && url !== (channel.url ?? "") ? linkDestination(url) : null;
+    if (link && url !== (channel.url ?? "") && !dest) {
+      toast(tr_("channelLink.badAddress"), "error");
+      return;
+    }
     setBusy(true);
     try {
       const body: Parameters<typeof serversApi.patchChannel>[1] = {};
+      if (dest) body.url = dest.href;
       if (name !== channel.name) body.name = slugged ? slug(name) : name.trim();
       if (topic !== channel.topic) body.topic = topic;
       if (slow !== channel.slowmode_seconds) body.slowmode_seconds = slow;
@@ -178,7 +193,7 @@ function OverviewPage({ channel }: { channel: Channel }) {
         if (!sameList(applied, channel.thread?.applied_tags ?? [])) body.applied_tags = applied;
       }
       if (forumDirty) {
-        body.forum = { tags: tags.filter((tg) => tg.name.trim()).map((tg) => ({ ...(tg.id ? { id: tg.id } : {}), name: tg.name.trim(), emoji: tg.emoji, moderated: tg.moderated })), layout, sort, require_tag: requireTag };
+        body.forum = { tags: tags.filter((tg) => tg.name.trim()).map((tg) => ({ ...(tg.id ? { id: tg.id } : {}), name: tg.name.trim(), emoji: tg.emoji, moderated: tg.moderated })), layout: media ? "gallery" : layout, sort, require_tag: requireTag, ...(media ? { hide_downloads: hideDownloads } : {}) };
       }
       const ch = await serversApi.patchChannel(channel.id, body);
       upsert(ch);
@@ -203,6 +218,11 @@ function OverviewPage({ channel }: { channel: Channel }) {
             <TextInput value={name} onChange={(e) => set({ name: slugged ? typedChannelName(e.target.value) : e.target.value })} maxLength={100} data-testid="channel-settings-name" {...(slugged ? { autoCapitalize: "none", autoCorrect: "off", spellCheck: false } : {})} />
           </div>
         </Field>
+        {link ? (
+          <Field label={tr_("channelLink.address")} required hint={tr_("channelLink.addressHint")}>
+            <TextInput type="url" inputMode="url" value={url} onChange={(e) => set({ url: e.target.value })} placeholder="https://" maxLength={1024} autoCapitalize="none" spellCheck={false} dir="ltr" data-testid="channel-settings-url" />
+          </Field>
+        ) : null}
         {!thread ? (
           <Field as="div" label={channel.type === "category" ? tr_("server.channelIcon.categoryTitle") : tr_("server.channelIcon.title")} hint={channel.type === "category" ? tr_("server.channelIcon.categoryHint") : tr_("server.channelIcon.hint")}>
             <ChannelIconPicker channel={channel} value={glyph} onChange={(v) => set({ glyph: v })} onUploaded={(ch) => { upsert(ch); setEdits(({ glyph: _, ...rest }) => rest); }} label={channel.type === "category" ? tr_("server.channelIcon.categoryTitle") : tr_("server.channelIcon.title")} />
@@ -220,14 +240,19 @@ function OverviewPage({ channel }: { channel: Channel }) {
         {forum ? (
           <Toggle checked={requireTag} onChange={(v) => set({ requireTag: v })} label={tr_("forum.settings.requireTag")} description={tr_("forum.settings.requireTagDesc")} />
         ) : null}
+        {media ? (
+          <Toggle checked={hideDownloads} onChange={(v) => set({ hideDownloads: v })} label={tr_("media.settings.hideDownloads")} description={tr_("media.settings.hideDownloadsDesc")} />
+        ) : null}
         {forum ? (
           <div className={s.twoCol}>
-            <Field label={tr_("forum.settings.layout")}>
-              <Select value={layout} onChange={(e) => set({ layout: e.target.value as "list" | "gallery" })}>
-                <option value="list">{tr_("forum.layout.list")}</option>
-                <option value="gallery">{tr_("forum.layout.gallery")}</option>
-              </Select>
-            </Field>
+            {!media ? (
+              <Field label={tr_("forum.settings.layout")}>
+                <Select value={layout} onChange={(e) => set({ layout: e.target.value as "list" | "gallery" })}>
+                  <option value="list">{tr_("forum.layout.list")}</option>
+                  <option value="gallery">{tr_("forum.layout.gallery")}</option>
+                </Select>
+              </Field>
+            ) : null}
             <Field label={tr_("forum.settings.sort")}>
               <Select value={sort} onChange={(e) => set({ sort: e.target.value as "activity" | "created" })}>
                 <option value="activity">{tr_("forum.sort.activity")}</option>
@@ -519,7 +544,7 @@ function PermissionsPage({ channel, serverId }: { channel: Channel; serverId: st
               {wantPrivate ? <span className={s.lockNote}><Lock size={14} /> {tr_("server.channelSettings.addRolesOrMembersOnThe")}</span> : null}
             </div>
           ) : null}
-          <OverwriteGrid allow={allow} deny={deny} editable={editable} grantable={grantable} channelType={channel.type as "text" | "voice" | "category"} onChange={(a, d) => { setAllow(a); setDeny(d); }} />
+          <OverwriteGrid allow={allow} deny={deny} editable={editable} grantable={grantable} channelType={channel.type} onChange={(a, d) => { setAllow(a); setDeny(d); }} />
           <SaveBar dirty={dirty} busy={busy} onReset={() => { setAllow(current ? parsePerm(current.allow) : 0n); setDeny(current ? parsePerm(current.deny) : 0n); }} onSave={() => void save()} />
         </div>
       </div>

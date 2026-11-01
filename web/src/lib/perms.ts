@@ -60,7 +60,8 @@ export const DEFAULT_EVERYONE: bigint =
 export const TIMED_OUT_KEEP: bigint = P.VIEW_CHANNEL | P.READ_MESSAGE_HISTORY;
 
 /** The kinds of channel a permission matters in, for the channel permission editor. */
-export type PermChannelKind = "text" | "voice" | "forum";
+/** The kinds of channel a permission means something in; a media channel is a forum, a link only shows or hides. */
+export type PermChannelKind = "text" | "voice" | "forum" | "link";
 
 /** Permissions shown in the role and channel editors, in groups. */
 export function permGroups(): { group: string; items: { name: PermName; label: string; description: string; channel?: PermChannelKind[] }[] }[] {
@@ -68,9 +69,9 @@ export function permGroups(): { group: string; items: { name: PermName; label: s
   {
     group: t("perms.generalServerPermissions"),
     items: [
-      { name: "VIEW_CHANNEL", label: t("perms.viewChannels"), description: t("perms.allowsMembersToViewChannelsBy"), channel: ["text", "voice", "forum"] },
-      { name: "MANAGE_CHANNELS", label: t("perms.manageChannels"), description: t("perms.allowsMembersToCreateEditOr"), channel: ["text", "voice", "forum"] },
-      { name: "MANAGE_ROLES", label: t("perms.manageRoles"), description: t("perms.allowsMembersToCreateNewRoles"), channel: ["text", "voice", "forum"] },
+      { name: "VIEW_CHANNEL", label: t("perms.viewChannels"), description: t("perms.allowsMembersToViewChannelsBy"), channel: ["text", "voice", "forum", "link"] },
+      { name: "MANAGE_CHANNELS", label: t("perms.manageChannels"), description: t("perms.allowsMembersToCreateEditOr"), channel: ["text", "voice", "forum", "link"] },
+      { name: "MANAGE_ROLES", label: t("perms.manageRoles"), description: t("perms.allowsMembersToCreateNewRoles"), channel: ["text", "voice", "forum", "link"] },
       { name: "CREATE_EXPRESSIONS", label: t("perms.createExpressions"), description: t("perms.createExpressionsDescription") },
       { name: "MANAGE_EMOJIS", label: t("perms.manageExpressions"), description: t("perms.allowsMembersToAddOrRemove") },
       { name: "MANAGE_WEBHOOKS", label: t("perms.manageWebhooks"), description: t("perms.manageWebhooksDescription"), channel: ["text"] },

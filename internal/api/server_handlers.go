@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"evilion.xyz/chat/internal/auth"
 	"evilion.xyz/chat/internal/ids"
@@ -749,10 +751,32 @@ func cleanChannelName(name, typ string) (string, bool) {
 	if !ok || clean == "" {
 		return "", false
 	}
-	if typ == "text" || typ == store.ChannelAnnouncement || typ == store.ChannelForum {
+	if typ == "text" || typ == store.ChannelAnnouncement || store.IsForum(typ) {
 		clean = strings.ToLower(strings.Join(strings.Fields(clean), "-"))
 	}
 	return clean, true
+}
+
+// maxLinkChannelURL is the longest address a link channel may lead to.
+const maxLinkChannelURL = 1024
+
+// cleanLinkURL checks the address a link channel opens: a whole http or
+// https address with a host and no user name or password in it, which the
+// apps show in full before they open it.
+func cleanLinkURL(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(raw) > maxLinkChannelURL || strings.ContainsFunc(raw, func(r rune) bool { return r < 0x20 || r == 0x7f || unicode.IsSpace(r) }) {
+		return "", false
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Hostname() == "" || u.User != nil || u.Opaque != "" {
+		return "", false
+	}
+	out := u.String()
+	if len(out) > maxLinkChannelURL {
+		return "", false
+	}
+	return out, true
 }
 
 func (s *Server) handleServerChannelCreate(w http.ResponseWriter, r *http.Request) {
@@ -764,18 +788,30 @@ func (s *Server) handleServerChannelCreate(w http.ResponseWriter, r *http.Reques
 		Type     string  `json:"type"`
 		Name     string  `json:"name"`
 		ParentID *ids.ID `json:"parent_id"`
+		// URL is where a link channel leads; required for one, refused for the rest.
+		URL string `json:"url"`
 	}
 	if err := ReadJSON(w, r, &req, 4<<10); err != nil {
 		WriteError(w, err)
 		return
 	}
-	if !OneOf(req.Type, "text", "voice", "category", store.ChannelAnnouncement, store.ChannelForum) {
-		WriteError(w, E(http.StatusBadRequest, "invalid_type", "type must be text, voice, announcement, forum or category."))
+	if !OneOf(req.Type, "text", "voice", "category", store.ChannelAnnouncement, store.ChannelForum, store.ChannelMedia, store.ChannelLink) {
+		WriteError(w, E(http.StatusBadRequest, "invalid_type", "type must be text, voice, announcement, forum, media, link or category."))
 		return
 	}
 	name, ok := cleanChannelName(req.Name, req.Type)
 	if !ok {
 		WriteError(w, E(http.StatusBadRequest, "invalid_name", "Channel names are 1–100 characters."))
+		return
+	}
+	linkURL := ""
+	if req.Type == store.ChannelLink {
+		if linkURL, ok = cleanLinkURL(req.URL); !ok {
+			WriteError(w, E(http.StatusBadRequest, "invalid_url", "A link channel needs a full web address starting with https:// or http://."))
+			return
+		}
+	} else if strings.TrimSpace(req.URL) != "" {
+		WriteError(w, E(http.StatusBadRequest, "invalid_url", "Only a link channel has an address."))
 		return
 	}
 	var parent *store.Channel
@@ -807,7 +843,7 @@ func (s *Server) handleServerChannelCreate(w http.ResponseWriter, r *http.Reques
 		WriteError(w, err)
 		return
 	}
-	ch, err := s.Store.CreateServerChannel(r.Context(), srv.ID, req.Type, name, req.ParentID)
+	ch, err := s.Store.CreateServerChannel(r.Context(), srv.ID, req.Type, name, req.ParentID, linkURL)
 	if errors.Is(err, store.ErrTooMany) {
 		WriteError(w, E(http.StatusBadRequest, "too_many_channels", "A server can have at most 500 channels."))
 		return
@@ -828,7 +864,11 @@ func (s *Server) handleServerChannelCreate(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
-	s.audit(r, srv.ID, me.ID, "channel_create", "channel", &ch.ID, map[string]any{"name": name, "type": req.Type}, "")
+	created := map[string]any{"name": name, "type": req.Type}
+	if linkURL != "" {
+		created["url"] = linkURL
+	}
+	s.audit(r, srv.ID, me.ID, "channel_create", "channel", &ch.ID, created, "")
 	s.syncVisibility(r.Context(), srv.ID, before)
 	if own {
 		// the maker's app makes the key at once, as for a channel made private
@@ -994,6 +1034,7 @@ func (s *Server) handleServerChannelPatch(w http.ResponseWriter, r *http.Request
 		Type               *string              `json:"type"`
 		DefaultAutoArchive *int                 `json:"default_auto_archive"`
 		Forum              *store.ForumSettings `json:"forum"`
+		URL                *string              `json:"url"`
 	}
 	if err := ReadJSON(w, r, &req, 64<<10); err != nil {
 		WriteError(w, err)
@@ -1013,7 +1054,7 @@ func (s *Server) handleServerChannelPatch(w http.ResponseWriter, r *http.Request
 	if req.Topic != nil {
 		// a forum's topic is its post guidelines, which run longer
 		limit := maxTopic
-		if ch.Type == store.ChannelForum {
+		if store.IsForum(ch.Type) {
 			limit = maxForumTopic
 		}
 		topic, ok := CleanText(*req.Topic, limit)
@@ -1049,8 +1090,8 @@ func (s *Server) handleServerChannelPatch(w http.ResponseWriter, r *http.Request
 		changes["default_auto_archive"] = *req.DefaultAutoArchive
 	}
 	if req.Forum != nil {
-		if ch.Type != store.ChannelForum {
-			WriteError(w, E(http.StatusBadRequest, "not_forum", "Only a forum has forum settings."))
+		if !store.IsForum(ch.Type) {
+			WriteError(w, E(http.StatusBadRequest, "not_forum", "Only a forum or media channel has forum settings."))
 			return
 		}
 		f, ferr := cleanForum(ch.Forum, req.Forum)
@@ -1064,8 +1105,30 @@ func (s *Server) handleServerChannelPatch(w http.ResponseWriter, r *http.Request
 				return
 			}
 		}
+		if ch.Type == store.ChannelMedia {
+			f.Layout = "gallery"
+		} else {
+			f.HideDownloads = false
+		}
 		patch.Forum = f
-		changes["forum"] = map[string]any{"tags": len(f.Tags), "require_tag": f.RequireTag, "sort": f.Sort, "layout": f.Layout, "default_reaction": f.DefaultReaction}
+		forumChange := map[string]any{"tags": len(f.Tags), "require_tag": f.RequireTag, "sort": f.Sort, "layout": f.Layout, "default_reaction": f.DefaultReaction}
+		if ch.Type == store.ChannelMedia {
+			forumChange["hide_downloads"] = f.HideDownloads
+		}
+		changes["forum"] = forumChange
+	}
+	if req.URL != nil {
+		if ch.Type != store.ChannelLink {
+			WriteError(w, E(http.StatusBadRequest, "invalid_url", "Only a link channel has an address."))
+			return
+		}
+		u, ok := cleanLinkURL(*req.URL)
+		if !ok {
+			WriteError(w, E(http.StatusBadRequest, "invalid_url", "A link channel needs a full web address starting with https:// or http://."))
+			return
+		}
+		patch.URL = &u
+		changes["url"] = u
 	}
 	if req.NSFW != nil {
 		patch.NSFW = req.NSFW
@@ -2541,9 +2604,9 @@ func (s *Server) handleInviteCreate(w http.ResponseWriter, r *http.Request) {
 	} else if ch.ServerID == nil {
 		WriteError(w, ErrNotFound)
 		return
-	} else if ch.Type == "category" {
-		// an invite lands its guest in a channel, and a category is not one
-		WriteError(w, E(http.StatusBadRequest, "not_text", "Invite people to a channel, not a category."))
+	} else if store.HoldsNoMessages(ch.Type) {
+		// an invite lands its guest in a channel, and a category or a link is not one
+		WriteError(w, E(http.StatusBadRequest, "not_text", "Invite people to a channel, not a category or a link."))
 		return
 	} else {
 		p, _, err := s.Store.ChannelPerms(r.Context(), ch.ID, me.ID)
