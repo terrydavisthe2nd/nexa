@@ -7250,6 +7250,8 @@
   "nameStyle.motion": "Rörelse",
   "nameStyle.static": "Statisk",
   "nameStyle.animated": "Animerad",
+  "profile.profileCard.viewBanner": "Visa banner",
+  "profile.profileCard.viewProfilePicture": "Visa profilbild",
   "whatsNew.r202610284.nameMotionTitle": "Animerade Namnstilar",
   "whatsNew.r202610284.nameMotionBody": "Låt övertoningar flöda, godisränder röra sig och namneffekter pulsera. Välj Statisk eller Animerad i Inställningar, Profiler, Namnstil; stäng av Animera namn under Utseende för att hålla allas namn stilla.",
   "settings.appearance.animateNames": "Animera namn",
@@ -7408,5 +7410,7 @@
   "whatsNew.r20261031.duplicateRoleBody": "Duplicera roll skapar en ny roll med samma namn, färger och behörigheter, redo att justera. Du hittar det på rollen eller i högerklicksmenyn.",
   "whatsNew.r20261031.duplicateRoleTitle": "Duplicera roller",
   "whatsNew.r20261031.viewAsRoleBody": "Se vilka kanaler och åtgärder en roll får innan du delar ut den. Öppna Serverinställningar, Roller, och välj Visa servern som roll.",
-  "whatsNew.r20261031.viewAsRoleTitle": "Visa servern som roll"
+  "whatsNew.r20261031.viewAsRoleTitle": "Visa servern som roll",
+  "whatsNew.r20261101.avatarViewerBody": "Tryck på någons bild eller banner i hela profilen för att öppna den i bildvisaren, där du kan zooma, spara eller kopiera den.",
+  "whatsNew.r20261101.avatarViewerTitle": "Större bilder och banners"
 }

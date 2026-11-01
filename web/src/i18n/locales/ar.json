@@ -8108,6 +8108,8 @@
   "nameStyle.motion": "الحركة",
   "nameStyle.static": "ثابت",
   "nameStyle.animated": "متحرك",
+  "profile.profileCard.viewBanner": "عرض اللافتة",
+  "profile.profileCard.viewProfilePicture": "عرض صورة الملف الشخصي",
   "whatsNew.r202610284.nameMotionTitle": "أنماط أسماء متحركة",
   "whatsNew.r202610284.nameMotionBody": "اجعل التدرجات تنساب وخطوط الحلوى تتحرك وتأثيرات الاسم تنبض. اختر ثابت أو متحرك في الإعدادات، الملفات الشخصية، نمط الاسم; أوقف تحريك الأسماء في المظهر لإبقاء أسماء الجميع ثابتة.",
   "settings.appearance.animateNames": "تحريك الأسماء",
@@ -8266,5 +8268,7 @@
   "whatsNew.r20261031.duplicateRoleBody": "ينشئ تكرار الدور دورًا جديدًا بالاسم والألوان والأذونات نفسها، جاهزًا للتعديل. تجده في الدور أو في قائمة النقر بزر الماوس الأيمن.",
   "whatsNew.r20261031.duplicateRoleTitle": "تكرار الأدوار",
   "whatsNew.r20261031.viewAsRoleBody": "تحقق من القنوات والإجراءات التي يحصل عليها الدور قبل منحه. افتح إعدادات الخادم، الأدوار، واختر عرض الخادم بصفة الدور.",
-  "whatsNew.r20261031.viewAsRoleTitle": "عرض الخادم بصفة دور"
+  "whatsNew.r20261031.viewAsRoleTitle": "عرض الخادم بصفة دور",
+  "whatsNew.r20261101.avatarViewerBody": "اضغط على صورة أي شخص أو لافتته في ملفه الشخصي الكامل لفتحها في عارض الصور، حيث يمكنك تكبيرها أو حفظها أو نسخها.",
+  "whatsNew.r20261101.avatarViewerTitle": "صور ولافتات أكبر"
 }

@@ -75,6 +75,8 @@
 }
 /* light falls on the banner from above and it dims towards the card, so it sits in the card rather than on it */
 .banner::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 30%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.22) 100%); pointer-events: none; }
+.bannerView { display: block; width: 100%; padding: 0; border: 0; cursor: zoom-in; }
+.bannerView:focus-visible { outline: 2px solid var(--profile-accent); outline-offset: -2px; }
 /* the hole follows the avatar to the right-hand side in a right-to-left language */
 [dir="rtl"] .banner {
   -webkit-mask-image: radial-gradient(circle at calc(100% - var(--av-left) - var(--av) / 2) calc(100% - var(--av) * 0.1), transparent var(--hole), #000 calc(var(--hole) + 0.5px));

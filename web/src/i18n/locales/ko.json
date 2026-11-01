@@ -7013,6 +7013,8 @@
   "nameStyle.motion": "움직임",
   "nameStyle.static": "정적",
   "nameStyle.animated": "애니메이션",
+  "profile.profileCard.viewBanner": "배너 보기",
+  "profile.profileCard.viewProfilePicture": "프로필 사진 보기",
   "whatsNew.r202610284.nameMotionTitle": "이름 스타일 애니메이션",
   "whatsNew.r202610284.nameMotionBody": "그라데이션이 흐르고 캔디 줄무늬가 움직이며 이름 효과가 맥동합니다. 설정, 프로필, 이름 스타일에서 정적 또는 애니메이션을 선택하세요; 모든 이름을 정적으로 표시하려면 외관에서 이름 애니메이션을 끄세요.",
   "settings.appearance.animateNames": "이름 애니메이션 사용",
@@ -7171,5 +7173,7 @@
   "whatsNew.r20261031.duplicateRoleBody": "역할 복제는 같은 이름, 색상, 권한을 가진 새 역할을 만들어 바로 다듬을 수 있게 해요. 역할 화면이나 우클릭 메뉴에 있어요.",
   "whatsNew.r20261031.duplicateRoleTitle": "역할 복제",
   "whatsNew.r20261031.viewAsRoleBody": "역할을 주기 전에 어떤 채널과 기능을 쓸 수 있는지 확인하세요. 서버 설정, 역할에서 역할로 서버 보기를 고르면 돼요.",
-  "whatsNew.r20261031.viewAsRoleTitle": "역할로 서버 보기"
+  "whatsNew.r20261031.viewAsRoleTitle": "역할로 서버 보기",
+  "whatsNew.r20261101.avatarViewerBody": "전체 프로필에서 사진이나 배너를 탭하면 이미지 뷰어에서 열려 확대하거나 저장, 복사할 수 있어요.",
+  "whatsNew.r20261101.avatarViewerTitle": "더 크게 보는 사진과 배너"
 }

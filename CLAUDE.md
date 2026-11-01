@@ -254,7 +254,7 @@ headless in about 30 seconds. On the Mac the equivalent AVD is `nexa36`, which t
 ADB=$HOME/android/sdk/platform-tools/adb
 (cd android && ./gradlew :app:assembleDebug -PserverUrl=http://127.0.0.1:$PORT)   # JAVA_HOME, ANDROID_HOME as above
 $HOME/android/sdk/emulator/emulator -avd nexa_test -no-window -no-audio -no-boot-anim \
-  -no-snapshot-save -gpu swiftshader_indirect       # in the background
+  -no-snapshot-save -gpu swangle_indirect           # in the background (swiftshader_indirect segfaults on profiles)
 $ADB wait-for-device                                # then poll until `$ADB shell getprop sys.boot_completed` is 1
 $ADB install -r android/app/build/outputs/apk/debug/app-x86_64-debug.apk
 $ADB reverse tcp:$PORT tcp:$PORT
@@ -1293,6 +1293,7 @@ a server's apps `server/pages/AppsSection.tsx`, the consent page `pages/Authoriz
   `PartGroup` and `PartRow`) shows every part of the profile as a row, in a panel beside the profile
   when there is room (`PANEL_BESIDE`, folding remembered as `nexa.profilePanelFolded`) and above it
   otherwise.
+- In a full profile (not the popout or the designer) the avatar and banner open the picture viewer on the original upload: web `ProfileCard.tsx` (`viewing`, the `Lightbox` from `chat/Lightbox.tsx`), Android `ProfileCard.kt` (`onAvatar`, `onBanner` into `openLightbox`, `Media.avatarOriginalUrl`, `bannerOriginalUrl`).
 - Activity cards (`components/activity/ActivityCard.tsx`, Android `ui/profile/ActivityCard.kt`) scroll
   long text with `ScrollingText`. Their links show the real canonical host beneath custom labels, need a
   full-URL review before opening (middle clicks included; Android's confirm sheet), and act only for

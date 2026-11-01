@@ -53,7 +53,13 @@ object Media {
 
     // &v=3 replaces cached still GIFs and incorrectly oriented photo variants
     // with copies made by the corrected server (api/users.ts MOVING).
+    /** The avatar as uploaded, for the picture viewer (avatarUrl(id) with no size on the web). */
+    fun avatarOriginalUrl(id: String?): String? = id?.let { "${base()}/media/avatar/$it?v=3" }
+
     fun avatarUrl(id: String?, css: Int, density: Float): String? = id?.let { "${base()}/media/avatar/$it?size=${sized(css, density)}&v=3" + still("animateAvatars") }
+    /** The banner as uploaded, for the picture viewer. */
+    fun bannerOriginalUrl(id: String?): String? = id?.let { "${base()}/media/banner/$it?v=3" }
+
     fun bannerUrl(id: String?, css: Int, density: Float): String? = id?.let { "${base()}/media/banner/$it?size=${sized(css, density)}&v=3" + still("animateBanners") }
     fun iconUrl(id: String?, css: Int, density: Float): String? = id?.let { "${base()}/media/icon/$it?size=${sized(css, density)}&v=3" + still("animateIcons") }
     fun emojiUrl(blobId: String, css: Int, density: Float, still: Boolean = false): String =

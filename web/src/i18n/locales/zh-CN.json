@@ -7013,6 +7013,8 @@
   "nameStyle.motion": "动态效果",
   "nameStyle.static": "静态",
   "nameStyle.animated": "动画",
+  "profile.profileCard.viewBanner": "查看横幅",
+  "profile.profileCard.viewProfilePicture": "查看头像",
   "whatsNew.r202610284.nameMotionTitle": "名字样式动画",
   "whatsNew.r202610284.nameMotionBody": "让渐变流动、糖果条纹移动、名字特效轻轻闪动。在设置、个人资料、名字样式中选择静态或动画、 在外观中关闭名字动画，即可让所有人的名字保持静态。",
   "settings.appearance.animateNames": "播放名字动画",
@@ -7171,5 +7173,7 @@
   "whatsNew.r20261031.duplicateRoleBody": "“复制身份组”会创建一个名称、颜色和权限都相同的新身份组，方便你再调整。在身份组页面或右键菜单中可以找到。",
   "whatsNew.r20261031.duplicateRoleTitle": "复制身份组",
   "whatsNew.r20261031.viewAsRoleBody": "在分配身份组之前，先看看它能看到哪些频道、能做哪些操作。打开服务器设置中的身份组，选择“以身份组查看服务器”。",
-  "whatsNew.r20261031.viewAsRoleTitle": "以身份组查看服务器"
+  "whatsNew.r20261031.viewAsRoleTitle": "以身份组查看服务器",
+  "whatsNew.r20261101.avatarViewerBody": "在完整资料中点按某人的头像或横幅，即可在图片查看器中打开，可以放大、保存或复制。",
+  "whatsNew.r20261101.avatarViewerTitle": "查看大头像和横幅"
 }

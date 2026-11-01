@@ -94,6 +94,8 @@ import fish.nexa.data.People
 import fish.nexa.data.Perms
 import fish.nexa.data.Send
 import fish.nexa.media.Media
+import fish.nexa.ui.media.LightboxItem
+import fish.nexa.ui.media.openLightbox
 import fish.nexa.net.Member
 import fish.nexa.net.PublicUser
 import fish.nexa.net.Relationship
@@ -362,6 +364,8 @@ private fun ProfileTop(
     bannerCss: Int,
     onAvatar: (() -> Unit)?,
     design: ProfileDesign? = null,
+    avatarLabel: String? = null,
+    onBanner: (() -> Unit)? = null,
     buttons: @Composable RowScope.() -> Unit,
 ) {
     val c = Nx.colors
@@ -374,7 +378,12 @@ private fun ProfileTop(
                 design, ProfilePart.BANNER, if (user.bannerId != null) t("designer.spot.banner") else t("designer.spot.addBanner"),
                 Modifier.fillMaxWidth().height(bannerH), kind = SpotKind.BANNER,
             ) {
-                Banner(user, theme, bannerCss, avLeft + av / 2, bannerH - av * 0.1f, av / 2 + ring, Modifier.fillMaxSize())
+                Banner(
+                    user, theme, bannerCss, avLeft + av / 2, bannerH - av * 0.1f, av / 2 + ring,
+                    if (onBanner != null) Modifier.fillMaxSize().pressable(remember { MutableInteractionSource() }, onClick = onBanner)
+                        .semantics { contentDescription = t("profile.profileCard.viewBanner") }
+                    else Modifier.fillMaxSize(),
+                )
             }
             Row(Modifier.align(Alignment.TopEnd).padding(top = 7.dp, end = 7.dp), content = buttons)
             Box(Modifier.padding(start = avLeft).offset(y = bannerH - av * 0.6f)) {
@@ -385,7 +394,7 @@ private fun ProfileTop(
                             .then(
                                 // not clipped to the circle: the status dot sits over its edge
                                 if (onAvatar != null) Modifier.pressable(remember { MutableInteractionSource() }, onClick = onAvatar)
-                                    .semantics { contentDescription = t("profile.profileCard.viewFullProfileOf", "name" to Names.display(user)) }
+                                    .semantics { contentDescription = avatarLabel ?: t("profile.profileCard.viewFullProfileOf", "name" to Names.display(user)) }
                                 else Modifier,
                             ),
                     ) {
@@ -1294,8 +1303,14 @@ fun FullProfileCard(
         val p = LocalProfile.current
         ProfileTop(
             user, look.theme, av = 120.dp, ring = 7.dp, avLeft = 24.dp, dot = 26.dp,
-            status = status, custom = custom, statusLines = 3, bannerCss = 600, onAvatar = null,
-            design = design,
+            status = status, custom = custom, statusLines = 3, bannerCss = 600,
+            onAvatar = if (design != null || user.avatarId == null) null else ({
+                Media.avatarOriginalUrl(user.avatarId)?.let { openLightbox(listOf(LightboxItem(Names.display(user), src = it)), 0) }
+            }),
+            design = design, avatarLabel = t("profile.profileCard.viewProfilePicture"),
+            onBanner = if (design != null || user.bannerId == null) null else ({
+                Media.bannerOriginalUrl(user.bannerId)?.let { openLightbox(listOf(LightboxItem(Names.display(user), src = it)), 0) }
+            }),
         ) {
             if (!embedded) BannerButton("X", t("chat.attachments.close")) { close() }
         }

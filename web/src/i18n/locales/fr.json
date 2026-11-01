@@ -7363,6 +7363,8 @@
   "nameStyle.motion": "Mouvement",
   "nameStyle.static": "Statique",
   "nameStyle.animated": "Animé",
+  "profile.profileCard.viewBanner": "Voir la bannière",
+  "profile.profileCard.viewProfilePicture": "Voir la photo de profil",
   "whatsNew.r202610284.nameMotionTitle": "Styles de Nom Animés",
   "whatsNew.r202610284.nameMotionBody": "Anime les dégradés, les rayures bonbon et les effets de ton nom. Choisis Statique ou Animé dans Paramètres, Profils, Style du Nom; désactive Animer les noms dans Apparence pour garder tous les noms immobiles.",
   "settings.appearance.animateNames": "Animer les noms",
@@ -7521,5 +7523,7 @@
   "whatsNew.r20261031.duplicateRoleBody": "Dupliquer le rôle crée un nouveau rôle avec le même nom, les mêmes couleurs et permissions, prêt à ajuster. Il se trouve sur le rôle ou dans son menu clic droit.",
   "whatsNew.r20261031.duplicateRoleTitle": "Dupliquer des rôles",
   "whatsNew.r20261031.viewAsRoleBody": "Vérifiez quels salons et actions un rôle obtient avant de le donner. Ouvrez Paramètres du serveur, Rôles, puis Voir le serveur en tant que rôle.",
-  "whatsNew.r20261031.viewAsRoleTitle": "Voir le serveur en tant que rôle"
+  "whatsNew.r20261031.viewAsRoleTitle": "Voir le serveur en tant que rôle",
+  "whatsNew.r20261101.avatarViewerBody": "Touchez la photo ou la bannière de quelqu'un dans son profil complet pour l'ouvrir dans la visionneuse, où vous pouvez zoomer, l'enregistrer ou la copier.",
+  "whatsNew.r20261101.avatarViewerTitle": "Photos et bannières en grand"
 }

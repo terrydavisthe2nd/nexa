@@ -7363,6 +7363,8 @@
   "nameStyle.motion": "Movimiento",
   "nameStyle.static": "Estático",
   "nameStyle.animated": "Animado",
+  "profile.profileCard.viewBanner": "Ver banner",
+  "profile.profileCard.viewProfilePicture": "Ver foto de perfil",
   "whatsNew.r202610284.nameMotionTitle": "Estilos de Nombre Animados",
   "whatsNew.r202610284.nameMotionBody": "Haz que los degradados fluyan, las franjas de caramelo se muevan y los efectos del nombre pulsen. Elige Estático o Animado en Ajustes, Perfiles, Estilo del Nombre; desactiva Animar nombres en Apariencia para que todos los nombres permanezcan estáticos.",
   "settings.appearance.animateNames": "Animar nombres",
@@ -7521,5 +7523,7 @@
   "whatsNew.r20261031.duplicateRoleBody": "Duplicar rol crea un rol nuevo con el mismo nombre, colores y permisos, listo para ajustar. Está en el rol o en su menú de clic derecho.",
   "whatsNew.r20261031.duplicateRoleTitle": "Duplicar roles",
   "whatsNew.r20261031.viewAsRoleBody": "Comprueba qué canales y acciones obtiene un rol antes de darlo. Abre Ajustes del servidor, Roles, y elige Ver servidor como rol.",
-  "whatsNew.r20261031.viewAsRoleTitle": "Ver servidor como rol"
+  "whatsNew.r20261031.viewAsRoleTitle": "Ver servidor como rol",
+  "whatsNew.r20261101.avatarViewerBody": "Toca la foto o el banner de alguien en su perfil completo para abrirlo en el visor de imágenes, donde puedes ampliarlo, guardarlo o copiarlo.",
+  "whatsNew.r20261101.avatarViewerTitle": "Fotos y banners más grandes"
 }

@@ -7364,6 +7364,8 @@
   "nameStyle.motion": "Movimento",
   "nameStyle.static": "Estático",
   "nameStyle.animated": "Animado",
+  "profile.profileCard.viewBanner": "Ver banner",
+  "profile.profileCard.viewProfilePicture": "Ver foto de perfil",
   "whatsNew.r202610284.nameMotionTitle": "Estilos de Nome Animados",
   "whatsNew.r202610284.nameMotionBody": "Faça os degradês fluírem, as listras de doce se moverem e os efeitos do nome pulsarem. Escolha Estático ou Animado em Configurações, Perfis, Estilo do Nome; desative Animar nomes em Aparência para manter todos os nomes parados.",
   "settings.appearance.animateNames": "Animar nomes",
@@ -7522,5 +7524,7 @@
   "whatsNew.r20261031.duplicateRoleBody": "Duplicar cargo cria um cargo novo com o mesmo nome, cores e permissões, pronto para ajustar. Fica no cargo ou no menu do botão direito.",
   "whatsNew.r20261031.duplicateRoleTitle": "Duplicar cargos",
   "whatsNew.r20261031.viewAsRoleBody": "Veja quais canais e ações um cargo recebe antes de entregá-lo. Abra Configurações do servidor, Cargos, e escolha Ver servidor como cargo.",
-  "whatsNew.r20261031.viewAsRoleTitle": "Ver servidor como cargo"
+  "whatsNew.r20261031.viewAsRoleTitle": "Ver servidor como cargo",
+  "whatsNew.r20261101.avatarViewerBody": "Toque na foto ou no banner de alguém no perfil completo para abrir no visualizador de imagens, onde você pode ampliar, salvar ou copiar.",
+  "whatsNew.r20261101.avatarViewerTitle": "Fotos e banners maiores"
 }

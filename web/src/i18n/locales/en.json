@@ -7250,6 +7250,8 @@
   "nameStyle.motion": "Motion",
   "nameStyle.static": "Static",
   "nameStyle.animated": "Animated",
+  "profile.profileCard.viewBanner": "View Banner",
+  "profile.profileCard.viewProfilePicture": "View Profile Picture",
   "whatsNew.r202610284.nameMotionTitle": "Animated Name Styles",
   "whatsNew.r202610284.nameMotionBody": "Make gradients flow, candy stripes move and name effects pulse. Choose Static or Animated in Settings, Profiles, Name Style; turn off Animate names in Appearance to keep everyone’s names still.",
   "settings.appearance.animateNames": "Animate names",
@@ -7408,5 +7410,7 @@
   "whatsNew.r20261031.duplicateRoleBody": "Duplicate Role makes a new role with the same name, colours and permissions, ready to tweak. Find it on the role or in its right-click menu.",
   "whatsNew.r20261031.duplicateRoleTitle": "Duplicate Roles",
   "whatsNew.r20261031.viewAsRoleBody": "Check which channels and actions a role gets before you hand it out. Open Server Settings, Roles, and pick View Server as Role on any role.",
-  "whatsNew.r20261031.viewAsRoleTitle": "View Server as Role"
+  "whatsNew.r20261031.viewAsRoleTitle": "View Server as Role",
+  "whatsNew.r20261101.avatarViewerBody": "Tap someone's picture or banner in their full profile to open it in the image viewer, where you can zoom in, save it or copy it.",
+  "whatsNew.r20261101.avatarViewerTitle": "Bigger Pictures and Banners"
 }

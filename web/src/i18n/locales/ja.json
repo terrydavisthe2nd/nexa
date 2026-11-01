@@ -7013,6 +7013,8 @@
   "nameStyle.motion": "動き",
   "nameStyle.static": "静止",
   "nameStyle.animated": "アニメーション",
+  "profile.profileCard.viewBanner": "バナーを表示",
+  "profile.profileCard.viewProfilePicture": "プロフィール画像を表示",
   "whatsNew.r202610284.nameMotionTitle": "名前スタイルのアニメーション",
   "whatsNew.r202610284.nameMotionBody": "グラデーションが流れ、キャンディの縞が動き、名前のエフェクトが脈打ちます。設定、プロフィール、名前のスタイルで静止かアニメーションを選べます、 外観で名前のアニメーションをオフにすると、全員の名前が静止表示になります。",
   "settings.appearance.animateNames": "名前をアニメーション表示する",
@@ -7171,5 +7173,7 @@
   "whatsNew.r20261031.duplicateRoleBody": "「ロールを複製」で、同じ名前・色・権限の新しいロールを作り、すぐに調整できます。ロールの画面か右クリックメニューにあります。",
   "whatsNew.r20261031.duplicateRoleTitle": "ロールの複製",
   "whatsNew.r20261031.viewAsRoleBody": "ロールを付ける前に、使えるチャンネルや操作を確認できます。サーバー設定のロールで「ロールとしてサーバーを表示」を選んでください。",
-  "whatsNew.r20261031.viewAsRoleTitle": "ロールとしてサーバーを表示"
+  "whatsNew.r20261031.viewAsRoleTitle": "ロールとしてサーバーを表示",
+  "whatsNew.r20261101.avatarViewerBody": "プロフィール全体の画面で画像やバナーをタップすると画像ビューアーで開き、拡大や保存、コピーができます。",
+  "whatsNew.r20261101.avatarViewerTitle": "プロフィール画像とバナーを大きく表示"
 }

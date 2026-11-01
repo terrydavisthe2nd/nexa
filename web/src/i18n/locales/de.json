@@ -7250,6 +7250,8 @@
   "nameStyle.motion": "Bewegung",
   "nameStyle.static": "Statisch",
   "nameStyle.animated": "Animiert",
+  "profile.profileCard.viewBanner": "Banner anzeigen",
+  "profile.profileCard.viewProfilePicture": "Profilbild anzeigen",
   "whatsNew.r202610284.nameMotionTitle": "Animierte Namensstile",
   "whatsNew.r202610284.nameMotionBody": "Lass Farbverläufe fließen, Bonbonstreifen wandern und Namenseffekte pulsieren. Wähle Statisch oder Animiert unter Einstellungen, Profile, Namensstil; schalte Namen animieren unter Erscheinungsbild aus, damit alle Namen stillstehen.",
   "settings.appearance.animateNames": "Namen animieren",
@@ -7408,5 +7410,7 @@
   "whatsNew.r20261031.duplicateRoleBody": "Rolle duplizieren erstellt eine neue Rolle mit demselben Namen, denselben Farben und Berechtigungen, bereit zum Anpassen. Du findest es bei der Rolle oder im Rechtsklickmenü.",
   "whatsNew.r20261031.duplicateRoleTitle": "Rollen duplizieren",
   "whatsNew.r20261031.viewAsRoleBody": "Prüfe, welche Kanäle und Aktionen eine Rolle bekommt, bevor du sie vergibst. Öffne Servereinstellungen, Rollen, und wähle Server als Rolle ansehen.",
-  "whatsNew.r20261031.viewAsRoleTitle": "Server als Rolle ansehen"
+  "whatsNew.r20261031.viewAsRoleTitle": "Server als Rolle ansehen",
+  "whatsNew.r20261101.avatarViewerBody": "Tippe im vollständigen Profil auf das Bild oder Banner einer Person, um es im Bildbetrachter zu öffnen. Dort kannst du zoomen, es speichern oder kopieren.",
+  "whatsNew.r20261101.avatarViewerTitle": "Größere Profilbilder und Banner"
 }

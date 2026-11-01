@@ -19,6 +19,7 @@ import { avatarUrl, bannerUrl, iconUrl, users as usersApi } from "@/api/users";
 import { ActivityList } from "@/components/activity/ActivityCard";
 import { StatusEmoji } from "@/components/activity/StatusEmoji";
 import { Avatar } from "@/components/common/Avatar";
+import { Lightbox } from "@/components/chat/Lightbox";
 import { PlanBadge, StaffBadge } from "@/components/common/OwnerBadge";
 import { rankOf } from "@/lib/staffRank";
 import { ServerTagChip } from "@/components/servertag/ServerTagChip";
@@ -429,6 +430,7 @@ export function ProfileCard({ userId, variant, onClose, preview, previewWidgets,
   const [mutual, setMutual] = useState<{ friends: string[]; servers: string[] }>({ friends: [], servers: [] });
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [viewing, setViewing] = useState<"avatar" | "banner" | null>(null);
   const [bioClamped, setBioClamped] = useState(false);
   const [chosenTab, setChosenTab] = useState<ProfileTab | null>(initialTab ?? null);
   const [cardEl, setCardEl] = useState<HTMLDivElement | null>(null);
@@ -650,7 +652,11 @@ export function ProfileCard({ userId, variant, onClose, preview, previewWidgets,
 
   const top = (
     <div className={s.top}>
-      <div className={s.banner} style={bannerStyle} />
+      {!compact && !design && !preview && user.banner_id ? (
+        <button type="button" className={`${s.banner} ${s.bannerView}`} style={bannerStyle} aria-label={t("profile.profileCard.viewBanner")} onClick={() => setViewing("banner")} data-testid="profile-banner-view" />
+      ) : (
+        <div className={s.banner} style={bannerStyle} />
+      )}
       {design ? <Spot design={design} part="banner" label={user.banner_id ? t("designer.spot.banner") : t("designer.spot.addBanner")} /> : null}
       <div className={s.bannerBtns}>
         {!interactive ? null : popout ? (
@@ -694,9 +700,19 @@ export function ProfileCard({ userId, variant, onClose, preview, previewWidgets,
           <button className={s.avatarBtn} aria-label={t("profile.profileCard.viewFullProfileOf", { name: shownName })} onClick={() => viewFull()} data-testid="profile-avatar">
             <Avatar id={user.id} avatarId={user.avatar_id} name={user.display_name} size={avatarSize} status={st} dotSize={18} />
           </button>
+        ) : !design && !preview && user.avatar_id ? (
+          <button className={s.avatarBtn} aria-label={t("profile.profileCard.viewProfilePicture")} onClick={() => setViewing("avatar")} style={{ cursor: "zoom-in" }} data-testid="profile-avatar-view">
+            <Avatar id={user.id} avatarId={user.avatar_id} name={user.display_name} size={avatarSize} status={st} dotSize={26} />
+          </button>
         ) : (
           <Avatar id={user.id} avatarId={user.avatar_id} name={user.display_name} size={avatarSize} status={st} dotSize={26} />
         )}
+        {viewing && (viewing === "avatar" ? user.avatar_id : user.banner_id) ? (
+          <Lightbox
+            items={[{ src: (viewing === "avatar" ? avatarUrl(user.avatar_id) : bannerUrl(user.banner_id)) ?? undefined, name: shownName || viewing }]}
+            onClose={() => setViewing(null)}
+          />
+        ) : null}
         {design ? <Spot design={design} part="avatar" label={t("designer.spot.avatar")} round /> : null}
       </div>
       {cs ? (
