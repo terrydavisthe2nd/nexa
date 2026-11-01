@@ -220,7 +220,7 @@ func TestPrivateThreads(t *testing.T) {
 func TestForumPosts(t *testing.T) {
 	c := newCommunity(t)
 	res, forum := do(t, c.ts, "POST", "/api/v1/servers/"+c.server+"/channels", c.tokA, map[string]any{"type": "forum", "name": "Ideas Board"})
-	if res.StatusCode != 201 || forum["name"] != "ideas-board" {
+	if res.StatusCode != 201 || forum["name"] != "Ideas Board" {
 		t.Fatalf("forum: %d %v", res.StatusCode, forum)
 	}
 	fid := forum["id"].(string)

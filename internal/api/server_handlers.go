@@ -751,10 +751,9 @@ func cleanChannelName(name, typ string) (string, bool) {
 	if !ok || clean == "" {
 		return "", false
 	}
-	if typ == "text" || typ == store.ChannelAnnouncement || store.IsForum(typ) {
-		clean = strings.ToLower(strings.Join(strings.Fields(clean), "-"))
-	}
-	return clean, true
+	// Every kind keeps its spaces and capitals; runs of whitespace become one space.
+	clean = strings.Join(strings.Fields(clean), " ")
+	return clean, clean != ""
 }
 
 // maxLinkChannelURL is the longest address a link channel may lead to.

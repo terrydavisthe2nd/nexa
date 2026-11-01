@@ -153,7 +153,7 @@ func TestServerCreateJoinAndDefaults(t *testing.T) {
 	}
 	// channel creation normalises text names, and everyone receives it
 	res, body = do(t, ts, "POST", "/api/v1/servers/"+sid+"/channels", tokA, map[string]any{"type": "text", "name": "Mod  Chat", "parent_id": general["parent_id"]})
-	if res.StatusCode != 201 || body["name"] != "mod-chat" || body["position"].(float64) != 1 {
+	if res.StatusCode != 201 || body["name"] != "Mod Chat" || body["position"].(float64) != 1 {
 		t.Fatalf("create channel: %d %v", res.StatusCode, body)
 	}
 	modChat := body["id"].(string)
@@ -566,7 +566,7 @@ func TestChannelPositionsAndSettings(t *testing.T) {
 		t.Error("member edits channel")
 	}
 	res, body = do(t, ts, "PATCH", "/api/v1/channels/"+general["id"].(string), tokA, map[string]any{"topic": "Talk here", "slowmode_seconds": 5, "nsfw": true, "name": "General Chat"})
-	if res.StatusCode != 200 || body["topic"] != "Talk here" || body["slowmode_seconds"].(float64) != 5 || body["nsfw"] != true || body["name"] != "general-chat" {
+	if res.StatusCode != 200 || body["topic"] != "Talk here" || body["slowmode_seconds"].(float64) != 5 || body["nsfw"] != true || body["name"] != "General Chat" {
 		t.Fatalf("channel patch: %d %v", res.StatusCode, body)
 	}
 	if ev := gb.next("channel_update", 3*time.Second); ev == nil || ev["topic"] != "Talk here" {

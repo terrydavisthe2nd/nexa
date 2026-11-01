@@ -7232,6 +7232,8 @@
   "whatsNew.r20261101.activityMovedTitle": "アクティビティの共有は設定へ移動",
   "whatsNew.r20261101.avatarViewerBody": "プロフィール全体の画面で画像やバナーをタップすると画像ビューアーで開き、拡大や保存、コピーができます。",
   "whatsNew.r20261101.avatarViewerTitle": "プロフィール画像とバナーを大きく表示",
+  "whatsNew.r20261101.channelNamesBody": "テキスト、アナウンス、フォーラムチャンネルの名前にスペースや大文字を使えるようになりました（例：「Weekend Plans」）。",
+  "whatsNew.r20261101.channelNamesTitle": "スペースを含むチャンネル名",
   "whatsNew.r20261101.gifFavoritesBody": "ある端末でGIFをお気に入りにしても、別の端末で追加したGIFが消えなくなりました。アップロードからお気に入りにしたGIFもAndroidで表示・送信できます。",
   "whatsNew.r20261101.gifFavoritesTitle": "お気に入りのGIFが消えなくなりました",
   "whatsNew.r20261101.hideTypingBody": "入力中であることを他の人に見せないようにできます。設定のチャットで「入力中であることを表示」をオフにしてください。",

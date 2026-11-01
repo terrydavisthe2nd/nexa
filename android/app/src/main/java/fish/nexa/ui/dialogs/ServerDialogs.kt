@@ -201,10 +201,10 @@ internal fun ServerNotificationsSheet(layer: Layer, serverId: String, close: () 
 // CreateChannelModal and CreateCategoryModal
 
 /** A text channel's name as it is typed: lower case, a dash for a space, as the server stores it. */
-fun typedChannelName(value: String): String = value.lowercase().replace(Regex("\\s+"), "-").replace(Regex("-{2,}"), "-")
+fun typedChannelName(value: String): String = value
 
 /** The finished name: as typed, without dashes left hanging at either end. */
-fun channelSlug(name: String): String = typedChannelName(name.trim()).trim('-')
+fun channelSlug(name: String): String = name.trim().replace(Regex("\\s+"), " ")
 
 @Composable
 internal fun CreateChannelSheet(layer: Layer, serverId: String, parentId: String?, close: () -> Unit) {

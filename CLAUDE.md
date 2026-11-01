@@ -956,8 +956,8 @@ as Discord holds it:
 - A link channel (`link`) is a channel list entry that opens `channels.url` (migration 0044, both
   databases): a whole http or https address with a host and no userinfo, at most 1024 bytes
   (`cleanLinkURL` in `server_handlers.go`; web `lib/linkChannel.ts` `linkDestination`, Android
-  `ui/shell/LinkChannels.kt`). Set on create (`url`, required) and changed by PATCH; the name keeps
-  capitals like a voice channel's; no Private toggle at creation, no invites, no page (a path to one
+  `ui/shell/LinkChannels.kt`). Set on create (`url`, required) and changed by PATCH; every channel name keeps spaces and
+  capitals (`cleanChannelName` only collapses whitespace); no Private toggle at creation, no invites, no page (a path to one
   goes to the server). Pressing it opens a Nexa address in the app (`followAppLink` in
   `shell/AppLinks.tsx`, Android `AppLinks` and `Nav.openPath`), anything else after a confirm showing
   the full address. Overwrites offer only View Channel, Manage Channels and Manage Roles. Bots never

@@ -86,11 +86,11 @@ private val SLOWMODE = listOf(0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 36
 
 private fun slowLabel(v: Int): String = if (v == 0) t("server.channelSettings.slowmodeOff") else Time.shortDuration(v.toDouble())
 
-/** CreateChannelModal typedChannelName: a text channel's name as it is typed, lowercase with dashes. */
-fun typedChannelName(v: String): String = v.lowercase().replace(Regex("\\s+"), "-").replace(Regex("-{2,}"), "-")
+/** CreateChannelModal typedChannelName: a channel's name as it is typed, spaces and capitals kept. */
+fun typedChannelName(v: String): String = v
 
 /** slug: the finished name, without dashes left hanging at either end. */
-fun slugChannelName(v: String): String = typedChannelName(v.trim()).trim('-')
+fun slugChannelName(v: String): String = v.trim().replace(Regex("\\s+"), " ")
 
 /**
  * ChannelSettingsModal: a channel's or category's Overview, Permissions,

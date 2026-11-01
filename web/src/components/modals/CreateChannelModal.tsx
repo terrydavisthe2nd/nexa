@@ -16,19 +16,14 @@ import { useUI } from "@/stores/ui";
 import s from "./ServerModals.module.css";
 
 import { t } from "@/i18n";
-/**
- * A text channel's name as it is typed: lower case, with a dash for a space,
- * the way the server will store it. The field used to show "Plans For The
- * Weekend" and the sidebar then "#plans-for-the-weekend", so people did not
- * recognise the channel they had just made.
- */
+/** A channel's name as it is typed: spaces and capitals are kept. */
 export function typedChannelName(value: string): string {
-  return value.toLowerCase().replace(/\s+/g, "-").replace(/-{2,}/g, "-");
+  return value;
 }
 
-/** The finished name: as typed, without dashes left hanging at either end. */
+/** The finished name, as the server stores it: trimmed, with runs of whitespace as one space. */
 export function slug(name: string): string {
-  return typedChannelName(name.trim()).replace(/^-+|-+$/g, "");
+  return name.trim().replace(/\s+/g, " ");
 }
 
 type Kind = "text" | "voice" | "announcement" | "forum" | "media" | "link";
@@ -144,7 +139,7 @@ export function CreateChannelModal({ onClose, serverId, parentId }: { onClose: (
               const Icon = KIND_ICON[type];
               return <Icon size={16} />;
             })()}
-            <TextInput value={name} onChange={(e) => setName(!freeName(type) ? typedChannelName(e.target.value) : e.target.value)} placeholder={link ? t("channelLink.namePlaceholder") : t("modals.createChannel.namePlaceholder")} maxLength={100} autoFocus autoCapitalize={!freeName(type) ? "none" : undefined} onKeyDown={(e) => e.key === "Enter" && void create()} data-testid="channel-name" />
+            <TextInput value={name} onChange={(e) => setName(!freeName(type) ? typedChannelName(e.target.value) : e.target.value)} placeholder={link ? t("channelLink.namePlaceholder") : t("modals.createChannel.namePlaceholder")} maxLength={100} autoFocus onKeyDown={(e) => e.key === "Enter" && void create()} data-testid="channel-name" />
           </div>
         </Field>
         {link ? (

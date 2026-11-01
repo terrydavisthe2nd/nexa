@@ -215,7 +215,7 @@ function OverviewPage({ channel }: { channel: Channel }) {
           <div className={s.iconInput}>
             {/* what the channel list will show, as it is being picked below */}
             <span className={s.nameGlyph}><ChannelGlyph channel={{ type: textLike ? (announce ? "announcement" : "text") : channel.type, server_id: channel.server_id, glyph: glyph === PICTURE ? "" : glyph, icon_id: glyph === PICTURE ? channel.icon_id : null }} size={16} /></span>
-            <TextInput value={name} onChange={(e) => set({ name: slugged ? typedChannelName(e.target.value) : e.target.value })} maxLength={100} data-testid="channel-settings-name" {...(slugged ? { autoCapitalize: "none", autoCorrect: "off", spellCheck: false } : {})} />
+            <TextInput value={name} onChange={(e) => set({ name: slugged ? typedChannelName(e.target.value) : e.target.value })} maxLength={100} data-testid="channel-settings-name" />
           </div>
         </Field>
         {link ? (

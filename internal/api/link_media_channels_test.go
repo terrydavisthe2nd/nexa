@@ -63,7 +63,7 @@ func TestLinkChannels(t *testing.T) {
 func TestMediaChannels(t *testing.T) {
 	c := newCommunity(t)
 	res, media := do(t, c.ts, "POST", "/api/v1/servers/"+c.server+"/channels", c.tokA, map[string]any{"type": "media", "name": "Fan Art"})
-	if res.StatusCode != 201 || media["type"] != "media" || media["name"] != "fan-art" {
+	if res.StatusCode != 201 || media["type"] != "media" || media["name"] != "Fan Art" {
 		t.Fatalf("media channel: %d %v", res.StatusCode, media)
 	}
 	mid := media["id"].(string)
