@@ -16,6 +16,8 @@ import { useHoldUnsaved, useUnsaved } from "@/stores/unsaved";
 import { useUI } from "@/stores/ui";
 import { AddCssLinkDialog } from "./look/AddCssLinkDialog";
 import { Caution } from "./look/Caution";
+import { GuideLink } from "./look/GuideLink";
+import { CSS_GUIDE_URL } from "@/lib/legal";
 import { CodeEditor } from "./look/CodeEditor";
 import look from "./look/Look.module.css";
 import s from "./Settings.module.css";
@@ -114,6 +116,7 @@ export default function CustomCssPage() {
         </p>
         <p>{t("look.safe.howTo")}</p>
       </Caution>
+      <GuideLink title={t("look.css.guideTitle")} body={t("look.css.guideBody")} href={CSS_GUIDE_URL} testId="css-guide" />
       {mode === "manual" ? (
         <div className={look.notice} role="status">
           <p className={look.noticeBody}>{t("look.css.offInSafeMode")}</p>

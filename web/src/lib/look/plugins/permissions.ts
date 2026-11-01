@@ -33,6 +33,8 @@ export const PERMISSIONS = [
   "storage.read",
   "storage.write",
   "ui.write",
+  "composer.write",
+  "navigation",
   "stores",
 ] as const;
 
@@ -86,6 +88,8 @@ const WORDS: Record<PermissionName, () => { name: string; hint: string }> = {
   "storage.read": () => ({ name: t("look.plugins.perm.storageRead"), hint: t("look.plugins.perm.storageReadHint") }),
   "storage.write": () => ({ name: t("look.plugins.perm.storageWrite"), hint: t("look.plugins.perm.storageWriteHint") }),
   "ui.write": () => ({ name: t("look.plugins.perm.uiWrite"), hint: t("look.plugins.perm.uiWriteHint") }),
+  "composer.write": () => ({ name: t("look.plugins.perm.composerWrite"), hint: t("look.plugins.perm.composerWriteHint") }),
+  "navigation": () => ({ name: t("look.plugins.perm.navigation"), hint: t("look.plugins.perm.navigationHint") }),
   "stores": () => ({ name: t("look.plugins.perm.stores"), hint: t("look.plugins.perm.storesHint") }),
 };
 

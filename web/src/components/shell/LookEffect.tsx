@@ -1,6 +1,6 @@
 import { ShieldAlert, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/common/Button";
 import { t } from "@/i18n";
 import { isDemo } from "@/lib/demoMode";
@@ -54,6 +54,11 @@ export function LookEffect() {
   const navigate = useNavigate();
   const navRef = useRef(navigate);
   navRef.current = navigate;
+  const { pathname } = useLocation();
+  // plugins with the navigation permission hear where the app went
+  useEffect(() => {
+    if (runtime) void runtime.then((r) => r.noteLocation(pathname));
+  }, [pathname]);
   const signedIn = status === "ready" && loaded;
   const css = useMemo(() => sanitizeCustomCss(rawCss), [rawCss]);
   const pluginsJson = JSON.stringify(sanitizePlugins(rawPlugins));

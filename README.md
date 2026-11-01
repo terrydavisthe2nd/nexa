@@ -128,6 +128,7 @@ The [tools guide](tools/README.md) covers browser tests and screenshots.
 - [How Nexa's encryption works](ENCRYPTION.md)
 - [Building bots and apps](docs/bots.md)
 - [Plugin API](docs/plugins.md)
+- [Custom CSS](docs/custom-css.md)
 - [Configuration reference](chatd.env.example)
 - [Terms of service](docs/legal/TERMS_OF_SERVICE.txt)
 - [Privacy policy](docs/legal/PRIVACY_POLICY.txt)

@@ -360,3 +360,63 @@ describe("toasts", () => {
     expect(useUI.getState().toasts).toEqual([]);
   });
 });
+
+describe("what version 2 gained later", () => {
+  it("hands over a message's server, files, sticker, forward and pin", async () => {
+    const e = await entry(v2("Gain", `api.events.on("messageCreated", (m) => { globalThis.GainSeen = m; });`), ["events.read", "servers.messages.read"]);
+    await syncPlugins([e], true);
+    const m = { ...message("sc", "hi"), flags: 1, payload: { t: "hi", att: [{ blob_id: "9", name: "a.png", type: "image/png", size: 10, w: 4, h: 3, key: "k", spoiler: true }], sticker: { id: "st", name: "Wave" }, fwd: { at: 5000, comment: "look" } } } as unknown as DecryptedMessage;
+    for (const h of dispatchHooks.onMessage) h(m as never, false, m);
+    const seen = g["GainSeen"] as Api;
+    expect(seen).toMatchObject({ serverId: "s1", pinned: true, sticker: { id: "st", name: "Wave" }, forwarded: { comment: "look" }, fromApp: false });
+    expect(seen["attachments"][0]).toEqual({ name: "a.png", type: "image/png", size: 10, width: 4, height: 3, spoiler: true, duration: null, voice: false });
+    expect(seen["attachments"][0]).not.toHaveProperty("key");
+  });
+
+  it("formats mentions and timestamps without any permission", async () => {
+    await syncPlugins([await entry(v2("Utils"), [])], true);
+    const u = apiOf("Utils")["utils"];
+    expect(u.mention.user("5")).toBe("<@5>");
+    expect(u.mention.role(6n)).toBe("<@&6>");
+    expect(u.mention.channel("7")).toBe("<#7>");
+    expect(u.timestamp(new Date(90_000), "R")).toBe("<t:90:R>");
+    expect(u.escapeMarkdown("*hi* _there_")).toBe("\\*hi\\* \\_there\\_");
+    expect(u.hasPermission(6n, 2n)).toBe(true);
+    expect(u.hasPermission(4n, 2n)).toBe(false);
+  });
+
+  it("puts text in the message box with composer.write only", async () => {
+    await syncPlugins([await entry(v2("Box"), ["composer.write"]), await entry(v2("NoBox"), [], "bcdefghijk")], true);
+    const got: string[] = [];
+    const on = (ev: Event) => got.push((ev as CustomEvent<string>).detail);
+    window.addEventListener("ec:insert-text", on);
+    apiOf("Box")["composer"].insert("hello ");
+    // a tick later, once a command's own text has left the box
+    expect(got).toEqual([]);
+    await new Promise((r) => setTimeout(r, 0));
+    window.removeEventListener("ec:insert-text", on);
+    expect(got).toEqual(["hello "]);
+    expect(() => apiOf("NoBox")["composer"].insert("x")).toThrow(/composer.write/);
+  });
+
+  it("goes to a channel and hears where the app went, with navigation", async () => {
+    const went: string[] = [];
+    const { configurePlugins, noteLocation } = await import("./runtime");
+    configurePlugins({ navigate: (p) => went.push(p), onMeta: () => undefined });
+    await syncPlugins([await entry(v2("Nav", `api.events.on("locationChanged", (l) => { (globalThis.NavSeen ??= []).push(l); });`), ["navigation", "events.read"])], true);
+    const nav = apiOf("Nav")["navigation"];
+    nav.openChannel("sc", "42");
+    nav.openChannel("dm");
+    expect(went).toEqual(["/channels/s1/sc/42", "/channels/@me/dm"]);
+    expect(() => nav.go("https://example.com")).toThrow();
+    noteLocation("/channels/123/456");
+    expect(g["NavSeen"]).toEqual([{ path: "/channels/123/456", serverId: "123", channelId: "456" }]);
+  });
+
+  it("says who is online from what this device knows", async () => {
+    const { usePresence } = await import("@/stores/presence");
+    usePresence.setState({ byUser: { bob: { user_id: "bob", status: "invisible", status_text: "", status_emoji: "", status_expires_at: null } } });
+    await syncPlugins([await entry(v2("Pres"), ["users.read"])], true);
+    expect(apiOf("Pres")["users"].presence("bob")).toEqual({ userId: "bob", status: "offline", activities: [] });
+  });
+});

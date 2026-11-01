@@ -21,7 +21,9 @@ import { unpackText } from "../pack";
 import { noteHealthy, setLookActive } from "../safeMode";
 import { sanitizeMeta, sanitizePlugins, sanitizeValues } from "../sanitize";
 import { loadAllMenus } from "@/lib/contextMenus/all";
-import { buildApiV2 } from "./runtimeV2";
+import { buildApiV2, noteLocation } from "./runtimeV2";
+
+export { noteLocation };
 import type { PermissionName } from "./permissions";
 import { setSheets, type Sheet } from "../styles";
 import type { PluginEntry, PluginMeta } from "../types";
@@ -509,6 +511,7 @@ function apiForV2(r: Running, meta: PluginMeta): Record<string, unknown> {
       clear: () => storage.remove(storageKey(r.id)),
     },
     stores: unsupportedStores(),
+    navigate: (path) => navigate?.(path),
   });
   r.stopV2 = built.stop;
   return built.api;

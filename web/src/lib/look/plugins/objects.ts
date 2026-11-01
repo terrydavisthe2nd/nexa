@@ -20,7 +20,8 @@ import { useReplyTargets } from "@/stores/replyTargets";
 import { useMessages } from "@/stores/messages";
 import type { ServerState } from "@/stores/servers";
 import { useThreads } from "@/stores/threads";
-import type { Channel, Message, RelationshipKind, Role, Server, ServerMember, ServerTag, SelfUser, TypingStyle, User } from "./api2";
+import { useChannels } from "@/stores/channels";
+import type { Attachment, Channel, Message, RelationshipKind, Role, Server, ServerMember, ServerTag, SelfUser, TypingStyle, User } from "./api2";
 import { PermissionError } from "./api2";
 import type { PermissionName } from "./permissions";
 
@@ -242,11 +243,26 @@ function referenced(m: DecryptedMessage): DecryptedMessage | null {
   return target && typeof target === "object" ? target : null;
 }
 
+function toAttachment(a: NonNullable<NonNullable<DecryptedMessage["payload"]>["att"]>[number]): Attachment {
+  return freeze({
+    name: a.name,
+    type: a.type,
+    size: a.size,
+    width: typeof a.w === "number" ? a.w : null,
+    height: typeof a.h === "number" ? a.h : null,
+    spoiler: !!a.spoiler,
+    duration: typeof a.duration === "number" ? a.duration : null,
+    voice: a.voice === true,
+  });
+}
+
 export function toMessage(m: DecryptedMessage, depth = 0): Message {
   const ref = depth === 0 ? referenced(m) : null;
+  const p = m.payload;
   return freeze({
     id: m.id,
     channelId: m.channel_id,
+    serverId: useChannels.getState().byId[m.channel_id]?.server_id ?? null,
     authorId: m.author_id,
     type: m.type,
     content: m.payload ? (m.payload.t ?? "") : null,
@@ -256,6 +272,11 @@ export function toMessage(m: DecryptedMessage, depth = 0): Message {
     mentionRoles: Object.freeze([...(m.mention_roles ?? [])]) as string[],
     mentionEveryone: !!m.mention_everyone,
     reactions: Object.freeze((m.reactions ?? []).map((r) => freeze({ emoji: r.emoji, count: r.count, me: !!r.me }))) as Message["reactions"],
+    attachments: Object.freeze((p?.att ?? []).map(toAttachment)) as Attachment[],
+    sticker: p?.sticker ? freeze({ id: p.sticker.id, name: p.sticker.name ?? "" }) : null,
+    forwarded: p?.fwd ? freeze({ at: new Date(p.fwd.at), comment: p.fwd.comment ?? null }) : null,
+    fromApp: !!m.hook,
+    pinned: ((m.flags ?? 0) & 1) !== 0,
     flags: m.flags ?? 0,
     nonce: m.nonce ?? null,
     editedAt: date(m.edited_at),

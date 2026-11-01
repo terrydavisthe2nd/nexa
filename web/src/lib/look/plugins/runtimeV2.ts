@@ -40,6 +40,13 @@ import { useServers } from "@/stores/servers";
 import { useThreads } from "@/stores/threads";
 import { useUI } from "@/stores/ui";
 import { useUsers } from "@/stores/users";
+import { usePresence } from "@/stores/presence";
+import { useReadStates } from "@/stores/readStates";
+import { useExpressions } from "@/stores/expressions";
+import { emojiUrl } from "@/api/users";
+import { copyText } from "@/lib/clipboard";
+import { idTime } from "@/lib/ids";
+import { promptFields } from "@/components/modals/PromptModal";
 import type { PluginMeta } from "../types";
 import type { PluginSetting, SettingValue } from "./api";
 import {
@@ -58,8 +65,12 @@ import {
   type EditableProfile,
   type EditableRole,
   type EditableServer,
+  type Emoji,
   type Id,
+  type Location,
   type Message,
+  type Presence,
+  type PromptOptions,
   type NewOverwrite,
   type PluginEventNameV2,
   type PluginEventsV2,
@@ -99,6 +110,8 @@ export interface V2Host {
     clear: () => void;
   };
   stores: Record<string, unknown>;
+  /** Goes to a page of the app, as a link inside it would. */
+  navigate: (path: string) => void;
 }
 
 /** One running v2 plugin, as the shared event hooks see it. */
@@ -203,6 +216,27 @@ function fromAppEvent(e: AppEvent): Delivery | null {
   }
 }
 
+// --- where the person is -----------------------------------------------------------
+
+let path = typeof location !== "undefined" ? location.pathname : "/";
+
+/** Where an address inside the app points: /channels/<server or @me>/<channel>. */
+export function locationOf(p: string): Location {
+  const parts = p.split("/").filter(Boolean);
+  const inChannels = parts[0] === "channels";
+  const place = inChannels ? (parts[1] ?? null) : null;
+  const serverId = place && /^\d+$/.test(place) ? place : null;
+  const channel = inChannels && place === "@me" ? (parts[2] ?? null) : inChannels && serverId ? (parts[2] ?? null) : null;
+  return Object.freeze({ path: p, serverId, channelId: channel && /^\d+$/.test(channel) ? channel : null });
+}
+
+/** The app moved to another page (LookEffect tells it); plugins with navigation hear it. */
+export function noteLocation(next: string): void {
+  if (next === path) return;
+  path = next;
+  if (instances.size) deliver({ event: "locationChanged", perm: "navigation", payload: () => locationOf(next) });
+}
+
 // one set of hooks for every v2 plugin; nothing is turned into the API's shapes unless a plugin listens
 dispatchHooks.onMessage.push((_m, _mine, decrypted) => {
   if (instances.size) deliver(messageDelivery("messageCreated", decrypted));
@@ -214,6 +248,10 @@ dispatchHooks.onMessageDelete.push((channelId, ids, was) => {
   if (!instances.size) return;
   const perm = messagesPerm(channelOf(channelId), false);
   ids.forEach((id, i) => deliver({ event: "messageDeleted", perm, payload: () => Object.freeze({ id, channelId, message: was[i] ? toMessage(was[i]!) : null }) }));
+});
+dispatchHooks.onMessageChange.push((c) => {
+  if (!instances.size || c.kind !== "pin") return;
+  deliver({ event: c.pinned ? "messagePinned" : "messageUnpinned", perm: messagesPerm(channelOf(c.channelId), false), payload: () => Object.freeze({ channelId: c.channelId, messageId: c.id }) });
 });
 dispatchHooks.onEvent.push((e) => {
   if (!instances.size) return;
@@ -282,6 +320,17 @@ export function buildApiV2(host: V2Host): { api: Record<string, unknown>; stop: 
       useAuth.getState().setMe(was ? { ...was, ...me } : me);
       useUsers.getState().upsert(me);
       return toSelfUser(useAuth.getState().me as MeUser, can);
+    },
+    presence(id: Id): Presence {
+      const uid = str(id);
+      need(can, selfOr(uid), "users.presence");
+      const p = usePresence.getState().byUser[uid];
+      const status = p && p.status !== "invisible" ? p.status : "offline";
+      return Object.freeze({
+        userId: uid,
+        status,
+        activities: Object.freeze((p?.activities ?? []).map((a) => Object.freeze({ name: String(a.name ?? ""), type: Number(a.type ?? 0), details: a.details ?? null, state: a.state ?? null }))) as Presence["activities"],
+      });
     },
     async listRelationships(filter?: Exclude<RelationshipKind, "none">): Promise<User[]> {
       need(can, "users.relationships.read", "users.listRelationships");
@@ -467,6 +516,33 @@ export function buildApiV2(host: V2Host): { api: Record<string, unknown>; stop: 
       need(can, messagesPerm(await channelFor(cid), true), "messages.unreact");
       await messagesApi.unreact(cid, str(id), String(emoji));
     },
+    async reactors(channelId: Id, id: Id, emoji: string): Promise<string[]> {
+      const cid = str(channelId);
+      need(can, messagesPerm(await channelFor(cid), false), "messages.reactors");
+      return [...(await messagesApi.reactors(cid, str(id), String(emoji), 100))];
+    },
+    async listPinned(channelId: Id): Promise<Message[]> {
+      const cid = str(channelId);
+      need(can, messagesPerm(await channelFor(cid), false), "messages.listPinned");
+      const list = await Promise.all((await channelsApi.pins(cid)).map(decrypted));
+      return list.map((m) => toMessage(m));
+    },
+    async pin(channelId: Id, id: Id): Promise<void> {
+      const cid = str(channelId);
+      need(can, messagesPerm(await channelFor(cid), true), "messages.pin");
+      await channelsApi.pin(cid, str(id));
+    },
+    async unpin(channelId: Id, id: Id): Promise<void> {
+      const cid = str(channelId);
+      need(can, messagesPerm(await channelFor(cid), true), "messages.unpin");
+      await channelsApi.unpin(cid, str(id));
+    },
+    async markRead(channelId: Id): Promise<void> {
+      const cid = str(channelId);
+      need(can, messagesPerm(await channelFor(cid), false), "messages.markRead");
+      const last = channelOf(cid)?.last_message_id;
+      if (last) await useReadStates.getState().ack(cid, last);
+    },
   });
 
   // --- channels ---
@@ -579,6 +655,23 @@ export function buildApiV2(host: V2Host): { api: Record<string, unknown>; stop: 
     messages,
   });
 
+  const toEmoji = (e: { id: string; server_id: string; name: string; animated: boolean }): Emoji =>
+    Object.freeze({ id: e.id, serverId: e.server_id, name: e.name, animated: !!e.animated, url: emojiUrl(e.id, !!e.animated), markdown: `<${e.animated ? "a" : ""}:${e.name}:${e.id}>` });
+  const emojis = Object.freeze({
+    list(serverId?: Id): Emoji[] {
+      need(can, "servers.read", "servers.emojis.list");
+      const all = useExpressions.getState().emojis;
+      const lists = serverId === undefined ? Object.values(all) : [all[str(serverId)] ?? []];
+      return lists.flat().map(toEmoji);
+    },
+    find(name: string): Emoji | null {
+      need(can, "servers.read", "servers.emojis.find");
+      const want = String(name).replace(/^:|:$/g, "").toLowerCase();
+      const hit = Object.values(useExpressions.getState().emojis).flat().find((e) => e.name.toLowerCase() === want);
+      return hit ? toEmoji(hit) : null;
+    },
+  });
+
   const servers = Object.freeze({
     get(id: Id): Server | null {
       need(can, "servers.read", "servers.get");
@@ -627,6 +720,7 @@ export function buildApiV2(host: V2Host): { api: Record<string, unknown>; stop: 
     members,
     channels,
     roles,
+    emojis,
   });
 
   // --- events ---
@@ -900,7 +994,78 @@ export function buildApiV2(host: V2Host): { api: Record<string, unknown>; stop: 
         });
       });
     },
+    async prompt(options: PromptOptions): Promise<string | null> {
+      need(can, "ui.write", "ui.prompt");
+      const o = options ?? ({} as PromptOptions);
+      const maxLength = Math.max(1, Math.min(2000, Number(o.maxLength) || 2000));
+      const values = await promptFields({
+        title: t("look.plugins.toastFrom", { name, text: String(o.title ?? "").slice(0, 100) }),
+        fields: [{ key: "value", label: String(o.label ?? "").slice(0, 100), ...(o.placeholder ? { placeholder: String(o.placeholder).slice(0, 100) } : {}), ...(o.initial ? { initial: String(o.initial).slice(0, maxLength) } : {}), maxLength }],
+        ...(o.confirmText ? { confirmLabel: String(o.confirmText).slice(0, 40) } : {}),
+        allowEmpty: true,
+      });
+      return values ? (values["value"] ?? "") : null;
+    },
+    openProfile(userId: Id): void {
+      need(can, "ui.write", "ui.openProfile");
+      need(can, selfOr(str(userId)), "ui.openProfile");
+      useUI.getState().openModal("profile", { userId: str(userId) });
+    },
+    async copy(text: string): Promise<boolean> {
+      need(can, "ui.write", "ui.copy");
+      return copyText(String(text), t("look.plugins.toastFrom", { name, text: t("clipboard.copied") }));
+    },
     contextMenu,
+  });
+
+  const composer = Object.freeze({
+    insert(text: string): void {
+      need(can, "composer.write", "composer.insert");
+      const detail = String(text).slice(0, 4000);
+      // a tick later: a command calling this runs before the box it was typed in has emptied and redrawn
+      setTimeout(() => window.dispatchEvent(new CustomEvent("ec:insert-text", { detail })), 0);
+    },
+  });
+
+  const navigation = Object.freeze({
+    get current(): Location {
+      need(can, "navigation", "navigation.current");
+      return locationOf(location.pathname);
+    },
+    go(to: string): void {
+      need(can, "navigation", "navigation.go");
+      const p = String(to);
+      if (!p.startsWith("/") || p.startsWith("//")) throw new Error(`navigation.go takes a path inside the app, such as "/channels/@me", not "${p}"`);
+      host.navigate(p);
+    },
+    openChannel(channelId: Id, messageId?: Id): void {
+      need(can, "navigation", "navigation.openChannel");
+      const c = channelOf(str(channelId));
+      if (!c) throw new Error(`this device does not know a channel ${channelId}`);
+      host.navigate(`/channels/${c.server_id ?? "@me"}/${c.id}${messageId !== undefined ? `/${str(messageId)}` : ""}`);
+    },
+  });
+
+  const utils = Object.freeze({
+    mention: Object.freeze({
+      user: (id: Id) => `<@${str(id)}>`,
+      role: (id: Id) => `<@&${str(id)}>`,
+      channel: (id: Id) => `<#${str(id)}>`,
+    }),
+    timestamp(when: Date | number, style: "t" | "T" | "d" | "D" | "f" | "F" | "R" = "f"): string {
+      const ms = when instanceof Date ? when.getTime() : Number(when);
+      if (!Number.isFinite(ms)) throw new Error("utils.timestamp needs a Date or milliseconds");
+      return `<t:${Math.floor(ms / 1000)}:${/^[tTdDfFR]$/.test(style) ? style : "f"}>`;
+    },
+    escapeMarkdown(text: string): string {
+      return String(text).replace(/([\\*_~`|>#[\]()<{}-])/g, "\\$1");
+    },
+    idDate(id: Id): Date {
+      return new Date(idTime(str(id)));
+    },
+    hasPermission(bits: bigint, permission: bigint): boolean {
+      return (BigInt(bits) & BigInt(permission)) === BigInt(permission);
+    },
   });
 
   const api = Object.freeze({
@@ -924,6 +1089,9 @@ export function buildApiV2(host: V2Host): { api: Record<string, unknown>; stop: 
     storage,
     settings,
     ui,
+    composer,
+    navigation,
+    utils,
     constants: Object.freeze({ Permissions: Object.freeze({ ...P }) }),
     get stores() {
       need(can, "stores", "stores");

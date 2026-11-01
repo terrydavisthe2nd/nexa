@@ -223,6 +223,16 @@
 .caution p { margin: 0; }
 .caution p + p { margin-top: 6px; }
 .caution strong { color: var(--text-strong); font-weight: 600; }
+/* the way to a written guide, under the warning */
+.guide { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: -8px 0 20px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--bg-raised); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.guideMark { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--text-brand); }
+.guideText { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.guideTitle { font-size: 14.5px; font-weight: 600; color: var(--text-strong); overflow-wrap: anywhere; }
+.guideBody { font-size: 13px; line-height: 1.45; color: var(--text-muted); overflow-wrap: anywhere; }
+.guideOpen { text-decoration: none; }
+.guideOpen:hover { text-decoration: none; }
+.guideOpen span { display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 520px) { .guideOpen { flex-basis: 100%; } }
 .sectionHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 24px 0 8px; }
 .sectionHead h3 { margin: 0; }
 .editor { position: relative; display: flex; border-radius: var(--radius-sm); background: var(--bg-input); border: 1px solid var(--border-subtle); overflow: hidden; }

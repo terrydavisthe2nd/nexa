@@ -34,6 +34,7 @@ export const RELEASES: Release[] = [
       { icon: EyeOff, title: "whatsNew.r20261101.hideTypingTitle", body: "whatsNew.r20261101.hideTypingBody" },
       { icon: ImagePlay, title: "whatsNew.r20261101.tenorTitle", body: "whatsNew.r20261101.tenorBody" },
       { icon: Images, title: "whatsNew.r20261101.gifFavoritesTitle", body: "whatsNew.r20261101.gifFavoritesBody" },
+      { icon: Puzzle, title: "whatsNew.r20261101.pluginsTitle", body: "whatsNew.r20261101.pluginsBody" },
     ],
   },
   {

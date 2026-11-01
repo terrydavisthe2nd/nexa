@@ -16,6 +16,8 @@ import { useSettings } from "@/stores/settings";
 import { useUI } from "@/stores/ui";
 import { AddPluginDialog } from "./look/AddPluginDialog";
 import { Caution } from "./look/Caution";
+import { GuideLink } from "./look/GuideLink";
+import { PLUGIN_GUIDE_URL } from "@/lib/legal";
 import { PluginSettingsForm } from "./look/PluginSettingsForm";
 import { PluginUpdateDialog } from "./look/PluginUpdateDialog";
 import { PermissionLedger } from "./look/PermissionLedger";
@@ -165,6 +167,7 @@ export default function PluginsPage() {
         </p>
         <p>{t("look.safe.howTo")}</p>
       </Caution>
+      <GuideLink title={t("look.plugins.guideTitle")} body={t("look.plugins.guideBody")} href={PLUGIN_GUIDE_URL} testId="plugins-guide" />
       {mode ? (
         <div className={look.notice} role="status">
           <p className={look.noticeBody}>{mode === "manual" ? t("look.plugins.safeManual") : t("look.plugins.safeCrashes")}</p>

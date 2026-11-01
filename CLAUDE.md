@@ -319,7 +319,7 @@ downloads/android/  the published APKs and manifest.json, served at /android/ (n
 deploy/             systemd and launchd templates, install.sh, route-dns.sh, warp-proxy.sh, host maintenance
 tools/              test drivers, release scripts, i18n and asset generators (below)
 docs/               design spec and plans, STATUS.md, REPOSITORY.md, legal/ (the Terms and Privacy Policy
-                    the apps show word for word), plugins.md (the plugin API) and examples/, bots.md
+                    the apps show word for word), plugins.md (the plugin API), custom-css.md and examples/, bots.md
                     (making apps, pointing bot libraries at Nexa), UI_TEXT_*, design/ reference captures
 audit/              code audits: findings, triage and progress per area; security-2026-10-26.md and
                     history-2026-10-26.md record current fixes, historical dispositions and limits
@@ -1279,8 +1279,18 @@ a server's apps `server/pages/AppsSection.tsx`, the consent page `pages/Authoriz
   kind and a 1 to 15 second duration (`toast(text, kind, duration)`, used only by plugins). A plugin's
   menu button may name a lucide icon (`components/common/MenuIcon.tsx`, loaded only when shown); the
   app's own buttons have none.
-- `docs/plugins.md` (VitePress; v2 first, v1 under its own heading) and `docs/examples/` are the
-  reference for authors; an API change updates them in the same commit.
+- v2 also has `api.composer` (`composer.write`: types into the open message box through the
+  `ec:insert-text` window event the member menu's Mention uses, never sends), `api.navigation`
+  (`navigation`: `current`, `go`, `openChannel`, and the `locationChanged` event, which LookEffect
+  feeds through `noteLocation` from the router's pathname), `api.utils` (no permission), `ui.prompt`
+  (`promptFields`), `ui.openProfile`, `ui.copy`, `users.presence`, `servers.emojis`, and message pins,
+  reactors and `markRead` (`messagePinned`/`messageUnpinned` come from `onMessageChange`). Version 2
+  only grows: add members and permissions, never change an existing shape.
+- `docs/plugins.md` and `docs/custom-css.md` are the guides for authors, written for GitHub's
+  renderer (GitHub alerts, Mermaid, `<details>`, banners in `docs/assets/` with dark and light
+  versions); `docs/examples/` holds whole plugins. The Plugins and Custom CSS pages link them
+  (`GuideLink`, `PLUGIN_GUIDE_URL` and `CSS_GUIDE_URL` in `lib/legal.ts`). An API change updates the
+  guide (and its What's New in the API list) in the same commit.
 
 ### Notes
 

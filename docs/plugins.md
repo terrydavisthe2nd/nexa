@@ -1,95 +1,160 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/plugins-banner-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/plugins-banner-light.svg">
+    <img alt="Nexa Plugins: your own features for Nexa, in one JavaScript file." src="assets/plugins-banner-dark.svg" width="100%">
+  </picture>
+</p>
+
+<p align="center">
+  <img alt="Plugin API version 2" src="https://img.shields.io/badge/plugin_API-v2-8000ff?style=for-the-badge">
+  <img alt="27 permissions" src="https://img.shields.io/badge/permissions-27-6a00d6?style=for-the-badge">
+  <img alt="Runs on the web and desktop" src="https://img.shields.io/badge/runs_on-web_%26_desktop-2b2636?style=for-the-badge">
+  <a href="../LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2d8550?style=for-the-badge"></a>
+</p>
+
+<p align="center">
+  <a href="#your-first-plugin"><b>Your First Plugin</b></a>
+  &nbsp;&nbsp;|&nbsp;&nbsp;
+  <a href="#permissions"><b>Permissions</b></a>
+  &nbsp;&nbsp;|&nbsp;&nbsp;
+  <a href="#api-reference"><b>API Reference</b></a>
+  &nbsp;&nbsp;|&nbsp;&nbsp;
+  <a href="#recipes"><b>Recipes</b></a>
+  &nbsp;&nbsp;|&nbsp;&nbsp;
+  <a href="custom-css.md"><b>Custom CSS</b></a>
+</p>
+
+Plugins are JavaScript modules that people write themselves and add in
+**Settings, Plugins**. They follow the account to every device it signs in on
+and run in the browser and in the desktop app. The Android app does not run
+them.
+
+> [!CAUTION]
+> **A plugin is not a sandbox.** It runs inside the app, in the same page as
+> everything else. Version 2 plugins ask for permissions, and the API refuses
+> whatever a plugin was not granted, but nothing stops a plugin's code from
+> reaching past the API. Only install plugins whose author you trust.
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### Start Here
+
+- [Before You Start](#before-you-start)
+- [Your First Plugin](#your-first-plugin)
+- [The Manifest](#the-manifest)
+- [Installing](#installing)
+- [Starting and Stopping](#starting-and-stopping)
+- [Permissions](#permissions)
+
+</td>
+<td width="33%" valign="top">
+
+### Reference
+
+- [Users](#users) and [Presence](#presence)
+- [Servers](#servers), [Roles](#roles), [Members](#members), [Emoji](#emoji)
+- [Channels](#channels) and [Messages](#messages)
+- [Events](#events)
+- [Commands](#commands) and [Keybinds](#keybinds)
+- [Styles](#styles), [Storage](#storage), [Settings](#settings)
+- [User Interface](#user-interface) and [Context Menus](#context-menus)
+- [Message Box](#message-box), [Navigation](#navigation), [Utilities](#utilities)
+
+</td>
+<td width="33%" valign="top">
+
+### Going Further
+
+- [Recipes](#recipes)
+- [Example plugins](#example-plugins)
+- [What's New in the API](#whats-new-in-the-api)
+- [Version 1 Reference](#version-1-reference)
+- [Custom CSS guide](custom-css.md)
+
+</td>
+</tr>
+</table>
+
 ---
-title: Plugins and Custom CSS
-description: How to write plugins and custom CSS for Nexa, with the full reference of the plugin API, version 2 and version 1.
-outline: [2, 3]
----
-
-# Plugins and Custom CSS
-
-Nexa can run plugins and custom CSS that people write themselves. Both are
-added in Settings (Custom CSS, Plugins), both follow the account to every
-device it signs in on, and neither is made or checked by Nexa.
-
-Plugins run in the browser and in the desktop app (which runs the web app).
-The Android app does not run them.
-
-[[toc]]
 
 ## Before You Start
 
-::: danger A plugin is not a sandbox
-A plugin runs inside the app, in the same page as everything else. Version 2
-plugins ask for permissions, and the API refuses whatever a plugin was not
-granted, but nothing stops a plugin's code from reaching past the API. Only
-install plugins whose author you trust.
-:::
+Three things keep plugins honest.
 
-Three things keep plugins honest:
+| | Guard | What it means |
+| :-: | --- | --- |
+| 📌 | **Pinned code** | When a plugin is added, the SHA-256 of its exact code is saved with it, and only code with that hash is ever run for it. Pasted code is checked against the hash. Code from a link is kept on each device by its hash, and when the link later serves anything else, the new code waits on the Plugins page under "Update available" until the person has looked at it and said yes. Nothing is updated silently. |
+| 📦 | **Self-contained modules** | Plugins run from `blob:` module URLs made from the pinned code. The page's content security policy lets scripts come only from Nexa itself and those `blob:` URLs, and forbids `eval`, so a plugin cannot pull in more code from the network past its hash. Bundle everything into one file. |
+| 🛟 | **Safe mode** | Opening Nexa with `?safe` at the end of the address, or pressing "Start in safe mode" on the crash screen, starts it with custom CSS and plugins off for that tab. A plugin that throws while starting is turned off until the next reload, with a note saying so; one that took the page down while starting is skipped on the next start; and when the app crashes twice within ten minutes while plugins run, plugins start off. |
 
-- **Pinned code.** When a plugin is added, the SHA-256 of its exact code is
-  saved with it. Only code with that hash is ever run for it. Pasted code is
-  checked against the hash; code from a link is kept on each device by its
-  hash, and when the link later serves anything else, the new code waits on
-  the Plugins page under "Update available" until the person has looked at it
-  and said yes. Nothing is updated silently.
-- **Self-contained modules.** Plugins run from `blob:` module URLs made from
-  the pinned code. The page's content security policy lets scripts come only
-  from Nexa itself and those `blob:` URLs, and forbids `eval`, so a plugin
-  cannot pull in more code from the network past its hash. Bundle everything
-  into one file.
-- **Safe mode.** Opening Nexa with `?safe` at the end of the address, or
-  pressing "Start in safe mode" on the crash screen, starts it with custom CSS
-  and plugins off for that tab. A plugin that throws while starting is turned
-  off until the next reload, with a note saying so; one that took the page
-  down while starting is skipped on the next start; and when the app crashes
-  twice within ten minutes while plugins run, plugins start off.
+```mermaid
+flowchart LR
+  A["Paste code<br/>or add a link"] --> B["Nexa reads the manifest<br/>as text, without running it"]
+  B --> C{"The person reviews<br/>name, author and permissions"}
+  C -- "Add" --> D["Code pinned by SHA-256"]
+  C -- "Cancel" --> X(["Nothing is kept"])
+  D --> E["start(api)"]
+  E --> F(["Running"])
+  F -. "the link serves new code" .-> G["Update available:<br/>waits for a yes"]
+  G -- "Accept" --> D
+```
 
 ## Your First Plugin
 
-A plugin is one JavaScript module whose default export describes it:
+A plugin is one JavaScript module whose default export describes it.
 
-```js
-export default {
-  name: "Hello",
-  description: "Says hello when it starts.",
-  version: "1.0.0",
-  author: "You",
-  apiVersion: 2,
-  permissions: ["users.self.read", "ui.write"],
+1. Copy this:
 
-  start(api) {
-    api.ui.toast(`Hello, ${api.users.me.displayName}!`, { type: "success" });
-  },
-};
-```
+   ```js
+   export default {
+     name: "Hello",
+     description: "Says hello when it starts.",
+     version: "1.0.0",
+     author: "You",
+     apiVersion: 2,
+     permissions: ["users.self.read", "ui.write"],
 
-Paste it into Settings, Plugins, Add Plugin, Paste Code. The next screen shows
-what the plugin is and the permissions it asks for. Tick the box and press
-Add, and a toast says hello.
+     start(api) {
+       api.ui.toast(`Hello, ${api.users.me.displayName}!`, { type: "success" });
+     },
+   };
+   ```
+
+2. In Nexa, open **Settings, Plugins**, press **Paste Code** and paste it.
+3. The next screen shows what the plugin is and the permissions it asks for.
+   Tick the box and press **Add**. A toast says hello.
+
+> [!TIP]
+> Open the browser's developer tools while you work. Whatever a plugin's
+> callbacks throw is logged there with the plugin's name, and nothing it throws
+> can break the app.
 
 ### The Manifest
 
 | Field | Required | What it is |
-| --- | --- | --- |
-| `name` | yes | The plugin's name, shown on the Plugins page and in front of its toasts. |
-| `description` | no | One sentence on what it does. |
-| `version` | no | Its version, shown beside the name. |
-| `author` | no | Who wrote it. |
-| `apiVersion` | no | `2` for the API on this page. `1`, or none at all, gets [version 1](#version-1-reference). Any other number does not start. |
-| `permissions` | no | The [permissions](#permissions) a version 2 plugin asks for. |
-| `settings` | no | Settings the Plugins page draws a form for (see [Settings](#settings)). |
-| `start(api)` | yes | Called with the API when the plugin starts. |
-| `stop()` | no | Called when it stops. |
+| --- | :-: | --- |
+| `name` | ✅ | The plugin's name, shown on the Plugins page and in front of its toasts. |
+| `description` | | One sentence on what it does. |
+| `version` | | Its version, shown beside the name. |
+| `author` | | Who wrote it. |
+| `apiVersion` | | `2` for the API on this page. `1`, or none at all, gets [version 1](#version-1-reference). Any other number does not start. |
+| `permissions` | | The [permissions](#permissions) a version 2 plugin asks for. |
+| `settings` | | Settings the Plugins page draws a form for (see [Settings](#settings)). |
+| `start(api)` | ✅ | Called with the API when the plugin starts. |
+| `stop()` | | Called when it stops. |
 
-::: warning Write the manifest out plainly
-Nexa never runs a plugin's code before the person has agreed to install it,
-so the name, description, version, author, `apiVersion` and `permissions` are
-read from the code as text. Write them as plain literals in the default
-export: numbers for `apiVersion`, strings for the rest, and a list of strings
-for `permissions`. A list built any other way (a variable, a spread, a
-function call) is not read, and the plugin is installed with no permissions;
-the person can still grant them on the Plugins page.
-:::
+> [!IMPORTANT]
+> **Write the manifest out plainly.** Nexa never runs a plugin's code before
+> the person has agreed to install it, so the name, description, version,
+> author, `apiVersion` and `permissions` are read from the code as text. Write
+> them as plain literals in the default export: numbers for `apiVersion`,
+> strings for the rest, and a list of strings for `permissions`. A list built
+> any other way (a variable, a spread, a function call) is not read, and the
+> plugin is installed with no permissions; the person can still grant them on
+> the Plugins page.
 
 ### Installing
 
@@ -98,7 +163,7 @@ fetch it (raw.githubusercontent.com and cdn.jsdelivr.net do), then add the
 link on the Plugins page, or paste the code there.
 
 | Kind | Limit |
-| --- | --- |
+| --- | --: |
 | Pasted code, each plugin | 64 KB |
 | All pasted plugins together | 256 KB |
 | Code from a link | 1 MB |
@@ -107,6 +172,18 @@ Pasted code is kept in the account's encrypted settings, which is why it has
 the smaller limits.
 
 ### Starting and Stopping
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> Starting: turned on, or the app opens
+  Starting --> Running: start(api) finished within 10 s
+  Starting --> Failed: threw, or took longer
+  Running --> Stopped: turned off, deleted or updated
+  Stopped --> Starting: turned on again
+  Failed --> Starting: Try Again, or a reload
+  Stopped --> [*]
+```
 
 - `start(api)` may be `async`. It has 10 seconds; a plugin that takes longer
   is stopped and marked as failed.
@@ -126,7 +203,7 @@ the smaller limits.
 A version 2 plugin lists what it means to do in `permissions`. When it is
 added, the person sees every permission in plain words and agrees to all of
 them, or does not install the plugin. Later they can switch any of them off,
-or back on, under the plugin's Permissions button on the Plugins page; the
+or back on, under the plugin's **Permissions** button on the Plugins page; the
 change applies at once, without a restart.
 
 When new code for a plugin (an update from its link, or edited pasted code)
@@ -146,38 +223,44 @@ try {
 }
 ```
 
-| Permission | What it allows |
-| --- | --- |
-| `users.read` | Reading other people's profiles. |
-| `users.self.read` | Reading your own account (`users.me`). |
-| `users.self.write` | Changing your profile: names, about me, colours, status, typing style. |
-| `users.relationships.read` | Seeing friends, requests and blocks. |
-| `users.relationships.write` | Adding and removing friends, blocking and unblocking. |
-| `directmessages.read` | Reading direct messages and group conversations, and their messages. |
-| `directmessages.write` | Opening conversations and sending, editing, deleting and reacting to messages in them. |
-| `servers.read` | Reading the servers you are in. |
-| `servers.write` | Creating, changing and leaving servers, and managing roles. |
-| `servers.members.read` | Reading the members of servers. |
-| `servers.members.write` | Changing members: nicknames, roles, timeouts, kicks and bans. |
-| `servers.channels.read` | Reading servers' channels and threads. |
-| `servers.channels.write` | Creating, changing and deleting channels, and threads and forum posts. |
-| `servers.messages.read` | Reading messages in servers. |
-| `servers.messages.write` | Sending, editing, deleting and reacting to messages in servers. |
-| `styles.write` | Adding stylesheets. |
-| `events.read` | Listening for events. Each event also needs the permission for what it is about. |
-| `events.write` | Firing its own events for other plugins. |
-| `keybinds.read` | Reading which keys its keybinds are set to. |
-| `keybinds.write` | Adding keybinds. |
-| `commands.write` | Adding `/` commands to the message box. |
-| `storage.read` | Reading what it stored on this device. |
-| `storage.write` | Storing data on this device. |
-| `ui.write` | Toasts, notifications, confirm dialogs and changing context menus. |
-| `stores` | The app's own internal state, past everything above. Marked as dangerous. |
+<table>
+<thead><tr><th>Area</th><th>Permission</th><th>What it allows</th></tr></thead>
+<tbody>
+<tr><td rowspan="5">👤 <b>People</b></td><td><code>users.read</code></td><td>Reading other people's profiles and presence.</td></tr>
+<tr><td><code>users.self.read</code></td><td>Reading your own account (<code>users.me</code>).</td></tr>
+<tr><td><code>users.self.write</code></td><td>Changing your profile: names, about me, colours, status, typing style.</td></tr>
+<tr><td><code>users.relationships.read</code></td><td>Seeing friends, requests and blocks.</td></tr>
+<tr><td><code>users.relationships.write</code></td><td>Adding and removing friends, blocking and unblocking.</td></tr>
+<tr><td rowspan="2">✉️ <b>Direct messages</b></td><td><code>directmessages.read</code></td><td>Reading direct messages and group conversations, and their messages.</td></tr>
+<tr><td><code>directmessages.write</code></td><td>Opening conversations and sending, editing, deleting, pinning and reacting to messages in them.</td></tr>
+<tr><td rowspan="8">🏠 <b>Servers</b></td><td><code>servers.read</code></td><td>Reading the servers you are in, and their emoji.</td></tr>
+<tr><td><code>servers.write</code></td><td>Creating, changing and leaving servers, and managing roles.</td></tr>
+<tr><td><code>servers.members.read</code></td><td>Reading the members of servers.</td></tr>
+<tr><td><code>servers.members.write</code></td><td>Changing members: nicknames, roles, timeouts, kicks and bans.</td></tr>
+<tr><td><code>servers.channels.read</code></td><td>Reading servers' channels and threads.</td></tr>
+<tr><td><code>servers.channels.write</code></td><td>Creating, changing and deleting channels, and threads and forum posts.</td></tr>
+<tr><td><code>servers.messages.read</code></td><td>Reading messages in servers.</td></tr>
+<tr><td><code>servers.messages.write</code></td><td>Sending, editing, deleting, pinning and reacting to messages in servers.</td></tr>
+<tr><td rowspan="2">📡 <b>Events</b></td><td><code>events.read</code></td><td>Listening for events. Each event also needs the permission for what it is about.</td></tr>
+<tr><td><code>events.write</code></td><td>Firing its own events for other plugins.</td></tr>
+<tr><td rowspan="3">⌨️ <b>Input</b></td><td><code>commands.write</code></td><td>Adding <code>/</code> commands to the message box.</td></tr>
+<tr><td><code>keybinds.read</code></td><td>Reading which keys its keybinds are set to.</td></tr>
+<tr><td><code>keybinds.write</code></td><td>Adding keybinds.</td></tr>
+<tr><td rowspan="2">💾 <b>Storage</b></td><td><code>storage.read</code></td><td>Reading what it stored on this device.</td></tr>
+<tr><td><code>storage.write</code></td><td>Storing data on this device.</td></tr>
+<tr><td rowspan="4">🎨 <b>Interface</b></td><td><code>styles.write</code></td><td>Adding stylesheets.</td></tr>
+<tr><td><code>ui.write</code></td><td>Toasts, notifications, confirm and text dialogs, opening profiles, copying text and changing context menus.</td></tr>
+<tr><td><code>composer.write</code></td><td>Putting text in your message box. You still decide whether to send it.</td></tr>
+<tr><td><code>navigation</code></td><td>Seeing which page or conversation is open, and opening others.</td></tr>
+<tr><td>⚠️ <b>Internals</b></td><td><code>stores</code></td><td>The app's own internal state, past everything above. Marked as dangerous.</td></tr>
+</tbody>
+</table>
 
-Everything a plugin does through the API goes through the app's own code, so
-the server's permissions, rate limits, captchas, AutoMod and encryption apply
-exactly as they do to you. A plugin with `servers.members.write` still cannot
-ban anyone you could not ban yourself.
+> [!NOTE]
+> Everything a plugin does through the API goes through the app's own code, so
+> the server's permissions, rate limits, captchas, AutoMod and encryption apply
+> exactly as they do to you. A plugin with `servers.members.write` still cannot
+> ban anyone you could not ban yourself.
 
 ## API Reference
 
@@ -190,8 +273,8 @@ plugin is handed is a frozen copy: changing it changes nothing.
 | `api.apiVersion` | `2`. |
 | `api.plugin` | `{ id, name, description, version, author }` of this plugin. |
 | `api.app` | `{ name, build, locale }`: `"Nexa"`, its build id and the reader's language. |
-| `api.users` | [Users](#users) |
-| `api.servers` | [Servers](#servers), with `roles`, `members` and `channels` |
+| `api.users` | [Users](#users) and [presence](#presence) |
+| `api.servers` | [Servers](#servers), with `roles`, `members`, `channels` and `emojis` |
 | `api.channels` | [Channels](#channels), with `messages` |
 | `api.messages` | [Messages](#messages) (the same as `api.channels.messages`) |
 | `api.events` | [Events](#events) |
@@ -200,7 +283,10 @@ plugin is handed is a frozen copy: changing it changes nothing.
 | `api.styles` | [Styles](#styles) |
 | `api.storage` | [Storage](#storage) |
 | `api.settings` | [Settings](#settings) |
-| `api.ui` | [Toasts, notifications, confirm dialogs](#user-interface) and [context menus](#context-menus) |
+| `api.ui` | [Toasts, notifications, dialogs](#user-interface) and [context menus](#context-menus) |
+| `api.composer` | [The message box](#message-box) |
+| `api.navigation` | [Where the app is, and going elsewhere](#navigation) |
+| `api.utils` | [Mentions, timestamps and other helpers](#utilities) |
 | `api.constants.Permissions` | [Permission bits](#constants) |
 | `api.stores` | [The app's stores](#stores) |
 
@@ -212,7 +298,19 @@ plugin is handed is a frozen copy: changing it changes nothing.
 | `users.fetch(id)` | the same | Asks the server; `Promise<User \| null>`. |
 | `users.me` | `users.self.read` | You, as a `SelfUser`. |
 | `users.update(changes)` | `users.self.write` | Changes your profile; `Promise<SelfUser>`. |
+| `users.presence(id)` | `users.read` (`users.self.read` for yourself) | Whether they are online and what they are doing; see [Presence](#presence). |
 | `users.listRelationships(filter?)` | `users.relationships.read` | Your friends, requests and blocks; `filter` is one of `"friend"`, `"blocked"`, `"incomingRequest"`, `"outgoingRequest"`. `Promise<User[]>`. |
+
+`users.update` takes any of `displayName`, `pronouns`, `aboutMe`,
+`accentColor`, `accentColor2`, `status` and `typingStyle`.
+
+Badges and emoji are passed on as the server sends them: a server tag's
+`badge` is `"icon:<name>"` or `"image:<id>"`; a typing style's `emoji` holds
+unicode emoji, a server's emoji as messages write it (`<:name:id>`) or a
+picture's URL.
+
+<details>
+<summary><b>Types:</b> <code>User</code>, <code>SelfUser</code></summary>
 
 ```ts
 interface User {
@@ -249,13 +347,21 @@ interface SelfUser extends User {
 }
 ```
 
-`users.update` takes any of `displayName`, `pronouns`, `aboutMe`,
-`accentColor`, `accentColor2`, `status` and `typingStyle`.
+</details>
 
-Badges and emoji are passed on as the server sends them: a server tag's
-`badge` is `"icon:<name>"` or `"image:<id>"`; a typing style's `emoji` holds
-unicode emoji, a server's emoji as messages write it (`<:name:id>`) or a
-picture's URL.
+#### Presence
+
+`users.presence(id)` answers from what this device has heard, without asking
+the server. Someone invisible, or nobody has heard from, is `"offline"`.
+
+```ts
+interface Presence {
+  userId: string;
+  status: "online" | "idle" | "dnd" | "offline";
+  /** what they are doing, as the desktop app heard it from programs on their computer */
+  activities: { name: string; type: number; details: string | null; state: string | null }[];
+}
+```
 
 ### Servers
 
@@ -267,6 +373,9 @@ picture's URL.
 | `servers.create({ name, description? })` | `servers.write` | Makes a server; `Promise<Server>`. |
 | `servers.update(id, changes)` | `servers.write` | Changes `name`, `description`, `systemChannelId` or `defaultNotifications`. |
 | `servers.leave(id)` | `servers.write` | Leaves a server (not one you own). |
+
+<details>
+<summary><b>Type:</b> <code>Server</code></summary>
 
 ```ts
 interface Server {
@@ -292,6 +401,8 @@ interface Server {
 }
 ```
 
+</details>
+
 #### Roles
 
 All need `servers.write`.
@@ -301,6 +412,9 @@ All need `servers.write`.
 | `servers.roles.create(serverId, options)` | Makes a role from `name` and any of `color`, `color2`, `color3`, `hoist`, `mentionable`, `permissions`, `iconEmoji`; `Promise<Role>`. |
 | `servers.roles.update(serverId, roleId, changes)` | Changes the same fields, and `position`; `Promise<Role>`. |
 | `servers.roles.delete(serverId, roleId)` | Deletes a role. |
+
+<details>
+<summary><b>Type:</b> <code>Role</code></summary>
 
 ```ts
 interface Role {
@@ -321,6 +435,8 @@ interface Role {
 }
 ```
 
+</details>
+
 #### Members
 
 | Method | Permission | What it does |
@@ -334,6 +450,9 @@ interface Role {
 | `servers.members.unban(serverId, userId)` | `servers.members.write` | Lifts a ban. |
 | `servers.members.mute(serverId, userId, until)` | `servers.members.write` | Times a member out until a `Date`. |
 | `servers.members.unmute(serverId, userId)` | `servers.members.write` | Ends a timeout. |
+
+<details>
+<summary><b>Type:</b> <code>ServerMember</code></summary>
 
 ```ts
 interface ServerMember {
@@ -349,6 +468,35 @@ interface ServerMember {
   flags: number;
   roleIds: string[];
 }
+```
+
+</details>
+
+#### Emoji
+
+The custom emoji of the servers you are in, as this device has them. Both need
+`servers.read`.
+
+| Method | What it does |
+| --- | --- |
+| `servers.emojis.list(serverId?)` | One server's emoji, or every server's when no id is given. |
+| `servers.emojis.find(name)` | The first emoji with that name (`"party"` or `":party:"`, any case), or `null`. |
+
+```ts
+interface Emoji {
+  id: string;
+  serverId: string;
+  name: string;
+  animated: boolean;
+  url: string;
+  /** how a message writes it: <:name:id>, or <a:name:id> when it moves */
+  markdown: string;
+}
+```
+
+```js
+const party = api.servers.emojis.find("party");
+if (party) api.messages.send(channelId, { content: `We did it ${party.markdown}` });
 ```
 
 ### Channels
@@ -379,6 +527,9 @@ Each overwrite is `{ targetId, targetType: "role" | "member", allow, deny }`.
 In a forum, `content` is the post's first message and is required. Elsewhere,
 `starterId` starts the thread from a message and `content`, when given, is
 sent into it.
+
+<details>
+<summary><b>Type:</b> <code>Channel</code></summary>
 
 ```ts
 interface Channel {
@@ -421,27 +572,36 @@ interface Channel {
 }
 ```
 
+</details>
+
 ### Messages
 
-Messages are decrypted on this device; a plugin never sees ciphertext.
-Reading needs `servers.messages.read` in a server and `directmessages.read`
-elsewhere; sending, editing, deleting and reacting need the `.write` ones.
+Messages are decrypted on this device; a plugin never sees ciphertext, and
+never sees a file's key. Reading needs `servers.messages.read` in a server and
+`directmessages.read` elsewhere; the methods marked ✏️ need the `.write` ones.
 
 | Method | What it does |
 | --- | --- |
 | `messages.get(channelId, id)` | A message this device has loaded, or `null`. |
 | `messages.fetch(channelId, id)` | Asks the server; `Promise<Message \| null>`. |
 | `messages.list(channelId, { limit?, before?, after? })` | Up to `limit` (1 to 100, 50 by default) messages, oldest first. |
-| `messages.send(channelId, { content, replyToId? })` | Sends a message as you, encrypted as the message box would; `Promise<Message>`. |
-| `messages.edit(channelId, id, content)` | Edits one of your own messages this device has loaded. |
-| `messages.delete(channelId, id)` | Deletes a message (yours, or anyone's where you may manage messages). |
-| `messages.react(channelId, id, emoji)` | Adds a reaction. |
-| `messages.unreact(channelId, id, emoji)` | Takes your reaction away. |
+| `messages.listPinned(channelId)` | The channel's pinned messages, newest pin first. |
+| `messages.reactors(channelId, id, emoji)` | Up to 100 ids of the people who reacted with that emoji. |
+| `messages.markRead(channelId)` | Marks the channel read up to its newest message, as Mark as Read does. |
+| ✏️ `messages.send(channelId, { content, replyToId? })` | Sends a message as you, encrypted as the message box would; `Promise<Message>`. |
+| ✏️ `messages.edit(channelId, id, content)` | Edits one of your own messages this device has loaded. |
+| ✏️ `messages.delete(channelId, id)` | Deletes a message (yours, or anyone's where you may manage messages). |
+| ✏️ `messages.react(channelId, id, emoji)` | Adds a reaction. |
+| ✏️ `messages.unreact(channelId, id, emoji)` | Takes your reaction away. |
+| ✏️ `messages.pin(channelId, id)` | Pins a message (where you may pin). |
+| ✏️ `messages.unpin(channelId, id)` | Unpins it. |
 
 ```ts
 interface Message {
   id: string;
   channelId: string;
+  /** the server the channel belongs to; null in direct messages and groups */
+  serverId: string | null;
   authorId: string;
   /** "default", "reply" or one of the "system_*" kinds */
   type: string;
@@ -453,10 +613,31 @@ interface Message {
   mentionRoles: string[];
   mentionEveryone: boolean;
   reactions: { emoji: string; count: number; me: boolean }[];
+  attachments: Attachment[];
+  sticker: { id: string; name: string } | null;
+  /** forwarded from another message: when that one was sent, and the comment added */
+  forwarded: { at: Date; comment: string | null } | null;
+  /** sent by a webhook or an app */
+  fromApp: boolean;
+  pinned: boolean;
   flags: number;
   nonce: string | null;
   editedAt: Date | null;
   createdAt: Date;
+}
+
+interface Attachment {
+  name: string;
+  /** its MIME type, such as "image/png" */
+  type: string;
+  size: number;
+  width: number | null;
+  height: number | null;
+  spoiler: boolean;
+  /** a recording's length in seconds, when known */
+  duration: number | null;
+  /** a voice message recorded in the app */
+  voice: boolean;
 }
 ```
 
@@ -472,6 +653,8 @@ permission for what it is about, checked every time.
 | `messageCreated` | `Message` | messages read, by channel |
 | `messageEdited` | `Message` | messages read, by channel |
 | `messageDeleted` | `{ id, channelId, message: Message \| null }` | messages read, by channel |
+| `messagePinned` | `{ channelId, messageId }` | messages read, by channel |
+| `messageUnpinned` | `{ channelId, messageId }` | messages read, by channel |
 | `reactionAdded` | `{ channelId, messageId, userId, emoji }` | messages read, by channel |
 | `reactionRemoved` | `{ channelId, messageId, userId, emoji }` | messages read, by channel |
 | `typingStarted` | `{ channelId, userId }` | messages read, by channel |
@@ -487,7 +670,19 @@ permission for what it is about, checked every time.
 | `userUpdated` | `User` (a `SelfUser` for you) | `users.read` (`users.self.read` for you) |
 | `presenceUpdated` | `{ userId, status }` | `users.read` (`users.self.read` for you) |
 | `relationshipChanged` | `{ user, relationship, old }` | `users.relationships.read` |
+| `locationChanged` | `{ path, serverId, channelId }` | `navigation` |
 | `localeChanged` | the new language, such as `"de"` | nothing more |
+
+```mermaid
+sequenceDiagram
+  participant S as Nexa server
+  participant A as The app
+  participant P as Your plugin
+  S->>A: an event (still encrypted)
+  A->>A: decrypts it and updates its stores
+  A->>P: messageCreated, if you hold events.read<br/>and the permission to read that channel
+  Note over P: api.messages.get already sees it
+```
 
 - Events fire after the app has taken the change in, so `api.messages.get` and
   the rest already see it. `messageDeleted` carries the message as it was, when
@@ -537,7 +732,8 @@ api.commands.register("roll", "Rolls a die", (args, ctx) => {
   `SelfUser` (with `users.self.read`), and the channel it was typed in (with
   the permission to read it), each `null` otherwise. It may be `async`.
 - Nothing is sent in the command's place. To send something, call
-  `api.messages.send`.
+  `api.messages.send`; to leave something in the box for the person to send,
+  call [`api.composer.insert`](#message-box).
 
 ### Keybinds
 
@@ -550,12 +746,12 @@ api.keybinds.register("toggleCompact", { name: "Compact Mode", description: "Tig
 | Method | Permission | What it does |
 | --- | --- | --- |
 | `keybinds.register(id, { name, description }, callback)` | `keybinds.write` | Adds a keybind; returns a function that removes it. |
-| `keybinds.get(id)` | `keybinds.read` | The keys it is set to, as the app shows them (`"Ctrl+Shift+K"`, or `"⌃⇧K"` on a Mac), or `null`. |
+| `keybinds.get(id)` | `keybinds.read` | The keys it is set to, as the app shows them (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd>, or <kbd>⌃⇧K</kbd> on a Mac), or `null`. |
 | `keybinds.onChange(id, callback)` | `keybinds.read` | Calls back with the new keys, or `null`, when the person changes them. |
 
 - A plugin cannot choose its keys. Every keybind starts unbound; the person
-  sets it in Settings, Keybinds, where each running plugin has a section of its
-  own. Keys the app keeps for itself cannot be used.
+  sets it in **Settings, Keybinds**, where each running plugin has a section of
+  its own. Keys the app keeps for itself cannot be used.
 - Ids are letters, digits, `.`, `:`, `-` and `_`, up to 64, and are kept per
   plugin id, so they survive updates and never clash with another plugin's.
 - Keybinds work while the app's window has focus, not system-wide. When two
@@ -573,7 +769,7 @@ api.keybinds.register("toggleCompact", { name: "Compact Mode", description: "Tig
 Both need `styles.write`. A stylesheet goes when the plugin stops, unless it
 was added with `persist` set to `true`: then it stays until the function `add`
 returned is called, `styles.clear()` runs, the plugin is deleted or the page
-reloads. See [Custom CSS](#custom-css) for what to select.
+reloads. The [Custom CSS guide](custom-css.md) says what to select.
 
 ### Storage
 
@@ -622,40 +818,35 @@ every device, sealed with its other settings. No permission is needed.
 
 ### User Interface
 
-All of these need `ui.write`.
+All of these need `ui.write`. Everything a plugin shows carries its name, so
+people always know where it came from.
 
-#### Toasts
+| Method | What it does |
+| --- | --- |
+| `ui.toast(message, { type?, duration? })` | A short note at the bottom of the screen. `type` is `"info"` (the default), `"success"`, `"warning"` or `"error"`; `duration` is in milliseconds, from 1 to 15 seconds, 4 by default. |
+| `ui.notify(title, body?)` | A system notification. The browser asks the person the first time, and nothing shows while they are on Do Not Disturb. |
+| `ui.confirm({ title, message, confirmText?, cancelText? })` | The app's own dialog; resolves to `true` when the person confirms, `false` when they cancel or close it. |
+| `ui.prompt({ title, label?, placeholder?, initial?, maxLength?, confirmText? })` | Asks for one line of text in the app's own dialog; resolves to the text (perhaps empty), or `null` when cancelled. `maxLength` is at most 2000. |
+| `ui.openProfile(userId)` | Opens someone's profile. Also needs `users.read` (`users.self.read` for yourself). |
+| `ui.copy(text)` | Copies text to the clipboard and says so; resolves to whether it worked. |
 
 ```js
 api.ui.toast("Saved.", { type: "success" });
-api.ui.toast("Slow down!", { type: "warning", duration: 8000 });
-```
 
-`ui.toast(message, { type?, duration? })` shows a short note at the bottom of
-the screen, with the plugin's name in front. `type` is `"info"` (the default),
-`"success"`, `"warning"` or `"error"`. `duration` is in milliseconds, from 1
-to 15 seconds, 4 seconds by default.
-
-#### Notifications
-
-`ui.notify(title, body?)` shows a system notification, with the plugin's name
-in front of the title. The browser asks the person the first time, and
-nothing shows while they are on Do Not Disturb.
-
-#### Confirm Dialogs
-
-```js
 const yes = await api.ui.confirm({
   title: "Delete Everything",
   message: "This removes every note this plugin kept.",
   confirmText: "Delete",
   cancelText: "Keep",
 });
+
+const nickname = await api.ui.prompt({ title: "Rename", label: "New nickname", initial: "Bob", maxLength: 32 });
+if (nickname !== null) api.ui.toast(`Hello, ${nickname}`);
 ```
 
-`ui.confirm({ title, message, confirmText?, cancelText? })` opens the app's
-own dialog and resolves to `true` when the person confirms, `false` when they
-cancel or close it.
+> [!TIP]
+> Use `ui.confirm` and `ui.prompt`, never `window.confirm` or `window.prompt`:
+> the desktop app has no browser dialogs and answers those with nothing.
 
 ### Context Menus
 
@@ -663,7 +854,8 @@ A plugin can change every context menu in the app: add buttons, remove the
 app's own, and edit any of them. Menus are named by kind (`"message"`,
 `"member"`, `"server"`, ...) and buttons by an id unique across all menus
 (`"deleteMessage"`, `"kickMember"`, ...). The [table of menus](#menus) lists
-every one. Everything a plugin changes is taken back when it stops.
+every one. Everything a plugin changes is taken back when it stops. All of
+these need `ui.write`.
 
 ```js
 api.ui.contextMenu.add("message", {
@@ -726,6 +918,9 @@ are about something a plugin cannot look up (a picture, a filter, a device),
 so their context has only `menu`. A button's id stays the same between
 releases; a button can be missing from a menu when it does not apply (Edit
 Message on someone else's message, for one).
+
+<details>
+<summary><b>Every menu and its buttons</b> (generated from the app's own registry)</summary>
 
 <!-- menus:start (made by web/src/lib/contextMenus/menuDocs.test.ts) -->
 
@@ -791,6 +986,56 @@ Message on someone else's message, for one).
 
 <!-- menus:end -->
 
+</details>
+
+### Message Box
+
+`api.composer` works with the message box of the conversation on screen. It
+needs `composer.write`. Text a plugin puts there is only typed for the person,
+never sent: they read it, change it and send it themselves.
+
+| Method | What it does |
+| --- | --- |
+| `composer.insert(text)` | Types text at the caret (replacing any selection), up to 4000 characters. Nothing happens when no message box is open. |
+
+```js
+api.commands.register("sig", "Types your sign-off", () => api.composer.insert("\n(sent with Quick Tools)"));
+```
+
+### Navigation
+
+`api.navigation` needs `navigation`.
+
+| Member | What it does |
+| --- | --- |
+| `navigation.current` | Where the app is: `{ path, serverId, channelId }`. `serverId` is `null` in direct messages and on pages outside servers. |
+| `navigation.go(path)` | Goes to a page of the app, such as `"/channels/@me"` or `"/channels/@me/notes"`. Only paths inside the app; anything else throws. |
+| `navigation.openChannel(channelId, messageId?)` | Opens a channel or conversation this device knows, at a message when given. |
+
+The `locationChanged` [event](#events) fires each time the page changes.
+
+### Utilities
+
+`api.utils` needs no permission. It only formats and works things out.
+
+| Method | Gives |
+| --- | --- |
+| `utils.mention.user(id)` | `<@id>`, a mention of a person |
+| `utils.mention.role(id)` | `<@&id>`, a mention of a role |
+| `utils.mention.channel(id)` | `<#id>`, a link to a channel |
+| `utils.timestamp(date, style = "f")` | `<t:seconds:style>`, a time every reader sees in their own time zone. Styles: `t` short time, `T` long time, `d` short date, `D` long date, `f` date and time, `F` day, date and time, `R` relative ("in 2 hours") |
+| `utils.escapeMarkdown(text)` | The text with Markdown's special characters escaped, so it shows as typed |
+| `utils.idDate(id)` | The `Date` an id was made: when a message was sent, an account made, and so on |
+| `utils.hasPermission(bits, permission)` | Whether `bits` holds all of `permission`, both `bigint`s |
+
+```js
+const { Permissions } = api.constants;
+const server = api.servers.get(serverId);
+if (api.utils.hasPermission(server.myPermissions, Permissions.MANAGE_MESSAGES)) {
+  api.ui.toast(`You can tidy ${server.name}, which started ${api.utils.idDate(server.id).toDateString()}.`);
+}
+```
+
 ### Constants
 
 `api.constants.Permissions` holds the server permission bits as `bigint`s, by
@@ -798,48 +1043,174 @@ name, to test `server.myPermissions` or a role's `permissions`:
 
 ```js
 const { Permissions } = api.constants;
-const server = api.servers.get(id);
-const canBan = (server.myPermissions & Permissions.BAN_MEMBERS) !== 0n;
+const canBan = (api.servers.get(id).myPermissions & Permissions.BAN_MEMBERS) !== 0n;
 ```
 
 ### Stores
 
-::: danger The app's internals
-`api.stores` (with the `stores` permission) hands over the app's own state
-stores: `auth`, `settings`, `messages`, `channels`, `servers`, `users`,
-`relationships`, `presence`, `readStates` and `ui`. They give a plugin
-everything the app has, past every other permission, and they change between
-releases without notice. Use the API above wherever it can do the job.
-:::
+> [!WARNING]
+> **The app's internals.** `api.stores` (with the `stores` permission) hands
+> over the app's own state stores: `auth`, `settings`, `messages`, `channels`,
+> `servers`, `users`, `relationships`, `presence`, `readStates` and `ui`. They
+> give a plugin everything the app has, past every other permission, and they
+> change between releases without notice. Use the API above wherever it can do
+> the job.
 
-## Examples
+## Recipes
 
-- [`examples/keyword-alert.js`](examples/keyword-alert.js): a toast when a
-  message says a word you picked, underlined mentions, and a `/shout` command.
-- [`examples/try-everything.js`](examples/try-everything.js): touches most of
-  version 2 (events, a custom event, a command, a keybind, styles, storage,
-  settings, a confirm dialog and context menus).
-- [`examples/keyword-alert-v1.js`](examples/keyword-alert-v1.js) and
-  [`examples/try-everything-v1.js`](examples/try-everything-v1.js): the same
-  for version 1.
+Small, complete plugins to copy and change.
+
+<details>
+<summary><b>👋 Greet new members</b> &nbsp;<code>events.read</code> <code>servers.members.read</code> <code>servers.read</code> <code>servers.messages.write</code></summary>
+
+```js
+export default {
+  name: "Welcome Wagon",
+  apiVersion: 2,
+  permissions: ["events.read", "servers.members.read", "servers.read", "servers.messages.write"],
+  start(api) {
+    api.events.on("memberJoined", (member) => {
+      const server = api.servers.get(member.serverId);
+      if (!server?.systemChannelId) return;
+      api.messages.send(server.systemChannelId, { content: `Welcome, ${api.utils.mention.user(member.userId)}! 🎉` });
+    });
+  },
+};
+```
+
+</details>
+
+<details>
+<summary><b>📌 Toast when something is pinned</b> &nbsp;<code>events.read</code> <code>servers.messages.read</code> <code>ui.write</code></summary>
+
+```js
+export default {
+  name: "Pin Watch",
+  apiVersion: 2,
+  permissions: ["events.read", "servers.messages.read", "ui.write"],
+  start(api) {
+    api.events.on("messagePinned", async ({ channelId, messageId }) => {
+      const m = api.messages.get(channelId, messageId) ?? (await api.messages.fetch(channelId, messageId));
+      api.ui.toast(`Pinned: ${m?.content?.slice(0, 60) ?? "a message"}`, { type: "success" });
+    });
+  },
+};
+```
+
+</details>
+
+<details>
+<summary><b>🕒 Type a timestamp</b> &nbsp;<code>commands.write</code> <code>composer.write</code></summary>
+
+```js
+export default {
+  name: "In An Hour",
+  apiVersion: 2,
+  permissions: ["commands.write", "composer.write"],
+  start(api) {
+    api.commands.register("inanhour", "Types the time an hour from now", () => {
+      api.composer.insert(api.utils.timestamp(new Date(Date.now() + 3600e3), "R") + " ");
+    });
+  },
+};
+```
+
+</details>
+
+<details>
+<summary><b>🔁 Back to the last channel</b> &nbsp;<code>navigation</code> <code>events.read</code> <code>keybinds.write</code></summary>
+
+```js
+export default {
+  name: "Back Again",
+  apiVersion: 2,
+  permissions: ["navigation", "events.read", "keybinds.write"],
+  start(api) {
+    let previous = null;
+    let current = api.navigation.current.channelId;
+    api.events.on("locationChanged", ({ channelId }) => {
+      if (channelId && channelId !== current) [previous, current] = [current, channelId];
+    });
+    api.keybinds.register("back", { name: "Last Channel", description: "Opens the channel before this one" }, () => {
+      if (previous) api.navigation.openChannel(previous);
+    });
+  },
+};
+```
+
+</details>
+
+<details>
+<summary><b>📎 Copy every file name in a message</b> &nbsp;<code>servers.messages.read</code> <code>directmessages.read</code> <code>ui.write</code></summary>
+
+```js
+export default {
+  name: "File Names",
+  apiVersion: 2,
+  permissions: ["servers.messages.read", "directmessages.read", "ui.write"],
+  start(api) {
+    api.ui.contextMenu.add("message", {
+      id: "fileNamesCopy",
+      label: "Copy File Names",
+      icon: "paperclip",
+      visible: (ctx) => (ctx.message?.attachments.length ?? 0) > 0,
+      onClick: (ctx) => api.ui.copy(ctx.message.attachments.map((a) => a.name).join("\n")),
+    });
+  },
+};
+```
+
+</details>
+
+## Example Plugins
+
+| File | What it shows |
+| --- | --- |
+| [`examples/quick-tools.js`](examples/quick-tools.js) | `/when` timestamps, saved `/snippet`s, Copy as Quote, Jump to Pinned and a Last Channel keybind: the message box, navigation, prompts, pins and utilities. |
+| [`examples/try-everything.js`](examples/try-everything.js) | Most of version 2: events, a custom event, a command, a keybind, styles, storage, settings, a confirm dialog and context menus. |
+| [`examples/keyword-alert.js`](examples/keyword-alert.js) | A toast when a message says a word you picked, underlined mentions, and a `/shout` command. |
+| [`examples/keyword-alert-v1.js`](examples/keyword-alert-v1.js), [`examples/try-everything-v1.js`](examples/try-everything-v1.js) | The same for version 1. |
+
+## What's New in the API
+
+Version 2 grows without breaking what plugins already do: new members are
+added, existing ones keep their shapes, and new permissions are only asked for
+by code that names them.
+
+**November 2026**
+
+- Messages carry `serverId`, `attachments`, `sticker`, `forwarded`, `fromApp`
+  and `pinned`.
+- `messages.pin`, `unpin`, `listPinned`, `reactors` and `markRead`, with the
+  `messagePinned` and `messageUnpinned` events.
+- `users.presence` and `servers.emojis`.
+- `ui.prompt`, `ui.openProfile` and `ui.copy`.
+- `api.composer` and the `composer.write` permission.
+- `api.navigation`, the `navigation` permission and the `locationChanged`
+  event.
+- `api.utils`: mentions, timestamps, escaping, dates from ids and permission
+  checks.
 
 ## Version 1 Reference
 
 Every plugin without `apiVersion`, or with `apiVersion: 1`, gets version 1, and
 keeps getting it: plugins written for it keep working as they are.
 
-::: warning Version 1 has full access
-A version 1 plugin asks for no permissions and can do everything the person
-can. The app says so when one is added. Write new plugins for version 2.
-:::
+> [!WARNING]
+> **Version 1 has full access.** A version 1 plugin asks for no permissions and
+> can do everything the person can. The app says so when one is added. Write
+> new plugins for version 2.
+
+<details>
+<summary><b>The whole of version 1</b></summary>
 
 What changed in version 2: permissions; much more of the app to read and
 change; `css` became `styles` (and stylesheets can be kept after the plugin
 stops); `toast(text, kind)` became `ui.toast(text, { type, duration })`;
 `messageCreate`, `messageUpdate` and `messageDelete` became `messageCreated`,
 `messageEdited` and `messageDeleted`, with many more events; commands no
-longer send the text they return; and `navigate` and `me` are gone (use
-`users.me`).
+longer send the text they return; and `navigate` and `me` became
+`navigation.go` and `users.me`.
 
 | Member | What it does |
 | --- | --- |
@@ -871,22 +1242,10 @@ message as it was, when the device had it loaded.
 
 Settings are declared as in [version 2](#settings).
 
-## Custom CSS
+</details>
 
-The person's own CSS and the stylesheets they add from links are drawn after
-all of the app's stylesheets, the person's own snippet last, so a rule as
-specific as the app's wins. The easiest thing to change is colour: every
-colour the theme builder's Advanced mode lists is a custom property, for
-example `:root { --brand: #e91e63; }`. The theme in use is on
-`<html data-look="…">` (such as `forest` or `custom-…`) for CSS that should
-apply to one theme only.
+---
 
-Class names carry a hash that changes between versions, so match the stable
-start of one: `[class*="_messageList_"]`. Rendered messages use plain class
-names that do not change, such as `.md-mention`, `.md-codeblock` and
-`.md-link`, and every message row has a `data-row` attribute.
-
-Stylesheets may `@import` other stylesheets and load fonts and images over
-https. Each device keeps a copy of every stylesheet from a link, so the app
-starts styled even when the site is down, and checks for a new version once a
-day in the background (Refresh fetches it at once).
+<p align="center">
+  Styling Nexa rather than changing what it does? Read the <a href="custom-css.md"><b>Custom CSS guide</b></a>.
+</p>

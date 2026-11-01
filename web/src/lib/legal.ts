@@ -28,6 +28,10 @@ export const OWNER_USERNAME = "nora";
 /** Public source for every Nexa client and the server; also read by Android. */
 export const GITHUB_URL = "https://github.com/terrydavisthe2nd/nexa";
 
+/** The guides for plugin authors and custom CSS, read on GitHub (docs/plugins.md, docs/custom-css.md). */
+export const PLUGIN_GUIDE_URL = `${GITHUB_URL}/blob/main/docs/plugins.md`;
+export const CSS_GUIDE_URL = `${GITHUB_URL}/blob/main/docs/custom-css.md`;
+
 export function termsKey(userId: string): string {
   return `nexa.terms-accepted.${userId}`;
 }

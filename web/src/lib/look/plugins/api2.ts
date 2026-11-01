@@ -314,9 +314,25 @@ export interface Reaction {
   me: boolean;
 }
 
+export interface Attachment {
+  name: string;
+  /** Its MIME type, such as "image/png". */
+  type: string;
+  size: number;
+  /** A picture's or video's size in pixels, when the sender's app said. */
+  width: number | null;
+  height: number | null;
+  spoiler: boolean;
+  /** A voice message or other recording: its length in seconds, when known. */
+  duration: number | null;
+  voice: boolean;
+}
+
 export interface Message {
   id: string;
   channelId: string;
+  /** The server the channel belongs to, or null in direct messages and groups. */
+  serverId: string | null;
   authorId: string;
   /** "default", "reply" or one of the "system_*" kinds. */
   type: string;
@@ -328,10 +344,50 @@ export interface Message {
   mentionRoles: string[];
   mentionEveryone: boolean;
   reactions: Reaction[];
+  attachments: Attachment[];
+  sticker: { id: string; name: string } | null;
+  /** Forwarded from another message: when that one was sent, and the forwarder's comment. */
+  forwarded: { at: Date; comment: string | null } | null;
+  /** Sent by a webhook or an app, not by a person's own app. */
+  fromApp: boolean;
+  pinned: boolean;
   flags: number;
   nonce: string | null;
   editedAt: Date | null;
   createdAt: Date;
+}
+
+export interface Emoji {
+  id: string;
+  serverId: string;
+  name: string;
+  animated: boolean;
+  url: string;
+  /** How a message writes it: <:name:id>, or <a:name:id> when it moves. */
+  markdown: string;
+}
+
+export interface Presence {
+  userId: string;
+  status: "online" | "idle" | "dnd" | "offline";
+  /** What they are doing, as the desktop app heard it from programs on their computer. */
+  activities: { name: string; type: number; details: string | null; state: string | null }[];
+}
+
+export interface Location {
+  /** The address inside the app, such as "/channels/@me". */
+  path: string;
+  serverId: string | null;
+  channelId: string | null;
+}
+
+export interface PromptOptions {
+  title: string;
+  label?: string;
+  placeholder?: string;
+  initial?: string;
+  maxLength?: number;
+  confirmText?: string;
 }
 
 export interface SendOptions {
@@ -361,6 +417,9 @@ export interface PluginEventsV2 {
   typingStarted: { channelId: string; userId: string };
   typingStopped: { channelId: string; userId: string };
   presenceUpdated: { userId: string; status: string };
+  locationChanged: Location;
+  messagePinned: { channelId: string; messageId: string };
+  messageUnpinned: { channelId: string; messageId: string };
 }
 
 export type PluginEventNameV2 = keyof PluginEventsV2;
