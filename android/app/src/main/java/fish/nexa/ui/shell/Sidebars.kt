@@ -119,7 +119,20 @@ fun ServerSidebar(serverId: String, channelId: String?) {
     val open = channelId?.let { channels[it] }
     fun inside(ch: Channel) = open != null && open.parentId == ch.id && open.id !in joinedThreads && (open.type == "thread" || open.type == "private_thread")
     val st = servers[serverId] ?: return
-    val tree = remember(channels, serverId) { ChannelTree.of(serverId, channels.values) }
+    val viewAs by Nexa.servers.viewAs.collectAsState()
+    val tree = remember(channels, serverId, viewAs, servers[serverId]) {
+        val full = ChannelTree.of(serverId, channels.values)
+        val st = servers[serverId]
+        // View Server as Role: the server sends what this account sees, so the preview hides what the role would not
+        if (st == null || viewAs?.serverId != serverId) full
+        else {
+            fun sees(id: String) = Nexa.servers.canI(st, fish.nexa.data.P.VIEW_CHANNEL, id)
+            ChannelTree.Tree(
+                full.loose.filter { sees(it.id) },
+                full.categories.map { it.copy(children = it.children.filter { ch -> sees(ch.id) }) }.filter { it.children.isNotEmpty() || sees(it.channel.id) },
+            )
+        }
+    }
     val collapsed = Nexa.settings.collapsedCategories
     val density = LocalDensity.current.density
     val banner = st.server.bannerId

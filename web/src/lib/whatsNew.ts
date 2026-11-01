@@ -29,6 +29,8 @@ export const RELEASES: Release[] = [
     id: "2026-10-31",
     items: [
       { icon: Volume2, title: "whatsNew.r20261031.callSoundsTitle", body: "whatsNew.r20261031.callSoundsBody" },
+      { icon: Eye, title: "whatsNew.r20261031.viewAsRoleTitle", body: "whatsNew.r20261031.viewAsRoleBody" },
+      { icon: ClipboardCopy, title: "whatsNew.r20261031.duplicateRoleTitle", body: "whatsNew.r20261031.duplicateRoleBody" },
     ],
   },
   {

@@ -8238,6 +8238,15 @@
   "reports.reportTab": "البلاغ",
   "reports.saved": "تم حفظ المراجعة",
   "reports.historyTab": "السجل",
+  "server.roles.copyName": "{name} (نسخة)",
+  "server.roles.couldNotDuplicateTheRole": "تعذر تكرار الدور.",
+  "server.roles.duplicateRole": "تكرار الدور",
+  "server.roles.roleDuplicated": "تم تكرار الدور. يبقى الأعضاء وأذونات القنوات مع الأصل.",
+  "server.viewAs.action": "عرض الخادم بصفة الدور",
+  "server.viewAs.exit": "إنهاء المعاينة",
+  "server.viewAs.onlyYou": "أنت وحدك ترى هذه المعاينة، ولا يتغير شيء في أدوارك الحقيقية.",
+  "server.viewAs.title": "العرض بصفة دور",
+  "server.viewAs.viewing": "أنت تعرض {server} بصفة {role}",
   "settings.notifications.deafen": "كتم الصوت الوارد",
   "settings.notifications.shareStart": "بدء مشاركة الشاشة",
   "settings.notifications.shareStop": "انتهاء مشاركة الشاشة",
@@ -8253,5 +8262,9 @@
   "whatsNew.r20261029.maintenanceBody": "يظهر عد تنازلي قبل إعادة تشغيل الخادم المجدولة بساعتين و30 دقيقة، لتتمكن من الاستعداد لانقطاع قصير.",
   "whatsNew.r20261029.maintenanceTitle": "إشعارات الصيانة",
   "whatsNew.r20261031.callSoundsBody": "أصبح لكتم الصوت الوارد وإلغائه وبدء مشاركة الشاشة وإنهائها صوت خاص بكل منها. يمكنك إيقافها أو تبديلها من الإعدادات، الأصوات.",
-  "whatsNew.r20261031.callSoundsTitle": "أصوات مكالمات جديدة"
+  "whatsNew.r20261031.callSoundsTitle": "أصوات مكالمات جديدة",
+  "whatsNew.r20261031.duplicateRoleBody": "ينشئ تكرار الدور دورًا جديدًا بالاسم والألوان والأذونات نفسها، جاهزًا للتعديل. تجده في الدور أو في قائمة النقر بزر الماوس الأيمن.",
+  "whatsNew.r20261031.duplicateRoleTitle": "تكرار الأدوار",
+  "whatsNew.r20261031.viewAsRoleBody": "تحقق من القنوات والإجراءات التي يحصل عليها الدور قبل منحه. افتح إعدادات الخادم، الأدوار، واختر عرض الخادم بصفة الدور.",
+  "whatsNew.r20261031.viewAsRoleTitle": "عرض الخادم بصفة دور"
 }

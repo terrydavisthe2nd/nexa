@@ -8,6 +8,7 @@ import { useAuth } from "./auth";
 import { useChannels } from "./channels";
 import { useThreads } from "./threads";
 import { useUsers } from "./users";
+import { viewingAs } from "./viewAs";
 
 export interface ServerState {
   server: Server;
@@ -42,6 +43,8 @@ interface ServersState {
   removeMember: (serverId: string, userId: string, left?: boolean) => void;
   setMemberCount: (serverId: string, count: number) => void;
   clear: () => void;
+  /** Works out this account's permissions again, as View Server as Role starts or stops. */
+  refreshMine: (serverId: string) => void;
 }
 
 function stripView(view: ServerView): Server {
@@ -160,6 +163,12 @@ export const useServers = create<ServersState>()((set) => ({
       return { byId: { ...s.byId, [serverId]: { ...cur, memberCount: count } } };
     }),
   clear: () => set({ byId: {}, order: [] }),
+  refreshMine: (serverId) =>
+    set((s) => {
+      const cur = s.byId[serverId];
+      if (!cur) return s;
+      return { byId: { ...s.byId, [serverId]: { ...cur, myPermissions: recomputeMine(cur) } } };
+    }),
 }));
 
 function recomputeMine(st: ServerState): bigint {
@@ -178,6 +187,8 @@ export function isInstanceAdmin(userId: string): boolean {
 
 /** Server-level permissions of a user from local state. */
 export function serverPerms(st: ServerState, userId: string): bigint {
+  const preview = userId === st.me.user_id ? viewingAs(st.server.id) : null;
+  if (preview) return base(st.server.id, toPermRoles(Object.values(st.roles)), { userId, roleIds: preview, timedOut: false }, false);
   if (st.server.owner_id === userId || isInstanceAdmin(userId)) return ALL;
   // Base, as the server works out my_permissions: compute() with no channel
   // treats a missing View Channel as "can see nothing" and returned 0, so
@@ -191,9 +202,10 @@ export function serverPerms(st: ServerState, userId: string): bigint {
 export function channelPerms(st: ServerState, channelId: string, userId: string): bigint {
   const byId = useChannels.getState().byId;
   const ch = byId[channelId];
-  const isOwner = st.server.owner_id === userId || isInstanceAdmin(userId);
+  const preview = userId === st.me.user_id ? viewingAs(st.server.id) : null;
+  const isOwner = !preview && (st.server.owner_id === userId || isInstanceAdmin(userId));
   const roles = toPermRoles(Object.values(st.roles));
-  const member = toPermMember(st.members[userId], userId);
+  const member = preview ? { userId, roleIds: preview, timedOut: false } : toPermMember(st.members[userId], userId);
   if ((ch?.type === "thread" || ch?.type === "private_thread") && ch.parent_id) {
     const parent = compute(st.server.id, roles, member, isOwner, byId[ch.parent_id]?.overwrites);
     // only this account's own membership is known here; others' private threads read as closed
@@ -204,6 +216,8 @@ export function channelPerms(st: ServerState, channelId: string, userId: string)
 }
 
 export function memberHighest(st: ServerState, userId: string): { highest: number; isOwner: boolean } {
+  const preview = userId === st.me.user_id ? viewingAs(st.server.id) : null;
+  if (preview) return { highest: highestPosition(toPermRoles(Object.values(st.roles)), { userId, roleIds: preview, timedOut: false }), isOwner: false };
   const isOwner = st.server.owner_id === userId;
   // above every role, as on the server, but still answerable to the owner
   if (!isOwner && isInstanceAdmin(userId)) return { highest: 2 ** 30 - 1, isOwner: false };
@@ -240,6 +254,7 @@ export function canI(st: ServerState | undefined, need: bigint, channelId?: stri
   // into it, and a timeout that simply lapses gives the server no reason to
   // send anything. Channel checks recompute and quietly came back to life while
   // every server-wide one stayed off until a reload.
+  if (viewingAs(st.server.id)) return has(serverPerms(st, st.me.user_id), need);
   const until = st.me.timeout_until;
   const lapsed = !!until && until <= Date.now();
   return has(lapsed ? serverPerms(st, st.me.user_id) : st.myPermissions, need);

@@ -47,6 +47,7 @@
 .roleRow[data-drop="after"]::after { bottom: -2px; }
 .roleName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .roleCount { margin-inline-start: auto; font-size: 12px; color: var(--text-muted); }
+.roleActions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .tabs { display: flex; gap: 18px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 20px; }
 .tab { position: relative; padding: 10px 2px; font-size: 15px; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color var(--transition); }
 .tab:hover { color: var(--text); }

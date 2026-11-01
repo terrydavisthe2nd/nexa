@@ -7380,6 +7380,15 @@
   "reports.reportTab": "Report",
   "reports.saved": "Review Saved",
   "reports.historyTab": "History",
+  "server.roles.copyName": "{name} (Copy)",
+  "server.roles.couldNotDuplicateTheRole": "Couldn't duplicate the role.",
+  "server.roles.duplicateRole": "Duplicate Role",
+  "server.roles.roleDuplicated": "Role duplicated. Members and channel permissions stay with the original.",
+  "server.viewAs.action": "View Server as Role",
+  "server.viewAs.exit": "Exit Preview",
+  "server.viewAs.onlyYou": "Only you see this preview, and nothing about your real roles changes.",
+  "server.viewAs.title": "Viewing as a Role",
+  "server.viewAs.viewing": "You're viewing {server} as {role}",
   "settings.notifications.deafen": "Deafen",
   "settings.notifications.shareStart": "Screen Share Starts",
   "settings.notifications.shareStop": "Screen Share Ends",
@@ -7395,5 +7404,9 @@
   "whatsNew.r20261029.maintenanceBody": "A countdown appears 2 hours 30 minutes before a scheduled server restart, so you can plan around a short interruption.",
   "whatsNew.r20261029.maintenanceTitle": "Maintenance Notices",
   "whatsNew.r20261031.callSoundsBody": "Deafening, undeafening and starting or ending a screen share now each play their own sound. You can turn them off or swap them in Settings, Sounds.",
-  "whatsNew.r20261031.callSoundsTitle": "New Call Sounds"
+  "whatsNew.r20261031.callSoundsTitle": "New Call Sounds",
+  "whatsNew.r20261031.duplicateRoleBody": "Duplicate Role makes a new role with the same name, colours and permissions, ready to tweak. Find it on the role or in its right-click menu.",
+  "whatsNew.r20261031.duplicateRoleTitle": "Duplicate Roles",
+  "whatsNew.r20261031.viewAsRoleBody": "Check which channels and actions a role gets before you hand it out. Open Server Settings, Roles, and pick View Server as Role on any role.",
+  "whatsNew.r20261031.viewAsRoleTitle": "View Server as Role"
 }

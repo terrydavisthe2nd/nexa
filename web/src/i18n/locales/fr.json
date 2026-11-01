@@ -7493,6 +7493,15 @@
   "reports.reportTab": "Signalement",
   "reports.saved": "Examen enregistré",
   "reports.historyTab": "Historique",
+  "server.roles.copyName": "{name} (copie)",
+  "server.roles.couldNotDuplicateTheRole": "Impossible de dupliquer le rôle.",
+  "server.roles.duplicateRole": "Dupliquer le rôle",
+  "server.roles.roleDuplicated": "Rôle dupliqué. Les membres et les permissions de salon restent sur l’original.",
+  "server.viewAs.action": "Voir le serveur en tant que rôle",
+  "server.viewAs.exit": "Quitter l’aperçu",
+  "server.viewAs.onlyYou": "Vous seul voyez cet aperçu, et vos vrais rôles ne changent pas.",
+  "server.viewAs.title": "Affichage en tant que rôle",
+  "server.viewAs.viewing": "Vous voyez {server} en tant que {role}",
   "settings.notifications.deafen": "Mettre en sourdine le son",
   "settings.notifications.shareStart": "Début du partage d’écran",
   "settings.notifications.shareStop": "Fin du partage d’écran",
@@ -7508,5 +7517,9 @@
   "whatsNew.r20261029.maintenanceBody": "Un compte à rebours apparaît 2 heures et 30 minutes avant un redémarrage programmé du serveur pour vous permettre de prévoir une courte interruption.",
   "whatsNew.r20261029.maintenanceTitle": "Avis de Maintenance",
   "whatsNew.r20261031.callSoundsBody": "Couper ou réactiver le son, et démarrer ou arrêter un partage d’écran ont maintenant chacun leur propre son. Vous pouvez les désactiver ou les remplacer dans Paramètres, Sons.",
-  "whatsNew.r20261031.callSoundsTitle": "Nouveaux sons d’appel"
+  "whatsNew.r20261031.callSoundsTitle": "Nouveaux sons d’appel",
+  "whatsNew.r20261031.duplicateRoleBody": "Dupliquer le rôle crée un nouveau rôle avec le même nom, les mêmes couleurs et permissions, prêt à ajuster. Il se trouve sur le rôle ou dans son menu clic droit.",
+  "whatsNew.r20261031.duplicateRoleTitle": "Dupliquer des rôles",
+  "whatsNew.r20261031.viewAsRoleBody": "Vérifiez quels salons et actions un rôle obtient avant de le donner. Ouvrez Paramètres du serveur, Rôles, puis Voir le serveur en tant que rôle.",
+  "whatsNew.r20261031.viewAsRoleTitle": "Voir le serveur en tant que rôle"
 }

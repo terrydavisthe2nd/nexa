@@ -16,6 +16,7 @@ import { useVoiceDrag } from "@/stores/voiceDrag";
 import { Tooltip } from "@/components/common/Tooltip";
 import { P, isPrivateChannel } from "@/lib/perms";
 import { isMuted } from "@/lib/unread";
+import { useViewAs } from "@/stores/viewAs";
 import { channelTree, selectThreads, useChannels } from "@/stores/channels";
 import { useThreads } from "@/stores/threads";
 import { holdsThreads } from "@/lib/threads";
@@ -83,7 +84,17 @@ export function ServerSidebar({ serverId }: { serverId: string }) {
   const wasOpen = useRef(false);
   const menuWatch = useRef<(() => void) | null>(null);
   const active = loc.pathname.match(/^\/channels\/\d+\/(\d+)/)?.[1];
-  const tree = useMemo(() => channelTree(channels, serverId), [channels, serverId]);
+  const viewAs = useViewAs((v) => v.current);
+  const tree = useMemo(() => {
+    const full = channelTree(channels, serverId);
+    // View Server as Role: the server sends what this account sees, so the preview hides what the role would not
+    if (!st || viewAs?.serverId !== serverId) return full;
+    const sees = (id: string) => canI(st, P.VIEW_CHANNEL, id);
+    const categories = full.categories
+      .map(({ category, children }) => ({ category, children: children.filter((c) => sees(c.id)) }))
+      .filter(({ category, children }) => children.length > 0 || sees(category.id));
+    return { loose: full.loose.filter((c) => sees(c.id)), categories };
+  }, [channels, serverId, st, viewAs]);
   const canManage = canI(st, P.MANAGE_CHANNELS);
   const collapsed = settings.collapsedCategories;
 

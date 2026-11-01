@@ -7380,6 +7380,15 @@
   "reports.reportTab": "Meldung",
   "reports.saved": "Prüfung gespeichert",
   "reports.historyTab": "Verlauf",
+  "server.roles.copyName": "{name} (Kopie)",
+  "server.roles.couldNotDuplicateTheRole": "Die Rolle konnte nicht dupliziert werden.",
+  "server.roles.duplicateRole": "Rolle duplizieren",
+  "server.roles.roleDuplicated": "Rolle dupliziert. Mitglieder und Kanalberechtigungen bleiben beim Original.",
+  "server.viewAs.action": "Server als Rolle ansehen",
+  "server.viewAs.exit": "Vorschau beenden",
+  "server.viewAs.onlyYou": "Nur du siehst diese Vorschau, an deinen echten Rollen ändert sich nichts.",
+  "server.viewAs.title": "Ansicht als Rolle",
+  "server.viewAs.viewing": "Du siehst {server} als {role}",
   "settings.notifications.deafen": "Taubschalten",
   "settings.notifications.shareStart": "Bildschirmübertragung startet",
   "settings.notifications.shareStop": "Bildschirmübertragung endet",
@@ -7395,5 +7404,9 @@
   "whatsNew.r20261029.maintenanceBody": "Ein Countdown erscheint 2 Stunden und 30 Minuten vor einem geplanten Serverneustart, damit du die kurze Unterbrechung einplanen kannst.",
   "whatsNew.r20261029.maintenanceTitle": "Wartungshinweise",
   "whatsNew.r20261031.callSoundsBody": "Taubschalten, Aufheben und das Starten oder Beenden einer Bildschirmübertragung haben jetzt eigene Klänge. Du kannst sie unter Einstellungen, Klänge ausschalten oder austauschen.",
-  "whatsNew.r20261031.callSoundsTitle": "Neue Anrufklänge"
+  "whatsNew.r20261031.callSoundsTitle": "Neue Anrufklänge",
+  "whatsNew.r20261031.duplicateRoleBody": "Rolle duplizieren erstellt eine neue Rolle mit demselben Namen, denselben Farben und Berechtigungen, bereit zum Anpassen. Du findest es bei der Rolle oder im Rechtsklickmenü.",
+  "whatsNew.r20261031.duplicateRoleTitle": "Rollen duplizieren",
+  "whatsNew.r20261031.viewAsRoleBody": "Prüfe, welche Kanäle und Aktionen eine Rolle bekommt, bevor du sie vergibst. Öffne Servereinstellungen, Rollen, und wähle Server als Rolle ansehen.",
+  "whatsNew.r20261031.viewAsRoleTitle": "Server als Rolle ansehen"
 }

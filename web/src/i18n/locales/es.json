@@ -7493,6 +7493,15 @@
   "reports.reportTab": "Denuncia",
   "reports.saved": "Revisión guardada",
   "reports.historyTab": "Historial",
+  "server.roles.copyName": "{name} (copia)",
+  "server.roles.couldNotDuplicateTheRole": "No se pudo duplicar el rol.",
+  "server.roles.duplicateRole": "Duplicar rol",
+  "server.roles.roleDuplicated": "Rol duplicado. Los miembros y los permisos de canal se quedan en el original.",
+  "server.viewAs.action": "Ver servidor como rol",
+  "server.viewAs.exit": "Salir de la vista previa",
+  "server.viewAs.onlyYou": "Solo tú ves esta vista previa y tus roles reales no cambian.",
+  "server.viewAs.title": "Viendo como un rol",
+  "server.viewAs.viewing": "Estás viendo {server} como {role}",
   "settings.notifications.deafen": "Ensordecer",
   "settings.notifications.shareStart": "Empieza a compartir pantalla",
   "settings.notifications.shareStop": "Termina de compartir pantalla",
@@ -7508,5 +7517,9 @@
   "whatsNew.r20261029.maintenanceBody": "Aparece una cuenta atrás 2 horas y 30 minutos antes de un reinicio programado del servidor para que puedas prever una breve interrupción.",
   "whatsNew.r20261029.maintenanceTitle": "Avisos de Mantenimiento",
   "whatsNew.r20261031.callSoundsBody": "Ensordecer, dejar de ensordecer y empezar o terminar de compartir pantalla ahora tienen su propio sonido. Puedes desactivarlos o cambiarlos en Ajustes, Sonidos.",
-  "whatsNew.r20261031.callSoundsTitle": "Nuevos sonidos de llamada"
+  "whatsNew.r20261031.callSoundsTitle": "Nuevos sonidos de llamada",
+  "whatsNew.r20261031.duplicateRoleBody": "Duplicar rol crea un rol nuevo con el mismo nombre, colores y permisos, listo para ajustar. Está en el rol o en su menú de clic derecho.",
+  "whatsNew.r20261031.duplicateRoleTitle": "Duplicar roles",
+  "whatsNew.r20261031.viewAsRoleBody": "Comprueba qué canales y acciones obtiene un rol antes de darlo. Abre Ajustes del servidor, Roles, y elige Ver servidor como rol.",
+  "whatsNew.r20261031.viewAsRoleTitle": "Ver servidor como rol"
 }

@@ -7827,6 +7827,15 @@
   "reports.reportTab": "Жалоба",
   "reports.saved": "Проверка сохранена",
   "reports.historyTab": "История",
+  "server.roles.copyName": "{name} (копия)",
+  "server.roles.couldNotDuplicateTheRole": "Не удалось дублировать роль.",
+  "server.roles.duplicateRole": "Дублировать роль",
+  "server.roles.roleDuplicated": "Роль продублирована. Участники и права каналов остаются у исходной роли.",
+  "server.viewAs.action": "Просмотр сервера от имени роли",
+  "server.viewAs.exit": "Выйти из предпросмотра",
+  "server.viewAs.onlyYou": "Этот предпросмотр видите только вы, ваши настоящие роли не меняются.",
+  "server.viewAs.title": "Просмотр от имени роли",
+  "server.viewAs.viewing": "Вы смотрите {server} от имени роли {role}",
   "settings.notifications.deafen": "Отключить звук",
   "settings.notifications.shareStart": "Начало демонстрации экрана",
   "settings.notifications.shareStop": "Конец демонстрации экрана",
@@ -7842,5 +7851,9 @@
   "whatsNew.r20261029.maintenanceBody": "Обратный отсчёт появляется за 2 часа 30 минут до планового перезапуска сервера, чтобы вы могли учесть короткий перерыв.",
   "whatsNew.r20261029.maintenanceTitle": "Уведомления об Обслуживании",
   "whatsNew.r20261031.callSoundsBody": "Отключение и включение звука, а также начало и конец демонстрации экрана теперь звучат по-своему. Их можно выключить или заменить в Настройках, раздел Звуки.",
-  "whatsNew.r20261031.callSoundsTitle": "Новые звуки звонков"
+  "whatsNew.r20261031.callSoundsTitle": "Новые звуки звонков",
+  "whatsNew.r20261031.duplicateRoleBody": "«Дублировать роль» создаёт новую роль с тем же названием, цветами и правами, которую можно сразу настроить. Кнопка есть на странице роли и в её контекстном меню.",
+  "whatsNew.r20261031.duplicateRoleTitle": "Дублирование ролей",
+  "whatsNew.r20261031.viewAsRoleBody": "Проверьте, какие каналы и действия получит роль, прежде чем её выдать. Откройте настройки сервера, Роли, и выберите «Просмотр сервера от имени роли».",
+  "whatsNew.r20261031.viewAsRoleTitle": "Просмотр сервера от имени роли"
 }

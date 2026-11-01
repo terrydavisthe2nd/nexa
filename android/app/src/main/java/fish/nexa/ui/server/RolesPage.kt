@@ -61,6 +61,7 @@ import fish.nexa.ui.components.ToggleLine
 import fish.nexa.ui.components.Txt
 import fish.nexa.ui.components.pressable
 import fish.nexa.ui.describeError
+import fish.nexa.ui.layers.Layers
 import fish.nexa.ui.layers.MenuItem
 import fish.nexa.ui.layers.openMenu
 import fish.nexa.ui.shell.Names
@@ -169,6 +170,45 @@ fun RolesPage(serverId: String) {
         }
     }
 
+    fun viewAs(r: NexaRole) {
+        Nexa.servers.startViewAs(serverId, r.id)
+        Layers.close("serverSettings")
+    }
+
+    // as the web's duplicateRole: the plain fields on create, the gradient and emoji as an edit after
+    fun duplicate(r: NexaRole) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try {
+                val made = Nexa.api.request("POST", "/servers/$serverId/roles", NexaRole.serializer(), buildJsonObject {
+                    put("name", t("server.roles.copyName", "name" to r.name).take(100))
+                    put("color", r.color)
+                    put("hoist", r.hoist)
+                    put("mentionable", r.mentionable)
+                    put("permissions", r.permissions)
+                })
+                if (r.color2 != null || r.color3 != null || r.iconEmoji.isNotEmpty()) {
+                    runCatching {
+                        Nexa.api.request("PATCH", "/servers/$serverId/roles/${made.id}", NexaRole.serializer(), buildJsonObject {
+                            r.color2?.let { put("color2", it) }
+                            r.color3?.let { put("color3", it) }
+                            if (r.iconEmoji.isNotEmpty()) put("icon_emoji", r.iconEmoji)
+                        })
+                    }
+                }
+                Nexa.api.get("/servers/$serverId/roles", ListSerializer(NexaRole.serializer())).forEach { Nexa.servers.upsertRole(it) }
+                selected = made.id
+                tab = "display"
+                Nexa.ui.toast(t("server.roles.roleDuplicated"), "success")
+            } catch (e: Exception) {
+                Nexa.ui.toast(describeError(e, t("server.roles.couldNotDuplicateTheRole")), "error")
+            } finally {
+                busy = false
+            }
+        }
+    }
+
     // @everyone has no member list to manage, however it got picked
     val view = if (tab == "members" && role.id == serverId) "display" else tab
     val inner: @Composable () -> Unit = {
@@ -184,10 +224,16 @@ fun RolesPage(serverId: String) {
                 }
             },
             onMove = ::move,
+            onViewAs = { id -> st.roles[id]?.let { r -> Holds.unlessUnsaved { viewAs(r) } } },
+            onDuplicate = { id -> st.roles[id]?.let { r -> Holds.unlessUnsaved { duplicate(r) } } },
             onDrop = { moving, target, after ->
                 scope.launch { applyPositions(rolePositionsAfterDrop(movable.map { Positioned(it.id, it.position) }, moving, target, after, myHighest, iAmOwner)) }
             },
         )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            NxButton(t("server.viewAs.action"), { Holds.unlessUnsaved { viewAs(role) } }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "Eye")
+            if (role.id != serverId) NxButton(t("server.roles.duplicateRole"), { Holds.unlessUnsaved { duplicate(role) } }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "Copy", enabled = !busy)
+        }
         Tabs(
             listOfNotNull(
                 "display" to t("server.roles.display"),
@@ -218,6 +264,8 @@ private fun RoleList(
     members: Collection<Member>,
     onPick: (String) -> Unit,
     onMove: (String, Int) -> Unit,
+    onViewAs: (String) -> Unit,
+    onDuplicate: (String) -> Unit,
     onDrop: (String, String, Boolean) -> Unit,
 ) {
     val c = Nx.colors
@@ -264,13 +312,15 @@ private fun RoleList(
                         .pressable(
                             interaction,
                             role = Role.Tab,
-                            onLongClick = if (canDrag) ({
+                            onLongClick = {
                                 val items = buildList {
-                                    if (myIndex > 0 && Perms.canManageRole(myHighest, iAmOwner, movable[myIndex - 1].position)) add(MenuItem.Action(t("reorder.moveUp")) { onMove(r.id, -1) })
-                                    if (myIndex in 0 until movable.lastIndex) add(MenuItem.Action(t("reorder.moveDown")) { onMove(r.id, 1) })
+                                    add(MenuItem.Action(t("server.viewAs.action")) { onViewAs(r.id) })
+                                    if (r.id != everyoneId) add(MenuItem.Action(t("server.roles.duplicateRole")) { onDuplicate(r.id) })
+                                    if (canDrag && myIndex > 0 && Perms.canManageRole(myHighest, iAmOwner, movable[myIndex - 1].position)) add(MenuItem.Action(t("reorder.moveUp")) { onMove(r.id, -1) })
+                                    if (canDrag && myIndex in 0 until movable.lastIndex) add(MenuItem.Action(t("reorder.moveDown")) { onMove(r.id, 1) })
                                 }
-                                if (items.isNotEmpty()) openMenu(items, title = r.name)
-                            }) else null,
+                                openMenu(items, title = r.name)
+                            },
                         ) { onPick(r.id) }
                         .semantics { this.selected = on }
                         .padding(start = 10.dp),

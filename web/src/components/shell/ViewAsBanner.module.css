@@ -1,0 +1,7 @@
+.banner { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--bg-raised); color: var(--brand); border-block-end: 2px solid var(--brand); font-size: 14px; line-height: 1.4; }
+.banner > svg { flex: none; }
+.banner > button { flex: none; margin-inline-start: auto; }
+.words { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 16px; }
+.words strong { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.words span { color: var(--text-muted); }
+@media (max-width: 767px) { .words { flex-direction: column; align-items: flex-start; } }

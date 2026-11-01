@@ -7380,6 +7380,15 @@
   "reports.reportTab": "Rapport",
   "reports.saved": "Granskning sparad",
   "reports.historyTab": "Historik",
+  "server.roles.copyName": "{name} (kopia)",
+  "server.roles.couldNotDuplicateTheRole": "Kunde inte duplicera rollen.",
+  "server.roles.duplicateRole": "Duplicera roll",
+  "server.roles.roleDuplicated": "Rollen duplicerades. Medlemmar och kanalbehörigheter stannar hos originalet.",
+  "server.viewAs.action": "Visa servern som roll",
+  "server.viewAs.exit": "Avsluta förhandsvisning",
+  "server.viewAs.onlyYou": "Bara du ser förhandsvisningen, och dina riktiga roller ändras inte.",
+  "server.viewAs.title": "Visar som roll",
+  "server.viewAs.viewing": "Du ser {server} som {role}",
   "settings.notifications.deafen": "Stäng av ljud",
   "settings.notifications.shareStart": "Skärmdelning startar",
   "settings.notifications.shareStop": "Skärmdelning slutar",
@@ -7395,5 +7404,9 @@
   "whatsNew.r20261029.maintenanceBody": "En nedräkning visas 2 timmar och 30 minuter före en planerad omstart av servern så att du kan planera för ett kort avbrott.",
   "whatsNew.r20261029.maintenanceTitle": "Underhållsmeddelanden",
   "whatsNew.r20261031.callSoundsBody": "Att stänga av och slå på ljudet och att starta eller avsluta en skärmdelning spelar nu egna ljud. Du kan stänga av eller byta dem under Inställningar, Ljud.",
-  "whatsNew.r20261031.callSoundsTitle": "Nya samtalsljud"
+  "whatsNew.r20261031.callSoundsTitle": "Nya samtalsljud",
+  "whatsNew.r20261031.duplicateRoleBody": "Duplicera roll skapar en ny roll med samma namn, färger och behörigheter, redo att justera. Du hittar det på rollen eller i högerklicksmenyn.",
+  "whatsNew.r20261031.duplicateRoleTitle": "Duplicera roller",
+  "whatsNew.r20261031.viewAsRoleBody": "Se vilka kanaler och åtgärder en roll får innan du delar ut den. Öppna Serverinställningar, Roller, och välj Visa servern som roll.",
+  "whatsNew.r20261031.viewAsRoleTitle": "Visa servern som roll"
 }

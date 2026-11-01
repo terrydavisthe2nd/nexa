@@ -7380,6 +7380,15 @@
   "reports.reportTab": "रिपोर्ट",
   "reports.saved": "समीक्षा सहेजी गई",
   "reports.historyTab": "इतिहास",
+  "server.roles.copyName": "{name} (कॉपी)",
+  "server.roles.couldNotDuplicateTheRole": "भूमिका की कॉपी नहीं बन सकी।",
+  "server.roles.duplicateRole": "भूमिका की कॉपी बनाएँ",
+  "server.roles.roleDuplicated": "भूमिका की कॉपी बन गई। सदस्य और चैनल अनुमतियाँ मूल भूमिका के साथ ही रहती हैं।",
+  "server.viewAs.action": "भूमिका के रूप में सर्वर देखें",
+  "server.viewAs.exit": "झलक से बाहर निकलें",
+  "server.viewAs.onlyYou": "यह झलक सिर्फ़ आपको दिखती है, और आपकी असली भूमिकाओं में कुछ नहीं बदलता।",
+  "server.viewAs.title": "भूमिका के रूप में देख रहे हैं",
+  "server.viewAs.viewing": "आप {server} को {role} के रूप में देख रहे हैं",
   "settings.notifications.deafen": "सुनना बंद करें",
   "settings.notifications.shareStart": "स्क्रीन शेयर शुरू",
   "settings.notifications.shareStop": "स्क्रीन शेयर खत्म",
@@ -7395,5 +7404,9 @@
   "whatsNew.r20261029.maintenanceBody": "निर्धारित सर्वर पुनरारंभ से 2 घंटे 30 मिनट पहले उलटी गिनती दिखाई देती है, ताकि आप थोड़ी देर के व्यवधान के लिए तैयारी कर सकें।",
   "whatsNew.r20261029.maintenanceTitle": "रखरखाव सूचनाएँ",
   "whatsNew.r20261031.callSoundsBody": "सुनना बंद करने, फिर शुरू करने और स्क्रीन शेयर शुरू या खत्म करने पर अब अपनी-अपनी आवाज़ बजती है। इन्हें सेटिंग्स, साउंड्स में बंद या बदल सकते हैं।",
-  "whatsNew.r20261031.callSoundsTitle": "कॉल की नई आवाज़ें"
+  "whatsNew.r20261031.callSoundsTitle": "कॉल की नई आवाज़ें",
+  "whatsNew.r20261031.duplicateRoleBody": "भूमिका की कॉपी बनाएँ उसी नाम, रंगों और अनुमतियों वाली नई भूमिका बनाता है, जिसे आप बदल सकते हैं। यह भूमिका पर या उसके राइट-क्लिक मेन्यू में मिलता है।",
+  "whatsNew.r20261031.duplicateRoleTitle": "भूमिकाओं की कॉपी",
+  "whatsNew.r20261031.viewAsRoleBody": "किसी भूमिका को देने से पहले देखें कि उसे कौन-से चैनल और काम मिलते हैं। सर्वर सेटिंग्स, भूमिकाएँ खोलें और भूमिका के रूप में सर्वर देखें चुनें।",
+  "whatsNew.r20261031.viewAsRoleTitle": "भूमिका के रूप में सर्वर देखें"
 }

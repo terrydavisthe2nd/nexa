@@ -545,6 +545,15 @@ as Discord holds it:
   actor's app makes it at once. The apps show sync state on the channel's Permissions page (web
   `ChannelSettingsModal` `.syncBar`, Android `ChannelPermissionsPage`) with their own `sameOverwrites`.
 - Editing a channel's overwrites needs Manage Roles in it (`channelManageCtx`), not Manage Channels.
+- View Server as Role (Server Settings, Roles: the role's page and its menu, kind `roleOrder` with
+  `viewAsRole`, `duplicateRole`, `moveRole`) is a preview on this device only: web `stores/viewAs.ts`
+  with `lib/viewAsRole.ts`, Android `ServersStore.viewAs`. While on, this account's own permissions in
+  that server come from the role plus @everyone (`serverPerms`, `channelPerms`, `canI`,
+  `memberHighest` on both), the sidebar hides channels the role cannot view (the server still sends
+  them), and a banner offers Exit Preview (web `shell/ViewAsBanner.tsx`, Android
+  `ui/shell/ViewAsBanner.kt`). Duplicate Role creates a role from the plain fields, then patches the
+  gradient colours and emoji icon (create ignores them); uploaded icons, members and channel overrides
+  are not copied.
 - Embed Links: previews are made and sealed by the sender's app, so the server sets Suppress Embeds
   (flag 4) on any new or edited message whose author lacks Embed Links there (`embedFlags`) and refuses
   to clear it while they lack it; apps hide flagged previews and composers fetch none there.

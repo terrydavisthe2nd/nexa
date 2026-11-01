@@ -55,7 +55,7 @@ const WHERE: Record<string, string> = {
   page: "Selected text or a link anywhere else in the app",
   profileAddRole: "The add role button on a person's profile in a server",
   profileMore: "The More button on a person's profile",
-  roleOrder: "Moving a role, in Server Settings, Roles",
+  roleOrder: "A role, in Server Settings, Roles",
   searchSort: "The sort order of search results",
   server: "A server in the server rail",
   serverBulk: "Several servers picked in the server rail",

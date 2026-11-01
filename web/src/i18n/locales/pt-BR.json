@@ -7494,6 +7494,15 @@
   "reports.reportTab": "Denúncia",
   "reports.saved": "Análise salva",
   "reports.historyTab": "Histórico",
+  "server.roles.copyName": "{name} (cópia)",
+  "server.roles.couldNotDuplicateTheRole": "Não foi possível duplicar o cargo.",
+  "server.roles.duplicateRole": "Duplicar cargo",
+  "server.roles.roleDuplicated": "Cargo duplicado. Membros e permissões de canal ficam com o original.",
+  "server.viewAs.action": "Ver servidor como cargo",
+  "server.viewAs.exit": "Sair da prévia",
+  "server.viewAs.onlyYou": "Só você vê esta prévia, e seus cargos reais não mudam.",
+  "server.viewAs.title": "Vendo como cargo",
+  "server.viewAs.viewing": "Você está vendo {server} como {role}",
   "settings.notifications.deafen": "Ensurdecer",
   "settings.notifications.shareStart": "Início do compartilhamento de tela",
   "settings.notifications.shareStop": "Fim do compartilhamento de tela",
@@ -7509,5 +7518,9 @@
   "whatsNew.r20261029.maintenanceBody": "Uma contagem regressiva aparece 2 horas e 30 minutos antes de uma reinicialização programada do servidor para você se preparar para uma breve interrupção.",
   "whatsNew.r20261029.maintenanceTitle": "Avisos de Manutenção",
   "whatsNew.r20261031.callSoundsBody": "Ensurdecer, desensurdecer e iniciar ou encerrar um compartilhamento de tela agora tocam sons próprios. Você pode desligá-los ou trocá-los em Configurações, Sons.",
-  "whatsNew.r20261031.callSoundsTitle": "Novos sons de chamada"
+  "whatsNew.r20261031.callSoundsTitle": "Novos sons de chamada",
+  "whatsNew.r20261031.duplicateRoleBody": "Duplicar cargo cria um cargo novo com o mesmo nome, cores e permissões, pronto para ajustar. Fica no cargo ou no menu do botão direito.",
+  "whatsNew.r20261031.duplicateRoleTitle": "Duplicar cargos",
+  "whatsNew.r20261031.viewAsRoleBody": "Veja quais canais e ações um cargo recebe antes de entregá-lo. Abra Configurações do servidor, Cargos, e escolha Ver servidor como cargo.",
+  "whatsNew.r20261031.viewAsRoleTitle": "Ver servidor como cargo"
 }

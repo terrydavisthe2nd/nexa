@@ -7143,6 +7143,15 @@
   "reports.reportTab": "報告",
   "reports.saved": "審査を保存しました",
   "reports.historyTab": "履歴",
+  "server.roles.copyName": "{name}（コピー）",
+  "server.roles.couldNotDuplicateTheRole": "ロールを複製できませんでした。",
+  "server.roles.duplicateRole": "ロールを複製",
+  "server.roles.roleDuplicated": "ロールを複製しました。メンバーとチャンネル権限は元のロールに残ります。",
+  "server.viewAs.action": "ロールとしてサーバーを表示",
+  "server.viewAs.exit": "プレビューを終了",
+  "server.viewAs.onlyYou": "このプレビューはあなたにだけ表示され、実際のロールは変わりません。",
+  "server.viewAs.title": "ロールとして表示中",
+  "server.viewAs.viewing": "{server} を {role} として表示しています",
   "settings.notifications.deafen": "スピーカーミュート",
   "settings.notifications.shareStart": "画面共有の開始",
   "settings.notifications.shareStop": "画面共有の終了",
@@ -7158,5 +7167,9 @@
   "whatsNew.r20261029.maintenanceBody": "サーバーの再起動予定時刻の2時間30分前からカウントダウンが表示され、短い中断に備えられます。",
   "whatsNew.r20261029.maintenanceTitle": "メンテナンスのお知らせ",
   "whatsNew.r20261031.callSoundsBody": "スピーカーミュートとその解除、画面共有の開始と終了に、それぞれ専用のサウンドが鳴るようになりました。設定のサウンドでオフにしたり差し替えたりできます。",
-  "whatsNew.r20261031.callSoundsTitle": "新しい通話サウンド"
+  "whatsNew.r20261031.callSoundsTitle": "新しい通話サウンド",
+  "whatsNew.r20261031.duplicateRoleBody": "「ロールを複製」で、同じ名前・色・権限の新しいロールを作り、すぐに調整できます。ロールの画面か右クリックメニューにあります。",
+  "whatsNew.r20261031.duplicateRoleTitle": "ロールの複製",
+  "whatsNew.r20261031.viewAsRoleBody": "ロールを付ける前に、使えるチャンネルや操作を確認できます。サーバー設定のロールで「ロールとしてサーバーを表示」を選んでください。",
+  "whatsNew.r20261031.viewAsRoleTitle": "ロールとしてサーバーを表示"
 }

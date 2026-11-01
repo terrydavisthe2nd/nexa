@@ -219,7 +219,34 @@ class ServersStore(private val users: UsersStore, private val channels: Channels
         return flags and 1L != 0L
     }
 
+    /**
+     * View Server as Role: a preview, on this device only, of a server as one
+     * role sees it (with @everyone). Only this account's own permissions are
+     * worked out from it; the server still sends what the account may see.
+     */
+    data class ViewAs(val serverId: String, val roleIds: List<String>)
+
+    private val _viewAs = MutableStateFlow<ViewAs?>(null)
+    val viewAs: StateFlow<ViewAs?> = _viewAs
+
+    private fun viewingAs(st: ServerState, userId: String): List<String>? =
+        _viewAs.value?.takeIf { it.serverId == st.server.id && userId == st.me.userId }?.roleIds
+
+    fun startViewAs(serverId: String, roleId: String) {
+        val prev = _viewAs.value
+        _viewAs.value = ViewAs(serverId, if (roleId == serverId) emptyList() else listOf(roleId))
+        if (prev != null && prev.serverId != serverId) change(prev.serverId) { it }
+        change(serverId) { it }
+    }
+
+    fun stopViewAs() {
+        val prev = _viewAs.value ?: return
+        _viewAs.value = null
+        change(prev.serverId) { it }
+    }
+
     fun serverPerms(st: ServerState, userId: String): Long {
+        viewingAs(st, userId)?.let { return Perms.base(st.server.id, st.permissionRoles, PermMember(userId, it, false), false) }
         if (st.server.ownerId == userId || isInstanceAdmin(userId)) return P.ALL
         return Perms.base(st.server.id, st.permissionRoles, Perms.member(st.members[userId], userId), false)
     }
@@ -229,26 +256,30 @@ class ServersStore(private val users: UsersStore, private val channels: Channels
 
     fun channelPerms(st: ServerState, channelId: String, userId: String): Long {
         val ch = channels.get(channelId)
-        val isOwner = st.server.ownerId == userId || isInstanceAdmin(userId)
+        val preview = viewingAs(st, userId)
+        val isOwner = preview == null && (st.server.ownerId == userId || isInstanceAdmin(userId))
+        val member = if (preview != null) PermMember(userId, preview, false) else Perms.member(st.members[userId], userId)
         // a thread answers to its channel
         if (ch != null && ch.isThread && ch.parentId != null) {
-            val parent = Perms.compute(st.server.id, st.permissionRoles, Perms.member(st.members[userId], userId), isOwner, channels.get(ch.parentId)?.overwrites)
+            val parent = Perms.compute(st.server.id, st.permissionRoles, member, isOwner, channels.get(ch.parentId)?.overwrites)
             // only this account's own membership is known here; others' private threads read as closed
             val inIt = userId == st.me.userId && joinedThread(channelId)
             return Perms.thread(parent, ch.type == "private_thread", inIt)
         }
-        return Perms.compute(st.server.id, st.permissionRoles, Perms.member(st.members[userId], userId), isOwner, ch?.overwrites)
+        return Perms.compute(st.server.id, st.permissionRoles, member, isOwner, ch?.overwrites)
     }
 
     fun canI(st: ServerState?, need: Long, channelId: String? = null): Boolean {
         if (st == null) return false
         if (channelId != null) return P.has(channelPerms(st, channelId, st.me.userId), need)
+        if (viewingAs(st, st.me.userId) != null) return P.has(serverPerms(st, st.me.userId), need)
         val until = st.me.timeoutUntil
         val lapsed = until != null && until <= System.currentTimeMillis()
         return P.has(if (lapsed) serverPerms(st, st.me.userId) else st.myPermissions, need)
     }
 
     fun memberHighest(st: ServerState, userId: String): Pair<Int, Boolean> {
+        viewingAs(st, userId)?.let { return Perms.highestPosition(st.permissionRoles, PermMember(userId, it, false)) to false }
         val isOwner = st.server.ownerId == userId
         if (!isOwner && isInstanceAdmin(userId)) return (1 shl 30) - 1 to false
         return Perms.highestPosition(st.permissionRoles, Perms.member(st.members[userId], userId)) to isOwner

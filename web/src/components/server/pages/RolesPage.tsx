@@ -1,5 +1,6 @@
 import { PersonName } from "@/components/common/PersonName";
-import { Plus, SmilePlus, Trash2 } from "lucide-react";
+import { Copy, Eye, Plus, SmilePlus, Trash2 } from "lucide-react";
+import { duplicateRole, startViewAs } from "@/lib/viewAsRole";
 import { ColourInput } from "@/components/common/ColourInput";
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent } from "react";
 import { ImageCropModal } from "@/components/common/ImageCropModal";
@@ -22,8 +23,15 @@ import { memberHighest, rolesByPosition, useServers } from "@/stores/servers";
 import { useUI, type ContextMenuItem } from "@/stores/ui";
 import { button, defineMenu } from "@/lib/contextMenus/registry";
 
-/** A role's menu in the role list: moving it up or down, as dragging does. */
-const roleOrderMenu = defineMenu<{ moves: ContextMenuItem[] }>("roleOrder", [[button("moveRole", ({ moves }) => moves)]]);
+interface RoleMenuCtx { moves: ContextMenuItem[]; viewAs: () => void; duplicate: (() => void) | null }
+/** A role's menu in the role list: viewing the server as it, copying it, and moving it up or down as dragging does. */
+const roleOrderMenu = defineMenu<RoleMenuCtx>("roleOrder", [
+  [
+    button("viewAsRole", ({ viewAs }) => ({ id: "viewAsRole", label: t("server.viewAs.action"), onSelect: viewAs })),
+    button("duplicateRole", ({ duplicate }) => duplicate && { id: "duplicateRole", label: t("server.roles.duplicateRole"), onSelect: duplicate }),
+  ],
+  [button("moveRole", ({ moves }) => moves)],
+]);
 import { useUsers } from "@/stores/users";
 import st from "@/components/settings/Settings.module.css";
 import { RoleGrid } from "../PermissionGrid";
@@ -122,6 +130,24 @@ export default function RolesPage({ serverId }: { serverId: string }) {
     }
   };
 
+  const duplicate = async (r: Role) => {
+    setBusy(true);
+    try {
+      const made = await duplicateRole(r);
+      setSelected(made.id);
+      setTab("display");
+      toast(t("server.roles.roleDuplicated"), "success");
+    } catch (err) {
+      toast(describeError(err, t("server.roles.couldNotDuplicateTheRole")), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const viewAs = (r: Role) => {
+    startViewAs(serverId, r.id);
+    useUI.getState().closeModal();
+  };
+
   const onDrop = async (e: DragEvent) => {
     e.preventDefault();
     const d = drag;
@@ -158,7 +184,7 @@ export default function RolesPage({ serverId }: { serverId: string }) {
                 onDragEnd={() => { setDrag(null); setDrop(null); }}
                 onKeyDown={reorder.onKeyDown(r.id)}
                 onContextMenu={(e) => {
-                  if (roleOrderMenu.open({ moves: reorder.menuItems(r.id) }, { x: e.clientX, y: e.clientY, label: r.name })) e.preventDefault();
+                  if (roleOrderMenu.open({ moves: reorder.menuItems(r.id), viewAs: unlessUnsaved(() => viewAs(r)), duplicate: r.id === serverId ? null : unlessUnsaved(() => void duplicate(r)) }, { x: e.clientX, y: e.clientY, label: r.name })) e.preventDefault();
                 }}
                 data-reorder-id={r.id}
                 aria-current={r.id === role.id}
@@ -172,6 +198,10 @@ export default function RolesPage({ serverId }: { serverId: string }) {
           })}
         </div>
         <div>
+          <div className={s.roleActions}>
+            <Button size="sm" variant="secondary" onClick={unlessUnsaved(() => viewAs(role))} data-testid="view-as-role"><Eye size={14} /> {t("server.viewAs.action")}</Button>
+            {role.id !== serverId ? <Button size="sm" variant="secondary" onClick={unlessUnsaved(() => void duplicate(role))} disabled={busy} data-testid="duplicate-role"><Copy size={14} /> {t("server.roles.duplicateRole")}</Button> : null}
+          </div>
           <div className={s.tabs} role="tablist" aria-label={role.name}>
             <button className={s.tab} role="tab" aria-selected={view === "display"} aria-controls={panelId} tabIndex={view === "display" ? 0 : -1} onKeyDown={onTabKey} data-on={view === "display"} onClick={unlessUnsaved(() => setTab("display"))}>{t("server.roles.display")}</button>
             <button className={s.tab} role="tab" aria-selected={view === "permissions"} aria-controls={panelId} tabIndex={view === "permissions" ? 0 : -1} onKeyDown={onTabKey} data-on={view === "permissions"} onClick={unlessUnsaved(() => setTab("permissions"))}>{t("server.channelSettings.permissions")}</button>

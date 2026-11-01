@@ -773,7 +773,7 @@ Message on someone else's message, for one).
 | `page` | Selected text or a link anywhere else in the app | none | `copySelection`, `openLink`, `copyLink` |
 | `profileAddRole` | The add role button on a person's profile in a server | none | `addProfileRole` |
 | `profileMore` | The More button on a person's profile | `user` | `reportProfileContent`, `reportProfileApp`, `viewFullProfile`, `copyProfileCardLink`, `editFriendNickname`, `removeFriendFromProfile`, `blockFromProfile`, `copyProfileUserId`, `copyProfileBotId` |
-| `roleOrder` | Moving a role, in Server Settings, Roles | none | `moveRole` |
+| `roleOrder` | A role, in Server Settings, Roles | none | `viewAsRole`, `duplicateRole`, `moveRole` |
 | `searchSort` | The sort order of search results | none | `searchSortOrder` |
 | `server` | A server in the server rail | `server` | `reportServerContent`, `markServerRead`, `pinServer`, `addServerToFolder`, `removeServerFromFolder`, `moveServer`, `selectServers`, `inviteToServer`, `serverSettings`, `createChannel`, `createCategory`, `boostServer`, `muteServer`, `serverNotifications`, `editServerProfile`, `wearServerTag`, `leaveServer`, `copyServerId` |
 | `serverBulk` | Several servers picked in the server rail | none | `markServersRead`, `pinServers`, `addServersToFolder`, `muteServers`, `leaveServers` |

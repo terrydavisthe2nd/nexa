@@ -10,6 +10,7 @@ import { WhatsNew } from "@/components/shell/WhatsNewDialog";
 import { lazyPage } from "@/lib/lazyChunk";
 import { DownloadBanner } from "@/components/shell/DownloadBanner";
 import { MaintenanceBanner } from "./MaintenanceBanner";
+import { ViewAsBanner } from "./ViewAsBanner";
 import { RpcBanner } from "@/components/shell/RpcBanner";
 import { isTypingField } from "@/lib/keyboardInset";
 import { rowSwipeActive } from "@/lib/swipeReply";
@@ -293,6 +294,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className={s.connection} data-state={connection} role="status">{connectionNote ?? (connection === "connecting" ? t("shell.requireAuth.connecting") : t("shell.appShell.disconnectedReconnecting"))}</div>
         ) : null}
         {!isDemo && <MaintenanceBanner />}
+        <ViewAsBanner />
         {!isDemo && <UpdatePrompt />}
         <RpcBanner />
         <DiscordBanner />

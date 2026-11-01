@@ -7143,6 +7143,15 @@
   "reports.reportTab": "신고",
   "reports.saved": "검토 저장됨",
   "reports.historyTab": "기록",
+  "server.roles.copyName": "{name} (사본)",
+  "server.roles.couldNotDuplicateTheRole": "역할을 복제하지 못했어요.",
+  "server.roles.duplicateRole": "역할 복제",
+  "server.roles.roleDuplicated": "역할을 복제했어요. 멤버와 채널 권한은 원래 역할에 남아요.",
+  "server.viewAs.action": "역할로 서버 보기",
+  "server.viewAs.exit": "미리보기 종료",
+  "server.viewAs.onlyYou": "이 미리보기는 나만 볼 수 있고, 실제 역할은 바뀌지 않아요.",
+  "server.viewAs.title": "역할로 보는 중",
+  "server.viewAs.viewing": "{server}을(를) {role}(으)로 보고 있어요",
   "settings.notifications.deafen": "헤드셋 음소거",
   "settings.notifications.shareStart": "화면 공유 시작",
   "settings.notifications.shareStop": "화면 공유 종료",
@@ -7158,5 +7167,9 @@
   "whatsNew.r20261029.maintenanceBody": "예정된 서버 재시작 2시간 30분 전부터 카운트다운이 표시되어 짧은 중단에 대비할 수 있습니다.",
   "whatsNew.r20261029.maintenanceTitle": "유지 보수 알림",
   "whatsNew.r20261031.callSoundsBody": "헤드셋 음소거와 해제, 화면 공유 시작과 종료에 각각 고유한 소리가 납니다. 설정의 소리에서 끄거나 바꿀 수 있어요.",
-  "whatsNew.r20261031.callSoundsTitle": "새 통화 소리"
+  "whatsNew.r20261031.callSoundsTitle": "새 통화 소리",
+  "whatsNew.r20261031.duplicateRoleBody": "역할 복제는 같은 이름, 색상, 권한을 가진 새 역할을 만들어 바로 다듬을 수 있게 해요. 역할 화면이나 우클릭 메뉴에 있어요.",
+  "whatsNew.r20261031.duplicateRoleTitle": "역할 복제",
+  "whatsNew.r20261031.viewAsRoleBody": "역할을 주기 전에 어떤 채널과 기능을 쓸 수 있는지 확인하세요. 서버 설정, 역할에서 역할로 서버 보기를 고르면 돼요.",
+  "whatsNew.r20261031.viewAsRoleTitle": "역할로 서버 보기"
 }
