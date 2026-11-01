@@ -7391,6 +7391,8 @@
   "server.viewAs.onlyYou": "Only you see this preview, and nothing about your real roles changes.",
   "server.viewAs.title": "Viewing as a Role",
   "server.viewAs.viewing": "You're viewing {server} as {role}",
+  "settings.chat.sendTyping": "Show when I'm typing",
+  "settings.chat.sendTypingHint": "When this is off, nobody sees that you're typing. You still see when others type.",
   "settings.notifications.deafen": "Deafen",
   "settings.notifications.shareStart": "Screen Share Starts",
   "settings.notifications.shareStop": "Screen Share Ends",
@@ -7412,5 +7414,7 @@
   "whatsNew.r20261031.viewAsRoleBody": "Check which channels and actions a role gets before you hand it out. Open Server Settings, Roles, and pick View Server as Role on any role.",
   "whatsNew.r20261031.viewAsRoleTitle": "View Server as Role",
   "whatsNew.r20261101.avatarViewerBody": "Tap someone's picture or banner in their full profile to open it in the image viewer, where you can zoom in, save it or copy it.",
-  "whatsNew.r20261101.avatarViewerTitle": "Bigger Pictures and Banners"
+  "whatsNew.r20261101.avatarViewerTitle": "Bigger Pictures and Banners",
+  "whatsNew.r20261101.hideTypingBody": "You can stop others from seeing when you're typing. Turn off Show when I'm typing in Settings, Chat.",
+  "whatsNew.r20261101.hideTypingTitle": "Hide Your Typing"
 }

@@ -131,6 +131,10 @@ fun ChatSettingsPage() {
 
     SectionHeading(t("settings.chat.typingHeading"))
     ToggleRow(
+        t("settings.chat.sendTyping"), doc.bool("sendTyping", true), { setSetting("sendTyping", it) },
+        t("settings.chat.sendTypingHint"), anchor = "sendTyping",
+    )
+    ToggleRow(
         t("settings.chat.customTyping"), doc.bool("customTyping", true), { setSetting("customTyping", it) },
         t("settings.chat.customTypingHint"), anchor = "customTyping",
     )

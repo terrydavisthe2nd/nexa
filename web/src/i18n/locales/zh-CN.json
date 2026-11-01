@@ -7154,6 +7154,8 @@
   "server.viewAs.onlyYou": "只有你能看到此预览，你的实际身份组不会改变。",
   "server.viewAs.title": "正在以身份组查看",
   "server.viewAs.viewing": "你正在以 {role} 身份查看 {server}",
+  "settings.chat.sendTyping": "显示我正在输入",
+  "settings.chat.sendTypingHint": "关闭后，没有人会看到你正在输入。你仍能看到别人正在输入。",
   "settings.notifications.deafen": "关闭听筒",
   "settings.notifications.shareStart": "开始共享屏幕",
   "settings.notifications.shareStop": "结束共享屏幕",
@@ -7175,5 +7177,7 @@
   "whatsNew.r20261031.viewAsRoleBody": "在分配身份组之前，先看看它能看到哪些频道、能做哪些操作。打开服务器设置中的身份组，选择“以身份组查看服务器”。",
   "whatsNew.r20261031.viewAsRoleTitle": "以身份组查看服务器",
   "whatsNew.r20261101.avatarViewerBody": "在完整资料中点按某人的头像或横幅，即可在图片查看器中打开，可以放大、保存或复制。",
-  "whatsNew.r20261101.avatarViewerTitle": "查看大头像和横幅"
+  "whatsNew.r20261101.avatarViewerTitle": "查看大头像和横幅",
+  "whatsNew.r20261101.hideTypingBody": "你可以不让别人看到你正在输入。在设置的聊天中关闭“显示我正在输入”。",
+  "whatsNew.r20261101.hideTypingTitle": "隐藏你的输入状态"
 }

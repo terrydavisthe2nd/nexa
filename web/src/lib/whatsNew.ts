@@ -29,6 +29,7 @@ export const RELEASES: Release[] = [
     id: "2026-11-01",
     items: [
       { icon: ZoomIn, title: "whatsNew.r20261101.avatarViewerTitle", body: "whatsNew.r20261101.avatarViewerBody" },
+      { icon: EyeOff, title: "whatsNew.r20261101.hideTypingTitle", body: "whatsNew.r20261101.hideTypingBody" },
     ],
   },
   {

@@ -1099,7 +1099,7 @@ the next one's file is here.
 - Stores (`stores/`, zustand), among them `auth` (status: idle, loading, offline, anonymous, locked,
   pinlocked, ready), `settings` (the account's sealed settings, synced with an optimistic version),
   `messages`, `channels`, `servers`, `users`, `voice`, `ui` (modals), `typing` (for the typing pill and
-  channel dots, off with `typingAvatars` and `typingChannels`), `threadLast` (each thread's newest
+  channel dots, off with `typingAvatars` and `typingChannels`; the synced `sendTyping` setting, Show When I'm Typing, stops this account's own `typing` ops in both composers, web `Composer.tsx` and Android `ui/chat/Composer.kt`), `threadLast` (each thread's newest
   message), `voiceDrag`, and `appCommands` (reloaded on `application_commands_update`).
 - Folders: `crypto/`, `markdown/` (`parse.ts`: the chat syntax plus GitHub's blocks, coloured text
   `[words]{red}`, timestamps, mentions; and the renderer), `search/` (a sealed full-text index of what

@@ -7391,6 +7391,8 @@
   "server.viewAs.onlyYou": "Nur du siehst diese Vorschau, an deinen echten Rollen ändert sich nichts.",
   "server.viewAs.title": "Ansicht als Rolle",
   "server.viewAs.viewing": "Du siehst {server} als {role}",
+  "settings.chat.sendTyping": "Anzeigen, wenn ich tippe",
+  "settings.chat.sendTypingHint": "Ist das aus, sieht niemand, dass du tippst. Du siehst trotzdem, wenn andere tippen.",
   "settings.notifications.deafen": "Taubschalten",
   "settings.notifications.shareStart": "Bildschirmübertragung startet",
   "settings.notifications.shareStop": "Bildschirmübertragung endet",
@@ -7412,5 +7414,7 @@
   "whatsNew.r20261031.viewAsRoleBody": "Prüfe, welche Kanäle und Aktionen eine Rolle bekommt, bevor du sie vergibst. Öffne Servereinstellungen, Rollen, und wähle Server als Rolle ansehen.",
   "whatsNew.r20261031.viewAsRoleTitle": "Server als Rolle ansehen",
   "whatsNew.r20261101.avatarViewerBody": "Tippe im vollständigen Profil auf das Bild oder Banner einer Person, um es im Bildbetrachter zu öffnen. Dort kannst du zoomen, es speichern oder kopieren.",
-  "whatsNew.r20261101.avatarViewerTitle": "Größere Profilbilder und Banner"
+  "whatsNew.r20261101.avatarViewerTitle": "Größere Profilbilder und Banner",
+  "whatsNew.r20261101.hideTypingBody": "Du kannst verhindern, dass andere sehen, wenn du tippst. Schalte „Anzeigen, wenn ich tippe“ unter Einstellungen, Chat aus.",
+  "whatsNew.r20261101.hideTypingTitle": "Tippen verbergen"
 }

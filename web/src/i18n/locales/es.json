@@ -7504,6 +7504,8 @@
   "server.viewAs.onlyYou": "Solo tú ves esta vista previa y tus roles reales no cambian.",
   "server.viewAs.title": "Viendo como un rol",
   "server.viewAs.viewing": "Estás viendo {server} como {role}",
+  "settings.chat.sendTyping": "Mostrar cuando estoy escribiendo",
+  "settings.chat.sendTypingHint": "Si está desactivado, nadie verá que estás escribiendo. Tú sigues viendo cuando otros escriben.",
   "settings.notifications.deafen": "Ensordecer",
   "settings.notifications.shareStart": "Empieza a compartir pantalla",
   "settings.notifications.shareStop": "Termina de compartir pantalla",
@@ -7525,5 +7527,7 @@
   "whatsNew.r20261031.viewAsRoleBody": "Comprueba qué canales y acciones obtiene un rol antes de darlo. Abre Ajustes del servidor, Roles, y elige Ver servidor como rol.",
   "whatsNew.r20261031.viewAsRoleTitle": "Ver servidor como rol",
   "whatsNew.r20261101.avatarViewerBody": "Toca la foto o el banner de alguien en su perfil completo para abrirlo en el visor de imágenes, donde puedes ampliarlo, guardarlo o copiarlo.",
-  "whatsNew.r20261101.avatarViewerTitle": "Fotos y banners más grandes"
+  "whatsNew.r20261101.avatarViewerTitle": "Fotos y banners más grandes",
+  "whatsNew.r20261101.hideTypingBody": "Puedes evitar que otros vean cuando escribes. Desactiva «Mostrar cuando estoy escribiendo» en Ajustes, Chat.",
+  "whatsNew.r20261101.hideTypingTitle": "Oculta que escribes"
 }

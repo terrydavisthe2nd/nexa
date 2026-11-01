@@ -7391,6 +7391,8 @@
   "server.viewAs.onlyYou": "Bara du ser förhandsvisningen, och dina riktiga roller ändras inte.",
   "server.viewAs.title": "Visar som roll",
   "server.viewAs.viewing": "Du ser {server} som {role}",
+  "settings.chat.sendTyping": "Visa när jag skriver",
+  "settings.chat.sendTypingHint": "När det är av ser ingen att du skriver. Du ser fortfarande när andra skriver.",
   "settings.notifications.deafen": "Stäng av ljud",
   "settings.notifications.shareStart": "Skärmdelning startar",
   "settings.notifications.shareStop": "Skärmdelning slutar",
@@ -7412,5 +7414,7 @@
   "whatsNew.r20261031.viewAsRoleBody": "Se vilka kanaler och åtgärder en roll får innan du delar ut den. Öppna Serverinställningar, Roller, och välj Visa servern som roll.",
   "whatsNew.r20261031.viewAsRoleTitle": "Visa servern som roll",
   "whatsNew.r20261101.avatarViewerBody": "Tryck på någons bild eller banner i hela profilen för att öppna den i bildvisaren, där du kan zooma, spara eller kopiera den.",
-  "whatsNew.r20261101.avatarViewerTitle": "Större bilder och banners"
+  "whatsNew.r20261101.avatarViewerTitle": "Större bilder och banners",
+  "whatsNew.r20261101.hideTypingBody": "Du kan hindra andra från att se när du skriver. Stäng av Visa när jag skriver under Inställningar, Chatt.",
+  "whatsNew.r20261101.hideTypingTitle": "Dölj att du skriver"
 }

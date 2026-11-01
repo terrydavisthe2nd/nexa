@@ -158,6 +158,7 @@ private object TypingSender {
         if (empty) return stop(channelId)
         val last = lastSent[channelId] ?: 0L
         if (now - last < 8000) return
+        if (!Nexa.settings.sendTyping) return
         lastSent[channelId] = now
         Nexa.session.send("typing", kotlinx.serialization.json.buildJsonObject { put("channel_id", kotlinx.serialization.json.JsonPrimitive(channelId)) })
     }

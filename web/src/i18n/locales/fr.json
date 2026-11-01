@@ -7504,6 +7504,8 @@
   "server.viewAs.onlyYou": "Vous seul voyez cet aperçu, et vos vrais rôles ne changent pas.",
   "server.viewAs.title": "Affichage en tant que rôle",
   "server.viewAs.viewing": "Vous voyez {server} en tant que {role}",
+  "settings.chat.sendTyping": "Montrer quand j'écris",
+  "settings.chat.sendTypingHint": "Désactivé, personne ne voit que vous écrivez. Vous voyez toujours quand les autres écrivent.",
   "settings.notifications.deafen": "Mettre en sourdine le son",
   "settings.notifications.shareStart": "Début du partage d’écran",
   "settings.notifications.shareStop": "Fin du partage d’écran",
@@ -7525,5 +7527,7 @@
   "whatsNew.r20261031.viewAsRoleBody": "Vérifiez quels salons et actions un rôle obtient avant de le donner. Ouvrez Paramètres du serveur, Rôles, puis Voir le serveur en tant que rôle.",
   "whatsNew.r20261031.viewAsRoleTitle": "Voir le serveur en tant que rôle",
   "whatsNew.r20261101.avatarViewerBody": "Touchez la photo ou la bannière de quelqu'un dans son profil complet pour l'ouvrir dans la visionneuse, où vous pouvez zoomer, l'enregistrer ou la copier.",
-  "whatsNew.r20261101.avatarViewerTitle": "Photos et bannières en grand"
+  "whatsNew.r20261101.avatarViewerTitle": "Photos et bannières en grand",
+  "whatsNew.r20261101.hideTypingBody": "Vous pouvez empêcher les autres de voir quand vous écrivez. Désactivez « Montrer quand j'écris » dans Paramètres, Discussion.",
+  "whatsNew.r20261101.hideTypingTitle": "Masquer votre saisie"
 }

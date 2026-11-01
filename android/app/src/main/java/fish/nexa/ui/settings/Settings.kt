@@ -720,6 +720,7 @@ private fun settingsIndex(groups: List<SettingsGroup>): List<SettingResult> {
         Triple("chat", "spellcheck", "settings.appearance.yourWords"),
         Triple("chat", "smartEmoji", "settings.appearance.smartEmoji"),
         Triple("chat", "tts", "settings.notifications.readTtsAloud"),
+        Triple("chat", "sendTyping", "settings.chat.sendTyping"),
         Triple("chat", "customTyping", "settings.chat.customTyping"),
         Triple("chat", "typingAvatars", "settings.chat.typingAvatars"),
         Triple("chat", "typingChannels", "settings.chat.typingChannels"),

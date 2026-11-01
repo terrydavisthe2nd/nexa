@@ -7391,6 +7391,8 @@
   "server.viewAs.onlyYou": "यह झलक सिर्फ़ आपको दिखती है, और आपकी असली भूमिकाओं में कुछ नहीं बदलता।",
   "server.viewAs.title": "भूमिका के रूप में देख रहे हैं",
   "server.viewAs.viewing": "आप {server} को {role} के रूप में देख रहे हैं",
+  "settings.chat.sendTyping": "जब मैं टाइप कर रहा हूँ तब दिखाएँ",
+  "settings.chat.sendTypingHint": "इसे बंद करने पर कोई नहीं देखेगा कि आप टाइप कर रहे हैं। दूसरों के टाइप करने पर आपको फिर भी दिखेगा।",
   "settings.notifications.deafen": "सुनना बंद करें",
   "settings.notifications.shareStart": "स्क्रीन शेयर शुरू",
   "settings.notifications.shareStop": "स्क्रीन शेयर खत्म",
@@ -7412,5 +7414,7 @@
   "whatsNew.r20261031.viewAsRoleBody": "किसी भूमिका को देने से पहले देखें कि उसे कौन-से चैनल और काम मिलते हैं। सर्वर सेटिंग्स, भूमिकाएँ खोलें और भूमिका के रूप में सर्वर देखें चुनें।",
   "whatsNew.r20261031.viewAsRoleTitle": "भूमिका के रूप में सर्वर देखें",
   "whatsNew.r20261101.avatarViewerBody": "किसी की पूरी प्रोफ़ाइल में उनके चित्र या बैनर पर टैप करें, वह इमेज व्यूअर में खुलेगा, जहाँ आप ज़ूम कर सकते हैं, सेव या कॉपी कर सकते हैं।",
-  "whatsNew.r20261101.avatarViewerTitle": "बड़े चित्र और बैनर"
+  "whatsNew.r20261101.avatarViewerTitle": "बड़े चित्र और बैनर",
+  "whatsNew.r20261101.hideTypingBody": "आप दूसरों को यह देखने से रोक सकते हैं कि आप टाइप कर रहे हैं। सेटिंग्स, चैट में \"जब मैं टाइप कर रहा हूँ तब दिखाएँ\" बंद करें।",
+  "whatsNew.r20261101.hideTypingTitle": "अपनी टाइपिंग छिपाएँ"
 }

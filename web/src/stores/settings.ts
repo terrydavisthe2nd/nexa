@@ -126,6 +126,8 @@ export interface Settings {
   backgroundKeybinds: boolean;
   /** The keys chosen for plugins' keybinds (lib/look/plugins), by plugin id and then the keybind's own id. */
   pluginKeybinds: PluginKeybinds;
+  /** Tell others when this account is typing (Composer sends `typing` only while on). */
+  sendTyping: boolean;
   /** Show others' own typing styles (lib/typingStyle); off, everyone is shown with the plain dots. */
   customTyping: boolean;
   /** Someone typing turns their presence dot into a pill of dots, in the DM list and member lists (Avatar). */
@@ -251,6 +253,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keybinds: {},
   pluginKeybinds: {},
   backgroundKeybinds: true,
+  sendTyping: true,
   customTyping: true,
   typingAvatars: true,
   seasonalSnow: true,
@@ -362,6 +365,7 @@ function mergeSettings(base: Settings, incoming: unknown): Settings {
       "pluginKeybinds" in inc || Array.isArray(inc.plugins)
         ? sanitizePluginKeybinds(inc.pluginKeybinds ?? base.pluginKeybinds, (Array.isArray(inc.plugins) ? inc.plugins : base.plugins).map((p) => (p as { id?: unknown })?.id).filter((id): id is string => typeof id === "string"))
         : base.pluginKeybinds,
+    sendTyping: typeof inc.sendTyping === "boolean" ? inc.sendTyping : base.sendTyping,
     customTyping: typeof inc.customTyping === "boolean" ? inc.customTyping : base.customTyping,
     typingAvatars: typeof inc.typingAvatars === "boolean" ? inc.typingAvatars : base.typingAvatars,
     animateAvatars: typeof inc.animateAvatars === "boolean" ? inc.animateAvatars : base.animateAvatars,

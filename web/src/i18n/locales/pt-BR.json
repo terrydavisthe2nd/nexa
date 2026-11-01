@@ -7505,6 +7505,8 @@
   "server.viewAs.onlyYou": "Só você vê esta prévia, e seus cargos reais não mudam.",
   "server.viewAs.title": "Vendo como cargo",
   "server.viewAs.viewing": "Você está vendo {server} como {role}",
+  "settings.chat.sendTyping": "Mostrar quando estou digitando",
+  "settings.chat.sendTypingHint": "Desligado, ninguém vê que você está digitando. Você continua vendo quando outros digitam.",
   "settings.notifications.deafen": "Ensurdecer",
   "settings.notifications.shareStart": "Início do compartilhamento de tela",
   "settings.notifications.shareStop": "Fim do compartilhamento de tela",
@@ -7526,5 +7528,7 @@
   "whatsNew.r20261031.viewAsRoleBody": "Veja quais canais e ações um cargo recebe antes de entregá-lo. Abra Configurações do servidor, Cargos, e escolha Ver servidor como cargo.",
   "whatsNew.r20261031.viewAsRoleTitle": "Ver servidor como cargo",
   "whatsNew.r20261101.avatarViewerBody": "Toque na foto ou no banner de alguém no perfil completo para abrir no visualizador de imagens, onde você pode ampliar, salvar ou copiar.",
-  "whatsNew.r20261101.avatarViewerTitle": "Fotos e banners maiores"
+  "whatsNew.r20261101.avatarViewerTitle": "Fotos e banners maiores",
+  "whatsNew.r20261101.hideTypingBody": "Você pode impedir que outros vejam quando está digitando. Desligue \"Mostrar quando estou digitando\" em Configurações, Chat.",
+  "whatsNew.r20261101.hideTypingTitle": "Oculte sua digitação"
 }

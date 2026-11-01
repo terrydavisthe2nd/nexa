@@ -7154,6 +7154,8 @@
   "server.viewAs.onlyYou": "このプレビューはあなたにだけ表示され、実際のロールは変わりません。",
   "server.viewAs.title": "ロールとして表示中",
   "server.viewAs.viewing": "{server} を {role} として表示しています",
+  "settings.chat.sendTyping": "入力中であることを表示",
+  "settings.chat.sendTypingHint": "オフにすると、あなたが入力中であることは誰にも表示されません。他の人の入力中表示は引き続き見えます。",
   "settings.notifications.deafen": "スピーカーミュート",
   "settings.notifications.shareStart": "画面共有の開始",
   "settings.notifications.shareStop": "画面共有の終了",
@@ -7175,5 +7177,7 @@
   "whatsNew.r20261031.viewAsRoleBody": "ロールを付ける前に、使えるチャンネルや操作を確認できます。サーバー設定のロールで「ロールとしてサーバーを表示」を選んでください。",
   "whatsNew.r20261031.viewAsRoleTitle": "ロールとしてサーバーを表示",
   "whatsNew.r20261101.avatarViewerBody": "プロフィール全体の画面で画像やバナーをタップすると画像ビューアーで開き、拡大や保存、コピーができます。",
-  "whatsNew.r20261101.avatarViewerTitle": "プロフィール画像とバナーを大きく表示"
+  "whatsNew.r20261101.avatarViewerTitle": "プロフィール画像とバナーを大きく表示",
+  "whatsNew.r20261101.hideTypingBody": "入力中であることを他の人に見せないようにできます。設定のチャットで「入力中であることを表示」をオフにしてください。",
+  "whatsNew.r20261101.hideTypingTitle": "入力中表示を隠す"
 }

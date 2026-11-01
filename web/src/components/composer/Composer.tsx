@@ -549,7 +549,7 @@ export function Composer({ channel }: { channel: Channel }) {
     lastSelect.current = `${caret}:${closed ? caret : e.target.selectionEnd}:${value}`;
     refreshAc(value, caret);
     const now = Date.now();
-    if (value.trim() && now - lastTyping.current > TYPING_INTERVAL) {
+    if (value.trim() && now - lastTyping.current > TYPING_INTERVAL && useSettings.getState().settings.sendTyping !== false) {
       lastTyping.current = now;
       gateway()?.sendTyping(channel.id);
     } else if (!value.trim() && lastTyping.current) {
