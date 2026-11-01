@@ -82,12 +82,19 @@ object MediaLinks {
      * re-signed one, null when it will never load (not a proxy link, or the
      * server refused it), or "" while it is being re-signed.
      */
+    fun src(url: String?): String? = fresh(url)?.let { if (it.isEmpty()) it else absolute(it) }
+
+    /**
+     * src as the link itself, not made absolute: what a GIF favourite is sent
+     * as, so the message carries a link that works now rather than the one it
+     * was saved with (lib/mediaLinks.ts mediaSrc).
+     */
     @Synchronized
-    fun src(url: String?): String? {
+    fun fresh(url: String?): String? {
         if (url.isNullOrEmpty()) return null
-        if (usableAsIs(url)) return absolute(url)
+        if (usableAsIs(url)) return url
         if (!isProxied(url)) return null
-        renewed[url]?.let { if (usableAsIs(it)) return absolute(it) }
+        renewed[url]?.let { if (usableAsIs(it)) return it }
         if (url in refused) return null
         failed[url]?.let { if (System.currentTimeMillis() - it < RETRY_MS) return "" }
         ask(url)

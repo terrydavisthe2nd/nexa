@@ -7438,8 +7438,12 @@
   "whatsNew.r20261101.activityMovedTitle": "Dela aktivitet finns nu i inställningarna",
   "whatsNew.r20261101.avatarViewerBody": "Tryck på någons bild eller banner i hela profilen för att öppna den i bildvisaren, där du kan zooma, spara eller kopiera den.",
   "whatsNew.r20261101.avatarViewerTitle": "Större bilder och banners",
+  "whatsNew.r20261101.gifFavoritesBody": "Att favoritmarkera en GIF på en enhet tar inte längre bort en du lagt till på en annan, och favorit-GIF:ar från uppladdade filer visas och skickas nu även på Android.",
+  "whatsNew.r20261101.gifFavoritesTitle": "Favorit-GIF:ar stannar kvar",
   "whatsNew.r20261101.hideTypingBody": "Du kan hindra andra från att se när du skriver. Stäng av Visa när jag skriver under Inställningar, Chatt.",
   "whatsNew.r20261101.hideTypingTitle": "Dölj att du skriver",
   "whatsNew.r20261101.mentionsBody": "Knappen @ längst ner i sidofältet visar alla meddelanden som nämnt dig. Sortera på nyaste eller äldsta, välj en server eller dina direktmeddelanden och välj omnämnanden av dig, dina roller eller @everyone.",
-  "whatsNew.r20261101.mentionsTitle": "Se var du har nämnts"
+  "whatsNew.r20261101.mentionsTitle": "Se var du har nämnts",
+  "whatsNew.r20261101.tenorBody": "Klistra in en Tenor-länk så visas den som själva GIF:en. Tryck på stjärnan för att spara den bland dina favoriter.",
+  "whatsNew.r20261101.tenorTitle": "GIF:ar från Tenor"
 }

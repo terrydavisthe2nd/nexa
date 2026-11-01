@@ -7201,8 +7201,12 @@
   "whatsNew.r20261101.activityMovedTitle": "アクティビティの共有は設定へ移動",
   "whatsNew.r20261101.avatarViewerBody": "プロフィール全体の画面で画像やバナーをタップすると画像ビューアーで開き、拡大や保存、コピーができます。",
   "whatsNew.r20261101.avatarViewerTitle": "プロフィール画像とバナーを大きく表示",
+  "whatsNew.r20261101.gifFavoritesBody": "ある端末でGIFをお気に入りにしても、別の端末で追加したGIFが消えなくなりました。アップロードからお気に入りにしたGIFもAndroidで表示・送信できます。",
+  "whatsNew.r20261101.gifFavoritesTitle": "お気に入りのGIFが消えなくなりました",
   "whatsNew.r20261101.hideTypingBody": "入力中であることを他の人に見せないようにできます。設定のチャットで「入力中であることを表示」をオフにしてください。",
   "whatsNew.r20261101.hideTypingTitle": "入力中表示を隠す",
   "whatsNew.r20261101.mentionsBody": "サイドバー下部の @ ボタンで、あなたをメンションしたメッセージをすべて見られます。新しい順・古い順に並べ替え、サーバーやダイレクトメッセージで絞り込み、あなた宛て・ロール宛て・@everyone を選べます。",
-  "whatsNew.r20261101.mentionsTitle": "メンションされた場所を確認"
+  "whatsNew.r20261101.mentionsTitle": "メンションされた場所を確認",
+  "whatsNew.r20261101.tenorBody": "Tenorのリンクを貼ると、そのままGIFとして表示されます。星をタップするとお気に入りに保存できます。",
+  "whatsNew.r20261101.tenorTitle": "TenorのGIF"
 }

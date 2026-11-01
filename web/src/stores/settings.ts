@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { FavoriteGif } from "@/lib/gifFavorites";
+import { mediaKey } from "@/lib/mediaLinks";
 import { users as usersApi } from "@/api/users";
 import { ApiError } from "@/api/client";
 import { decryptSettings, encryptSettings } from "@/lib/settingsCrypto";
@@ -396,10 +397,29 @@ type NotificationSettings = Settings["notifications"];
 export interface ListEdits {
   muted: Map<string, boolean>;
   levels: Map<string, boolean>;
+  /**
+   * Favourite GIFs by what they point at (mediaKey): the favourite starred
+   * here, or null for one taken away here. The list used to be saved whole,
+   * so a device whose copy was a little old put its own list back over a GIF
+   * favourited on another device a moment before, and that GIF was gone.
+   */
+  gifs: Map<string, FavoriteGif | null>;
 }
 
-/** The entries a change to `notifications` added, removed or changed. */
-export function editsOf(before: NotificationSettings, after: Partial<NotificationSettings>): ListEdits | null {
+/** How many favourite GIFs are kept; past this the oldest drop off. */
+export const MAX_FAVORITE_GIFS = 500;
+
+/** The entries a change to `notifications` or `favoriteGifs` added, removed or changed. */
+export function editsOf(beforeAll: Settings, change: Partial<Settings>): ListEdits | null {
+  const before = beforeAll.notifications;
+  const after: Partial<NotificationSettings> = change.notifications ?? {};
+  const gifs = new Map<string, FavoriteGif | null>();
+  if (change.favoriteGifs) {
+    const was = new Set(beforeAll.favoriteGifs.map((f) => mediaKey(f.url)));
+    const now = new Map(change.favoriteGifs.map((f) => [mediaKey(f.url), f] as const));
+    for (const [key, f] of now) if (!was.has(key)) gifs.set(key, f);
+    for (const key of was) if (!now.has(key)) gifs.set(key, null);
+  }
   const muted = new Map<string, boolean>();
   if (after.muted) {
     const was = new Set(before.muted);
@@ -412,13 +432,13 @@ export function editsOf(before: NotificationSettings, after: Partial<Notificatio
     for (const [id, level] of Object.entries(after.perChannel)) if (before.perChannel[id] !== level) levels.set(id, true);
     for (const id of Object.keys(before.perChannel)) if (!(id in after.perChannel)) levels.set(id, false);
   }
-  return muted.size || levels.size ? { muted, levels } : null;
+  return muted.size || levels.size || gifs.size ? { muted, levels, gifs } : null;
 }
 
 /** Two batches of edits as one, the later winning entry by entry. */
 function mergeEdits(a: ListEdits | null, b: ListEdits | null): ListEdits | null {
   if (!a || !b) return a ?? b;
-  return { muted: new Map([...a.muted, ...b.muted]), levels: new Map([...a.levels, ...b.levels]) };
+  return { muted: new Map([...a.muted, ...b.muted]), levels: new Map([...a.levels, ...b.levels]), gifs: new Map([...a.gifs, ...b.gifs]) };
 }
 
 /**
@@ -432,6 +452,14 @@ function mergeEdits(a: ListEdits | null, b: ListEdits | null): ListEdits | null 
  */
 export function layerUnsaved(base: Settings, unsaved: Partial<Settings>, edits: ListEdits | null = null): Settings {
   const merged = mergeSettings(base, unsaved);
+  // Favourite GIFs the same way: the arriving list, with what was starred
+  // here put in front and what was taken away here taken out.
+  if (unsaved.favoriteGifs) {
+    const changed = edits?.gifs ?? new Map<string, FavoriteGif | null>();
+    const added = unsaved.favoriteGifs.filter((f) => !!changed.get(mediaKey(f.url)));
+    const kept = base.favoriteGifs.filter((f) => !changed.has(mediaKey(f.url)));
+    merged.favoriteGifs = [...added, ...kept].slice(0, MAX_FAVORITE_GIFS);
+  }
   const mine = unsaved.notifications;
   if (!mine) return merged;
   const perChannel = { ...base.notifications.perChannel };
@@ -614,7 +642,7 @@ export const useSettings = create<SettingsState>()((set, get) => {
       await get().load(res?.blob ?? null, res?.version ?? 0);
     },
     patch: (partial) => {
-      if (partial.notifications) dirtyEdits = mergeEdits(dirtyEdits, editsOf(get().settings.notifications, partial.notifications));
+      if (partial.notifications || partial.favoriteGifs) dirtyEdits = mergeEdits(dirtyEdits, editsOf(get().settings, partial));
       set((s) => ({ settings: mergeSettings(s.settings, partial) }));
       dirty = mergeChanges(dirty, partial);
       if (saveTimer) clearTimeout(saveTimer);

@@ -38,7 +38,19 @@ fun openExpressionPicker(channelId: String, onPick: (String) -> Unit) {
             fish.nexa.data.Send.sendMessage(channelId, "", reply().copy(sticker = StickerRef(s.id, s.blobId, s.name, s.width?.toDouble(), s.height?.toDouble(), s.animated, s.format)))
             fish.nexa.Nexa.scope.launch { runCatching { fish.nexa.Nexa.api.request("POST", "/stickers/recent", kotlinx.serialization.json.buildJsonObject { put("sticker_id", kotlinx.serialization.json.JsonPrimitive(s.id)) }) } }
         },
-        onGif = { g ->
+        onGif = gif@{ g ->
+            // an uploaded favourite: its file goes in the tray and up like one just chosen
+            g.att?.let { att ->
+                fish.nexa.Nexa.scope.launch {
+                    val st = Staging.favorite(att, channelId)
+                    if (st == null) fish.nexa.Nexa.ui.toast(fish.nexa.ui.t("composer.composer.uploadFailed"), "error")
+                    else {
+                        val cur = ChatUi.trays[channelId] ?: emptyList()
+                        if (cur.size < Staging.MAX_FILES) ChatUi.trays[channelId] = cur + st else st.file.delete()
+                    }
+                }
+                return@gif
+            }
             val embed = kotlinx.serialization.json.buildJsonObject {
                 put("url", kotlinx.serialization.json.JsonPrimitive(g.url)); put("type", kotlinx.serialization.json.JsonPrimitive("gif")); put("image", kotlinx.serialization.json.JsonPrimitive(g.url))
                 g.w?.let { put("image_w", kotlinx.serialization.json.JsonPrimitive(it)) }; g.h?.let { put("image_h", kotlinx.serialization.json.JsonPrimitive(it)) }

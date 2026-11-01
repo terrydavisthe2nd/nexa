@@ -214,6 +214,27 @@ object Staging {
         Staged("f$seq", out, name, type, preview = preview)
     }
 
+    /** An uploaded GIF favourite, opened from its attachment and staged to go again (lib/gifFavorites.ts favoriteFile). */
+    suspend fun favorite(att: fish.nexa.crypto.AttachmentMeta, channelId: String): Staged? = withContext(Dispatchers.IO) {
+        val opened = try {
+            fish.nexa.media.loadAttachment(att, fish.nexa.media.Priority.OPEN)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return@withContext null
+        }
+        if (!Uploads.fits(opened.length(), channelId)) {
+            tooBig(att.name, opened.length(), channelId)
+            return@withContext null
+        }
+        val dir = File(Nexa.app.cacheDir, "staged").apply { mkdirs() }
+        synchronized(this@Staging) { seq += 1 }
+        val out = File(dir, "f$seq-${System.nanoTime()}")
+        runCatching { opened.copyTo(out, overwrite = true) }.getOrElse { return@withContext null }
+        val type = att.type.ifEmpty { "image/gif" }
+        Staged("f$seq", out, Uploads.fitName(att.name.ifEmpty { "animation.gif" }), type, preview = out.path)
+    }
+
     /** A paste too long for a message, attached as message.txt instead. */
     fun textFile(text: String): Staged {
         val dir = File(Nexa.app.cacheDir, "staged").apply { mkdirs() }

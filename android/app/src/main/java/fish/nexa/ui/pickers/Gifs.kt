@@ -144,12 +144,7 @@ fun GifPicker(pick: (Pickers.Gif) -> Unit) {
                 }
                 items(favs.size, key = { "fav:" + favs[it].url }) { i ->
                     val f = favs[i]
-                    GifTile(f.url, f.w, f.h, favorite = true, gone = f.url in dead, onGone = { dead = dead + f.url }, onLongPress = {
-                        openMenu(buildList {
-                            if (f.url !in dead) add(MenuItem.Action(t("pickers.gifPicker.sendGif")) { pick(Pickers.Gif(f.url, f.w, f.h)) })
-                            add(MenuItem.Action(t("pickers.gifPicker.removeFromFavorites"), danger = true) { GifFavorites.remove(setOf(f.url)) })
-                        }, haptic = true)
-                    }, onStar = { GifFavorites.toggle(f.url, f.w, f.h) }) { pick(Pickers.Gif(f.url, f.w, f.h)) }
+                    FavoriteTile(f, gone = f.url in dead, onGone = { dead = dead + f.url }, pick = pick)
                 }
                 if (dead.isNotEmpty()) item(span = StaggeredGridItemSpan.FullLine) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(12.dp)) {
@@ -161,7 +156,7 @@ fun GifPicker(pick: (Pickers.Gif) -> Unit) {
                 items(results.size, key = { "r:" + results[it].url + it }) { i ->
                     val g = results[i]
                     val fav = GifFavorites.isFavorite(g.url)
-                    GifTile(g.preview, g.w, g.h, favorite = fav, gone = false, onGone = {}, onLongPress = {
+                    GifTile(Media.absolute(g.preview), g.w, g.h, favorite = fav, gone = false, onGone = {}, onLongPress = {
                         openMenu(listOf(
                             MenuItem.Action(t("pickers.gifPicker.sendGif")) { pick(Pickers.Gif(g.url, g.w, g.h)) },
                             MenuItem.Action(if (fav) t("pickers.gifPicker.removeFromFavorites") else t("pickers.gifPicker.addToFavorites")) { GifFavorites.toggle(g.url, g.w, g.h) },
@@ -204,9 +199,49 @@ private fun Pill(label: String, on: Boolean, onClick: () -> Unit) {
     ) { Txt(label, style = Nx.type.label.copy(fontWeight = FontWeight(650)), color = if (on) c.onBrand else c.textMuted) }
 }
 
-/** A tile as tall as the GIF's shape allows (0.4 to 2 times its width), a star for favourites. */
+/**
+ * A favourite as GifPicker.tsx shows it. A link is shown, and sent, as that
+ * link signed again (signatures run out after a day, and loading the saved
+ * one failed and called the favourite gone); an uploaded GIF is opened from
+ * its attachment and sent again as a file. Only a link the server will not
+ * sign again, or a file that cannot be opened, is gone.
+ */
 @Composable
-private fun GifTile(url: String, w: Int?, h: Int?, favorite: Boolean, gone: Boolean, onGone: () -> Unit, onLongPress: () -> Unit, onStar: () -> Unit, onClick: () -> Unit) {
+private fun FavoriteTile(f: GifFavorites.Fav, gone: Boolean, onGone: () -> Unit, pick: (Pickers.Gif) -> Unit) {
+    val att = remember(f.att) { f.att?.let { fish.nexa.crypto.MessageCrypto.sanitizeAttachment(it) } }
+    val w = f.w ?: att?.w?.toInt()
+    val h = f.h ?: att?.h?.toInt()
+    var src: Any? = null
+    var lost = gone
+    var send: Pickers.Gif? = null
+    if (att != null) {
+        val load = fish.nexa.media.rememberAttachmentLoad(att, auto = true)
+        src = load.file
+        if (load.error != null) lost = true
+        send = Pickers.Gif(f.url, w, h, att)
+    } else {
+        // read so a link signed again draws again
+        fish.nexa.media.MediaLinks.version
+        when (val fresh = fish.nexa.media.MediaLinks.fresh(f.url)) {
+            null -> lost = true
+            "" -> {}
+            else -> {
+                src = Media.absolute(fresh)
+                send = Pickers.Gif(fresh, w, h)
+            }
+        }
+    }
+    GifTile(src, w, h, favorite = true, gone = lost, onGone = onGone, onLongPress = {
+        openMenu(buildList {
+            send?.let { g -> if (!lost) add(MenuItem.Action(t("pickers.gifPicker.sendGif")) { pick(g) }) }
+            add(MenuItem.Action(t("pickers.gifPicker.removeFromFavorites"), danger = true) { GifFavorites.remove(setOf(f.url)) })
+        }, haptic = true)
+    }, onStar = { GifFavorites.remove(setOf(f.url)) }) { send?.let(pick) }
+}
+
+/** A tile as tall as the GIF's shape allows (0.4 to 2 times its width), a star for favourites. [src] null is still on its way. */
+@Composable
+private fun GifTile(src: Any?, w: Int?, h: Int?, favorite: Boolean, gone: Boolean, onGone: () -> Unit, onLongPress: () -> Unit, onStar: () -> Unit, onClick: () -> Unit) {
     val c = Nx.colors
     val shape = Radii.Sm
     val ratio = if (w != null && h != null && w > 0 && h > 0) (h.toFloat() / w).coerceIn(0.4f, 2f) else 1f
@@ -220,7 +255,7 @@ private fun GifTile(url: String, w: Int?, h: Int?, favorite: Boolean, gone: Bool
             .pressable(remember { MutableInteractionSource() }, onLongClick = onLongPress) { if (!gone) onClick() },
     ) {
         if (gone) Txt(t("pickers.gifGrid.thisOneIsGone"), style = Nx.type.hint, color = c.textMuted, align = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 26.dp))
-        else AsyncImage(Media.absolute(url), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, onError = { onGone() })
+        else if (src != null) AsyncImage(src, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, onError = { onGone() })
         // on a phone only favourites show their star
         if (favorite) Box(
             Modifier

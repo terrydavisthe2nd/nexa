@@ -2,6 +2,7 @@ import { ApiError } from "@/api/client";
 import { users } from "@/api/users";
 import { randomBytes } from "@/crypto/bytes";
 import { decryptSettings, encryptSettings } from "@/lib/settingsCrypto";
+import { toggleFavoriteGif } from "@/lib/gifFavorites";
 import { useSettings } from "./settings";
 
 const key = randomBytes(32);
@@ -92,6 +93,21 @@ describe("settings sync", () => {
     // c5 cleared here, c6 set there, and c7, untouched here, keeps the other device's change
     expect(saved.perChannel).toEqual({ c6: "mentions", c7: "none" });
     expect(useSettings.getState().settings.notifications.muted.sort()).toEqual(["c2", "c3"]);
+  });
+
+  it("keeps a GIF favourited on another device when this one favourites another", async () => {
+    const server = fakeServer({ favoriteGifs: [{ url: "https://a.example/old.gif" }, { url: "https://a.example/gone.gif" }] });
+    await loadFrom(server);
+    // the other device favourites one and saves first
+    server.doc = { ...server.doc, favoriteGifs: [{ url: "https://a.example/theirs.gif" }, ...(server.doc["favoriteGifs"] as object[])] };
+    server.version += 1;
+    // this device, on its older copy, favourites one and drops another
+    toggleFavoriteGif({ url: "https://a.example/mine.gif" });
+    toggleFavoriteGif({ url: "https://a.example/gone.gif" });
+    await useSettings.getState().flush();
+    const urls = (server.doc["favoriteGifs"] as { url: string }[]).map((f) => f.url);
+    expect(urls).toEqual(["https://a.example/mine.gif", "https://a.example/theirs.gif", "https://a.example/old.gif"]);
+    expect(useSettings.getState().settings.favoriteGifs.map((f) => f.url)).toEqual(urls);
   });
 
   it("sends a change still waiting when the store is reset straight after", async () => {

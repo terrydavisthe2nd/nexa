@@ -625,6 +625,9 @@ as Discord holds it:
   Presence apps and Discord templates (`GET /servers/templates/discord/{code}`,
   `POST /servers/import/discord`). Discord's gateway, Cloudflare Realtime and the tunnel go out
   directly.
+- A Tenor page (`tenor.com/view/...`, with or without a language before `view`) previews as type `gif`
+  of the GIF its `og:image` names, sized by `twitter:player` (`unfurl/tenor.go`), so it draws, hides
+  its link and can be favourited like a picker GIF.
 - Guarded fetches allow only ports 80 (HTTP) and 443 (HTTPS), checked again when dialing. The
   public-address guard also checks IPv4 embedded in NAT64 and 6to4 addresses and refuses local-use
   translation, Teredo and IPv4-compatible ranges.
@@ -1120,7 +1123,10 @@ the next one's file is here.
   messages into what the stores keep (webhook messages through `lib/webhookMessage.ts`);
   `lib/keyring.ts` holds roots in memory and caches channel keys.
 - Stores (`stores/`, zustand), among them `auth` (status: idle, loading, offline, anonymous, locked,
-  pinlocked, ready), `settings` (the account's sealed settings, synced with an optimistic version),
+  pinlocked, ready), `settings` (the account's sealed settings, synced with an optimistic version; a
+  save that loses the race lays only this device's own edits over the newer copy, and the
+  notification lists and `favoriteGifs` are merged entry by entry through `ListEdits`, Android
+  `SettingsStore.gifEdits` and `layerGifs`, since saving those whole dropped other devices' entries),
   `messages`, `channels`, `servers`, `users`, `voice`, `ui` (modals), `typing` (for the typing pill and
   channel dots, off with `typingAvatars` and `typingChannels`; the synced `sendTyping` setting, Show When I'm Typing, stops this account's own `typing` ops in both composers, web `Composer.tsx` and Android `ui/chat/Composer.kt`), `threadLast` (each thread's newest
   message), `voiceDrag`, and `appCommands` (reloaded on `application_commands_update`).
@@ -1458,6 +1464,10 @@ cargo-ndk) for notes.
   messages as the web's `lib/webhookMessage.ts` does (`web-hook-vectors.json.gz`); both pass text
   through `discordMarkdown`, which puts a mid-line fence on its own line and splits `**`, `__`, `~~` or
   `||` spans that cross lines, since Nexa's parser keeps spans on one line.
+- GIF favourites (`media/GifFavorites`, `ui/pickers/Gifs.kt`) show and send a link favourite as
+  `MediaLinks.fresh` re-signs it (saved links run out after a day) and an uploaded one from its
+  attachment, staged again by `Staging.favorite` as the web's `favoriteFile` does; only a link the
+  server refuses to sign or a file that cannot be opened counts as gone.
 - `data/ThreadLast` mirrors the web's `threadLast`; `KeyManager` asks holders again (`/keys/request`)
   while it waits.
 - There is no push service: `notify/ConnectionService` keeps the connection open in the background (on

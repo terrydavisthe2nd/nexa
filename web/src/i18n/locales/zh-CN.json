@@ -7201,8 +7201,12 @@
   "whatsNew.r20261101.activityMovedTitle": "动态分享已移至设置",
   "whatsNew.r20261101.avatarViewerBody": "在完整资料中点按某人的头像或横幅，即可在图片查看器中打开，可以放大、保存或复制。",
   "whatsNew.r20261101.avatarViewerTitle": "查看大头像和横幅",
+  "whatsNew.r20261101.gifFavoritesBody": "在一台设备上收藏动图不会再让你在另一台设备上收藏的动图消失，从上传文件收藏的动图现在也能在 Android 上显示和发送。",
+  "whatsNew.r20261101.gifFavoritesTitle": "收藏的动图不再丢失",
   "whatsNew.r20261101.hideTypingBody": "你可以不让别人看到你正在输入。在设置的聊天中关闭“显示我正在输入”。",
   "whatsNew.r20261101.hideTypingTitle": "隐藏你的输入状态",
   "whatsNew.r20261101.mentionsBody": "侧边栏底部的 @ 按钮会列出所有提及你的消息。可按最新或最早排序，选择某个服务器或私信，并筛选提及你、你的身份组或 @everyone 的消息。",
-  "whatsNew.r20261101.mentionsTitle": "查看你在哪里被提及"
+  "whatsNew.r20261101.mentionsTitle": "查看你在哪里被提及",
+  "whatsNew.r20261101.tenorBody": "粘贴 Tenor 链接后会直接显示为动图。点星标即可收藏。",
+  "whatsNew.r20261101.tenorTitle": "Tenor 动图"
 }

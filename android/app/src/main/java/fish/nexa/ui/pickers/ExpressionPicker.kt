@@ -107,7 +107,8 @@ object Pickers {
         val title: String? = null,
     )
 
-    data class Gif(val url: String, val w: Int?, val h: Int?)
+    /** A GIF to send: a link, or with [att] an uploaded favourite, sent again as a file. */
+    data class Gif(val url: String, val w: Int?, val h: Int?, val att: fish.nexa.crypto.AttachmentMeta? = null)
 
     private const val KEY = "expression-picker"
 

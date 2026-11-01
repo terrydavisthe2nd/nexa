@@ -1,10 +1,9 @@
-import { useSettings } from "@/stores/settings";
+import { MAX_FAVORITE_GIFS, useSettings } from "@/stores/settings";
 import type { AttachmentMeta } from "@/crypto/message";
 import { attachmentObjectURL } from "./mediaCache";
 import { mediaKey } from "./mediaLinks";
 
-/** How many favourite GIFs are kept; past this the oldest drop off. */
-export const MAX_FAVORITE_GIFS = 500;
+export { MAX_FAVORITE_GIFS };
 
 export interface FavoriteGif {
   url: string;

@@ -7551,8 +7551,12 @@
   "whatsNew.r20261101.activityMovedTitle": "Le partage d'activité est dans les paramètres",
   "whatsNew.r20261101.avatarViewerBody": "Touchez la photo ou la bannière de quelqu'un dans son profil complet pour l'ouvrir dans la visionneuse, où vous pouvez zoomer, l'enregistrer ou la copier.",
   "whatsNew.r20261101.avatarViewerTitle": "Photos et bannières en grand",
+  "whatsNew.r20261101.gifFavoritesBody": "Ajouter un GIF en favori sur un appareil ne fait plus disparaître celui ajouté sur un autre, et les GIF favoris venant de fichiers envoyés s'affichent et s'envoient maintenant aussi sur Android.",
+  "whatsNew.r20261101.gifFavoritesTitle": "Tes GIF favoris restent en place",
   "whatsNew.r20261101.hideTypingBody": "Vous pouvez empêcher les autres de voir quand vous écrivez. Désactivez « Montrer quand j'écris » dans Paramètres, Discussion.",
   "whatsNew.r20261101.hideTypingTitle": "Masquer votre saisie",
   "whatsNew.r20261101.mentionsBody": "Le bouton @ en bas de la barre latérale liste chaque message qui vous a mentionné. Triez par plus récentes ou plus anciennes, choisissez un serveur ou vos messages privés, et filtrez les mentions de vous, de vos rôles ou de @everyone.",
-  "whatsNew.r20261101.mentionsTitle": "Voyez où l'on vous a mentionné"
+  "whatsNew.r20261101.mentionsTitle": "Voyez où l'on vous a mentionné",
+  "whatsNew.r20261101.tenorBody": "Colle un lien Tenor et il s'affiche directement comme le GIF. Touche l'étoile pour le garder dans tes favoris.",
+  "whatsNew.r20261101.tenorTitle": "GIF de Tenor"
 }

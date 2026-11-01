@@ -364,6 +364,9 @@ func (f *Fetcher) htmlResult(ctx context.Context, started time.Time, body io.Rea
 		}
 	}
 	meta := parseMeta(buf)
+	if r := tenorGif(final, meta); r != nil {
+		return r, nil
+	}
 	r := &Result{URL: final.String(), Type: "link"}
 	r.Title = clip(decoded(meta.first("og:title", "twitter:title", "html:title")), maxTitleRunes)
 	r.Description = clip(decoded(meta.text("og:description", "twitter:description", "description")), maxDescRunes)

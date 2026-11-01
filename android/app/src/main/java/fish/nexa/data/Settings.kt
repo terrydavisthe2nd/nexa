@@ -45,6 +45,12 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
 
     private var dirty: JsonObject? = null
     private var sending: JsonObject? = null
+    // What this device did to the favourite GIFs, by what each points at: the
+    // favourite starred here, or null for one taken away here. Saving the list
+    // whole let a device with a slightly old copy put its list back over a GIF
+    // just favourited elsewhere (web settings.ts ListEdits.gifs).
+    private var dirtyGifs: Map<String, JsonObject?>? = null
+    private var sendingGifs: Map<String, JsonObject?>? = null
     private var failures = 0
     private var debounce: Job? = null
     private val saveLock = Mutex()
@@ -65,7 +71,7 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
             if (_loaded.value && ver < version) return
             val base = if (parsed != null) merge(DEFAULTS, parsed) else DEFAULTS
             val unsaved = mergeChanges(sending, dirty)
-            _doc.value = if (unsaved != null) merge(base, unsaved) else base
+            _doc.value = if (unsaved != null) layerGifs(merge(base, unsaved), base, unsaved, mergeGifEdits(sendingGifs, dirtyGifs)) else base
             version = ver
             _loaded.value = true
         }
@@ -92,6 +98,7 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
     /** Every settings control calls this: applied now, saved shortly. */
     fun patch(partial: JsonObject) {
         synchronized(this) {
+            gifEdits(_doc.value, partial)?.let { dirtyGifs = mergeGifEdits(dirtyGifs, it) }
             _doc.value = merge(_doc.value, partial)
             dirty = mergeChanges(dirty, partial)
         }
@@ -125,6 +132,8 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
                     val d = dirty ?: return true
                     sending = d
                     dirty = null
+                    sendingGifs = dirtyGifs
+                    dirtyGifs = null
                     _doc.value
                 }
                 try {
@@ -134,6 +143,7 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
                     })
                     synchronized(this) {
                         sending = null
+                        sendingGifs = null
                         failures = 0
                         version = (res.jsonObject["version"] as? JsonPrimitive)?.contentOrNull?.toLongOrNull() ?: version
                     }
@@ -141,6 +151,8 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
                     synchronized(this) {
                         dirty = mergeChanges(sending, dirty)
                         sending = null
+                        dirtyGifs = mergeGifEdits(sendingGifs, dirtyGifs)
+                        sendingGifs = null
                     }
                     if (e.status == 409 && failures < 3) {
                         failures++
@@ -168,6 +180,8 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
         synchronized(this) {
             dirty = null
             sending = null
+            dirtyGifs = null
+            sendingGifs = null
             failures = 0
             _doc.value = DEFAULTS
             version = 0
@@ -288,6 +302,49 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
         }
 
         /** Later changes win; notifications and voice merge one level deep. */
+        /** What a favourite GIF points at, whatever its link was signed with (MediaLinks.mediaKey). */
+        fun gifKey(url: String): String {
+            val path = if (url.startsWith("/media/proxy/")) url
+            else if (url.startsWith("https://") || url.startsWith("http://")) runCatching { java.net.URI(url).rawPath }.getOrNull()?.takeIf { it.startsWith("/media/proxy/") } ?: return url
+            else return url
+            return path.removePrefix("/media/proxy/").split('/').getOrNull(1)?.ifEmpty { null } ?: url
+        }
+
+        private fun gifList(doc: JsonObject?): List<JsonObject> = (doc?.get("favoriteGifs") as? JsonArray)?.mapNotNull { it as? JsonObject } ?: emptyList()
+
+        private fun gifUrl(f: JsonObject) = (f["url"] as? JsonPrimitive)?.contentOrNull ?: ""
+
+        /** The favourites a change starred (the entry) or took away (null), or null when it leaves them alone. */
+        fun gifEdits(before: JsonObject, change: JsonObject): Map<String, JsonObject?>? {
+            if (change["favoriteGifs"] !is JsonArray) return null
+            val was = gifList(before).map { gifKey(gifUrl(it)) }.toSet()
+            val now = LinkedHashMap<String, JsonObject>()
+            for (f in gifList(change)) now.putIfAbsent(gifKey(gifUrl(f)), f)
+            val out = LinkedHashMap<String, JsonObject?>()
+            for ((k, f) in now) if (k !in was) out[k] = f
+            for (k in was) if (k !in now) out[k] = null
+            return out.ifEmpty { null }
+        }
+
+        fun mergeGifEdits(a: Map<String, JsonObject?>?, b: Map<String, JsonObject?>?): Map<String, JsonObject?>? {
+            if (a == null) return b
+            if (b == null) return a
+            return LinkedHashMap(a).apply { putAll(b) }
+        }
+
+        /**
+         * The arriving favourites with this device's own changes laid over
+         * them: what was starred here in front (in this device's order), what
+         * was taken away here gone, and everything else as it arrived.
+         */
+        fun layerGifs(merged: JsonObject, base: JsonObject, unsaved: JsonObject, edits: Map<String, JsonObject?>?): JsonObject {
+            if (unsaved["favoriteGifs"] !is JsonArray) return merged
+            val changed = edits ?: emptyMap()
+            val added = gifList(unsaved).filter { changed[gifKey(gifUrl(it))] != null }
+            val kept = gifList(base).filter { gifKey(gifUrl(it)) !in changed }
+            return JsonObject(LinkedHashMap(merged).apply { put("favoriteGifs", JsonArray((added + kept).take(500))) })
+        }
+
         fun mergeChanges(a: JsonObject?, b: JsonObject?): JsonObject? {
             if (a == null) return b
             if (b == null) return a
