@@ -137,7 +137,7 @@ fun acToken(text: String, caret: Int, channels: Boolean, smartEmoji: Boolean): A
     // a command at the very start, an app's subcommands too ("/config set")
     Regex("^/([\\p{L}\\p{N}_-]*(?: [\\p{L}\\p{N}_-]*){0,2})$").find(before)?.let { return AcToken("command", it.groupValues[1].lowercase(), 0) }
     if (smartEmoji && Regex("(?:^|\\s):$").containsMatchIn(before)) return AcToken("emoji", "", caret - 1)
-    val m = Regex("(?:^|\\s)(@[\\p{L}\\p{N}_.-]*|#[\\p{L}\\p{N}_-]*(?: [\\p{L}\\p{N}_-]*){0,4}|:[\\w+-]{2,}|^/\\w*)$").find(before) ?: return null
+    val m = Regex("(?:^|\\s)(@[\\p{L}\\p{N}_.-]*|#[\\p{L}\\p{N}_-]*|:[\\w+-]{2,}|^/\\w*)$").find(before) ?: return null
     val token = m.groupValues[1]
     val start = caret - token.length
     return when {
