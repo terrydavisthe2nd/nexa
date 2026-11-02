@@ -81,7 +81,7 @@ test: test-go test-web test-desktop
 # rather more on a busy one; Go's default is ten per package, which this has
 # hit while other things were building.
 test-go:
-	$(GO) vet ./... && $(GO) test -race -timeout 20m ./...
+	$(GO) vet ./... && $(GO) test -race -parallel 4 -timeout 20m ./...
 
 test-web:
 	cd web && npm run typecheck && npm test -- --run
