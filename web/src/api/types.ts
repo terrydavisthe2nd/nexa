@@ -1297,6 +1297,8 @@ export interface MusicCard {
   year?: number;
   explicit?: boolean;
   preview?: string;
+  /** Where a preview comes from when it is not the link's own service (a Spotify track's, found on Deezer or Apple Music). */
+  preview_from?: "deezer" | "apple";
   tracks?: MusicTrack[];
   /** Set when it plays in the service's own player, through this server. */
   player?: "spotify" | "soundcloud" | string;

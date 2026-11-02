@@ -45,3 +45,27 @@ func TestMusicRefOf(t *testing.T) {
 		t.Error("short Spotify link not followed")
 	}
 }
+
+func TestSamePiece(t *testing.T) {
+	cases := []struct {
+		t, a   string
+		s      int
+		ot, oa string
+		os     int
+		want   bool
+	}{
+		{"why would they give the cure", "xaviersobased", 124, "Why Would They Give The Cure", "xaviersobased", 124, true},
+		{"Song (feat. Someone)", "Artist", 200, "Song", "Artist, Someone", 201, true},
+		{"Song - Remastered 2011", "The Band", 180, "Song", "The Band", 182, true},
+		{"Song", "Artist", 200, "Song", "Artist", 230, false},
+		{"Song", "Artist", 200, "Other Song", "Artist", 200, false},
+		{"Song", "Artist", 200, "Song", "Someone Else", 200, false},
+		{"ТЕРНИИ", "dekma", 126, "терний", "dekma", 126, false},
+		{"ТЕРНИИ", "dekma", 126, "тернии", "DEKMA", 0, true},
+	}
+	for _, c := range cases {
+		if got := samePiece(c.t, c.a, c.s, c.ot, c.oa, c.os); got != c.want {
+			t.Errorf("samePiece(%q, %q, %d, %q, %q, %d) = %v", c.t, c.a, c.s, c.ot, c.oa, c.os, got)
+		}
+	}
+}

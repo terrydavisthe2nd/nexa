@@ -32,6 +32,8 @@
 .siteName { font-weight: 600; color: var(--text); white-space: nowrap; }
 .kind { flex: none; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--site) 14%, transparent); color: color-mix(in srgb, var(--site) 70%, var(--text)); font-size: 11px; font-weight: 600; line-height: 16px; white-space: nowrap; }
 
+.from { flex: none; margin-inline-start: auto; font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+
 .main { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .cover { position: relative; flex: none; width: 104px; height: 104px; border-radius: var(--radius-sm); overflow: hidden; background: color-mix(in srgb, var(--site) 18%, var(--bg-input)); box-shadow: 0 0 0 1px var(--border-subtle); }
 .cover[data-round] { border-radius: 50%; }

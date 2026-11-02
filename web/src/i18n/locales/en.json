@@ -6525,6 +6525,8 @@
   "chat.embeds.music.kind.track": "Song",
   "chat.embeds.music.playerFailed": "This player can't be opened right now.",
   "chat.embeds.music.preview": "30-Second Preview",
+  "chat.embeds.music.previewFrom.apple": "Preview from Apple Music",
+  "chat.embeds.music.previewFrom.deezer": "Preview from Deezer",
   "chat.embeds.music.seek": "Song Position",
   "chat.embeds.music.songs": {
     "one": "{count} song",

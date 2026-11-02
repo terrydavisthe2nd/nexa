@@ -33,6 +33,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -134,7 +137,14 @@ fun MusicEmbed(e: Unfurl, m: MusicCard) {
     val art = mediaSrc(m.art)
     val icon = mediaSrc(e.icon)
     val preview = previewUrl(m.preview)
-    val player = m.player == "spotify" || m.player == "soundcloud"
+    // a SoundCloud track plays in this card through SoundCloud's widget, out of
+    // sight; a Spotify track with a preview found elsewhere plays that; the rest
+    // open the service's own player
+    val widget = m.player == "soundcloud" && m.kind == "track"
+    val player = (m.player == "spotify" && preview == null) || (m.player == "soundcloud" && !widget)
+    var widgetSrc by remember(m.id) { mutableStateOf<String?>(null) }
+    var fetching by remember(m.id) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     var open by remember(e.url) { mutableStateOf(false) }
     val key = "$owner:main"
     val on = SongPreviews.playingId == key
@@ -143,6 +153,21 @@ fun MusicEmbed(e: Unfurl, m: MusicCard) {
     val by = tracks.any { it.artist != null && it.artist != m.artist && it.artist != m.title }
     val press: (() -> Unit)? = when {
         player -> ({ SongPreviews.stopAny(); open = true })
+        widget -> ({
+            val known = widgetSrc
+            if (known != null) SongPreviews.playWidget(key, known, owner)
+            else if (!fetching) {
+                fetching = true
+                scope.launch {
+                    val u = runCatching { Nexa.api.get("/music/player/soundcloud/track/${m.id}").jsonObject["url"]?.jsonPrimitive?.content }.getOrNull()
+                    fetching = false
+                    if (u != null && u.startsWith("/sc/")) {
+                        widgetSrc = Nexa.api.baseUrl + u
+                        SongPreviews.playWidget(key, Nexa.api.baseUrl + u, owner)
+                    } else Nexa.ui.toast(t("chat.embeds.music.playerFailed"), "error")
+                }
+            }
+        })
         preview != null -> ({ SongPreviews.play(key, preview, owner) })
         else -> null
     }
@@ -168,6 +193,10 @@ fun MusicEmbed(e: Unfurl, m: MusicCard) {
                 if (!icon.isNullOrEmpty() && !broken) AsyncImage(icon, null, imageLoader = Media.loader, modifier = Modifier.size(14.dp).clip(RoundedCornerShape(3.dp)), onError = { broken = true })
                 Txt(site.name, style = Nx.type.hint.copy(fontWeight = FontWeight(600)), color = c.text, maxLines = 1)
                 Pill(t("chat.embeds.music.kind.${m.kind}"), site.color)
+                if (preview != null && m.previewFrom != null) {
+                    Spacer(Modifier.weight(1f))
+                    Txt(t("chat.embeds.music.previewFrom.${m.previewFrom}"), style = Nx.type.hint.copy(fontSize = Nx.type.sp(11.5f)), color = c.textMuted, maxLines = 1)
+                }
             }
             if (open && player) {
                 PlayerView(m)
@@ -178,7 +207,7 @@ fun MusicEmbed(e: Unfurl, m: MusicCard) {
                     Box(Modifier.size(84.dp).ring(coverShape, c.borderSubtle).clip(coverShape).background(lerp(c.bgInput, site.color, 0.18f))) {
                         if (!art.isNullOrEmpty()) AsyncImage(art, null, imageLoader = Media.loader, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                         if (press != null) Disc(
-                            on, state, site.color, m.title, press,
+                            on || fetching, if (fetching) "loading" else state, site.color, m.title, press,
                             if (round) Modifier.align(Alignment.Center) else Modifier.align(Alignment.BottomEnd).offset((-5).dp, (-5).dp),
                         )
                     }
@@ -201,7 +230,8 @@ fun MusicEmbed(e: Unfurl, m: MusicCard) {
                         if (meta.isNotEmpty()) Txt(meta.joinToString(" · "), style = Nx.type.hint.copy(fontSize = Nx.type.sp(12.5f), fontFeatureSettings = "tnum"), color = c.textMuted, maxLines = 1)
                     }
                 }
-                if (preview != null && !player) PreviewStrip(key, site.color)
+                if (widget) PreviewStrip(key, site.color, m.duration?.toFloat() ?: 0f)
+                else if (preview != null && !player) PreviewStrip(key, site.color, 30f)
                 if (tracks.isNotEmpty()) Column(Modifier.offset(x = (-6).dp)) {
                     tracks.forEachIndexed { i, tr -> TrackRow(tr, i, "$owner:$i", owner, site.color, by, if (player) press else null) }
                 }
@@ -216,11 +246,11 @@ fun MusicEmbed(e: Unfurl, m: MusicCard) {
  * previews play.
  */
 @Composable
-private fun PreviewStrip(key: String, site: Color) {
+private fun PreviewStrip(key: String, site: Color, length: Float) {
     val c = Nx.colors
     val on = SongPreviews.playingId == key
     val progress = if (on) SongPreviews.progress else 0f
-    val total = if (on && SongPreviews.duration > 0f) SongPreviews.duration else 30f
+    val total = if (on && SongPreviews.duration > 0f) SongPreviews.duration else length
     val time = Nx.type.hint.copy(fontSize = Nx.type.sp(12f), fontFeatureSettings = "tnum")
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Txt(Time.duration((progress * total).toDouble()), style = time, color = if (on) c.textStrong else c.textMuted, maxLines = 1)
@@ -248,7 +278,7 @@ private fun PreviewStrip(key: String, site: Color) {
             Box(Modifier.fillMaxWidth(progress).height(4.dp).background(site, RoundedCornerShape(2.dp)))
             if (on) Box(Modifier.graphicsLayer { translationX = progress * (width - 12.dp.toPx()) }.size(12.dp).background(c.textStrong, CircleShape))
         }
-        Txt(Time.duration(total.toDouble()), style = time, color = c.textMuted, maxLines = 1)
+        if (total > 0f) Txt(Time.duration(total.toDouble()), style = time, color = c.textMuted, maxLines = 1)
         SongVolume(fill = site, slider = LocalConfiguration.current.screenWidthDp > 520)
     }
 }

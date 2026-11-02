@@ -306,6 +306,7 @@ object MessageCrypto {
         for (k in listOf("artist", "album")) o.str(k)?.takeIf { it.isNotEmpty() }?.let { out[k] = JsonPrimitive(cap(it, 256)) }
         address(o["art"])?.let { out["art"] = JsonPrimitive(it) }
         address(o["preview"])?.let { out["preview"] = JsonPrimitive(it) }
+        if (out["preview"] != null) (o["preview_from"] as? JsonPrimitive)?.takeIf { it.isString && (it.content == "deezer" || it.content == "apple") }?.let { out["preview_from"] = it }
         for ((k, max) in listOf("duration" to 360000.0, "count" to 100000.0, "year" to 3000.0)) {
             o.number(k)?.takeIf { it > 0 && it <= max }?.let { out[k] = JsonPrimitive(kotlin.math.floor(it).toLong()) }
         }

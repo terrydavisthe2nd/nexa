@@ -82,6 +82,8 @@ data class MusicCard(
     val preview: String?,
     val tracks: List<MusicTrack>,
     val player: String?,
+    /** Where a preview comes from when it is not the link's own service: "deezer" or "apple". */
+    val previewFrom: String? = null,
 ) {
     companion object {
         private fun JsonObject.s(k: String) = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
@@ -100,7 +102,7 @@ data class MusicCard(
             }.take(5)
             return MusicCard(
                 platform, kind, o.s("id") ?: return null, title, o.s("artist"), o.s("album"), o.s("art"), o.n("duration"), o.n("count")?.toInt(), o.n("year")?.toInt(),
-                o.b("explicit"), o.s("preview"), tracks, o.s("player"),
+                o.b("explicit"), o.s("preview"), tracks, o.s("player"), o.s("preview_from")?.takeIf { it == "deezer" || it == "apple" },
             )
         }
     }

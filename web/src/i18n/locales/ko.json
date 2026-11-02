@@ -6291,6 +6291,8 @@
   "chat.embeds.music.kind.track": "노래",
   "chat.embeds.music.playerFailed": "지금은 이 플레이어를 열 수 없어요.",
   "chat.embeds.music.preview": "30초 미리 듣기",
+  "chat.embeds.music.previewFrom.apple": "Apple Music 미리 듣기",
+  "chat.embeds.music.previewFrom.deezer": "Deezer 미리 듣기",
   "chat.embeds.music.seek": "재생 위치",
   "chat.embeds.music.songs": {
     "other": "{count}곡"

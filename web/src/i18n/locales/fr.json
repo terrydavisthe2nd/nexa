@@ -6637,6 +6637,8 @@
   "chat.embeds.music.kind.track": "Titre",
   "chat.embeds.music.playerFailed": "Ce lecteur ne peut pas s'ouvrir pour le moment.",
   "chat.embeds.music.preview": "Extrait de 30 secondes",
+  "chat.embeds.music.previewFrom.apple": "Extrait d’Apple Music",
+  "chat.embeds.music.previewFrom.deezer": "Extrait de Deezer",
   "chat.embeds.music.seek": "Position dans le morceau",
   "chat.embeds.music.songs": {
     "one": "{count} titre",

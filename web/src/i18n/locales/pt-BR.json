@@ -6638,6 +6638,8 @@
   "chat.embeds.music.kind.track": "Música",
   "chat.embeds.music.playerFailed": "Não dá para abrir este player agora.",
   "chat.embeds.music.preview": "Prévia de 30 Segundos",
+  "chat.embeds.music.previewFrom.apple": "Prévia do Apple Music",
+  "chat.embeds.music.previewFrom.deezer": "Prévia do Deezer",
   "chat.embeds.music.seek": "Posição da música",
   "chat.embeds.music.songs": {
     "one": "{count} música",

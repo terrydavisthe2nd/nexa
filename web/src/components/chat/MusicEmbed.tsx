@@ -5,6 +5,7 @@ import type { MusicCard, MusicTrack, UnfurlResult } from "@/api/types";
 import { t } from "@/i18n";
 import { useMediaSrc } from "@/lib/mediaLinks";
 import { formatDuration } from "@/lib/time";
+import { useUI } from "@/stores/ui";
 import { playPreview, seekPreview, stopAnyPreview, stopPreview, usePreview } from "@/components/profile/previews";
 import { SongVolume } from "@/components/profile/SongVolume";
 import s from "./MusicEmbed.module.css";
@@ -183,7 +184,7 @@ function PreviewStrip({ k, length }: { k: string; length: number }) {
         aria-valuetext={`${formatDuration(Math.floor(progress * total))} / ${formatDuration(total)}`}
         data-testid="music-seek"
       />
-      <span className={s.time}>{formatDuration(total)}</span>
+      <span className={s.time}>{total > 0 ? formatDuration(total) : ""}</span>
       <SongVolume className={s.vol} />
     </div>
   );
@@ -205,7 +206,28 @@ export function MusicEmbed({ e, m }: { e: UnfurlResult; m: MusicCard }) {
   // a preview stops with the message that started it
   useEffect(() => () => stopPreview(owner), [owner]);
 
-  const player = m.player === "spotify" || m.player === "soundcloud";
+  // a SoundCloud track plays in this card through SoundCloud's widget, out of
+  // sight; a Spotify track with a preview found elsewhere plays that; the rest
+  // open the service's own player
+  const widget = m.player === "soundcloud" && m.kind === "track";
+  const player = (m.player === "spotify" && !preview) || (m.player === "soundcloud" && !widget);
+  const widgetSrc = useRef<string | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const playWidget = () => {
+    const go = (src: string) => playPreview({ key, src, name: m.title, by: m.artist, art: art ?? undefined, widget: true }, owner);
+    if (widgetSrc.current) return go(widgetSrc.current);
+    if (fetching) return;
+    setFetching(true);
+    api
+      .request<{ url: string }>("GET", `/music/player/soundcloud/track/${encodeURIComponent(m.id)}`)
+      .then((r) => {
+        if (!r?.url.startsWith("/sc/")) throw new Error("bad player address");
+        widgetSrc.current = api.baseUrl + r.url;
+        go(widgetSrc.current);
+      })
+      .catch(() => useUI.getState().toast(t("chat.embeds.music.playerFailed"), "error"))
+      .finally(() => setFetching(false));
+  };
   const tracks = (m.tracks ?? []).filter((x) => x && typeof x.title === "string").slice(0, 5);
   // who made each track is said only when they are not all by whoever made the album
   const by = tracks.some((x) => !!x.artist && x.artist !== m.artist && x.artist !== m.title);
@@ -214,10 +236,12 @@ export function MusicEmbed({ e, m }: { e: UnfurlResult; m: MusicCard }) {
         stopAnyPreview();
         setOpen(true);
       }
-    : preview
-      ? () => playPreview({ key, src: preview, name: m.title, by: m.artist, art: art ?? undefined }, owner)
-      : null;
-  const busy = on && state === "loading";
+    : widget
+      ? playWidget
+      : preview
+        ? () => playPreview({ key, src: preview, name: m.title, by: m.artist, art: art ?? undefined }, owner)
+        : null;
+  const busy = fetching || (on && state === "loading");
   const playing = on && state === "playing";
 
   const album = (m.kind === "track" || m.kind === "episode") && m.album && m.album !== m.title ? m.album : null;
@@ -233,6 +257,7 @@ export function MusicEmbed({ e, m }: { e: UnfurlResult; m: MusicCard }) {
         {icon ? <img className={s.favicon} src={icon} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(ev) => (ev.currentTarget.style.display = "none")} /> : null}
         <span className={s.siteName}>{site.name}</span>
         <span className={s.kind}>{t(`chat.embeds.music.kind.${m.kind}`)}</span>
+        {preview && m.preview_from ? <span className={s.from}>{t(`chat.embeds.music.previewFrom.${m.preview_from}`)}</span> : null}
       </div>
       {open && player ? (
         <PlayerFrame m={m} />
@@ -277,7 +302,7 @@ export function MusicEmbed({ e, m }: { e: UnfurlResult; m: MusicCard }) {
               {meta.length ? <span className={s.meta}>{meta.join(" · ")}</span> : null}
             </div>
           </div>
-          {preview && !player ? <PreviewStrip k={key} length={30} /> : null}
+          {widget ? <PreviewStrip k={key} length={m.duration ?? 0} /> : preview && !player ? <PreviewStrip k={key} length={30} /> : null}
           {tracks.length ? (
             <ol className={s.tracks} aria-label={m.title} data-by={by || undefined}>
               {tracks.map((tr, i) => (

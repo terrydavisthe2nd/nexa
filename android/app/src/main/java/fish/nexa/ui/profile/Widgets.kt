@@ -278,6 +278,7 @@ object SongPreviews {
         volume = v.coerceIn(0f, 1f)
         muted = mute
         player?.volume = if (mute) 0f else volume
+        if (SoundCloudWidget.active) SoundCloudWidget.volume(if (mute) 0f else volume)
         prefs().edit().putFloat("songVolume", volume).putBoolean("songMuted", mute).apply()
     }
 
@@ -336,6 +337,11 @@ object SongPreviews {
 
     /** Plays any preview, or pauses it (and plays it on) when it is the one playing: a widget's song or a music card's. */
     fun play(key: String, url: String, by: String) {
+        if (playingId == key && SoundCloudWidget.active) {
+            if (state == "playing") SoundCloudWidget.pause() else SoundCloudWidget.play()
+            return
+        }
+        SoundCloudWidget.stop()
         val p = player()
         if (playingId == key) {
             if (p.isPlaying) p.pause() else p.play()
@@ -356,7 +362,7 @@ object SongPreviews {
     suspend fun track() {
         while (true) {
             val p = player
-            if (p != null && playingId != null && p.duration > 0) {
+            if (p != null && playingId != null && !SoundCloudWidget.active && p.duration > 0) {
                 progress = (p.currentPosition.toFloat() / p.duration).coerceIn(0f, 1f)
                 duration = p.duration / 1000f
             }
@@ -364,8 +370,53 @@ object SongPreviews {
         }
     }
 
+    /** Plays a SoundCloud track through its widget, out of sight (SoundCloudWidget), or pauses and plays it on. */
+    fun playWidget(key: String, url: String, by: String) {
+        if (playingId == key) {
+            if (SoundCloudWidget.active) {
+                if (state == "playing") SoundCloudWidget.pause() else SoundCloudWidget.play()
+            }
+            return
+        }
+        player?.stop()
+        player?.clearMediaItems()
+        playingId = key
+        owner = by
+        state = "loading"
+        progress = 0f
+        duration = 0f
+        fun ours() = playingId == key
+        SoundCloudWidget.start(url, if (muted) 0f else volume, object : SoundCloudWidget.Events {
+            override fun loading() { if (ours()) state = "loading" }
+            override fun playing() { if (ours()) state = "playing" }
+            override fun paused() { if (ours()) state = "paused" }
+            override fun progress(at: Float, seconds: Float) {
+                if (!ours()) return
+                progress = at
+                if (seconds > 0f) duration = seconds
+            }
+            override fun ended() {
+                if (!ours()) return
+                SoundCloudWidget.stop()
+                idle()
+            }
+            override fun failed() {
+                if (!ours()) return
+                SoundCloudWidget.stop()
+                Nexa.ui.toast(t("chat.embeds.music.playerFailed"), "error")
+                idle()
+            }
+        })
+    }
+
     /** Moves the playing preview to a point from 0 to 1, when it is the one with this key. */
     fun seek(key: String, at: Float) {
+        if (playingId == key && SoundCloudWidget.active) {
+            val f = at.coerceIn(0f, 1f)
+            SoundCloudWidget.seek(f)
+            progress = f
+            return
+        }
         val p = player ?: return
         if (playingId != key || p.duration <= 0) return
         val f = at.coerceIn(0f, 1f)
@@ -381,6 +432,7 @@ object SongPreviews {
     fun stop(by: String) {
         if (owner != by) return
         idle()
+        SoundCloudWidget.stop()
         player?.stop()
         player?.clearMediaItems()
     }

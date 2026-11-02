@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // Music is a music link's card.
@@ -51,6 +52,9 @@ type Music struct {
 	Explicit bool `json:"explicit,omitempty"`
 	// Preview is thirty seconds the app plays itself, for a track.
 	Preview string `json:"preview,omitempty"`
+	// PreviewFrom names the service a preview comes from when it is not the
+	// link's own: a Spotify track's thirty seconds found on "deezer" or "apple".
+	PreviewFrom string `json:"preview_from,omitempty"`
 	// Tracks are the first few of an album, playlist or artist, with
 	// previews where the service gives them.
 	Tracks []MusicTrack `json:"tracks,omitempty"`
@@ -289,6 +293,11 @@ func (f *Fetcher) spotifyMusic(ctx context.Context, ref *musicRef) (*Music, erro
 		if len(m.Tracks) == musicTracks {
 			break
 		}
+	}
+	if ref.kind == "track" && len(e.Artists) > 0 {
+		// Spotify lets only its own player sound, so a track's thirty seconds
+		// come from the same recording on Deezer or Apple Music, credited
+		m.Preview, m.PreviewFrom = f.matchPreview(ctx, m.Title, e.Artists[0].Name, m.Duration)
 	}
 	if ref.kind == "artist" {
 		// an artist's list is their top tracks, not everything they made
@@ -667,4 +676,70 @@ func (f *Fetcher) soundcloudMusic(ctx context.Context, ref *musicRef) (*Music, e
 		m.Art = strings.Replace(m.Art, "-t500x500.", "-t300x300.", 1)
 	}
 	return m, nil
+}
+
+// matchName folds a title or name for matching across services: case,
+// accents' width, and what is in brackets ("(feat. ...)", "- Remastered").
+func matchName(s string) string {
+	s = strings.ToLower(s)
+	for _, cut := range []string{" (", " [", " - "} {
+		if i := strings.Index(s, cut); i > 0 {
+			s = s[:i]
+		}
+	}
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// samePiece says whether another service's track is this one: the same
+// title and lead artist, and a length within three seconds when both know it.
+func samePiece(title, artist string, secs int, otherTitle, otherArtist string, otherSecs int) bool {
+	if matchName(title) == "" || matchName(title) != matchName(otherTitle) {
+		return false
+	}
+	a, b := matchName(artist), matchName(otherArtist)
+	if a == "" || b == "" || (!strings.Contains(b, a) && !strings.Contains(a, b)) {
+		return false
+	}
+	if secs > 0 && otherSecs > 0 && (secs-otherSecs > 3 || otherSecs-secs > 3) {
+		return false
+	}
+	return true
+}
+
+// matchPreview finds a track's thirty seconds on Deezer, then Apple Music,
+// for a service whose own previews only its player may play. It answers the
+// preview address and where it is from, or nothing when neither has it.
+func (f *Fetcher) matchPreview(ctx context.Context, title, artist string, secs int) (string, string) {
+	if title == "" || artist == "" {
+		return "", ""
+	}
+	q := url.Values{"q": {`artist:"` + artist + `" track:"` + title + `"`}, "limit": {"10"}}
+	var dz struct {
+		Data []deezerTrack `json:"data"`
+	}
+	if f.getJSON(ctx, "https://api.deezer.com/search?"+q.Encode(), nil, &dz) == nil {
+		for _, t := range dz.Data {
+			if t.ID > 0 && t.Preview != "" && samePiece(title, artist, secs, t.Title, t.Artist.Name, t.Duration) {
+				return DeezerPreviewPath(t.ID), "deezer"
+			}
+		}
+	}
+	aq := url.Values{"term": {artist + " " + title}, "entity": {"song"}, "limit": {"10"}}
+	var ap struct {
+		Results []appleItem `json:"results"`
+	}
+	if f.getJSON(ctx, "https://itunes.apple.com/search?"+aq.Encode(), nil, &ap) == nil {
+		for _, it := range ap.Results {
+			if webAddress(it.PreviewURL) && samePiece(title, artist, secs, it.TrackName, it.ArtistName, it.TrackTimeMillis/1000) {
+				return it.PreviewURL, "apple"
+			}
+		}
+	}
+	return "", ""
 }

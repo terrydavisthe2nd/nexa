@@ -290,6 +290,7 @@ function sanitizeMusic(x: unknown): Obj | undefined {
   if (art) out["art"] = art;
   const preview = address(x["preview"]);
   if (preview) out["preview"] = preview;
+  if (preview && (x["preview_from"] === "deezer" || x["preview_from"] === "apple")) out["preview_from"] = x["preview_from"];
   for (const [k, max] of [["duration", 360000], ["count", 100000], ["year", 3000]] as const) {
     const v = x[k];
     if (isNum(v) && v > 0 && v <= max) out[k] = Math.floor(v);

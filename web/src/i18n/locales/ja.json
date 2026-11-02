@@ -6291,6 +6291,8 @@
   "chat.embeds.music.kind.track": "曲",
   "chat.embeds.music.playerFailed": "このプレーヤーは今は開けません。",
   "chat.embeds.music.preview": "30秒試聴",
+  "chat.embeds.music.previewFrom.apple": "Apple Musicの試聴",
+  "chat.embeds.music.previewFrom.deezer": "Deezerの試聴",
   "chat.embeds.music.seek": "再生位置",
   "chat.embeds.music.songs": {
     "other": "{count}曲"
