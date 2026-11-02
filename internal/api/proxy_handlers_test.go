@@ -661,6 +661,15 @@ func TestMediaProxyPassesMislabelledPictures(t *testing.T) {
 			t.Errorf("%s: %d %s, want %s", path, code, ct, want)
 		}
 	}
+	// an SVG named the old way gets the same guard as any SVG: never shown as a page
+	res, err := http.Get(ts.URL + srv.ProxyURL("http://files.test/svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.Header.Get("Content-Disposition") != `attachment; filename="preview.svg"` || res.Header.Get("Content-Security-Policy") != "default-src 'none'; sandbox" || res.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("an image/svg file went out without the SVG guard: %v", res.Header)
+	}
 	for _, path := range []string{"/script", "/tiff"} {
 		if code, ct := get(path); code != http.StatusUnsupportedMediaType {
 			t.Errorf("%s got through as %d %s", path, code, ct)
