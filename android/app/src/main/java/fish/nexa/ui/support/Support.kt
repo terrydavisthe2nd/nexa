@@ -200,7 +200,7 @@ fun SupportPanel(inSettings: Boolean = false) {
     val plan = me?.plan ?: ""
     val billing by Plans.billing.collectAsState()
     val scope = rememberCoroutineScope()
-    var period by remember { mutableStateOf("year") }
+    var period by remember { mutableStateOf("month") }
     var busy by remember { mutableStateOf<String?>(null) }
     var shown by remember(plan) { mutableStateOf(if (plan == "") "supporter" else plan) }
     val info = Plans.info()

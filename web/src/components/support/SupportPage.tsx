@@ -73,7 +73,7 @@ export function SupportPanel({ inSettings = false }: { inSettings?: boolean }) {
   const mobile = useIsMobile();
   const loc = useLocation();
   const nav = useNavigate();
-  const [period, setPeriod] = useState<Period>("year");
+  const [period, setPeriod] = useState<Period>("month");
   const [busy, setBusy] = useState<string | null>(null);
   // on a phone one plan is shown at a time; it starts on the next one up
   const [shown, setShown] = useState<Plan>(plan === "" ? "supporter" : plan);
