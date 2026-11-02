@@ -380,6 +380,10 @@ private class Builder(
     }
 
     private fun AnnotatedString.Builder.link(n: Node.Link, sp: Int, covered: Boolean) {
+        // a bare link to a channel or message this device knows reads as a pill, as a channel mention does
+        val jump = if (n.masked) null else AppLinks.jumpTarget(n.url, Nexa.api.baseUrl)
+        val jumpChannel = jump?.let { Nexa.channels.get(it.first) }
+        if (jump != null && jumpChannel != null) return jumpLink(n.url, jumpChannel, jump.second != null, covered)
         val invite = if (n.masked) null else AppLinks.shownInvite(n.url, Nexa.api.baseUrl)
         val style = SpanStyle(color = if (covered) Color.Transparent else colors.link, textDecoration = if (underlineLinks) TextDecoration.Underline else null)
         val words: AnnotatedString.Builder.() -> Unit = {
@@ -392,6 +396,36 @@ private class Builder(
             chip(colors.bgActive, 3.dp, 0.3f * 0.8f) {
                 withStyle(SpanStyle(fontSize = 0.8.em, fontWeight = FontWeight(500), color = if (covered) Color.Transparent else colors.textMuted)) { append(host) }
             }
+        }
+    }
+
+    /**
+     * A link to a channel or message (the web's JumpLink): the channel's name,
+     * a direct message's person or group, then for a message a small caret and
+     * a speech bubble. Pressing it opens the link as any link to Nexa does.
+     */
+    private fun AnnotatedString.Builder.jumpLink(url: String, ch: fish.nexa.net.Channel, message: Boolean, covered: Boolean) {
+        val fg = if (covered) Color.Transparent else colors.mentionFg
+        val words = when (ch.type) {
+            "dm" -> "@" + fish.nexa.ui.shell.Names.channel(ch)
+            "group_dm" -> fish.nexa.ui.shell.Names.channel(ch)
+            else -> "#" + ch.name
+        }.replace(' ', '\u00A0')
+        chip(colors.mentionBg, 5.dp, 3f / 16f) {
+            val body: AnnotatedString.Builder.() -> Unit = {
+                withStyle(SpanStyle(color = fg, fontWeight = FontWeight(600))) { append(words) }
+                if (message) {
+                    val key = "jump:${content.size}"
+                    content[key] = InlineTextContent(Placeholder(1.6.em, 1.em, PlaceholderVerticalAlign.TextCenter)) {
+                        if (!covered) androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Icon("ChevronRight", colors.mentionFg.copy(alpha = 0.64f), size = 10.dp, stroke = 3f)
+                            Icon("MessageCircle", colors.mentionFg, size = 13.dp, filled = true)
+                        }
+                    }
+                    appendInlineContent(key, " › 💬")
+                }
+            }
+            if (ctx.inert || covered) body() else withLink(LinkAnnotation.Clickable("jump:$url") { openLink(url) }) { body() }
         }
     }
 

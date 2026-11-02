@@ -1,11 +1,15 @@
 import { PersonName } from "@/components/common/PersonName";
 import { useMediaAnimation } from "@/lib/mediaAnimation";
-import { ChevronRight, Copy, CornerUpLeft, Info, Lightbulb, MessageSquareWarning, OctagonAlert, TriangleAlert, type LucideIcon } from "lucide-react";
+import { ChevronRight, Copy, MessageCircle, CornerUpLeft, Info, Lightbulb, MessageSquareWarning, OctagonAlert, TriangleAlert, type LucideIcon } from "lucide-react";
 import { createContext, Fragment, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Twemoji } from "@/components/common/Twemoji";
 import { copyText } from "@/lib/clipboard";
 import { shownInvite } from "@/lib/inviteLink";
+import { jumpTarget } from "@/lib/appLinks";
+import { channelDisplayName } from "@/lib/names";
+import { useAuth } from "@/stores/auth";
+import type { Channel } from "@/api/types";
 import { MentionGlyph } from "@/components/common/ChannelGlyph";
 import { ensureShortcodes, mightHaveShortcode, onShortcodesReady, shortcodeVersion, shortcodesReady } from "@/lib/shortcodes";
 import { formatStamp, type StampStyle } from "@/lib/time";
@@ -273,6 +277,9 @@ function renderNode(node: Node, ctx: RenderCtx, jumbo: boolean): ReactNode {
       return <CodeBlock lang={node.lang} text={node.text} />;
     case "link": {
       // an invite pasted as it is reads without its key, which is most of its length; the link keeps it
+      // a bare link to a channel or message this device knows reads as a pill, as a channel mention does
+      const jump = node.masked ? null : jumpTarget(node.url);
+      if (jump && ctx.channels[jump.channelId]) return <JumpLink url={node.url} channelId={jump.channelId} messageId={jump.messageId} ctx={ctx} />;
       const invite = node.masked ? null : shownInvite(node.url);
       const words = invite ?? <RenderNodes nodes={node.children} ctx={ctx} jumbo={jumbo} />;
       if (ctx.inert) return <span className="md-link">{words}</span>;
@@ -592,6 +599,38 @@ function ChannelMention(props: { id: string; ctx: RenderCtx }): JSX.Element {
     <span className="md-mention" role="button" tabIndex={0} onClick={() => props.ctx.onChannelClick?.(props.id)} onKeyDown={(e) => pressed(e) && props.ctx.onChannelClick?.(props.id)}>
       <MentionGlyph channel={channel} />{name}
     </span>
+  );
+}
+
+/**
+ * A link to a channel or a message in this app, drawn as a mention: the
+ * channel's name (a direct message's person or group), then for a message a
+ * small caret and a speech bubble. Still an anchor, so AppLinks opens it in
+ * the app, jumps to the message, and a middle click opens a new tab.
+ */
+function JumpLink(props: { url: string; channelId: string; messageId: string | null; ctx: RenderCtx }): JSX.Element {
+  const meId = useAuth((s) => s.me?.id);
+  const channel = props.ctx.channels[props.channelId] as Channel;
+  const dm = channel.type === "dm" || channel.type === "group_dm";
+  const name = dm ? channelDisplayName(channel, props.ctx.users as Parameters<typeof channelDisplayName>[1], meId) : channel.name;
+  const label = props.messageId ? t("render.jumpToMessage", { name }) : t("render.jumpToChannel", { name });
+  const body = (
+    <>
+      {dm ? (channel.type === "dm" ? "@" : "") : <MentionGlyph channel={channel} />}
+      <span className="md-jump-name">{name}</span>
+      {props.messageId ? (
+        <>
+          <ChevronRight className="md-jump-caret" size={12} strokeWidth={3} aria-hidden />
+          <MessageCircle className="md-jump-bubble" size={14} fill="currentColor" aria-hidden />
+        </>
+      ) : null}
+    </>
+  );
+  if (props.ctx.inert) return <span className="md-mention md-jump">{body}</span>;
+  return (
+    <a href={props.url} className="md-mention md-jump" aria-label={label} title={props.url}>
+      {body}
+    </a>
   );
 }
 

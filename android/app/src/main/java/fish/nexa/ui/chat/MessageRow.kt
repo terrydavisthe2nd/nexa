@@ -649,7 +649,13 @@ internal fun MessageBody(item: MsgItem, ctx: ListCtx, failed: Boolean, preview: 
         }
         return
     }
-    val embeds = if (cm != null && !cm.m.suppressEmbeds) payload?.embeds?.takeIf { it.isNotEmpty() } else null
+    // a link to a channel or message is a pill in the text; a card sent for one by an older app is left off
+    val embeds = if (cm != null && !cm.m.suppressEmbeds) remember(payload?.embeds) {
+        payload?.embeds?.filter { e ->
+            val url = (e["url"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content
+            url == null || fish.nexa.ui.markdown.AppLinks.jumpTarget(url, Nexa.api.baseUrl) == null
+        }?.takeIf { it.isNotEmpty() }
+    } else null
     // Pictures and GIFs stand alone; audio and video keep their original link above the player.
     val doc by Nexa.settings.doc.collectAsState()
     val mediaOnly = embeds != null && remember(doc) { Nexa.settings.imagePreviews } &&

@@ -75,6 +75,19 @@ object AppLinks {
     /** Whether a link is a note's share link to this app, which nothing is asked about but the app itself. */
     fun isNoteLink(href: String, here: String): Boolean = appLink(href, here) is AppLink.Note
 
+    private val JUMP_PATH = Regex("^/channels/(@me|[0-9]{1,20})/([0-9]{1,20})(?:/([0-9]{1,20}))?/?$")
+
+    /**
+     * The channel, and message if any, a link to a conversation in this app
+     * points to, drawn as a small pill instead of its address (Render). Only a
+     * bare path counts, as on the web (lib/appLinks.ts jumpTarget).
+     */
+    fun jumpTarget(href: String, here: String): Pair<String, String?>? {
+        val link = appLink(href, here) as? AppLink.Route ?: return null
+        val m = JUMP_PATH.find(link.path) ?: return null
+        return m.groupValues[2] to m.groupValues[3].ifEmpty { null }
+    }
+
     /** The channel and message a message link's path points to. */
     fun messageTarget(path: String): Pair<String, String>? {
         val head = path.split('?', '#')[0]

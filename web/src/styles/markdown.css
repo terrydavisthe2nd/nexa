@@ -36,6 +36,12 @@
 .md-mention { display: inline; white-space: nowrap; padding: 0 3px; border-radius: 5px; background: var(--mention-bg); color: var(--mention-fg); font-weight: 600; cursor: default; unicode-bidi: plaintext; transition: background-color var(--transition); }
 .md-user-mention { display: inline-block; max-inline-size: 100%; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; }
 .md-mention[role="button"] { cursor: pointer; }
+a.md-jump { cursor: pointer; text-decoration: none; }
+a.md-jump:hover { background: var(--mention-bg-hover); color: var(--mention-fg); text-decoration: none; }
+.md-mention.md-jump { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; vertical-align: bottom; }
+.md-jump-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.md-jump-caret { flex: none; opacity: 0.64; margin: 0 1px 0 2px; }
+.md-jump-bubble { flex: none; }
 .md-mention[role="button"]:hover { background: var(--mention-bg-hover); color: var(--mention-fg); }
 /* An emoji's picture fills a box of its own and lets the pointer through to it:
    pressed on a picture, a browser starts no selection, and a drag has to be

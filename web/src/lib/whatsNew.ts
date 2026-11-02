@@ -9,7 +9,7 @@
  * one that day. Its keys are whatsNew.r20260926.<name>Title and ...Body: the
  * id without its dashes and dots.
  */
-import { Flag, AtSign, Gift, AudioLines, BadgeCheck, Bot, CodeXml, ScanEye, Compass, Gavel, KeyRound, Link2, Megaphone, MonitorUp, Pause, ScrollText, BellRing, Bug, CircleX, Clapperboard, ClipboardCopy, CloudUpload, CornerUpRight, Eye, EyeOff, Feather, FolderPlus, Gamepad2, Globe, Headphones, Heart, House, IdCard, ImagePlay, ImagePlus, Images, Keyboard, LayoutGrid, Leaf, Link, MapPinOff, MessageCircleMore, MessageSquareDashed, MessageSquarePlus, MessageSquareText, MessagesSquare, Mic, MousePointerClick, Move, Music, Newspaper, NotebookPen, Paintbrush, Palette, PanelBottom, PanelsTopLeft, Pin, Play, Puzzle, QrCode, RefreshCw, RemoveFormatting, Reply, Search, SendHorizontal, ServerCog, Shapes, ShieldCheck, SlidersHorizontal, Smartphone, Smile, Snowflake, Sparkles, SpellCheck, Sticker, StickyNote, Tag, Timer, Trash2, TvMinimalPlay, Type, UserCheck, UserCog, UserPen, Users, UsersRound, Volume2, Vote, Webhook, ZoomIn, type LucideIcon } from "lucide-react";
+import { AtSign, AudioLines, BadgeCheck, BellRing, Bot, Bug, CircleX, Clapperboard, ClipboardCopy, CloudUpload, CodeXml, Compass, CornerUpRight, Eye, EyeOff, Feather, Flag, FolderPlus, Gamepad2, Gavel, Gift, Globe, Headphones, Heart, House, IdCard, ImagePlay, ImagePlus, Images, KeyRound, Keyboard, LayoutGrid, Leaf, Link, Link2, MapPinOff, Megaphone, MessageCircle, MessageCircleMore, MessageSquareDashed, MessageSquarePlus, MessageSquareText, MessagesSquare, Mic, MonitorUp, MousePointerClick, Move, Music, Newspaper, NotebookPen, Paintbrush, Palette, PanelBottom, PanelsTopLeft, Pause, Pin, Play, Puzzle, QrCode, RefreshCw, RemoveFormatting, Reply, ScanEye, ScrollText, Search, SendHorizontal, ServerCog, Shapes, ShieldCheck, SlidersHorizontal, Smartphone, Smile, Snowflake, Sparkles, SpellCheck, Sticker, StickyNote, Tag, Timer, Trash2, TvMinimalPlay, Type, UserCheck, UserCog, UserPen, Users, UsersRound, Volume2, Vote, Webhook, ZoomIn, type LucideIcon } from "lucide-react";
 
 export interface WhatsNewItem {
   icon: LucideIcon;
@@ -28,6 +28,7 @@ export const RELEASES: Release[] = [
   {
     id: "2026-11-01",
     items: [
+      { icon: MessageCircle, title: "whatsNew.r20261101.jumpLinksTitle", body: "whatsNew.r20261101.jumpLinksBody" },
       { icon: UserPen, title: "whatsNew.r20261101.profileFormTitle", body: "whatsNew.r20261101.profileFormBody" },
       { icon: Images, title: "whatsNew.r20261101.mediaChannelsTitle", body: "whatsNew.r20261101.mediaChannelsBody" },
       { icon: Link2, title: "whatsNew.r20261101.linkChannelsTitle", body: "whatsNew.r20261101.linkChannelsBody" },

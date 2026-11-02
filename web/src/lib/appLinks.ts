@@ -114,6 +114,23 @@ export function isNoteLink(href: string, here?: Here): boolean {
   return !!at && appLink(href, at)?.kind === "note";
 }
 
+const JUMP_PATH = /^\/channels\/(@me|\d{1,20})\/(\d{1,20})(?:\/(\d{1,20}))?\/?$/;
+
+/**
+ * The channel, and message if any, a link to a conversation in this app
+ * points to, drawn as a small pill instead of its address (markdown/render).
+ * Only a bare path counts: anything after it (a query, a fragment) is shown
+ * as written.
+ */
+export function jumpTarget(href: string, here?: Here): { channelId: string; messageId: string | null } | null {
+  const at = here ?? (typeof window === "undefined" ? null : window.location);
+  if (!at) return null;
+  const link = appLink(href, at);
+  if (link?.kind !== "route") return null;
+  const m = JUMP_PATH.exec(link.path);
+  return m ? { channelId: m[2]!, messageId: m[3] ?? null } : null;
+}
+
 /** The channel and message a message link points to. */
 export function messageTarget(path: string): { channelId: string; messageId: string } | null {
   const m = MESSAGE_PATH.exec(path.split(/[?#]/)[0]!);

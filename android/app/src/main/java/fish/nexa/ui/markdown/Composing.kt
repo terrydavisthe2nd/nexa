@@ -542,7 +542,8 @@ class LinkPreviews<T : Any>(
     /** Starts fetching a preview for the link unless it is known or on its way. */
     fun start(url: String) {
         if (done.containsKey(url) || inflight.containsKey(url)) return
-        if (AppLinks.isNoteLink(url, here)) {
+        // and a link to a channel or message is a pill in the text, with no card under it
+        if (AppLinks.isNoteLink(url, here) || AppLinks.jumpTarget(url, here) != null) {
             done[url] = Optional(null)
             return
         }

@@ -1,3 +1,4 @@
+import { jumpTarget } from "@/lib/appLinks";
 import { useDownloadsHidden } from "@/lib/mediaDownloads";
 import { PersonName } from "@/components/common/PersonName";
 import { useMediaAnimation } from "@/lib/mediaAnimation";
@@ -459,7 +460,9 @@ function MessageContent({ msg, name, id, pending, upload }: { msg: DecryptedMess
   const ctx = useMemo(() => (noOutsideEmoji ? { ...rowCtx, plainEmoji: (eid: string) => !ownEmoji?.some((e) => e.blob_id === eid) } : rowCtx), [rowCtx, noOutsideEmoji, ownEmoji]);
   const hook = msg.hook;
   const imagePreviews = useSettings((st) => st.settings.imagePreviews);
-  const embeds = msg.payload?.embeds?.length && !(msg.flags & MSG_FLAG_SUPPRESS_EMBEDS) ? (msg.payload.embeds as UnfurlResult[]) : null;
+  // a link to a channel or message is a pill in the text; a card sent for one by an older app is left off
+  const shownEmbeds = msg.payload?.embeds?.length && !(msg.flags & MSG_FLAG_SUPPRESS_EMBEDS) ? (msg.payload.embeds as UnfurlResult[]).filter((e) => !jumpTarget(e.url)) : null;
+  const embeds = shownEmbeds?.length ? shownEmbeds : null;
   // Pictures and GIFs stand alone; audio and video keep their original link above the player.
   const mediaOnly = !!embeds && imagePreviews && isOnlyMediaLinks(msg.payload?.t ?? "", embeds);
   const text = mediaOnly ? "" : (msg.payload?.t ?? "");

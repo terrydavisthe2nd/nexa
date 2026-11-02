@@ -1,6 +1,6 @@
 import { unfurl as unfurlApi } from "@/api/unfurl";
 import type { UnfurlResult } from "@/api/types";
-import { isNoteLink } from "@/lib/appLinks";
+import { isNoteLink, jumpTarget } from "@/lib/appLinks";
 
 export interface LinkPreviews {
   /** Starts fetching a preview for the link unless it is known or on its way. */
@@ -22,7 +22,8 @@ export function createLinkPreviews(fetchPreview: (url: string) => Promise<Unfurl
   const start = (url: string) => {
     if (done.has(url) || inflight.has(url)) return;
     // a note's share link is drawn by the app itself, from what its key opens (NoteCards)
-    if (isNoteLink(url)) {
+    // and a link to a channel or message is a pill in the text, with no card under it
+    if (isNoteLink(url) || jumpTarget(url)) {
       done.set(url, null);
       return;
     }

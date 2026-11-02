@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { appLink, inviteLinksIn, isNoteLink, messageTarget, noteLinksIn, packLinksIn, profileLinksIn, setPublicUrl, shareOrigin } from "./appLinks";
+import { appLink, inviteLinksIn, isNoteLink, jumpTarget, messageTarget, noteLinksIn, packLinksIn, profileLinksIn, setPublicUrl, shareOrigin } from "./appLinks";
 import { parse } from "@/markdown/parse";
 
 const here = { href: "https://chat.evilion.xyz/channels/1/2", host: "chat.evilion.xyz" };
@@ -166,5 +166,18 @@ describe("packLinksIn", () => {
   it("stops at three", () => {
     const nodes = parse([1, 2, 3, 4].map((n) => `https://chat.evilion.xyz/stickers/pack/${n}`).join(" "));
     expect(packLinksIn(nodes, here)).toHaveLength(3);
+  });
+});
+
+describe("jumpTarget", () => {
+  it("reads a message link and a channel link", () => {
+    expect(jumpTarget("https://chat.evilion.xyz/channels/@me/108900831054528512/110217209371951104", here)).toEqual({ channelId: "108900831054528512", messageId: "110217209371951104" });
+    expect(jumpTarget("https://chat.evilion.xyz/channels/5/6", here)).toEqual({ channelId: "6", messageId: null });
+  });
+  it("leaves other links alone", () => {
+    expect(jumpTarget("https://example.com/channels/5/6", here)).toBeNull();
+    expect(jumpTarget("https://chat.evilion.xyz/channels/5/6?x=1", here)).toBeNull();
+    expect(jumpTarget("https://chat.evilion.xyz/channels/@me", here)).toBeNull();
+    expect(jumpTarget("https://chat.evilion.xyz/channels/5", here)).toBeNull();
   });
 });
