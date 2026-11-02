@@ -62,14 +62,17 @@ import fish.nexa.ui.theme.topEdge
  * being edited ([value] and [onChange]) and waits for Save Changes with the
  * rest, as on the web.
  */
+/** The name style being designed, as the editor's state: plain is kept as none. */
+internal fun nameStyleState(value: () -> NameStyle?, onChange: (NameStyle?) -> Unit): MutableState<NameStyle> = object : MutableState<NameStyle> {
+    override var value: NameStyle
+        get() = value() ?: NameStyle.PLAIN
+        set(v) = onChange(v.takeIf { !it.isPlain })
+    override fun component1() = this.value
+    override fun component2(): (NameStyle) -> Unit = { this.value = it }
+}
+
 internal fun openNameStyleSheet(me: () -> MeUser?, name: () -> String, value: () -> NameStyle?, onChange: (NameStyle?) -> Unit) {
-    val state = object : MutableState<NameStyle> {
-        override var value: NameStyle
-            get() = value() ?: NameStyle.PLAIN
-            set(v) = onChange(v.takeIf { !it.isPlain })
-        override fun component1() = this.value
-        override fun component2(): (NameStyle) -> Unit = { this.value = it }
-    }
+    val state = nameStyleState(value, onChange)
     openSheet("designer-name-style", title = t("nameStyle.title")) {
         val m = me() ?: return@openSheet
         NameStyleBody(m, name(), state)
@@ -77,7 +80,7 @@ internal fun openNameStyleSheet(me: () -> MeUser?, name: () -> String, value: ()
 }
 
 @Composable
-private fun NameStyleBody(me: MeUser, name: String, state: MutableState<NameStyle>) {
+internal fun NameStyleBody(me: MeUser, name: String, state: MutableState<NameStyle>) {
     val c = Nx.colors
     val style by state
     val look = RoleLook(color = null, own = style)

@@ -659,7 +659,10 @@ private fun SettingsPageContent(id: String, anchor: String?, openPage: (String, 
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.PageOverlay(id: String) {
     when (id) {
-        "profiles" -> ProfilesSaveBar()
+        "profiles" -> {
+            ProfilesPreviewBar(LocalAnchors.current)
+            ProfilesSaveBar()
+        }
         "appearance" -> ThemeBuilderSaveBar()
         "stickers" -> PackSaveBar()
         "developers" -> PortalSaveBar()

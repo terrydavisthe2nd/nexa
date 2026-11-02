@@ -1,12 +1,12 @@
-import { ArrowLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Pencil, Pin, Plus, Trash2 } from "lucide-react";
 import { ColourInput } from "@/components/common/ColourInput";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "@/components/common/Avatar";
 import { Button } from "@/components/common/Button";
-import { Modal } from "@/components/common/Modal";
+import { widgetName, type WidgetDesign } from "@/components/profile/Widgets";
+import type { Widget } from "@/lib/widgets";
 import { StyledTyping } from "@/components/chat/TypingLine";
 import { ServerTagChip } from "@/components/servertag/ServerTagChip";
-import { useIsMobile } from "@/hooks/useIsMobile";
 import { t } from "@/i18n";
 import { RoleIcon } from "@/components/common/RoleIcon";
 import { nameClass, nameStyle, type RoleLook } from "@/lib/roleLook";
@@ -33,58 +33,12 @@ export function hexOf(v: number | null | undefined): string | null {
   return typeof v === "number" ? `#${v.toString(16).padStart(6, "0")}` : null;
 }
 
-/** A word of the profile written where it is shown: Enter keeps it, Escape puts it back. */
-export function InlineText({ value, onChange, onDone, max, label, placeholder, className, testId }: { value: string; onChange: (v: string) => void; onDone: () => void; max: number; label: string; placeholder?: string; className?: string | undefined; testId: string }) {
-  const ref = useRef<HTMLInputElement>(null);
-  const before = useRef(value);
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
-  }, []);
+/** About Me in the form, with what is left of its length. */
+export function AboutField({ value, onChange, outLength, placeholder }: { value: string; onChange: (v: string) => void; outLength: number; placeholder?: string | undefined }) {
   return (
-    <input
-      ref={ref}
-      className={className}
-      value={value}
-      maxLength={max}
-      aria-label={label}
-      placeholder={placeholder}
-      spellCheck={false}
-      size={Math.max(6, Math.min(max, (value || placeholder || "").length + 1))}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={onDone}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          onDone();
-        } else if (e.key === "Escape") {
-          // back as it was, and the settings stay open
-          e.preventDefault();
-          e.stopPropagation();
-          onChange(before.current);
-          onDone();
-        }
-      }}
-      data-testid={testId}
-    />
-  );
-}
-
-/** About Me written where it is shown, ready to type into as it opens. */
-export function InlineAbout({ value, onChange, outLength, onDone }: { value: string; onChange: (v: string) => void; outLength: number; onDone: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const box = ref.current?.querySelector("textarea");
-    box?.focus();
-    box?.setSelectionRange(box.value.length, box.value.length);
-  }, []);
-  return (
-    <div ref={ref} className={d.aboutEdit} data-testid="designer-about">
-      <AboutMeEditor value={value} onChange={onChange} max={ABOUT_MAX} placeholder={t("settings.profile.tellPeopleAboutYourself")} label={t("settings.profile.aboutMe")} />
-      <div className={d.aboutFoot}>
-        <span className={d.count}>{t("composer.limit.left", { count: ABOUT_MAX - outLength })}</span>
-        <Button size="sm" onClick={onDone} data-testid="designer-about-done">{t("pick.done")}</Button>
-      </div>
+    <div className={d.aboutEdit} data-testid="designer-about">
+      <AboutMeEditor value={value} onChange={onChange} max={ABOUT_MAX} placeholder={placeholder ?? t("settings.profile.tellPeopleAboutYourself")} label={t("settings.profile.aboutMe")} />
+      <span className={d.count}>{t("composer.limit.left", { count: ABOUT_MAX - outLength })}</span>
     </div>
   );
 }
@@ -202,14 +156,10 @@ export function ChatPreview({ name, avatarId, userId, typing, channel = "general
 }
 
 
-/** One part of the profile in the panel: what it is called and what it holds now (null: nothing yet, "Add"). */
-export interface PanelRow<P extends string> { id: P; label: string; value: ReactNode; setting?: string | undefined }
-export interface PanelGroup<P extends string> { title: string; rows: PanelRow<P>[] }
-
-/** Narrower than this, the panel's list goes above the profile and its pages open as sheets. */
-const PANEL_BESIDE = 820;
-/** Where this browser remembers the panel folded away, so the profile has the whole width. Both designers share it. */
-const FOLDED_KEY = "nexa.profilePanelFolded";
+/** Narrower than this, the preview goes above the form instead of beside it. */
+const PREVIEW_BESIDE = 720;
+/** Where this browser remembers the preview folded away on a narrow screen. Both designers share it. */
+const FOLDED_KEY = "nexa.profilePreviewFolded";
 function readFolded(): boolean {
   try {
     return localStorage.getItem(FOLDED_KEY) === "1";
@@ -218,13 +168,102 @@ function readFolded(): boolean {
   }
 }
 
-/**
- * Whether the panel stands beside the profile (measured on the designer
- * itself), and whether it is folded away; a page it has to show opens it again.
- */
-export function usePanelLayout(page: string | null) {
+/** Whether the preview stands beside the form (measured on the designer itself). */
+export function usePreviewLayout() {
   const layoutRef = useRef<HTMLDivElement>(null);
   const [beside, setBeside] = useState(true);
+  useLayoutEffect(() => {
+    const el = layoutRef.current;
+    if (!el) return;
+    const measure = () => setBeside(el.clientWidth >= PREVIEW_BESIDE);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return { layoutRef, beside };
+}
+
+/**
+ * Scrolls the form to a part's field, puts the caret in it and lights it for
+ * a moment: what pressing a part of the preview does.
+ */
+export function jumpToField(root: HTMLElement | null, field: string) {
+  const el = root?.querySelector<HTMLElement>(`[data-field="${field}"]`);
+  if (!el) return;
+  const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+  const target = el.querySelector<HTMLElement>("input:not([type=file]):not([type=hidden]), textarea, [data-field-focus], button");
+  target?.focus({ preventScroll: true });
+  el.removeAttribute("data-flash");
+  void el.offsetWidth;
+  el.setAttribute("data-flash", "");
+  window.setTimeout(() => el.removeAttribute("data-flash"), 1600);
+}
+
+/** A group of fields under a heading. */
+export function FormSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className={d.section}>
+      <h3 className={d.sectionTitle}>{title}</h3>
+      <div className={d.fields}>{children}</div>
+    </section>
+  );
+}
+
+/** One part of the profile in the form: its name, what changes it, and a line of help when it needs one. */
+export function FormField({ field, setting, label, hint, aside, children }: { field: string; setting?: string | undefined; label: ReactNode; hint?: ReactNode; aside?: ReactNode; children: ReactNode }) {
+  return (
+    <div className={d.field} data-field={field} data-setting={setting} data-testid={`designer-field-${field}`}>
+      <div className={d.fieldHead}>
+        <span className={d.fieldLabel}>{label}</span>
+        {aside}
+      </div>
+      {children}
+      {hint ? <p className={d.fieldHint}>{hint}</p> : null}
+    </div>
+  );
+}
+
+/** A part whose tools take room (name style, typing style, server tag): its current value in a line, opened in place. */
+export function FormExpander({ field, setting, label, value, open, onToggle, children }: { field: string; setting?: string | undefined; label: string; value: ReactNode; open: boolean; onToggle: (open: boolean) => void; children: ReactNode }) {
+  return (
+    <div className={d.field} data-field={field} data-setting={setting} data-open={open || undefined} data-testid={`designer-field-${field}`}>
+      <button type="button" className={d.expander} aria-expanded={open} onClick={() => onToggle(!open)} data-field-focus="" data-testid={`designer-toggle-${field}`}>
+        <span className={d.fieldLabel}>{label}</span>
+        <span className={d.expanderValue} dir="auto">{value}</span>
+        <ChevronDown size={18} className={d.expanderChevron} aria-hidden="true" />
+      </button>
+      {open ? <div className={d.expanderBody}>{children}</div> : null}
+    </div>
+  );
+}
+
+/** The three places the preview shows the profile, as a sunken strip of choices. */
+export function ViewSwitch<V extends string>({ views, value, onChange }: { views: { id: V; label: string }[]; value: V; onChange: (v: V) => void }) {
+  return (
+    <div className={d.views} role="tablist" aria-label={t("designer.view.label")}>
+      {views.map((v) => (
+        <button key={v.id} type="button" role="tab" aria-selected={value === v.id} className={d.viewBtn} data-selected={value === v.id} onClick={() => onChange(v.id)} data-testid={`designer-view-${v.id}`}>
+          {v.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The designer's two halves: every part of the profile as one form, and the
+ * profile as others see it beside it. The preview never scrolls by itself:
+ * taller than the window, it scrolls with the page until its foot shows, then
+ * stays (so the wheel always moves the page). Without room it goes above the
+ * form, foldable to one line.
+ */
+export function DesignerLayout({ layout, form, preview, summary }: { layout: ReturnType<typeof usePreviewLayout>; form: ReactNode; preview: ReactNode; summary: ReactNode }) {
+  const { layoutRef, beside } = layout;
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [stick, setStick] = useState(0);
   const [folded, setFoldedState] = useState(readFolded);
   const setFolded = (v: boolean) => {
     setFoldedState(v);
@@ -234,105 +273,91 @@ export function usePanelLayout(page: string | null) {
       // only this browser's convenience
     }
   };
-  useEffect(() => {
-    if (page) setFoldedState(false);
-  }, [page]);
+  // on a narrow screen the bar stays at the top: with the preview scrolled away it brings it back, otherwise it folds it
+  const [seen, setSeen] = useState(true);
   useLayoutEffect(() => {
-    const el = layoutRef.current;
-    if (!el) return;
-    const measure = () => setBeside(el.clientWidth >= PANEL_BESIDE);
+    const el = previewRef.current;
+    if (beside || folded || !el || typeof IntersectionObserver === "undefined") {
+      setSeen(true);
+      return;
+    }
+    const io = new IntersectionObserver(([e]) => setSeen(!!e && e.intersectionRatio > 0.25), { threshold: [0, 0.25, 0.5] });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [beside, folded]);
+  const pressBar = () => {
+    const el = previewRef.current;
+    if (!folded && !seen && el) {
+      const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+      layoutRef.current?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+      return;
+    }
+    setFolded(!folded);
+  };
+  // a preview taller than its scroller sticks by its foot instead of its head
+  useLayoutEffect(() => {
+    const el = previewRef.current;
+    if (!el || !beside) return;
+    let scroller: HTMLElement | null = el.parentElement;
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+    const measure = () => {
+      const room = scroller?.clientHeight ?? window.innerHeight;
+      setStick(Math.min(16, room - el.offsetHeight - 24));
+    };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(measure);
     ro.observe(el);
+    if (scroller) ro.observe(scroller);
     return () => ro.disconnect();
-  }, []);
-  return { layoutRef, beside, folded, setFolded };
+  }, [beside]);
+  return (
+    <div ref={layoutRef} className={d.layout} data-beside={beside || undefined}>
+      {beside ? null : (
+        <div className={d.previewBar}>
+          <button type="button" className={d.previewToggle} aria-expanded={!folded && seen} onClick={pressBar} data-away={(!folded && !seen) || undefined} data-testid="designer-preview-toggle">
+            <span className={d.previewSummary}>{summary}</span>
+            <span className={d.previewToggleText}>{folded || !seen ? t("designer.preview.show") : t("designer.preview.hide")}</span>
+            <ChevronDown size={18} className={d.expanderChevron} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+      <div ref={previewRef} className={d.preview} hidden={!beside && folded} style={beside ? { top: stick } : undefined} data-testid="designer-preview">
+        {preview}
+      </div>
+      <div className={d.form} data-testid="designer-form">{form}</div>
+    </div>
+  );
 }
 
 /**
- * The designer's two halves: the panel of every part (grouped, each row
- * showing what the part holds) with the pages its rows open, and beside it
- * (or under it, without room) the profile in `children`. Without room the
- * pages open as sheets.
+ * The widgets in the form, in the order the profile shows them: the first is
+ * the one the card shows, and each can be moved, changed or taken off.
  */
-export function DesignerLayout<P extends string, Pg extends P>({
-  layout,
-  groups,
-  current,
-  onRow,
-  page,
-  pageTitle,
-  pageBody,
-  onBack,
-  children,
-}: {
-  layout: ReturnType<typeof usePanelLayout>;
-  groups: PanelGroup<P>[];
-  /** Whether a row is the one being worked on. */
-  current: (id: P) => boolean;
-  onRow: (id: P) => void;
-  page: Pg | null;
-  pageTitle: (page: Pg) => string;
-  pageBody: (page: Pg) => ReactNode;
-  onBack: () => void;
-  children: ReactNode;
-}) {
-  const { layoutRef, beside, folded, setFolded } = layout;
-  const partList = (
-    <nav className={d.partList} aria-label={t("designer.parts")} data-testid="designer-parts">
-      {groups.map((g) => (
-        <section key={g.title} className={d.group}>
-          <h3 className={d.groupTitle}>{g.title}</h3>
-          <div className={d.rows}>
-            {g.rows.map((row) => (
-              <button key={row.id} type="button" className={d.row} aria-current={current(row.id) || undefined} onClick={() => onRow(row.id)} data-setting={row.setting} data-testid={`designer-part-${row.id}`}>
-                <span className={d.rowLabel}>{row.label}</span>
-                <span className={d.rowValue} data-empty={row.value === null || undefined} dir="auto">{row.value ?? t("designer.value.add")}</span>
-                <ChevronRight size={16} className={d.rowChevron} aria-hidden="true" />
-              </button>
-            ))}
-          </div>
-        </section>
-      ))}
-    </nav>
-  );
+export function WidgetList({ widgets, tools, disabled }: { widgets: Widget[]; tools: WidgetDesign; disabled?: boolean }) {
   return (
-    <>
-      <div ref={layoutRef} className={d.layout} data-beside={beside || undefined} data-folded={(beside && folded) || undefined}>
-        <aside className={d.panel} data-testid="designer-panel">
-          {beside && folded ? (
-            <button type="button" className={d.fold} onClick={() => setFolded(false)} aria-label={t("designer.showPanel")} title={t("designer.showPanel")} aria-expanded={false} data-testid="designer-unfold">
-              <ChevronsRight size={18} aria-hidden="true" />
-            </button>
-          ) : page && beside ? (
-            <div className={d.page} data-testid={`designer-page-${page}`}>
-              <div className={d.pageHead}>
-                <button type="button" className={d.back} onClick={onBack} aria-label={t("designer.back")} data-testid="designer-page-back">
-                  <ArrowLeft size={18} aria-hidden="true" />
-                </button>
-                <h3 className={d.pageTitle}>{pageTitle(page)}</h3>
-              </div>
-              {pageBody(page)}
-            </div>
-          ) : (
-            <>
-              {beside ? (
-                <button type="button" className={[d.fold, d.foldOpen].join(" ")} onClick={() => setFolded(true)} aria-label={t("designer.hidePanel")} title={t("designer.hidePanel")} aria-expanded data-testid="designer-fold">
-                  <ChevronsLeft size={18} aria-hidden="true" />
-                </button>
-              ) : null}
-              {partList}
-            </>
-          )}
-        </aside>
-        <div className={d.main}>{children}</div>
-      </div>
-      {page && !beside ? (
-        <Modal open onClose={onBack} title={pageTitle(page)} width={520}>
-          <div className={d.sheetPage} data-testid={`designer-page-${page}`}>{pageBody(page)}</div>
-        </Modal>
+    <div className={d.widgetList}>
+      {widgets.length ? (
+        <ol className={d.widgetRows}>
+          {widgets.map((w, i) => (
+            <li key={w.id} className={d.widgetRow} data-testid={`designer-widget-${w.type}`}>
+              <button type="button" className={d.widgetPin} aria-pressed={i === 0} onClick={() => tools.feature(w.id)} title={i === 0 ? t("designer.widget.onCard") : t("designer.widget.showOnCard")} aria-label={i === 0 ? t("designer.widget.onCard") : t("designer.widget.showOnCard")}>
+                <Pin size={15} aria-hidden="true" />
+              </button>
+              <button type="button" className={d.widgetName} onClick={() => tools.edit(w.id)} dir="auto">{widgetName(w)}</button>
+              <span className={d.widgetTools}>
+                <button type="button" className={d.iconBtn} onClick={() => tools.move(w.id, -1)} disabled={i === 0} aria-label={t("reorder.moveUp")} title={t("reorder.moveUp")}><ArrowUp size={16} aria-hidden="true" /></button>
+                <button type="button" className={d.iconBtn} onClick={() => tools.move(w.id, 1)} disabled={i === widgets.length - 1} aria-label={t("reorder.moveDown")} title={t("reorder.moveDown")}><ArrowDown size={16} aria-hidden="true" /></button>
+                <button type="button" className={d.iconBtn} onClick={() => tools.edit(w.id)} aria-label={t("designer.widget.editShort")} title={t("designer.widget.editShort")}><Pencil size={15} aria-hidden="true" /></button>
+                <button type="button" className={d.iconBtn} data-danger="" onClick={() => tools.remove(w.id)} aria-label={t("widgets.remove")} title={t("widgets.remove")}><Trash2 size={15} aria-hidden="true" /></button>
+              </span>
+            </li>
+          ))}
+        </ol>
       ) : null}
-    </>
+      <Button size="sm" variant="secondary" onClick={tools.add} disabled={disabled} data-testid="designer-add-widget">
+        <Plus size={15} aria-hidden="true" /> {t("widgets.addOne")}
+      </Button>
+    </div>
   );
 }

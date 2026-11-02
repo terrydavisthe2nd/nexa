@@ -1358,11 +1358,17 @@ a server's apps `server/pages/AppsSection.tsx`, the consent page `pages/Authoriz
   `nameStyle`/`nameClass` in `lib/roleLook.ts` carry the person's own style as `own` (`useMemberLook`,
   `withOwn`). Mentions and collaborative cursors use the same renderer.
 - The profile designer (Settings, Profiles: `components/settings/ProfilePage.tsx`; Server Profiles:
-  `ServerProfileDesigner.tsx`; shared `DesignerLayout` and `usePanelLayout` in
-  `settings/designerParts.tsx`; Android `ProfilesPage.kt` and `ServerProfileDesigner.kt` with
-  `PartGroup` and `PartRow`) shows every part of the profile as a row, in a panel beside the profile
-  when there is room (`PANEL_BESIDE`, folding remembered as `nexa.profilePanelFolded`) and above it
-  otherwise.
+  `ServerProfileDesigner.tsx`; shared `DesignerLayout`, `FormSection`, `FormField`, `FormExpander`,
+  `WidgetList` and `jumpToField` in `settings/designerParts.tsx`; Android `ProfilesPage.kt` and
+  `ServerProfileDesigner.kt` with `ui/settings/DesignerForm.kt`) is one form of every part under three
+  headings (Pictures & Colours, Your Name, About You), with name style, server tag and typing style opening
+  in place, and the profile preview (Profile Card, Full Profile, In Chat) beside it from 720 px
+  (`PREVIEW_BESIDE`) or above it. Pressing a part of the preview scrolls to and lights its field; nothing
+  is edited on the preview. Only the page scrolls: the preview is sticky (by its foot when taller than the
+  window) and the profile card drops its own scrollers in design mode (`.card[data-design]`). Narrower,
+  a bar above the preview folds it (`nexa.profilePreviewFolded`, Android preferences `designer`) and
+  stays at the top once the preview scrolls away, scrolling back to it (Android `ProfilesPreviewBar` in
+  the page overlay).
 - In a full profile (not the popout or the designer) the avatar and banner open the picture viewer on the original upload: web `ProfileCard.tsx` (`viewing`, the `Lightbox` from `chat/Lightbox.tsx`), Android `ProfileCard.kt` (`onAvatar`, `onBanner` into `openLightbox`, `Media.avatarOriginalUrl`, `bannerOriginalUrl`).
 - Activity cards (`components/activity/ActivityCard.tsx`, Android `ui/profile/ActivityCard.kt`) scroll
   long text with `ScrollingText`. Their links show the real canonical host beneath custom labels, need a

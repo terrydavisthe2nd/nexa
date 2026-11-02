@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.text.input.ImeAction
+import fish.nexa.ui.components.NxTextField
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.heightIn
@@ -281,15 +284,11 @@ private fun Designer(serverId: String, servers: List<String>, onServer: (String)
         if (f.serverId != serverId) f.begin(serverId, member)
         f.loadWidgets(me.id, serverId)
     }
-    var view by remember { mutableStateOf("full") }
-    var inline by remember { mutableStateOf<ProfilePart?>(null) }
+    var view by remember { mutableStateOf("card") }
     var tab by remember { mutableStateOf<ProfileTab?>(null) }
     var tabNonce by remember { mutableIntStateOf(0) }
-    var intro by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        delay(1800)
-        intro = false
-    }
+    val host = LocalAnchors.current
+    val reduced = Nx.motion.reduced
     // the first frame, before the form has been moved to this server
     if (f.serverId != serverId) return
     fun showTab(next: ProfileTab) {
@@ -319,29 +318,12 @@ private fun Designer(serverId: String, servers: List<String>, onServer: (String)
         pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
 
+    // pressing a part of the preview: the form goes to what changes it
     fun open(part: String) {
-        when (part) {
-            "name" -> {
-                if (!canNick) {
-                    Nexa.ui.toast(t("serverProfile.designer.nickLocked"), "info")
-                    return
-                }
-                if (view == "chat") view = "full"
-                inline = ProfilePart.NAME
-            }
-            "pronouns", "about" -> {
-                if (view == "chat") view = "full"
-                // a phone's one column keeps About Me behind its own tab
-                if (part == "about" && view == "full") showTab(ProfileTab.ABOUT)
-                inline = if (part == "about") ProfilePart.ABOUT else ProfilePart.PRONOUNS
-            }
-            "widgets" -> {
-                view = "full"
-                showTab(ProfileTab.WIDGETS)
-            }
-            "avatar" -> openServerAvatarSheet(serverId, ::choose)
-            "banner" -> openServerBannerSheet(serverId, ::choose)
-            "colours" -> openServerColoursSheet()
+        if (part == "name" && !canNick) return Nexa.ui.toast(t("serverProfile.designer.nickLocked"), "info")
+        scope.launch {
+            delay(40)
+            jumpToField(host, part, scope, reduced)
         }
     }
 
@@ -372,12 +354,6 @@ private fun Designer(serverId: String, servers: List<String>, onServer: (String)
             }
         },
     )
-    val nameStyle = Nx.type.name.copy(
-        fontSize = Nx.type.sp(if (view == "card") 20f else 28f),
-        lineHeight = Nx.type.sp(if (view == "card") 23f else 30.8f),
-        fontWeight = FontWeight(700),
-        letterSpacing = (-0.01).em,
-    )
     val design = ProfileDesign(
         edit = { part ->
             when (part) {
@@ -390,15 +366,6 @@ private fun Designer(serverId: String, servers: List<String>, onServer: (String)
                 ProfilePart.STATUS, ProfilePart.TAG -> Unit
             }
         },
-        name = if (inline == ProfilePart.NAME) ({
-            InlineText(f.nick, { f.nick = it }, { inline = null }, 32, t("modals.serverProfile.nickname"), me.displayName, nameStyle)
-        }) else null,
-        pronouns = if (inline == ProfilePart.PRONOUNS) ({
-            InlineText(f.pronouns, { f.pronouns = it }, { inline = null }, 40, t("settings.profile.pronouns"), me.pronouns.ifEmpty { t("settings.profile.addYourPronouns") }, Nx.type.bodySmall.copy(fontSize = Nx.type.sp(if (view == "card") 13.5f else 15.5f)))
-        }) else null,
-        about = if (inline == ProfilePart.ABOUT) ({ InlineAbout(f.aboutState) { inline = null } }) else null,
-        widgets = widgetTools,
-        intro = intro,
         fixed = if (canNick) setOf(ProfilePart.STATUS, ProfilePart.TAG) else setOf(ProfilePart.STATUS, ProfilePart.TAG, ProfilePart.NAME),
     )
     // whatever is left empty here is the main profile's, and is drawn so
@@ -454,74 +421,98 @@ private fun Designer(serverId: String, servers: List<String>, onServer: (String)
         }
     }
     Txt(
-        t("serverProfile.designer.introTouch", "name" to server.name),
+        t("serverProfile.designer.introForm", "name" to server.name),
         style = Nx.type.body.copy(fontSize = Nx.type.sp(14.5f), lineHeight = Nx.type.sp(21f)),
         color = c.textMuted,
         modifier = Modifier.padding(bottom = 18.dp),
     )
-    // every part that can differ in this server, each showing what is set here (Add: the main profile's shows)
-    val valueStyle = Nx.type.body.copy(fontSize = Nx.type.sp(14f))
     val density = LocalDensity.current.density
-    val groups = listOf(
-        t("designer.group.name") to listOf(
-            PartRow("name", t("modals.serverProfile.nickname"), null, empty = f.nick.isBlank()) { Txt(f.nick.trim(), style = valueStyle, color = c.textMuted, maxLines = 1) },
-            PartRow("pronouns", t("settings.profile.pronouns"), null, empty = f.pronouns.isBlank()) { Txt(f.pronouns.trim(), style = valueStyle, color = c.textMuted, maxLines = 1) },
-        ),
-        t("designer.group.look") to listOf(
-            PartRow("avatar", t("serverProfile.picture"), null, empty = member.avatarId == null) { Avatar(me.id, shownName, member.avatarId, 28.dp) },
-            PartRow("banner", t("serverProfile.banner"), null, empty = member.bannerId == null) {
-                AsyncImage(Media.bannerUrl(member.bannerId, 128, density), null, Media.loader, Modifier.size(56.dp, 24.dp).clip(RoundedCornerShape(6.dp)), contentScale = ContentScale.Crop)
-            },
-            PartRow("colours", t("settings.profile.profileTheme"), null, empty = f.accent == null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    for (col in listOfNotNull(f.accent, f.accent2)) Box(Modifier.size(18.dp).clip(RoundedCornerShape(6.dp)).background(rgbColor(col)))
-                }
-            },
-        ),
-        t("designer.group.about") to listOf(
-            PartRow("about", t("settings.profile.aboutMe"), null, empty = f.about.isBlank()) { Txt(f.about.trim().lineSequence().first(), style = valueStyle, color = c.textMuted, maxLines = 1) },
-            PartRow("widgets", t("widgets.title"), null, empty = f.widgets == null) { Txt((f.widgets?.size ?: 0).toString(), style = valueStyle, color = c.textMuted, maxLines = 1) },
-        ),
-    )
-    Column(Modifier.padding(bottom = 16.dp).semantics { contentDescription = t("designer.parts") }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        for ((title, rows) in groups) PartGroup(title, rows) { open(it) }
+    val summaryStyle = Nx.type.body.copy(fontSize = Nx.type.sp(15.5f), fontWeight = FontWeight(650))
+    androidx.compose.runtime.SideEffect {
+        DesignerState.summary = {
+            Avatar(me.id, shownName, preview.avatarId, 28.dp)
+            Txt(shownName, style = summaryStyle, color = c.textStrong, maxLines = 1)
+        }
     }
-    TabStrip(
-        listOf("full" to t("designer.view.full"), "card" to t("designer.view.card"), "chat" to t("designer.view.chat")),
-        view, t("designer.view.label"), tabHeight = 32.dp,
-    ) { view = it }
-    Box(Modifier.height(14.dp))
 
-    if (f.widgetsFailed) Notice(t("widgets.couldNotLoad"), t("invite.tryAgain")) { scope.launch { f.loadWidgets(me.id, serverId) } }
-    else if (f.widgets != null && f.widgetsLoaded) Notice(t("serverProfile.designer.ownWidgets", "name" to server.name), t("serverProfile.designer.mainWidgets")) { f.widgets = null }
-
-    Stage(glow) {
-        when (view) {
-            "full" -> FullProfileCard(preview, tab, null, close = {}, design = design, previewWidgets = shownWidgets, embedded = true, tabNonce = tabNonce)
-            "card" -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Box(
-                    Modifier
-                        .widthIn(max = 320.dp)
-                        .fillMaxWidth()
-                        .align(Alignment.CenterHorizontally)
-                        .ring(Radii.Lg, c.panelEdge)
-                        .clip(Radii.Lg),
-                ) { ProfilePopoutCard(preview, null, close = {}, design = design, previewWidgets = shownWidgets) }
-                CardAside(widgetTools, shownWidgets)
+    DesignerPreview {
+        TabStrip(
+            listOf("card" to t("designer.view.card"), "full" to t("designer.view.full"), "chat" to t("designer.view.chat")),
+            view, t("designer.view.label"), tabHeight = 32.dp,
+        ) { view = it }
+        Stage(glow) {
+            when (view) {
+                "full" -> FullProfileCard(preview, tab, null, close = {}, design = design, previewWidgets = shownWidgets, embedded = true, tabNonce = tabNonce)
+                "card" -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .widthIn(max = 320.dp)
+                            .fillMaxWidth()
+                            .ring(Radii.Lg, c.panelEdge)
+                            .clip(Radii.Lg),
+                    ) { ProfilePopoutCard(preview, null, close = {}, design = design, previewWidgets = shownWidgets) }
+                }
+                else -> {
+                    // the first text channel the server has, for the conversation's header
+                    val channel = channels.values.filter { it.serverId == serverId && it.isText }.minByOrNull { it.position }?.name ?: "general"
+                    ChatPreview(me, shownName, TypingStyle.read(me.typingStyle), avatarId = preview.avatarId, channel = channel, look = RoleLooks.of(st, me.id))
+                }
             }
-            else -> {
-                // the first text channel the server has, for the conversation's header
-                val channel = channels.values.filter { it.serverId == serverId && it.isText }.minByOrNull { it.position }?.name ?: "general"
-                ChatPreview(me, shownName, TypingStyle.read(me.typingStyle), avatarId = preview.avatarId, channel = channel, look = RoleLooks.of(st, me.id))
+        }
+        Txt(
+            t("serverProfile.caption.$view", "name" to server.name),
+            style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.2f)),
+            color = c.textMuted,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+    }
+    Spacer(Modifier.height(28.dp))
+
+    Column(verticalArrangement = Arrangement.spacedBy(30.dp)) {
+        FormSection(t("designer.group.look")) {
+            FormField("avatar", null, t("serverProfile.picture"), hint = if (member.avatarId != null) t("designer.imageHint") else t("serverProfile.designer.pictureMainHint")) {
+                PictureRow({ Avatar(me.id, shownName, preview.avatarId, 56.dp) }) {
+                    NxButton(t("serverProfile.changePicture"), { choose("avatar") }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "ImagePlus", loading = f.uploading == "avatar")
+                    if (member.avatarId != null) NxButton(t("serverProfile.useOwnPicture"), { scope.launch { f.remove(serverId, "avatar") } }, kind = ButtonKind.GHOST, size = ButtonSize.SM)
+                }
+            }
+            FormField("banner", null, t("serverProfile.banner"), hint = if (member.bannerId != null) t("designer.imageHint") else t("serverProfile.designer.bannerMainHint")) {
+                PictureRow({ BannerThumb(Media.bannerUrl(preview.bannerId, 340, density), theme, preview.accentColor, me.id) }) {
+                    NxButton(if (member.bannerId != null) t("settings.profile.changeBanner") else t("designer.addBanner"), { choose("banner") }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "ImagePlus", loading = f.uploading == "banner")
+                    if (member.bannerId != null) NxButton(t("serverProfile.useOwnBanner"), { scope.launch { f.remove(serverId, "banner") } }, kind = ButtonKind.GHOST, size = ButtonSize.SM)
+                }
+            }
+            FormField("colours", null, t("settings.profile.profileTheme"), hint = t("serverProfile.designer.themeHint")) { ColoursFields(f.accent, f.accent2, { f.accent = it }, { f.accent2 = it }) }
+        }
+        FormSection(t("designer.group.name")) {
+            FormField("name", null, t("modals.serverProfile.nickname"), hint = if (canNick) null else t("serverProfile.designer.nickLocked")) {
+                NxTextField(f.nick, { f.nick = it.take(32) }, Modifier.fillMaxWidth().semantics { contentDescription = t("modals.serverProfile.nickname") }, placeholder = me.displayName, enabled = canNick, imeAction = ImeAction.Next)
+            }
+            FormField("pronouns", null, t("settings.profile.pronouns")) {
+                NxTextField(f.pronouns, { f.pronouns = it.take(40) }, Modifier.fillMaxWidth().semantics { contentDescription = t("settings.profile.pronouns") }, placeholder = me.pronouns.ifEmpty { t("settings.profile.addYourPronouns") }, imeAction = ImeAction.Done)
+            }
+        }
+        FormSection(t("designer.group.about")) {
+            FormField("about", null, t("settings.profile.aboutMe")) {
+                AboutFields(f.aboutState, placeholder = me.aboutMe.trim().lineSequence().firstOrNull()?.takeIf { it.isNotEmpty() } ?: t("settings.profile.tellPeopleAboutYourself"))
+            }
+            FormField(
+                "widgets", null, t("widgets.title"),
+                hint = if (f.widgets == null) t("serverProfile.designer.widgetsMainHint") else null,
+                aside = if (f.widgets != null && f.widgetsLoaded) ({
+                    Txt(
+                        t("serverProfile.designer.mainWidgets"),
+                        style = Nx.type.body.copy(fontSize = Nx.type.sp(14f), fontWeight = FontWeight(600)),
+                        color = c.textBrand,
+                        modifier = Modifier.clip(Radii.Xs).pressable(remember { MutableInteractionSource() }) { f.widgets = null }.padding(vertical = 4.dp),
+                    )
+                }) else null,
+            ) {
+                if (f.widgetsFailed) WidgetsFailed { scope.launch { f.loadWidgets(me.id, serverId) } }
+                else WidgetList(shownWidgets, widgetTools)
             }
         }
     }
-    Txt(
-        t("serverProfile.caption.$view", "name" to server.name),
-        style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.2f)),
-        color = c.textMuted,
-        modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp),
-    )
     if (f.uploading != null) Row(
         Modifier.padding(start = 4.dp, top = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
@@ -565,125 +556,6 @@ private fun ServerPicker(serverId: String, servers: List<String>, onServer: (Str
         ServerIcon(server.id, server.name, server.iconId, 28.dp, radius = 8.dp)
         Txt(server.name, style = Nx.type.body.copy(fontSize = Nx.type.sp(15.5f), fontWeight = FontWeight(650)), color = c.textStrong, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
         Icon("ChevronDown", c.textMuted, size = 16.dp)
-    }
-}
-
-/** A line above the stage about what it shows, with what to do about it (`.notice`). */
-@Composable
-private fun Notice(text: String, action: String, onAction: () -> Unit) {
-    val c = Nx.colors
-    FlowRow(
-        Modifier
-            .fillMaxWidth()
-            .padding(bottom = 12.dp)
-            .ring(Radii.Md, c.borderSubtle)
-            .clip(Radii.Md)
-            .background(c.bgSurface)
-            .background(sheen(c))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-            .semantics { liveRegion = LiveRegionMode.Polite },
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        itemVerticalAlignment = Alignment.CenterVertically,
-    ) {
-        Txt(text, style = Nx.type.body.copy(fontSize = Nx.type.sp(14f)), color = c.textMuted)
-        NxButton(action, onAction, kind = ButtonKind.SECONDARY, size = ButtonSize.SM)
-    }
-}
-
-/** Server Picture: the picture shown in this server, Change Picture, and Use My Own. */
-private fun openServerAvatarSheet(serverId: String, choose: (String) -> Unit) {
-    openSheet("designer-server-avatar", title = t("serverProfile.picture")) { close ->
-        val me by Nexa.users.me.collectAsState()
-        val byId by Nexa.servers.byId.collectAsState()
-        val m = me ?: return@openSheet
-        val member = byId[serverId]?.me ?: return@openSheet
-        val scope = rememberCoroutineScope()
-        Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Avatar(m.id, member.nickname.ifEmpty { m.displayName }, member.avatarId ?: m.avatarId, 64.dp)
-                @OptIn(ExperimentalLayoutApi::class)
-                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NxButton(t("serverProfile.changePicture"), { choose("avatar") }, size = ButtonSize.SM, icon = "ImagePlus", loading = ServerProfileForm.uploading == "avatar")
-                    if (member.avatarId != null) NxButton(t("serverProfile.useOwnPicture"), {
-                        close()
-                        scope.launch { ServerProfileForm.remove(serverId, "avatar") }
-                    }, kind = ButtonKind.GHOST, size = ButtonSize.SM)
-                }
-            }
-            PopHint(t("designer.imageHint"))
-        }
-    }
-}
-
-/** Server Banner: the banner shown in this server (or what shows without one), Change or Add, Use My Own, and the colours instead. */
-private fun openServerBannerSheet(serverId: String, choose: (String) -> Unit) {
-    openSheet("designer-server-banner", title = t("serverProfile.banner")) { close ->
-        val c = Nx.colors
-        val me by Nexa.users.me.collectAsState()
-        val byId by Nexa.servers.byId.collectAsState()
-        val m = me ?: return@openSheet
-        val member = byId[serverId]?.me ?: return@openSheet
-        val f = ServerProfileForm
-        val scope = rememberCoroutineScope()
-        val density = LocalDensity.current.density
-        val bannerId = member.bannerId ?: m.bannerId
-        val accent = if (f.accent != null) f.accent else m.accentColor
-        val theme = ProfileTheme.of(accent, if (f.accent != null) f.accent2 else m.accentColor2)
-        Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            val url = Media.bannerUrl(bannerId, 340, density)
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(5f / 2f)
-                    .clip(Radii.Md)
-                    .background(
-                        when {
-                            url != null -> Brush.verticalGradient(listOf(c.bgSurface, c.bgSurface))
-                            theme != null -> Brush.verticalGradient(listOf(theme.top, theme.bottom))
-                            else -> Brush.verticalGradient(listOf(accent?.let { rgbColor(it) } ?: fish.nexa.ui.components.AvatarColor.of(m.id), accent?.let { rgbColor(it) } ?: fish.nexa.ui.components.AvatarColor.of(m.id)))
-                        },
-                    )
-                    .ring(Radii.Md, c.borderSubtle),
-            ) { if (url != null) AsyncImage(url, null, Media.loader, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-            @OptIn(ExperimentalLayoutApi::class)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                NxButton(if (member.bannerId != null) t("settings.profile.changeBanner") else t("designer.addBanner"), { choose("banner") }, size = ButtonSize.SM, icon = "ImagePlus", loading = f.uploading == "banner")
-                if (member.bannerId != null) NxButton(t("serverProfile.useOwnBanner"), {
-                    close()
-                    scope.launch { f.remove(serverId, "banner") }
-                }, kind = ButtonKind.GHOST, size = ButtonSize.SM)
-            }
-            PopHint(t("designer.imageHint"))
-            if (bannerId == null) Row(
-                Modifier.clip(Radii.Xs).pressable(remember { MutableInteractionSource() }) {
-                    close()
-                    openServerColoursSheet()
-                }.padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon("Palette", c.textBrand, size = 14.dp)
-                Txt(t("designer.bannerColour"), style = Nx.type.body.copy(fontSize = Nx.type.sp(13.5f), fontWeight = FontWeight(650)), color = c.textBrand)
-            }
-        }
-    }
-}
-
-/** Profile Theme for this server: Default keeps the main profile's colours. */
-private fun openServerColoursSheet() {
-    openSheet("designer-server-colours", title = t("settings.profile.profileTheme")) {
-        val f = ServerProfileForm
-        Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            PopHint(t("settings.profile.topColourOnItsOwnIt"))
-            ColourRow(f.accent, enabled = true, noneLabel = t("server.roles.default"), hexLabel = t("settings.profile.primaryColourHex"), fallback = 0x8000ffL, onNone = {
-                f.accent = null
-                f.accent2 = null
-            }) { f.accent = it }
-            PopHint(t("settings.profile.bottomColourPickOneTooAnd"))
-            ColourRow(f.accent2, enabled = f.accent != null, noneLabel = t("settings.profile.none"), hexLabel = t("settings.profile.secondColourHex"), fallback = 0xeb459eL, onNone = { f.accent2 = null }) { f.accent2 = it }
-            PopHint(t("serverProfile.designer.themeHint"))
-        }
     }
 }
 

@@ -28,6 +28,7 @@ export const RELEASES: Release[] = [
   {
     id: "2026-11-01",
     items: [
+      { icon: UserPen, title: "whatsNew.r20261101.profileFormTitle", body: "whatsNew.r20261101.profileFormBody" },
       { icon: Images, title: "whatsNew.r20261101.mediaChannelsTitle", body: "whatsNew.r20261101.mediaChannelsBody" },
       { icon: Link2, title: "whatsNew.r20261101.linkChannelsTitle", body: "whatsNew.r20261101.linkChannelsBody" },
       { icon: AtSign, title: "whatsNew.r20261101.mentionsTitle", body: "whatsNew.r20261101.mentionsBody" },

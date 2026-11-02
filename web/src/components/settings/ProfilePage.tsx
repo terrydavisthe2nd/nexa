@@ -1,15 +1,13 @@
 import { useMediaAnimation } from "@/lib/mediaAnimation";
-import { touchFirst } from "@/lib/touch";
-import { ImagePlus, LoaderCircle, Palette, Pin, Plus } from "lucide-react";
-import { parse, plainText } from "@/markdown/parse";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { ImagePlus, LoaderCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ApiError } from "@/api/client";
 import { avatarUrl, bannerUrl, users as usersApi } from "@/api/users";
 import { Avatar } from "@/components/common/Avatar";
 import { Button } from "@/components/common/Button";
 import { ImageCropModal } from "@/components/common/ImageCropModal";
 import { ProfileCard, type ProfileDesign, type ProfilePart, type ProfileTab } from "@/components/profile/ProfileCard";
-import { widgetName, type WidgetDesign } from "@/components/profile/Widgets";
+import { type WidgetDesign } from "@/components/profile/Widgets";
 import { SaveBar } from "@/components/server/SettingsLayer";
 import { t } from "@/i18n";
 import { avatarColor, profileThemeOf } from "@/lib/avatarColor";
@@ -21,7 +19,8 @@ import { useAuth } from "@/stores/auth";
 import { useUI } from "@/stores/ui";
 import { unlessUnsaved } from "@/stores/unsaved";
 import { aboutToEdit, aboutToSave } from "./AboutMeEditor";
-import { ChatPreview, ColoursPicker, DesignerLayout, hexOf, InlineAbout, InlineText, usePanelLayout, type PanelGroup } from "./designerParts";
+import { AboutField, ChatPreview, ColoursPicker, DesignerLayout, FormExpander, FormField, FormSection, hexOf, jumpToField, usePreviewLayout, ViewSwitch, WidgetList } from "./designerParts";
+import { TextInput } from "@/components/common/TextInput";
 import { ServerProfileDesigner } from "./ServerProfileDesigner";
 import { ServerTagList, wearServerTag } from "./ServerTagChooser";
 import { TypingStyleEditor } from "./TypingStyleEditor";
@@ -34,15 +33,18 @@ import st from "./Settings.module.css";
 import d from "./Designer.module.css";
 
 type View = "full" | "card" | "chat";
-/** What the panel's rows and the profile's own parts open. */
+/** A part of the profile, as the preview and the form name it. */
 type Part = ProfilePart | "colours" | "widgets" | "typing" | "nameStyle";
-/** The parts edited on a page of their own: in the panel beside the profile, or a sheet where there is no room for it. */
-type Page = "nameStyle" | "avatar" | "banner" | "colours" | "tag";
-const PAGES: Part[] = ["nameStyle", "avatar", "banner", "colours", "tag"];
+/** The parts whose tools open in place in the form. */
+type Expandable = "nameStyle" | "tag" | "typing";
 
-/** Where the designer opens when Settings was asked for one of its parts (its search, a typing line's Make Your Own). */
+/** Where the preview opens when Settings was asked for one of its parts (its search, a typing line's Make Your Own). */
 function viewFor(anchor: string | null | undefined): View {
-  return anchor === "typingStyle" ? "chat" : "full";
+  return anchor === "typingStyle" ? "chat" : "card";
+}
+/** The tools Settings' search (by a part's anchor) wants open. */
+function openFor(anchor: string | null | undefined): Partial<Record<Expandable, boolean>> {
+  return anchor === "typingStyle" ? { typing: true } : anchor === "nameStyle" ? { nameStyle: true } : anchor === "serverTag" ? { tag: true } : {};
 }
 
 /**
@@ -105,16 +107,12 @@ function MainDesigner({ anchor }: { anchor?: string | null | undefined }) {
   const [widgetsFailed, setWidgetsFailed] = useState(false);
   // the designer: what is shown, what is written in place, what is open beside a part
   const [view, setView] = useState<View>(() => viewFor(anchor));
-  const [inline, setInline] = useState<"name" | "pronouns" | "about" | null>(null);
-  const [page, setPage] = useState<Page | null>(null);
-  const layout = usePanelLayout(page);
-  const { beside } = layout;
+  const [opened, setOpened] = useState<Partial<Record<Expandable, boolean>>>(() => openFor(anchor));
+  const layout = usePreviewLayout();
   const [tab, setTab] = useState<{ tab: ProfileTab; n: number } | null>(null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<{ widget: Widget; isNew: boolean } | null>(null);
-  // every part outlined once as the designer opens, to show what can be pressed
-  const [intro, setIntro] = useState(true);
-  const stageRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
   const meId = me?.id;
 
   const loadWidgets = useCallback(() => {
@@ -130,17 +128,10 @@ function MainDesigner({ anchor }: { anchor?: string | null | undefined }) {
     );
   }, [meId]);
   useEffect(loadWidgets, [loadWidgets]);
-  useEffect(() => {
-    const timer = setTimeout(() => setIntro(false), 1800);
-    return () => clearTimeout(timer);
-  }, []);
   // asked for a part while already here (Settings' search): show the view it is in
   useEffect(() => {
     if (anchor === "typingStyle") setView("chat");
-    else if (anchor === "widgets") {
-      setView("full");
-      setTab((cur) => ({ tab: "widgets", n: (cur?.n ?? 0) + 1 }));
-    } else if (anchor) setView("full");
+    setOpened((cur) => ({ ...cur, ...openFor(anchor) }));
   }, [anchor]);
   useEffect(() => {
     if (!me) return;
@@ -210,8 +201,6 @@ function MainDesigner({ anchor }: { anchor?: string | null | undefined }) {
     setTyping(savedTyping);
     setNameLook(savedNameLook);
     if (savedWidgets) setWidgets(savedWidgets);
-    setInline(null);
-    setPage(null);
   };
   const upload = async (kind: "avatar" | "banner", file: File, crop?: { x: number; y: number; w: number; h: number } | null) => {
     if (file.size > 10 * 1024 * 1024) return toast(t("settings.profile.imagesAreLimitedTo10Mb"), "error");
@@ -237,36 +226,15 @@ function MainDesigner({ anchor }: { anchor?: string | null | undefined }) {
   };
 
   const showTab = (next: ProfileTab) => setTab((cur) => ({ tab: next, n: (cur?.n ?? 0) + 1 }));
-  // what pressing a part does, in the panel or on the profile
+  const toggle = (part: Expandable, on: boolean) => {
+    setOpened((cur) => ({ ...cur, [part]: on }));
+    if (part === "typing" && on) setView("chat");
+  };
+  // pressing a part of the preview: the form goes to what changes it
   const open = (part: Part) => {
-    if ((PAGES as string[]).includes(part)) {
-      if (view === "chat" && part !== "colours" && part !== "tag" && part !== "nameStyle") setView("full");
-      setPage(part as Page);
-      return;
-    }
-    switch (part) {
-      case "name":
-      case "pronouns":
-      case "about":
-        if (view === "chat") setView("full");
-        // one column (a phone) keeps About Me behind its own tab
-        if (part === "about" && stageRef.current?.querySelector('[data-layout="narrow"]')) showTab("about");
-        setInline(part);
-        // the name and its style go together: the style opens beside the name being written
-        if (part === "name" && beside) setPage("nameStyle");
-        return;
-      case "status":
-        openModal("customStatus");
-        return;
-      case "typing":
-        setView("chat");
-        return;
-      case "widgets":
-        setView("full");
-        showTab("widgets");
-        requestAnimationFrame(() => stageRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
-        return;
-    }
+    if (part === "status") return openModal("customStatus");
+    if (part === "tag" || part === "typing" || part === "nameStyle") toggle(part, true);
+    requestAnimationFrame(() => jumpToField(formRef.current, part));
   };
   const widgetTools: WidgetDesign = {
     edit: (id) => {
@@ -291,19 +259,7 @@ function MainDesigner({ anchor }: { anchor?: string | null | undefined }) {
       }),
     add: () => setAdding(true),
   };
-  const design: ProfileDesign = {
-    edit: (part) => open(part),
-    inline: {
-      ...(inline === "name"
-        ? { name: <InlineText className={d.nameInput} value={displayName} onChange={setDisplayName} onDone={() => setInline(null)} max={32} label={t("settings.account.displayName")} testId="designer-name" /> }
-        : {}),
-      ...(inline === "pronouns"
-        ? { pronouns: <InlineText className={d.pronounsInput} value={pronouns} onChange={setPronouns} onDone={() => setInline(null)} max={40} label={t("settings.profile.pronouns")} placeholder={t("settings.profile.addYourPronouns")} testId="designer-pronouns" /> }
-        : {}),
-      ...(inline === "about" ? { about: <InlineAbout value={about} onChange={setAbout} outLength={aboutOut.length} onDone={() => setInline(null)} /> } : {}),
-    },
-    widgets: savedWidgets === null ? undefined : widgetTools,
-  };
+  const design: ProfileDesign = { edit: (part) => open(part) };
   const startWidget = (type: WidgetType) => {
     setAdding(false);
     const id = newWidgetId();
@@ -320,175 +276,119 @@ function MainDesigner({ anchor }: { anchor?: string | null | undefined }) {
   const status = [me.status_emoji, me.status_text].filter(Boolean).join(" ");
   const typingWords = typingStyleText(typing);
   const nameLookShown = nameLook ? { own: nameLook } : undefined;
-  // every part of the profile, grouped by what it changes, each showing what it holds now; with the anchor Settings' search knows it by
-  const groups: PanelGroup<Part>[] = [
-    {
-      title: t("designer.group.name"),
-      rows: [
-        { id: "name", label: t("settings.account.displayName"), value: <span className={nameClass(nameLookShown)} style={nameStyle(nameLookShown)}>{shownName}</span> },
-        { id: "nameStyle", label: t("nameStyle.title"), value: nameLook ? <span className={nameClass(nameLookShown)} style={nameStyle(nameLookShown)}>{shownName}</span> : t("designer.value.plain"), setting: "nameStyle" },
-        { id: "pronouns", label: t("settings.profile.pronouns"), value: pronouns ? <span>{pronouns}</span> : null },
-      ],
-    },
-    {
-      title: t("designer.group.look"),
-      rows: [
-        { id: "avatar", label: t("settings.profile.avatar"), value: <Avatar id={me.id} avatarId={me.avatar_id} name={me.display_name} size={28} />, setting: "avatar" },
-        { id: "banner", label: t("settings.profile.profileBanner"), value: <span className={d.rowBanner} style={me.banner_id ? { backgroundImage: `url(${bannerUrl(me.banner_id, 128)})` } : { background: theme ? `linear-gradient(180deg, ${theme.top}, ${theme.bottom})` : (accent ?? avatarColor(me.id)) }} />, setting: "banner" },
-        { id: "colours", label: t("settings.profile.profileTheme"), value: accent ? <span className={d.rowSwatches}><i style={{ background: accent }} />{accent2 ? <i style={{ background: accent2 }} /> : null}</span> : null, setting: "profileTheme" },
-      ],
-    },
-    {
-      title: t("designer.group.about"),
-      rows: [
-        { id: "about", label: t("settings.profile.aboutMe"), value: aboutOut.trim() ? <span>{plainText(parse(aboutOut)).replace(/\s+/g, " ").trim()}</span> : null },
-        { id: "status", label: t("designer.part.status"), value: status ? <span>{status}</span> : null },
-        { id: "widgets", label: t("widgets.title"), value: widgets.length ? String(widgets.length) : null, setting: "widgets" },
-        { id: "tag", label: t("serverTag.choose.title"), value: me.server_tag ? <span>{me.server_tag.text}</span> : null, setting: "serverTag" },
-        { id: "typing", label: t("typing.editor.title"), value: typingWords ? <span>{typingWords}</span> : null, setting: "typingStyle" },
-      ],
-    },
+  const styledName = <span className={nameClass(nameLookShown)} style={nameStyle(nameLookShown)}>{shownName}</span>;
+  const views: { id: View; label: string }[] = [
+    { id: "card", label: t("designer.view.card") },
+    { id: "full", label: t("designer.view.full") },
+    { id: "chat", label: t("designer.view.chat") },
   ];
-  const pageTitle: Record<Page, string> = {
-    nameStyle: t("nameStyle.title"),
-    avatar: t("settings.profile.avatar"),
-    banner: t("settings.profile.profileBanner"),
-    colours: t("settings.profile.profileTheme"),
-    tag: t("serverTag.choose.title"),
-  };
-  const pageBody = (part: Page): ReactNode => {
-    switch (part) {
-      case "nameStyle":
-        return <NameStyleEditor value={nameLook} onChange={setNameLook} name={shownName} plate={!beside} />;
-      case "avatar":
-        return (
-          <>
-            <div className={d.popRow}>
-              <Avatar id={me.id} avatarId={me.avatar_id} name={me.display_name} size={64} />
-              <div className={d.popBtns}>
-                <Button size="sm" loading={uploading === "avatar"} onClick={() => avatarRef.current?.click()} data-testid="designer-upload-avatar">
-                  <ImagePlus size={15} aria-hidden="true" /> {t("settings.profile.changeAvatar")}
-                </Button>
-                {me.avatar_id ? <Button size="sm" variant="ghost" onClick={() => void remove("avatar")}>{t("settings.profile.removeAvatar")}</Button> : null}
-              </div>
-            </div>
-            <p className={d.popHint}>{t("designer.imageHint")}</p>
-          </>
-        );
-      case "banner":
-        return (
-          <>
-            <div className={d.bannerThumb} style={me.banner_id ? { backgroundImage: `url(${bannerUrl(me.banner_id, 340)})` } : { background: theme ? `linear-gradient(180deg, ${theme.top}, ${theme.bottom})` : (accent ?? avatarColor(me.id)) }} aria-hidden="true" />
+
+  const form = (
+    <div ref={formRef} className={d.formInner}>
+      <FormSection title={t("designer.group.look")}>
+        <FormField field="avatar" setting="avatar" label={t("settings.profile.avatar")} hint={t("designer.imageHint")}>
+          <div className={d.pictureRow}>
+            <Avatar id={me.id} avatarId={me.avatar_id} name={me.display_name} size={56} />
             <div className={d.popBtns}>
-              <Button size="sm" loading={uploading === "banner"} onClick={() => bannerRef.current?.click()} data-testid="designer-upload-banner">
+              <Button size="sm" variant="secondary" loading={uploading === "avatar"} onClick={() => avatarRef.current?.click()} data-testid="designer-upload-avatar">
+                <ImagePlus size={15} aria-hidden="true" /> {t("settings.profile.changeAvatar")}
+              </Button>
+              {me.avatar_id ? <Button size="sm" variant="ghost" onClick={() => void remove("avatar")}>{t("composer.composer.remove")}</Button> : null}
+            </div>
+          </div>
+        </FormField>
+        <FormField field="banner" setting="banner" label={t("settings.profile.profileBanner")} hint={me.banner_id ? undefined : t("designer.bannerEmptyHint")}>
+          <div className={d.pictureRow}>
+            <span className={d.bannerThumb} style={me.banner_id ? { backgroundImage: `url(${bannerUrl(me.banner_id, 340)})` } : { background: theme ? `linear-gradient(180deg, ${theme.top}, ${theme.bottom})` : (accent ?? avatarColor(me.id)) }} aria-hidden="true" />
+            <div className={d.popBtns}>
+              <Button size="sm" variant="secondary" loading={uploading === "banner"} onClick={() => bannerRef.current?.click()} data-testid="designer-upload-banner">
                 <ImagePlus size={15} aria-hidden="true" /> {me.banner_id ? t("settings.profile.changeBanner") : t("designer.addBanner")}
               </Button>
               {me.banner_id ? <Button size="sm" variant="ghost" onClick={() => void remove("banner")}>{t("composer.composer.remove")}</Button> : null}
             </div>
-            <p className={d.popHint}>{t("designer.imageHint")}</p>
-            {!me.banner_id ? (
-              <button type="button" className={d.popLink} onClick={() => setPage("colours")}>
-                <Palette size={14} aria-hidden="true" /> {t("designer.bannerColour")}
-              </button>
-            ) : null}
-          </>
-        );
-      case "colours":
-        return <ColoursPicker accent={accent} accent2={accent2} setAccent={setAccent} setAccent2={setAccent2} />;
-      case "tag":
-        return (
-          <>
-            <p className={d.popHint}>{t("serverTag.choose.hint")}</p>
-            <ServerTagList />
-            {me.server_tag ? (
-              <Button size="sm" variant="ghost" onClick={() => void wearServerTag(null)} data-testid="designer-tag-off">
-                {t("serverTag.takeOff")}
-              </Button>
-            ) : null}
-          </>
-        );
-    }
-  };
-  const views: { id: View; label: string }[] = [
-    { id: "full", label: t("designer.view.full") },
-    { id: "card", label: t("designer.view.card") },
-    { id: "chat", label: t("designer.view.chat") },
-  ];
-  const first = widgets[0];
-
-  return (
-    <>
-      <p className={d.intro}>{t(touchFirst() ? "designer.introTouch" : "designer.intro")}</p>
-
-      <DesignerLayout
-        layout={layout}
-        groups={groups}
-        current={(id) => page === id || (id === "typing" && view === "chat")}
-        onRow={open}
-        page={page}
-        pageTitle={(p) => pageTitle[p]}
-        pageBody={pageBody}
-        onBack={() => setPage(null)}
-      >
-          <div className={d.views} role="tablist" aria-label={t("designer.view.label")}>
-            {views.map((v) => (
-              <button key={v.id} type="button" role="tab" aria-selected={view === v.id} className={d.viewBtn} data-selected={view === v.id} onClick={() => setView(v.id)} data-testid={`designer-view-${v.id}`}>
-                {v.label}
-              </button>
-            ))}
           </div>
+        </FormField>
+        <FormField field="colours" setting="profileTheme" label={t("settings.profile.profileTheme")}>
+          <ColoursPicker accent={accent} accent2={accent2} setAccent={setAccent} setAccent2={setAccent2} />
+        </FormField>
+      </FormSection>
+
+      <FormSection title={t("designer.group.name")}>
+        <FormField field="name" label={<label htmlFor="designer-name">{t("settings.account.displayName")}</label>}>
+          <TextInput id="designer-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={32} placeholder={me.username} data-testid="designer-name" />
+        </FormField>
+        <FormField field="pronouns" label={<label htmlFor="designer-pronouns">{t("settings.profile.pronouns")}</label>}>
+          <TextInput id="designer-pronouns" value={pronouns} onChange={(e) => setPronouns(e.target.value)} maxLength={40} placeholder={t("settings.profile.addYourPronouns")} data-testid="designer-pronouns" />
+        </FormField>
+        <FormExpander field="nameStyle" setting="nameStyle" label={t("nameStyle.title")} value={nameLook ? styledName : t("designer.value.plain")} open={!!opened.nameStyle} onToggle={(on) => toggle("nameStyle", on)}>
+          <NameStyleEditor value={nameLook} onChange={setNameLook} name={shownName} plate={!layout.beside} />
+        </FormExpander>
+      </FormSection>
+
+      <FormSection title={t("designer.group.about")}>
+        <FormField field="about" label={t("settings.profile.aboutMe")}>
+          <AboutField value={about} onChange={setAbout} outLength={aboutOut.length} />
+        </FormField>
+        <FormField field="status" label={t("designer.part.status")}>
+          <div className={d.valueRow}>
+            <span className={d.valueText} data-empty={!status || undefined} dir="auto">{status || t("designer.status.none")}</span>
+            <Button size="sm" variant="secondary" onClick={() => openModal("customStatus")} data-testid="designer-status">{status ? t("designer.status.change") : t("designer.status.set")}</Button>
+          </div>
+        </FormField>
+        <FormField field="widgets" setting="widgets" label={t("widgets.title")} hint={widgets.length ? t("designer.widgets.hint") : undefined}>
           {widgetsFailed ? (
             <div className={d.notice} role="status">
               <span>{t("widgets.couldNotLoad")}</span>
               <Button size="sm" variant="secondary" onClick={loadWidgets}>{t("invite.tryAgain")}</Button>
             </div>
+          ) : (
+            <WidgetList widgets={widgets} tools={widgetTools} disabled={savedWidgets === null} />
+          )}
+        </FormField>
+        <FormExpander field="tag" setting="serverTag" label={t("serverTag.choose.title")} value={me.server_tag ? me.server_tag.text : t("designer.value.none")} open={!!opened.tag} onToggle={(on) => toggle("tag", on)}>
+          <p className={d.fieldHint}>{t("serverTag.choose.hint")}</p>
+          <ServerTagList />
+          {me.server_tag ? (
+            <Button size="sm" variant="ghost" onClick={() => void wearServerTag(null)} data-testid="designer-tag-off">
+              {t("serverTag.takeOff")}
+            </Button>
           ) : null}
+        </FormExpander>
+        <FormExpander field="typing" setting="typingStyle" label={t("typing.editor.title")} value={typingWords || t("designer.value.plain")} open={!!opened.typing} onToggle={(on) => toggle("typing", on)}>
+          <p className={d.fieldHint}>{t("typing.editor.hint")}</p>
+          <TypingStyleEditor value={typing} onChange={setTyping} name={shownName} preview={false} />
+        </FormExpander>
+      </FormSection>
+    </div>
+  );
 
-          <div ref={stageRef} className={d.stage} data-view={view} data-intro={intro || undefined} style={{ "--glow": glow } as CSSProperties} data-testid="designer-stage">
-            {view === "full" ? (
-              <div className={d.frame}>
-                <ProfileCard key={tab ? `${tab.tab}-${tab.n}` : "profile"} userId={me.id} variant="modal" preview={preview} previewWidgets={widgets} design={design} initialTab={tab?.tab} />
-              </div>
-            ) : view === "card" ? (
-              <div className={d.cardView}>
-                <div className={d.cardFrame}>
-                  <ProfileCard userId={me.id} variant="popout" preview={preview} previewWidgets={widgets} design={design} />
-                </div>
-                <aside className={d.aside}>
-                  <h3 className={d.asideTitle}><Pin size={15} aria-hidden="true" /> {t("designer.card.title")}</h3>
-                  <p className={d.asideText}>{t("designer.card.hint")}</p>
-                  {widgets.length ? (
-                    <div className={d.choices} role="radiogroup" aria-label={t("designer.card.title")}>
-                      {widgets.map((w) => (
-                        <button key={w.id} type="button" role="radio" aria-checked={first?.id === w.id} className={d.choice} onClick={() => widgetTools.feature(w.id)} data-testid={`designer-card-${w.type}`}>
-                          <span className={d.choiceDot} aria-hidden="true" />
-                          <span className={d.choiceText} dir="auto">{widgetName(w)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <>
-                      <p className={d.asideText}>{t("designer.card.none")}</p>
-                      <Button size="sm" onClick={() => setAdding(true)} disabled={savedWidgets === null}>
-                        <Plus size={15} aria-hidden="true" /> {t("widgets.addOne")}
-                      </Button>
-                    </>
-                  )}
-                </aside>
-              </div>
-            ) : (
-              <div className={d.chatView}>
-                <ChatPreview name={shownName} avatarId={me.avatar_id} userId={me.id} typing={typing} look={nameLook ? { own: nameLook } : undefined} />
-                <section className={d.typingPanel} aria-labelledby="designer-typing-title">
-                  <h3 className={d.panelTitle} id="designer-typing-title">{t("typing.editor.title")}</h3>
-                  <p className={d.panelHint}>{t("typing.editor.hint")}</p>
-                  <TypingStyleEditor value={typing} onChange={setTyping} name={shownName} preview={false} />
-                </section>
-              </div>
-            )}
+  const previewPane = (
+    <>
+      <ViewSwitch views={views} value={view} onChange={setView} />
+      <div className={d.stage} data-view={view} style={{ "--glow": glow } as CSSProperties} data-testid="designer-stage">
+        {view === "full" ? (
+          <ProfileCard key={tab ? `${tab.tab}-${tab.n}` : "profile"} userId={me.id} variant="modal" preview={preview} previewWidgets={widgets} design={design} initialTab={tab?.tab} />
+        ) : view === "card" ? (
+          <div className={d.cardFrame}>
+            <ProfileCard userId={me.id} variant="popout" preview={preview} previewWidgets={widgets} design={design} />
           </div>
-          <p className={d.caption}>{t(`designer.caption.${view}`)}</p>
-      </DesignerLayout>
+        ) : (
+          <ChatPreview name={shownName} avatarId={me.avatar_id} userId={me.id} typing={typing} look={nameLookShown} />
+        )}
+      </div>
+      <p className={d.caption}>{t(`designer.caption.${view}`)}</p>
+    </>
+  );
+
+  return (
+    <>
+      <p className={d.intro}>{t("designer.introForm")}</p>
+      <DesignerLayout
+        layout={layout}
+        form={form}
+        preview={previewPane}
+        summary={<><Avatar id={me.id} avatarId={me.avatar_id} name={me.display_name} size={28} /><span className={d.summaryName} dir="auto">{styledName}</span></>}
+      />
       {uploading ? (
         <p className={d.uploading} role="status"><LoaderCircle size={14} className={d.spin} aria-hidden="true" /> {t("common.working")}</p>
       ) : null}

@@ -415,3 +415,9 @@
 
 .listName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .listInitial { overflow: hidden; white-space: nowrap; }
+
+/* drawn in the profile designer: the page is the only scroller, so the card grows to what it holds
+   instead of scrolling inside its columns (the wheel used to catch on them) */
+.card[data-design][data-layout="wide"] { height: auto; }
+.card[data-design] .side, .card[data-design] .tabPanel { overflow: visible; }
+.card[data-variant="popout"][data-design] { max-height: none; overflow: visible; }
