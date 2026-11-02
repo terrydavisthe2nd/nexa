@@ -6966,6 +6966,7 @@
   "chat.embeds.music.kind.track": "Трек",
   "chat.embeds.music.playerFailed": "Сейчас этот плеер не открывается.",
   "chat.embeds.music.preview": "Отрывок 30 секунд",
+  "chat.embeds.music.seek": "Позиция в треке",
   "chat.embeds.music.songs": {
     "one": "{count} трек",
     "few": "{count} трека",

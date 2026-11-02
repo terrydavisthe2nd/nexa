@@ -6525,6 +6525,7 @@
   "chat.embeds.music.kind.track": "गाना",
   "chat.embeds.music.playerFailed": "यह प्लेयर अभी नहीं खुल सकता।",
   "chat.embeds.music.preview": "30 सेकंड का प्रीव्यू",
+  "chat.embeds.music.seek": "गाने की स्थिति",
   "chat.embeds.music.songs": {
     "one": "{count} गाना",
     "other": "{count} गाने"

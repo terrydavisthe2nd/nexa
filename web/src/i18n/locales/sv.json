@@ -6525,6 +6525,7 @@
   "chat.embeds.music.kind.track": "Låt",
   "chat.embeds.music.playerFailed": "Den här spelaren kan inte öppnas just nu.",
   "chat.embeds.music.preview": "30 sekunders smakprov",
+  "chat.embeds.music.seek": "Position i låten",
   "chat.embeds.music.songs": {
     "one": "{count} låt",
     "other": "{count} låtar"

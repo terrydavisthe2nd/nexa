@@ -1,6 +1,6 @@
 /*
- * A music card: the same lit card as every link preview, its bar in the
- * service's colour (--site). The cover leads; its play disc is the one loud
+ * A music card: the record's own cover, blurred and sunk into the embed
+ * colour, is the card's ground, so each card wears its record's colours. The cover leads; its play disc is the one loud
  * thing, and while a preview plays a ring in the service's colour runs round
  * it. The tracks below are the profile's Favourite Songs rows, made compact.
  */
@@ -13,13 +13,19 @@
   padding-block: 10px 12px;
   padding-inline: 12px 12px;
   border-radius: var(--radius-md);
-  background: var(--sheen), var(--embed-bg);
+  background: var(--embed-bg);
   box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border-subtle), var(--shadow-low);
-  border-inline-start: 3px solid var(--site);
+  overflow: hidden;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
+
+/* the cover, spread far past the card and blurred, then the embed colour over it so text keeps its contrast in every theme */
+.backdrop { position: absolute; inset: -40px; z-index: -2; width: calc(100% + 80px); height: calc(100% + 80px); object-fit: cover; filter: blur(36px) saturate(1.5); opacity: 0.9; pointer-events: none; user-select: none; }
+.card:has(.backdrop)::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, color-mix(in srgb, var(--embed-bg) 58%, transparent), color-mix(in srgb, var(--embed-bg) 82%, transparent)); pointer-events: none; }
+.card:has(.backdrop) .cover { box-shadow: 0 8px 22px color-mix(in srgb, var(--shade) 55%, transparent), 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent); }
 
 .head { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; line-height: 16px; color: var(--text-muted); overflow: clip; }
 .favicon { width: 14px; height: 14px; border-radius: 3px; object-fit: contain; flex: none; }
@@ -27,7 +33,7 @@
 .kind { flex: none; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--site) 14%, transparent); color: color-mix(in srgb, var(--site) 70%, var(--text)); font-size: 11px; font-weight: 600; line-height: 16px; white-space: nowrap; }
 
 .main { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.cover { position: relative; flex: none; width: 92px; height: 92px; border-radius: var(--radius-sm); overflow: hidden; background: color-mix(in srgb, var(--site) 18%, var(--bg-input)); box-shadow: 0 0 0 1px var(--border-subtle); }
+.cover { position: relative; flex: none; width: 104px; height: 104px; border-radius: var(--radius-sm); overflow: hidden; background: color-mix(in srgb, var(--site) 18%, var(--bg-input)); box-shadow: 0 0 0 1px var(--border-subtle); }
 .cover[data-round] { border-radius: 50%; }
 .cover[data-round] .disc { inset: 0; margin: auto; }
 .cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -107,6 +113,30 @@ button.track:focus-visible { outline-offset: -2px; }
   to { transform: rotate(360deg); }
 }
 
+/* a preview's place in time, its length, and how loud previews play */
+.strip { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: -2px; --volume-fill: var(--site); }
+.time { flex: none; min-width: 2.6em; font-size: 12px; line-height: 1; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.time:first-child { text-align: end; }
+.strip[data-on] .time:first-child { color: var(--text-strong); }
+.seek { --fill: 0%; flex: 1; min-width: 40px; height: 16px; margin: 0; background: transparent; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.seek:disabled { cursor: default; }
+.seek:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+.seek::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--site) var(--fill), color-mix(in srgb, var(--text) 16%, transparent) var(--fill)); }
+.seek::-moz-range-track { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 16%, transparent); }
+.seek::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--site); }
+.seek::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; background: var(--text-strong); opacity: 0; transition: opacity var(--transition); }
+.seek::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--text-strong); opacity: 0; }
+.strip[data-on] .seek:is(:hover, :focus-visible, :active)::-webkit-slider-thumb { opacity: 1; }
+.strip[data-on] .seek:is(:hover, :focus-visible, :active)::-moz-range-thumb { opacity: 1; }
+@media (hover: none) {
+  .strip[data-on] .seek::-webkit-slider-thumb { opacity: 1; }
+  .strip[data-on] .seek::-moz-range-thumb { opacity: 1; }
+}
+.vol { flex: none; margin-inline-start: 4px; }
+@media (max-width: 520px) {
+  .vol input { display: none; }
+}
+
 /* the service's own player, at the height it is made for */
 .frame { position: relative; width: 100%; height: 152px; border-radius: 12px; overflow: hidden; background: #121212; }
 .frame[data-tall] { height: 352px; }
@@ -116,6 +146,6 @@ button.track:focus-visible { outline-offset: -2px; }
 .note { display: grid; place-items: center; height: 100%; margin: 0; padding: 12px; font-size: 13px; color: #ddd; text-align: center; }
 
 @media (max-width: 520px) {
-  .cover { width: 76px; height: 76px; }
+  .cover { width: 84px; height: 84px; }
   .title { font-size: 15px; }
 }

@@ -5,7 +5,8 @@ import type { MusicCard, MusicTrack, UnfurlResult } from "@/api/types";
 import { t } from "@/i18n";
 import { useMediaSrc } from "@/lib/mediaLinks";
 import { formatDuration } from "@/lib/time";
-import { playPreview, stopAnyPreview, stopPreview, usePreview } from "@/components/profile/previews";
+import { playPreview, seekPreview, stopAnyPreview, stopPreview, usePreview } from "@/components/profile/previews";
+import { SongVolume } from "@/components/profile/SongVolume";
 import s from "./MusicEmbed.module.css";
 
 /**
@@ -155,6 +156,39 @@ function TrackRow({ track, index, owner, art, by, onOpen }: { track: MusicTrack;
   );
 }
 
+/**
+ * Under the cover while a preview can play: how far through it is (a bar to
+ * press or drag once it plays), its times, and how loud previews play.
+ */
+function PreviewStrip({ k, length }: { k: string; length: number }) {
+  const on = usePreview((p) => p.id === k);
+  const progress = usePreview((p) => (p.id === k ? p.progress : 0));
+  const duration = usePreview((p) => (p.id === k && p.duration > 0 ? p.duration : 0));
+  const total = duration || length;
+  const fill = `${(progress * 100).toFixed(2)}%`;
+  return (
+    <div className={s.strip} data-on={on || undefined}>
+      <span className={s.time}>{formatDuration(Math.floor(progress * total))}</span>
+      <input
+        className={s.seek}
+        type="range"
+        min={0}
+        max={1}
+        step={0.001}
+        value={progress}
+        disabled={!on}
+        style={{ "--fill": fill } as CSSProperties}
+        onChange={(ev) => seekPreview(k, Number(ev.target.value))}
+        aria-label={t("chat.embeds.music.seek")}
+        aria-valuetext={`${formatDuration(Math.floor(progress * total))} / ${formatDuration(total)}`}
+        data-testid="music-seek"
+      />
+      <span className={s.time}>{formatDuration(total)}</span>
+      <SongVolume className={s.vol} />
+    </div>
+  );
+}
+
 /** A music link's card. */
 export function MusicEmbed({ e, m }: { e: UnfurlResult; m: MusicCard }) {
   const owner = useId();
@@ -193,11 +227,12 @@ export function MusicEmbed({ e, m }: { e: UnfurlResult; m: MusicCard }) {
 
   return (
     <div className={s.card} style={{ "--site": site.color } as CSSProperties} data-testid="music-embed" data-platform={m.platform}>
+      {/* the record's own colours, blurred into the card behind everything */}
+      {art && !(open && player) ? <img className={s.backdrop} src={art} alt="" aria-hidden="true" referrerPolicy="no-referrer" draggable={false} onError={(ev) => (ev.currentTarget.style.display = "none")} /> : null}
       <div className={s.head}>
         {icon ? <img className={s.favicon} src={icon} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(ev) => (ev.currentTarget.style.display = "none")} /> : null}
         <span className={s.siteName}>{site.name}</span>
         <span className={s.kind}>{t(`chat.embeds.music.kind.${m.kind}`)}</span>
-        {preview && !player ? <span className={s.kind}>{t("chat.embeds.music.preview")}</span> : null}
       </div>
       {open && player ? (
         <PlayerFrame m={m} />
@@ -242,6 +277,7 @@ export function MusicEmbed({ e, m }: { e: UnfurlResult; m: MusicCard }) {
               {meta.length ? <span className={s.meta}>{meta.join(" · ")}</span> : null}
             </div>
           </div>
+          {preview && !player ? <PreviewStrip k={key} length={30} /> : null}
           {tracks.length ? (
             <ol className={s.tracks} aria-label={m.title} data-by={by || undefined}>
               {tracks.map((tr, i) => (

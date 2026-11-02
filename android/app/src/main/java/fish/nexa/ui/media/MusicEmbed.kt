@@ -34,10 +34,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
@@ -62,12 +70,12 @@ import fish.nexa.ui.components.Txt
 import fish.nexa.ui.components.pressable
 import fish.nexa.ui.profile.Equalizer
 import fish.nexa.ui.profile.SongPreviews
+import fish.nexa.ui.profile.SongVolume
 import fish.nexa.ui.t
 import fish.nexa.ui.theme.Nx
 import fish.nexa.ui.theme.Radii
 import fish.nexa.ui.theme.ring
 import fish.nexa.ui.theme.shadowLow
-import fish.nexa.ui.theme.sheen
 import fish.nexa.ui.theme.topEdge
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -147,17 +155,19 @@ fun MusicEmbed(e: Unfurl, m: MusicCard) {
             .ring(shape, c.borderSubtle)
             .clip(shape)
             .background(c.embedBg)
-            .background(sheen(c))
-            .topEdge(shape, c.edgeLight)
-            .startBar(site.color, 3.dp),
+            .topEdge(shape, c.edgeLight),
     ) {
+        // the record's own colours, blurred into the card behind everything (blur needs Android 12)
+        if (!art.isNullOrEmpty() && !(open && player) && android.os.Build.VERSION.SDK_INT >= 31) {
+            AsyncImage(art, null, imageLoader = Media.loader, contentScale = ContentScale.Crop, alpha = 0.9f, modifier = Modifier.matchParentSize().blur(36.dp))
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(c.embedBg.copy(alpha = 0.58f), c.embedBg.copy(alpha = 0.82f)))))
+        }
         Column(Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 var broken by remember(icon) { mutableStateOf(false) }
                 if (!icon.isNullOrEmpty() && !broken) AsyncImage(icon, null, imageLoader = Media.loader, modifier = Modifier.size(14.dp).clip(RoundedCornerShape(3.dp)), onError = { broken = true })
                 Txt(site.name, style = Nx.type.hint.copy(fontWeight = FontWeight(600)), color = c.text, maxLines = 1)
                 Pill(t("chat.embeds.music.kind.${m.kind}"), site.color)
-                if (preview != null && !player) Pill(t("chat.embeds.music.preview"), site.color)
             }
             if (open && player) {
                 PlayerView(m)
@@ -165,7 +175,7 @@ fun MusicEmbed(e: Unfurl, m: MusicCard) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     val round = m.kind == "artist"
                     val coverShape = if (round) CircleShape else Radii.Sm
-                    Box(Modifier.size(76.dp).ring(coverShape, c.borderSubtle).clip(coverShape).background(lerp(c.bgInput, site.color, 0.18f))) {
+                    Box(Modifier.size(84.dp).ring(coverShape, c.borderSubtle).clip(coverShape).background(lerp(c.bgInput, site.color, 0.18f))) {
                         if (!art.isNullOrEmpty()) AsyncImage(art, null, imageLoader = Media.loader, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                         if (press != null) Disc(
                             on, state, site.color, m.title, press,
@@ -191,11 +201,55 @@ fun MusicEmbed(e: Unfurl, m: MusicCard) {
                         if (meta.isNotEmpty()) Txt(meta.joinToString(" · "), style = Nx.type.hint.copy(fontSize = Nx.type.sp(12.5f), fontFeatureSettings = "tnum"), color = c.textMuted, maxLines = 1)
                     }
                 }
+                if (preview != null && !player) PreviewStrip(key, site.color)
                 if (tracks.isNotEmpty()) Column(Modifier.offset(x = (-6).dp)) {
                     tracks.forEachIndexed { i, tr -> TrackRow(tr, i, "$owner:$i", owner, site.color, by, if (player) press else null) }
                 }
             }
         }
+    }
+}
+
+/**
+ * Under the cover while a preview can play (the web's PreviewStrip): how far
+ * through it is (a bar to tap or drag once it plays), its times, and how loud
+ * previews play.
+ */
+@Composable
+private fun PreviewStrip(key: String, site: Color) {
+    val c = Nx.colors
+    val on = SongPreviews.playingId == key
+    val progress = if (on) SongPreviews.progress else 0f
+    val total = if (on && SongPreviews.duration > 0f) SongPreviews.duration else 30f
+    val time = Nx.type.hint.copy(fontSize = Nx.type.sp(12f), fontFeatureSettings = "tnum")
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Txt(Time.duration((progress * total).toDouble()), style = time, color = if (on) c.textStrong else c.textMuted, maxLines = 1)
+        var width by remember { mutableStateOf(1f) }
+        fun at(x: Float) = (x / width).coerceIn(0f, 1f)
+        Box(
+            Modifier
+                .weight(1f)
+                .height(32.dp)
+                .onSizeChanged { width = it.width.toFloat() }
+                .pointerInput(on) { if (on) detectTapGestures { pos -> SongPreviews.seek(key, at(pos.x)) } }
+                .pointerInput(on) {
+                    if (on) detectHorizontalDragGestures { change, _ ->
+                        change.consume()
+                        SongPreviews.seek(key, at(change.position.x))
+                    }
+                }
+                .semantics {
+                    contentDescription = t("chat.embeds.music.seek")
+                    stateDescription = "${Time.duration((progress * total).toDouble())} / ${Time.duration(total.toDouble())}"
+                },
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Box(Modifier.fillMaxWidth().height(4.dp).background(c.text.copy(alpha = 0.16f), RoundedCornerShape(2.dp)))
+            Box(Modifier.fillMaxWidth(progress).height(4.dp).background(site, RoundedCornerShape(2.dp)))
+            if (on) Box(Modifier.graphicsLayer { translationX = progress * (width - 12.dp.toPx()) }.size(12.dp).background(c.textStrong, CircleShape))
+        }
+        Txt(Time.duration(total.toDouble()), style = time, color = c.textMuted, maxLines = 1)
+        SongVolume(fill = site, slider = LocalConfiguration.current.screenWidthDp > 520)
     }
 }
 

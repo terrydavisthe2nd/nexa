@@ -676,7 +676,7 @@ as Discord holds it:
   plays: Deezer's and Apple's thirty-second previews play in the app's own preview player (web
   `profile/previews.ts` `playPreview`, Android `SongPreviews.play`, one at a time with profile songs;
   Deezer's through `/media/music/preview/{id}` since its links expire, Apple's through the media proxy,
-  whose type aliases map `audio/x-m4p` to `audio/mp4`); Spotify and SoundCloud open their own player
+  whose type aliases map `audio/x-m4p` to `audio/mp4`); a card that can play a preview has a strip under its cover (seek bar, times, and the shared song volume, web `profile/SongVolume.tsx`, Android `SongVolume` in `ui/profile/Widgets.kt`), and its backdrop is its cover blurred (Android 12 and up); previews never take mute from videos' settings, only from their own; Spotify and SoundCloud open their own player
   through this server (below), and opening one stops any preview. Bandcamp sits behind a bot challenge
   and Tidal's pages carry nothing, so both stay ordinary link cards.
 - Other sites' players are served through this server by `api/frame_proxy.go` (`frameSite`: path root,

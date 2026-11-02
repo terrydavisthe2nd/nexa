@@ -6637,6 +6637,7 @@
   "chat.embeds.music.kind.track": "Canción",
   "chat.embeds.music.playerFailed": "Ahora mismo no se puede abrir este reproductor.",
   "chat.embeds.music.preview": "Avance de 30 segundos",
+  "chat.embeds.music.seek": "Posición de la canción",
   "chat.embeds.music.songs": {
     "one": "{count} canción",
     "many": "{count} canciones",

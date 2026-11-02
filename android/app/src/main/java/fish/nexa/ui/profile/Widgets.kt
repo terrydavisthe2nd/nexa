@@ -267,9 +267,10 @@ object SongPreviews {
     private fun prefs() = Nexa.app.getSharedPreferences("media", android.content.Context.MODE_PRIVATE)
 
     /** How loud previews play, 0 to 1, and whether they are muted: this device's, kept. */
-    var volume by mutableFloatStateOf(prefs().takeIf { it.contains("songVolume") }?.getFloat("songVolume", 1f)?.coerceIn(0f, 1f) ?: fish.nexa.media.MediaPrefs.get().volume)
+    var volume by mutableFloatStateOf(prefs().takeIf { it.contains("songVolume") }?.getFloat("songVolume", 1f)?.coerceIn(0f, 1f) ?: fish.nexa.media.MediaPrefs.get().volume.takeIf { it > 0f } ?: 1f)
         private set
-    var muted by mutableStateOf(if (prefs().contains("songVolume")) prefs().getBoolean("songMuted", false) else fish.nexa.media.MediaPrefs.get().muted)
+    // a muted video says nothing about songs: pressing play on one means wanting to hear it
+    var muted by mutableStateOf(if (prefs().contains("songVolume")) prefs().getBoolean("songMuted", false) else false)
         private set
 
     /** Sets how loud previews play, on the one playing now too, and keeps it on this device. */
@@ -289,6 +290,9 @@ object SongPreviews {
         private set
     var progress by mutableFloatStateOf(0f)
         private set
+    /** How long the one playing is, in seconds, once known (0 before). */
+    var duration by mutableFloatStateOf(0f)
+        private set
     private var player: ExoPlayer? = null
 
     private fun idle() {
@@ -296,6 +300,7 @@ object SongPreviews {
         owner = null
         state = "paused"
         progress = 0f
+        duration = 0f
     }
 
     private fun player(): ExoPlayer = player ?: ExoPlayer.Builder(Nexa.app).build().also { p ->
@@ -340,6 +345,7 @@ object SongPreviews {
         owner = by
         state = "loading"
         progress = 0f
+        duration = 0f
         p.volume = if (muted) 0f else volume
         p.setMediaItem(MediaItem.fromUri(url))
         p.prepare()
@@ -350,9 +356,21 @@ object SongPreviews {
     suspend fun track() {
         while (true) {
             val p = player
-            if (p != null && playingId != null && p.duration > 0) progress = (p.currentPosition.toFloat() / p.duration).coerceIn(0f, 1f)
+            if (p != null && playingId != null && p.duration > 0) {
+                progress = (p.currentPosition.toFloat() / p.duration).coerceIn(0f, 1f)
+                duration = p.duration / 1000f
+            }
             delay(250)
         }
+    }
+
+    /** Moves the playing preview to a point from 0 to 1, when it is the one with this key. */
+    fun seek(key: String, at: Float) {
+        val p = player ?: return
+        if (playingId != key || p.duration <= 0) return
+        val f = at.coerceIn(0f, 1f)
+        p.seekTo((f * p.duration).toLong())
+        progress = f
     }
 
     /** Stops whatever preview is playing: a service's own player opening takes over. */
@@ -516,12 +534,12 @@ private fun Heading(text: String, count: Int? = null, countLabel: String? = null
 }
 
 /**
- * How loud the songs' previews play (SongVolume): the speaker mutes them and
- * brings them back, and the slider sets the volume, for every list of songs
- * at once and the one playing now.
+ * How loud song previews play (the web's SongVolume), on profiles and music
+ * cards alike: the speaker mutes them and brings them back, and the slider
+ * sets the volume for every preview at once and the one playing now.
  */
 @Composable
-private fun SongVolume() {
+fun SongVolume(fill: Color? = null, slider: Boolean = true) {
     val c = Nx.colors
     val volume = SongPreviews.volume
     val muted = SongPreviews.muted
@@ -538,6 +556,7 @@ private fun SongVolume() {
                 .semantics { contentDescription = label },
             contentAlignment = Alignment.Center,
         ) { Icon(if (silent) "VolumeX" else if (volume < 0.5f) "Volume1" else "Volume2", if (silent) c.textSubtle else c.textMuted, size = 16.dp) }
+        if (!slider) return@Row
         var width by remember { mutableStateOf(1f) }
         fun at(x: Float) = (x / width).coerceIn(0f, 1f)
         Box(
@@ -558,7 +577,7 @@ private fun SongVolume() {
             contentAlignment = Alignment.CenterStart,
         ) {
             Box(Modifier.fillMaxWidth().height(4.dp).background(c.bgActive, RoundedCornerShape(2.dp)))
-            Box(Modifier.fillMaxWidth(shown).height(4.dp).background(c.brand, RoundedCornerShape(2.dp)))
+            Box(Modifier.fillMaxWidth(shown).height(4.dp).background(fill ?: c.brand, RoundedCornerShape(2.dp)))
             Box(
                 Modifier
                     .graphicsLayer { translationX = shown * (width - 18.dp.toPx()) }

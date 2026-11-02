@@ -6525,6 +6525,7 @@
   "chat.embeds.music.kind.track": "Song",
   "chat.embeds.music.playerFailed": "Dieser Player kann gerade nicht geöffnet werden.",
   "chat.embeds.music.preview": "30-Sekunden-Vorschau",
+  "chat.embeds.music.seek": "Position im Song",
   "chat.embeds.music.songs": {
     "one": "{count} Song",
     "other": "{count} Songs"

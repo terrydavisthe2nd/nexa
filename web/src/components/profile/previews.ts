@@ -22,6 +22,8 @@ export interface PreviewState {
   state: "loading" | "playing" | "paused";
   /** How far through it is, from 0 to 1. */
   progress: number;
+  /** How long it is, in seconds, once known (0 before). */
+  duration: number;
   /** How loud previews play, from 0 to 1, and whether they are muted: this device's, kept. */
   volume: number;
   muted: boolean;
@@ -37,11 +39,12 @@ function keptVolume(): { volume: number; muted: boolean } {
   } catch {
     /* kept wrong: start from the videos' */
   }
+  // a muted video says nothing about songs: pressing play on one means wanting to hear it
   const prefs = mediaPrefs();
-  return { volume: prefs.volume, muted: prefs.muted };
+  return { volume: prefs.volume > 0 ? prefs.volume : 1, muted: false };
 }
 
-const IDLE = { id: null, owner: null, state: "paused", progress: 0 } as const;
+const IDLE = { id: null, owner: null, state: "paused", progress: 0, duration: 0 } as const;
 
 export const usePreview = create<PreviewState>(() => ({ ...IDLE, ...keptVolume() }));
 
@@ -59,7 +62,7 @@ function audio(): HTMLAudioElement {
   // the pause of the song before is told after the next has been asked to play: that one is not paused
   el.addEventListener("pause", () => ours() && el.paused && !el.ended && usePreview.setState({ state: "paused" }));
   el.addEventListener("timeupdate", () => {
-    if (ours() && el.duration > 0) usePreview.setState({ progress: Math.min(1, el.currentTime / el.duration) });
+    if (ours() && el.duration > 0 && Number.isFinite(el.duration)) usePreview.setState({ progress: Math.min(1, el.currentTime / el.duration), duration: el.duration });
   });
   el.addEventListener("ended", idle);
   el.addEventListener("error", () => {
@@ -118,7 +121,7 @@ export function playPreview(track: PreviewTrack, owner: string): void {
   el.volume = volume;
   el.muted = muted;
   el.src = track.src;
-  usePreview.setState({ id: track.key, owner, state: "loading", progress: 0 });
+  usePreview.setState({ id: track.key, owner, state: "loading", progress: 0, duration: 0 });
   play(el);
   // what a phone's lock screen and a headset's buttons show
   if (typeof navigator !== "undefined" && "mediaSession" in navigator && typeof MediaMetadata !== "undefined") {
@@ -128,6 +131,14 @@ export function playPreview(track: PreviewTrack, owner: string): void {
       artwork: track.art ? [{ src: track.art, sizes: "400x400", type: "image/jpeg" }] : [],
     });
   }
+}
+
+/** Moves the playing preview to a point from 0 to 1, when it is the one with this key. */
+export function seekPreview(key: string, at: number): void {
+  if (!player || usePreview.getState().id !== key || !(player.duration > 0) || !Number.isFinite(player.duration)) return;
+  const f = Math.min(1, Math.max(0, at));
+  player.currentTime = f * player.duration;
+  usePreview.setState({ progress: f });
 }
 
 /** Stops the preview playing, when the list asking is the one that started it. */

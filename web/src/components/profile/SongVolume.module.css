@@ -1,0 +1,19 @@
+/* the songs' volume: a speaker, and a thin slider filled up to where it is (in the accent, or --volume-fill) */
+.volume { display: inline-flex; align-items: center; gap: 2px; margin-inline-start: auto; }
+.volumeBtn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: var(--radius-xs); color: var(--text-muted); }
+.volumeBtn:hover { color: var(--text-strong); background: var(--bg-hover); }
+.volumeBtn[aria-pressed="true"] { color: var(--text-subtle); }
+.volumeSlider { --fill: 100%; width: 76px; height: 16px; margin: 0; background: transparent; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.volumeSlider:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+.volumeSlider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--volume-fill, var(--brand)) var(--fill), var(--bg-active) var(--fill)); }
+.volumeSlider::-moz-range-track { height: 4px; border-radius: 2px; background: var(--bg-active); }
+.volumeSlider::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--volume-fill, var(--brand)); }
+.volumeSlider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; background: var(--text-strong); box-shadow: 0 1px 3px color-mix(in srgb, var(--shade) 70%, transparent); }
+.volumeSlider::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--text-strong); box-shadow: 0 1px 3px color-mix(in srgb, var(--shade) 70%, transparent); }
+/* a finger's slider: longer, and a thumb it can find */
+@media (pointer: coarse) {
+  .volumeBtn { width: 36px; height: 36px; }
+  .volumeSlider { width: 96px; height: 32px; }
+  .volumeSlider::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -7px; }
+  .volumeSlider::-moz-range-thumb { width: 18px; height: 18px; }
+}

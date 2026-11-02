@@ -6291,6 +6291,7 @@
   "chat.embeds.music.kind.track": "歌曲",
   "chat.embeds.music.playerFailed": "现在无法打开这个播放器。",
   "chat.embeds.music.preview": "30 秒试听",
+  "chat.embeds.music.seek": "播放位置",
   "chat.embeds.music.songs": {
     "other": "{count} 首歌曲"
   },

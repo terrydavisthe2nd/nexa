@@ -7371,6 +7371,7 @@
   "chat.embeds.music.kind.track": "أغنية",
   "chat.embeds.music.playerFailed": "لا يمكن فتح هذا المشغل الآن.",
   "chat.embeds.music.preview": "معاينة 30 ثانية",
+  "chat.embeds.music.seek": "موضع الأغنية",
   "chat.embeds.music.songs": {
     "zero": "{count} أغنية",
     "one": "أغنية واحدة",

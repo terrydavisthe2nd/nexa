@@ -1,10 +1,11 @@
-import { ArrowDown, ArrowUp, ArrowUpRight, ExternalLink, LayoutGrid, LoaderCircle, Pause, Pencil, Pin, Play, Plus, Trash2, Volume1, Volume2, VolumeX } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpRight, ExternalLink, LayoutGrid, LoaderCircle, Pause, Pencil, Pin, Play, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
 import { Tooltip } from "@/components/common/Tooltip";
 import { avatarColor, initials } from "@/lib/avatarColor";
 import { gamePicture, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type CardWidget, type GameWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetGame, type WidgetMusic } from "@/lib/widgets";
 import { t } from "@/i18n";
-import { setPreviewVolume, stopPreview, togglePreview, usePreview, volumeAdjustable } from "./previews";
+import { stopPreview, togglePreview, usePreview } from "./previews";
+import { SongVolume } from "./SongVolume";
 import s from "./Widgets.module.css";
 
 type Variant = "modal" | "panel";
@@ -220,51 +221,6 @@ function MusicHead({ w, extra }: { w: MusicWidget; extra?: ReactNode }) {
       {extra}
       <span className={s.count} aria-label={musicCount(w.type, w.music.length)}>{w.music.length.toLocaleString()}</span>
     </div>
-  );
-}
-
-/**
- * How loud the songs' previews play: the speaker mutes them and brings them
- * back, and the slider sets the volume, for every list of songs at once and
- * the one playing now. A browser that does not let a page set its volume (an
- * iPhone's) keeps the speaker alone.
- */
-function SongVolume() {
-  const volume = usePreview((p) => p.volume);
-  const muted = usePreview((p) => p.muted);
-  const silent = muted || volume === 0;
-  const Icon = silent ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
-  const label = silent ? t("chat.media.unmute") : t("chat.media.mute");
-  return (
-    <span className={s.volume} data-testid="song-volume">
-      <Tooltip text={label} side="top">
-        <button
-          type="button"
-          className={s.volumeBtn}
-          aria-label={label}
-          aria-pressed={silent}
-          // muted at nothing, it comes back at half rather than staying silent
-          onClick={() => (silent ? setPreviewVolume(volume === 0 ? 0.5 : volume, false) : setPreviewVolume(volume, true))}
-        >
-          <Icon size={16} aria-hidden="true" />
-        </button>
-      </Tooltip>
-      {volumeAdjustable() ? (
-        <input
-          className={s.volumeSlider}
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={muted ? 0 : volume}
-          style={{ "--fill": `${Math.round((muted ? 0 : volume) * 100)}%` } as CSSProperties}
-          onChange={(e) => setPreviewVolume(Number(e.target.value), false)}
-          aria-label={t("chat.audioPlayer.volume")}
-          aria-valuetext={`${Math.round((muted ? 0 : volume) * 100)}%`}
-          data-testid="song-volume-slider"
-        />
-      ) : null}
-    </span>
   );
 }
 
