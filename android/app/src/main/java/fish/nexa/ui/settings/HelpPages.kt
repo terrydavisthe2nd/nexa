@@ -298,6 +298,11 @@ fun AdminPage() {
                 }, size = ButtonSize.SM)
                 if (keySet) NxButton(t("modals.quickSwitcher.clear"), { patch(buildJsonObject { put("registration_key", "") }, t("settings.admin.couldNotClearTheKey"), t("settings.admin.registrationKeyCleared")) }, kind = ButtonKind.GHOST, size = ButtonSize.SM)
             }
+            // AdminPage.tsx: the two-accounts-a-day limit per address, on unless turned off
+            val signupLimit = st["signup_ip_limit"]?.let { (it as? JsonPrimitive)?.content != "false" } ?: true
+            ToggleRow(t("settings.admin.signupIpLimit"), signupLimit, { on ->
+                patch(buildJsonObject { put("signup_ip_limit", on) }, t("settings.admin.couldNotChangeTheSignupLimit"), optimistic = JsonObject(LinkedHashMap(st).apply { put("signup_ip_limit", JsonPrimitive(on)) }))
+            }, description = t("settings.admin.signupIpLimitHint"))
             Hint(
                 t(
                     "settings.admin.configLimits",

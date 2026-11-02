@@ -125,7 +125,7 @@ is on the same disk as the data, so it covers a bad deploy or a mistake, not a
 dead disk: copy it somewhere else as well (`BACKUP_DIR=/mnt/elsewhere bash
 backup.sh` writes there directly).
 `chatd.env` holds Nexa's settings and keys (Cloudflare, Klipy,
-hCaptcha); keep a copy of it somewhere safe too.
+Turnstile, hCaptcha); keep a copy of it somewhere safe too.
 
 Never copy the live `data/chat.db` by hand: without its `-wal` file the copy
 can be missing the newest writes, or be torn.

@@ -310,7 +310,7 @@ object Legal {
                 Icon("Sparkles", c.textBrand, size = 14.dp)
                 Txt(t("legal.newTitle"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13.5f), fontWeight = FontWeight(700)), color = c.textBrand)
             }
-            val items = listOf(t("legal.newCallUsage")) + (if (previous < "2026-10-28.1") listOf(t("legal.newNSFW")) else emptyList()) + (if (previous < "2026-10-26.1") listOf(t("legal.newPlans")) else emptyList()) + (if (previous < "2026-10-25.1") listOf(t("legal.newPasskeys")) else emptyList()) + (if (previous < "2026-10-20.2") listOf(t("legal.newAddresses")) else emptyList()) + (if (previous < "2026-10-20.1") listOf(t("legal.newCaptcha")) else emptyList()) + if (previous < "2026-10-19") listOf(t("legal.new1"), t("legal.new2"), t("legal.new3"), t("legal.new4"), t("legal.new5")) else emptyList()
+            val items = listOf(t("legal.newTurnstile")) + (if (previous < "2026-10-31.1") listOf(t("legal.newCallUsage")) else emptyList()) + (if (previous < "2026-10-28.1") listOf(t("legal.newNSFW")) else emptyList()) + (if (previous < "2026-10-26.1") listOf(t("legal.newPlans")) else emptyList()) + (if (previous < "2026-10-25.1") listOf(t("legal.newPasskeys")) else emptyList()) + (if (previous < "2026-10-20.2") listOf(t("legal.newAddresses")) else emptyList()) + (if (previous < "2026-10-20.1") listOf(t("legal.newCaptcha")) else emptyList()) + if (previous < "2026-10-19") listOf(t("legal.new1"), t("legal.new2"), t("legal.new3"), t("legal.new4"), t("legal.new5")) else emptyList()
             Bullets(items, ordered = false, size = 14f)
         }
     }

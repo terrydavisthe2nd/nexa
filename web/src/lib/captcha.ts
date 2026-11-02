@@ -3,8 +3,9 @@
  * recovering an account, sending friend requests, creating and joining
  * servers, a first message to a stranger, bug reports; and for what a stolen
  * session would be used for: a new username, password or recovery key,
- * turning two-factor off, deleting the account. They use hCaptcha, invisible
- * until it wants a challenge solved, which it puts up over a dimmed page. The routes that ask for one name the
+ * turning two-factor off, deleting the account. They use Cloudflare
+ * Turnstile, which usually shows a person nothing at all and only puts up a
+ * click, over a dimmed page, when it is unsure. The routes that ask for one name the
  * action on their refusal, and the API client solves it and asks again
  * (api.captchaSolver), so a guarded request needs no handling of its own.
  *
@@ -17,17 +18,16 @@ import { ApiError, api } from "@/api/client";
 import { setPublicUrl } from "@/lib/appLinks";
 
 import { t } from "@/i18n";
-const SCRIPT = "https://js.hcaptcha.com/1/api.js?render=explicit&recaptchacompat=off";
+const SCRIPT = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 
-interface HCaptcha {
-  render(el: HTMLElement, opts: Record<string, unknown>): string;
-  execute(id: string): void;
+interface Turnstile {
+  render(el: HTMLElement, opts: Record<string, unknown>): string | undefined;
   remove(id: string): void;
 }
 
 declare global {
   interface Window {
-    hcaptcha?: HCaptcha;
+    turnstile?: Turnstile;
   }
 }
 
@@ -44,9 +44,12 @@ let asking: Promise<void> | null = null;
 /** Asks the server whether captchas are on. The app does this once as it starts. */
 export function loadCaptchaConfig(): Promise<void> {
   asking ??= api
-    .request<{ captcha?: { provider?: string; site_key?: string } | null; public_url?: string }>("GET", "/instance")
+    .request<{ captcha?: { provider?: string; site_key?: string } | null; turnstile?: { site_key?: string } | null; public_url?: string }>("GET", "/instance")
     .then((info) => {
-      siteKey = info.captcha?.provider === "hcaptcha" && info.captcha.site_key ? info.captcha.site_key : null;
+      // "captcha" names hCaptcha for older apps while that fallback is set up;
+      // "turnstile" is this app's
+      const fromCaptcha = info.captcha?.provider === "turnstile" ? info.captcha.site_key : undefined;
+      siteKey = info.turnstile?.site_key || fromCaptcha || null;
       // the same answer says which address links to Nexa use
       setPublicUrl(info.public_url);
     })
@@ -65,13 +68,13 @@ async function currentSiteKey(): Promise<string | null> {
   return siteKey ?? null;
 }
 
-let loading: Promise<HCaptcha> | null = null;
+let loading: Promise<Turnstile> | null = null;
 
 /** The function the script calls once its API is ready (its `onload`). */
-const READY = "nexaHCaptchaReady";
+const READY = "nexaTurnstileReady";
 
-function loadHCaptcha(): Promise<HCaptcha> {
-  loading ??= new Promise<HCaptcha>((resolve, reject) => {
+function loadTurnstile(): Promise<Turnstile> {
+  loading ??= new Promise<Turnstile>((resolve, reject) => {
     const script = document.createElement("script");
     let waiting: ReturnType<typeof setTimeout> | undefined;
     const fail = (message: string): void => {
@@ -83,11 +86,10 @@ function loadHCaptcha(): Promise<HCaptcha> {
       script.remove();
       reject(captchaError("captcha_unavailable", message));
     };
-    // window.hcaptcha is there before its API is: rendering then is refused,
-    // so the script says when it is ready through the function named in onload
+    // the script says when its API is ready through the function named in onload
     (window as unknown as Record<string, unknown>)[READY] = () => {
       clearTimeout(waiting);
-      if (window.hcaptcha) resolve(window.hcaptcha);
+      if (window.turnstile) resolve(window.turnstile);
       else fail(t("captcha.theCaptchaCouldNotStart"));
     };
     script.src = `${SCRIPT}&onload=${READY}`;
@@ -111,7 +113,7 @@ const pending = new Set<string>();
 
 /**
  * A fresh token for one guarded request, or null when captchas are off. If
- * hCaptcha puts up a challenge, a small sheet comes up behind it, with a way out.
+ * Turnstile wants a click, a small sheet comes up for it, with a way out.
  *
  * Never more than one at a time. A button pressed again while its captcha is
  * up gets no second one: that request is turned away (captcha_pending) and
@@ -126,17 +128,17 @@ export function captchaToken(action: string): Promise<string | null> {
   const run = queue
     .then(() => {
       if (cancels !== ticket) throw captchaError("captcha_cancelled", t("captcha.theCaptchaWasCancelled"));
-      return showCaptcha();
+      return showCaptcha(action);
     })
     .finally(() => pending.delete(action));
   queue = run.catch(() => undefined);
   return run;
 }
 
-async function showCaptcha(): Promise<string | null> {
+async function showCaptcha(action: string): Promise<string | null> {
   const key = await currentSiteKey();
   if (!key) return null;
-  const hcaptcha = await loadHCaptcha();
+  const turnstile = await loadTurnstile();
   return new Promise<string>((resolve, reject) => {
     const overlay = document.createElement("div");
     overlay.className = "captcha-overlay";
@@ -174,7 +176,7 @@ async function showCaptcha(): Promise<string | null> {
       settled = true;
       document.removeEventListener("keydown", onKey, true);
       try {
-        if (id) hcaptcha.remove(id);
+        if (id) turnstile.remove(id);
       } catch {
         /* already gone */
       }
@@ -202,20 +204,21 @@ async function showCaptcha(): Promise<string | null> {
     };
     try {
       const timedOut = (): void => finish(() => reject(captchaError("captcha_failed", t("captcha.theCaptchaTimedOutPleaseTry"))));
-      id = hcaptcha.render(slot, {
+      id = turnstile.render(slot, {
         sitekey: key,
-        // stays out of sight unless a challenge is needed
-        size: "invisible",
+        // the server takes a token only for the action it was solved for
+        action,
+        // stays out of sight unless a click is needed
+        appearance: "interaction-only",
         theme: document.documentElement.dataset["scheme"] === "light" ? "light" : "dark",
         callback: (token: string) => finish(() => resolve(token)),
         "error-callback": () => finish(() => reject(captchaError("captcha_failed", t("captcha.theCaptchaCheckFailedPleaseTry")))),
         "expired-callback": timedOut,
-        "chalexpired-callback": timedOut,
-        "open-callback": show,
-        // the challenge's own close button, or a click outside it
-        "close-callback": cancelIt,
-      });
-      hcaptcha.execute(id);
+        "timeout-callback": timedOut,
+        "before-interactive-callback": show,
+        "after-interactive-callback": () => overlay.classList.remove("captcha-shown"),
+      }) ?? "";
+      if (!id) throw new Error("not rendered");
     } catch {
       finish(() => reject(captchaError("captcha_unavailable", t("captcha.theCaptchaCouldNotStart"))));
     }

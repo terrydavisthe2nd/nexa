@@ -1,7 +1,7 @@
 NEXA - PRIVACY POLICY
 Site: nexa.fish (also at mathtest.lol, and formerly chat.evilion.xyz)
 Contact the owner (nora) here: evilionx3@proton.me
-Effective: 2026-10-31
+Effective: 2026-11-01
 
 This policy lists exactly what Nexa holds. It is written against the
 actual database, so if something is not listed here, there is no place
@@ -156,7 +156,8 @@ e) Sessions, account addresses and guest entries (the only places an
      connect, and make other requests, the server counts requests by
      IP address in memory, never on disk, and forgets each address
      within a few hours of its last request. The captcha also sends
-     your address to Cloudflare (section 6).
+     your address to Cloudflare, or to hCaptcha from an older app
+     (section 6).
 
 f) Login checks (values not handed over, listed to close the point):
    the password check value, the password stretching salt and
@@ -385,12 +386,17 @@ calls.
   makes. Your messages, files, notes, and calls are already encrypted
   when they pass through it. Why: so the server is never reachable
   directly from the internet.
-- hCaptcha, for the captcha when you sign up, sign in, recover an
-  account, send a friend request, invite someone to a note, create or
-  join a server, or join a call as a guest. Your browser or app loads
-  it from hcaptcha.com, and the server sends hCaptcha your IP address
-  with its answer to check it. Why: to stop bots from making accounts, guessing passwords, and
+- Cloudflare Turnstile, for the captcha when you sign up, sign in,
+  recover an account, send a friend request, invite someone to a
+  note, create or join a server, or join a call as a guest. Your
+  browser or app loads it from challenges.cloudflare.com, and the
+  server sends Cloudflare your IP address with its answer to check
+  it. Why: to stop bots from making accounts, guessing passwords, and
   sending spam.
+- hCaptcha, for the same captcha in older versions of the apps that
+  do not have Turnstile yet. Those load it from hcaptcha.com, and the
+  server sends hCaptcha your IP address with its answer to check it.
+  Why: so older apps keep working until they update.
 - Cloudflare Realtime, for calls. It relays call audio and video, so
   your device connects to it and it sees your IP address, and the
   server labels your connection with your account ID when it sets the

@@ -44,12 +44,11 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 
 /**
- * hCaptcha, in the one web view this app has. The server checks
- * the hostname a token was solved on, so the widget runs in a page whose
- * address is the instance's own (loadDataWithBaseURL); the token comes back
- * through a bridge and goes on the one request it was made for. Like the web,
- * the sheet only shows when hCaptcha puts up a challenge, and closing the
- * challenge cancels.
+ * Cloudflare Turnstile, in the one web view this app has. The server checks
+ * the hostname and action a token was solved for, so the widget runs in a
+ * page whose address is the instance's own (loadDataWithBaseURL); the token
+ * comes back through a bridge and goes on the one request it was made for.
+ * Like the web, the sheet only shows when Turnstile wants a click.
  *
  * Never more than one at a time, as on the web. The same action asked for
  * again while its captcha is up gets no second one (captcha_pending); another
@@ -102,7 +101,7 @@ object CaptchaHost : CaptchaProvider {
         }
     }
 
-    private fun page(siteKey: String, dark: Boolean, bg: Int): String {
+    private fun page(siteKey: String, action: String, dark: Boolean, bg: Int): String {
         val color = String.format("#%06x", bg and 0xFFFFFF)
         return """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>html,body{margin:0;background:$color;display:flex;align-items:center;justify-content:center;min-height:100%}</style></head>
@@ -110,15 +109,15 @@ object CaptchaHost : CaptchaProvider {
 <script>
 function done(t){NexaCaptcha.onToken(t)}
 function fail(c){NexaCaptcha.onError(c||"failed")}
-// the API is ready only when it calls this (its onload), not when window.hcaptcha appears
+// the API is ready only when it calls this (its onload)
 var started=false
-function ready(){started=true;var id=hcaptcha.render("slot",{sitekey:${JSONObject.quote(siteKey)},theme:"${if (dark) "dark" else "light"}",size:"invisible",
-  callback:done,"error-callback":function(){fail("failed")},"expired-callback":function(){fail("timeout")},"chalexpired-callback":function(){fail("timeout")},
-  "open-callback":function(){NexaCaptcha.onShow()},"close-callback":function(){NexaCaptcha.onCancel()}});hcaptcha.execute(id)}
+function ready(){started=true;turnstile.render("#slot",{sitekey:${JSONObject.quote(siteKey)},action:${JSONObject.quote(action)},theme:"${if (dark) "dark" else "light"}",appearance:"interaction-only",
+  callback:done,"error-callback":function(){fail("failed")},"expired-callback":function(){fail("timeout")},"timeout-callback":function(){fail("timeout")},
+  "before-interactive-callback":function(){NexaCaptcha.onShow()},"after-interactive-callback":function(){NexaCaptcha.onHide()}})}
 // a blocked script still loads and never calls ready
 setTimeout(function(){if(!started)fail("unavailable")},15000)
 </script>
-<script src="https://js.hcaptcha.com/1/api.js?render=explicit&recaptchacompat=off&onload=ready" async defer onerror="fail('unavailable')"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=ready" async defer onerror="fail('unavailable')"></script>
 </body></html>"""
     }
 
@@ -143,15 +142,15 @@ setTimeout(function(){if(!started)fail("unavailable")},15000)
             Column(
                 Modifier
                     .padding(16.dp)
-                    .widthIn(max = 400.dp)
+                    .widthIn(max = 360.dp)
                     .then(if (shown) Modifier.panel(Radii.Lg, c, c.bgFloating, high = true).padding(20.dp) else Modifier.height(1.dp)),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (shown) Txt(t("captcha.oneQuickCheck"), style = Nx.type.sheetTitle, color = c.textStrong)
                 AndroidView(
-                    // room for hCaptcha's challenge, which it draws inside this page
-                    modifier = Modifier.fillMaxWidth().height(if (shown) 580.dp else 1.dp),
+                    // room for Turnstile's checkbox
+                    modifier = Modifier.fillMaxWidth().height(if (shown) 80.dp else 1.dp),
                     factory = { ctx ->
                         WebView(ctx).apply {
                             setBackgroundColor(c.bgFloating.toArgb())
@@ -167,18 +166,16 @@ setTimeout(function(){if(!started)fail("unavailable")},15000)
                                     else ApiError(0, "captcha_failed", t("captcha.theCaptchaCheckFailedPleaseTry"))
                                     r.result.completeExceptionally(err)
                                 }
-                                // the challenge needs the whole sheet: the keyboard the form left
-                                // open would cover it, and the focus goes with it, as on the web
+                                // the keyboard the form left open would cover the click, and the
+                                // focus goes with it, as on the web
                                 @JavascriptInterface fun onShow() = post {
                                     shown = true
                                     requestFocus()
                                     (ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(windowToken, 0)
                                 }.let { }
-                                @JavascriptInterface fun onCancel() {
-                                    r.result.completeExceptionally(cancelled())
-                                }
+                                @JavascriptInterface fun onHide() = post { shown = false }.let { }
                             }, "NexaCaptcha")
-                            loadDataWithBaseURL(Nexa.api.baseUrl + "/", page(r.siteKey, !c.isLight, c.bgFloating.toArgb()), "text/html", "utf-8", null)
+                            loadDataWithBaseURL(Nexa.api.baseUrl + "/", page(r.siteKey, r.action, !c.isLight, c.bgFloating.toArgb()), "text/html", "utf-8", null)
                         }
                     },
                 )

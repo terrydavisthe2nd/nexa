@@ -192,8 +192,8 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	first := count == 0
 	// at most two new accounts a day from one IP address, spent
 	// only once the request has passed every check above. Nexa's first
-	// account is never held back.
-	if !first {
+	// account is never held back, and admins can turn the limit off.
+	if !first && s.signupIPLimitOn(ctx) {
 		if ok, retry := s.limSignup.Allow(auth.RateKey(r)); !ok {
 			w.Header().Set("Retry-After", retryAfter(retry))
 			WriteError(w, E(http.StatusTooManyRequests, "too_many_signups", "Two accounts have already been made from this IP address today. Try again tomorrow."))
@@ -603,6 +603,14 @@ func (s *Server) handleSessionDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Bcast.CloseSession(id)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// signupIPLimitOn reports whether the two-accounts-a-day limit per address
+// applies. It is on unless an admin turned it off (instance setting
+// signup_ip_limit = "off"); a failed read keeps it on.
+func (s *Server) signupIPLimitOn(ctx context.Context) bool {
+	v, err := s.Store.InstanceSetting(ctx, "signup_ip_limit")
+	return err != nil || v != "off"
 }
 
 // registrationPolicy is the config default, overridden by what an admin set at runtime.

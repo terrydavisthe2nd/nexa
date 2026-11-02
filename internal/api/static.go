@@ -18,8 +18,8 @@ import (
 // CSP is the content security policy for the web app. hash-wasm needs
 // 'wasm-unsafe-eval'; inline style attributes (role colours) need
 // 'unsafe-inline' for styles; embeds may load https images/media directly;
-// only the privacy-enhanced YouTube host may be framed, and hCaptcha
-// may load its captcha script, styles and frame when captchas are on.
+// only the privacy-enhanced YouTube host may be framed, and Cloudflare
+// Turnstile may load its captcha script and frame when captchas are on.
 //
 // A person's own look (custom CSS, and themes loaded from links) may pull in
 // https stylesheets and web fonts with @import and @font-face, so style-src
@@ -30,7 +30,7 @@ import (
 // make a blob: URL, so that lets no new script in from anywhere else, and
 // script-src still refuses https: sources and eval, so a plugin cannot
 // fetch more code past the hash it was pinned to.
-const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob: https://hcaptcha.com https://*.hcaptcha.com; style-src 'self' 'unsafe-inline' https:; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self' wss: https: blob:; frame-src 'self' https://hcaptcha.com https://*.hcaptcha.com; worker-src 'self' blob:; font-src 'self' data: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob: https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https:; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self' wss: https: blob:; frame-src 'self' https://challenges.cloudflare.com; worker-src 'self' blob:; font-src 'self' data: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
 
 func init() {
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")

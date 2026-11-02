@@ -38,7 +38,7 @@ export const admin = {
   clearErrors(): Promise<void> {
     return api.request<void>("DELETE", "/admin/errors");
   },
-  patchSettings(body: { registration?: string; registration_key?: string }): Promise<AdminSettings> {
+  patchSettings(body: { registration?: string; registration_key?: string; signup_ip_limit?: boolean }): Promise<AdminSettings> {
     return api.request<AdminSettings>("PATCH", "/admin/settings", body);
   },
   /**

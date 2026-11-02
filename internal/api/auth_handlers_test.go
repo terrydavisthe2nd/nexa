@@ -428,6 +428,30 @@ func TestTwoAccountsADayFromOneAddress(t *testing.T) {
 	}
 }
 
+func TestAdminCanTurnTheSignupLimitOff(t *testing.T) {
+	srv, ts := newTestServer(t)
+	srv.limSignup = ratelimit.New(ratelimit.Every(2, 24*time.Hour), 2, 25*time.Hour)
+	tokA, _ := register(t, ts, "first")
+	register(t, ts, "second")
+	register(t, ts, "third")
+	if res, body := do(t, ts, "PATCH", "/api/v1/admin/settings", tokA, map[string]any{"signup_ip_limit": "no"}); res.StatusCode != 400 {
+		t.Fatalf("a non-boolean: %d %v", res.StatusCode, body)
+	}
+	res, body := do(t, ts, "PATCH", "/api/v1/admin/settings", tokA, map[string]any{"signup_ip_limit": false})
+	if res.StatusCode != 200 || body["signup_ip_limit"] != false {
+		t.Fatalf("turning it off: %d %v", res.StatusCode, body)
+	}
+	if res, body := do(t, ts, "POST", "/api/v1/auth/register", "", registerBody("fourth")); res.StatusCode != 201 {
+		t.Fatalf("a third account with the limit off: %d %v", res.StatusCode, body)
+	}
+	if res, body := do(t, ts, "PATCH", "/api/v1/admin/settings", tokA, map[string]any{"signup_ip_limit": true}); res.StatusCode != 200 || body["signup_ip_limit"] != true {
+		t.Fatalf("turning it on: %d %v", res.StatusCode, body)
+	}
+	if res, body := do(t, ts, "POST", "/api/v1/auth/register", "", registerBody("fifth")); res.StatusCode != 429 || errCode(body) != "too_many_signups" {
+		t.Fatalf("with the limit back on: %d %v", res.StatusCode, body)
+	}
+}
+
 func TestSignupAllowanceCountsAnIPv6Prefix(t *testing.T) {
 	srv, ts := newTestServer(t)
 	register(t, ts, "first")

@@ -44,9 +44,16 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The headers a captcha token goes with. Tokens are Turnstile's, and saying so
+ * keeps the server from checking them with hCaptcha, which it keeps only for
+ * apps from before the move back.
+ */
+export const captchaHeaders = (captcha: string): Record<string, string> => ({ "X-Captcha-Token": captcha, "X-Captcha-Provider": "turnstile" });
+
 /** Options carrying a captcha token for a guarded request, when there is one. */
 export function captchaOptions(captcha: string | null | undefined): RequestOptions | undefined {
-  return captcha ? { headers: { "X-Captcha-Token": captcha } } : undefined;
+  return captcha ? { headers: captchaHeaders(captcha) } : undefined;
 }
 
 export interface RequestOptions {
@@ -256,7 +263,7 @@ export const api = {
       const action = err.code === "captcha_required" && !hasHeader(headers, "x-captcha-token") ? res.headers.get("X-Captcha-Action") : null;
       if (action && this.captchaSolver) {
         const solved = await this.captchaSolver(action);
-        if (solved) return this.request<T>(method, path, body, { ...opts, headers: { ...opts?.headers, "X-Captcha-Token": solved } });
+        if (solved) return this.request<T>(method, path, body, { ...opts, headers: { ...opts?.headers, ...captchaHeaders(solved) } });
       }
       throw err;
     }

@@ -196,7 +196,7 @@ func main() {
 	httpSrv := &http.Server{Addr: cfg.Listen, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second}
 	errc := make(chan error, 1)
 	go func() {
-		log.Info("listening", "addr", cfg.Listen, "public_url", cfg.PublicURL, "version", version, "web_dist", cfg.WebDist, "captcha", cfg.HCaptchaSecretKey != "", "sfu", srv.Realtime != nil, "database", string(database.Dialect), "redis", cfg.RedisURL != "")
+		log.Info("listening", "addr", cfg.Listen, "public_url", cfg.PublicURL, "version", version, "web_dist", cfg.WebDist, "captcha", cfg.TurnstileSecretKey != "" || cfg.HCaptchaSecretKey != "", "sfu", srv.Realtime != nil, "database", string(database.Dialect), "redis", cfg.RedisURL != "")
 		errc <- httpSrv.ListenAndServe()
 	}()
 

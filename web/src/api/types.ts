@@ -644,6 +644,8 @@ export interface AdminStats {
 export interface AdminSettings {
   registration: "open" | "invite" | "closed";
   registration_key_set: boolean;
+  /** At most two new accounts a day from one IP address; admins can turn it off. */
+  signup_ip_limit: boolean;
   config_registration: string;
   overrides: Record<string, string>;
   max_upload_bytes: number;
@@ -681,8 +683,10 @@ export interface InstanceInfo {
   gif_search: boolean;
   public_url: string;
   turn_configured: boolean;
-  /** Set when the actions bots abuse need an hCaptcha captcha. */
-  captcha?: { provider: "hcaptcha"; site_key: string } | null;
+  /** Set when the actions bots abuse need a captcha; names hCaptcha for older apps while that fallback is set up. */
+  captcha?: { provider: "turnstile" | "hcaptcha"; site_key: string } | null;
+  /** Turnstile's site key, which this app uses. */
+  turnstile?: { site_key: string } | null;
   /** The most one upload request may carry; a larger file goes up in pieces. */
   upload_single_bytes?: number;
   /** The size of each of those pieces. */

@@ -589,6 +589,8 @@ data class InstanceInfo(
     @SerialName("public_url") val publicUrl: String = "",
     @SerialName("turn_configured") val turnConfigured: Boolean = false,
     val captcha: CaptchaInfo? = null,
+    /** Turnstile's site key, which this app uses; `captcha` names hCaptcha for older apps while that fallback is set up. */
+    val turnstile: TurnstileInfo? = null,
     @SerialName("upload_single_bytes") val uploadSingleBytes: Long = 33554432,
     @SerialName("upload_chunk_bytes") val uploadChunkBytes: Long = 33554432,
     @SerialName("max_sticker_bytes") val maxStickerBytes: Long = 5242880,
@@ -992,3 +994,6 @@ data class UnfurlResult(
     val type: String = "link",
     val raw: JsonObject? = null,
 )
+
+@Serializable
+data class TurnstileInfo(@SerialName("site_key") val siteKey: String = "")

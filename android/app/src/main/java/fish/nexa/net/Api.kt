@@ -107,7 +107,8 @@ class Api(val baseUrl: String) {
             else -> null
         }
         val b = requestBuilder(path, auth).method(method, rb)
-        if (captcha != null) b.header("X-Captcha-Token", captcha)
+        // tokens are Turnstile's; the server checks unmarked ones with hCaptcha, kept for older apps
+        if (captcha != null) b.header("X-Captcha-Token", captcha).header("X-Captcha-Provider", "turnstile")
         for ((k, v) in headers) b.header(k, v)
         try {
             return execute(http, b.build(), auth && token != null)

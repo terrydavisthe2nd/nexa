@@ -1,3 +1,4 @@
+import { Toggle } from "@/components/common/Toggle";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shield } from "lucide-react";
@@ -45,6 +46,16 @@ export default function AdminPage() {
     } catch (err) {
       setSettings(before);
       toast(err instanceof ApiError ? err.message : tr_("settings.admin.couldNotChangeThePolicy"), "error");
+    }
+  };
+  const setSignupLimit = async (on: boolean) => {
+    const before = settings;
+    setSettings((cur) => (cur ? { ...cur, signup_ip_limit: on } : cur)); // optimistic: the switch moves at once
+    try {
+      setSettings(await adminApi.patchSettings({ signup_ip_limit: on }));
+    } catch (err) {
+      setSettings(before);
+      toast(err instanceof ApiError ? err.message : tr_("settings.admin.couldNotChangeTheSignupLimit"), "error");
     }
   };
   const saveKey = async () => {
@@ -110,6 +121,7 @@ export default function AdminPage() {
               {settings.registration_key_set ? <Button size="sm" variant="ghost" onClick={() => void clearKey()}>{tr_("modals.quickSwitcher.clear")}</Button> : null}
             </div>
           </Field>
+          <Toggle checked={settings.signup_ip_limit} onChange={(v) => void setSignupLimit(v)} label={tr_("settings.admin.signupIpLimit")} description={tr_("settings.admin.signupIpLimitHint")} />
           <p className={st.hint} style={{ marginTop: 12 }}>{tr_("settings.admin.configLimits", { uploads: formatBytes(settings.max_upload_bytes), avatars: formatBytes(settings.max_avatar_bytes), emoji: formatBytes(settings.max_emoji_bytes), stickers: formatBytes(settings.max_sticker_bytes), gif: settings.gif_search ? tr_("settings.admin.on") : tr_("settings.admin.off"), turn: settings.turn ? tr_("settings.admin.configured") : tr_("settings.admin.notConfigured") })}</p>
         </>
       ) : failed ? <LoadError message={tr_("moderation.loadFailed")} onRetry={loadAll} /> : <Spinner />}

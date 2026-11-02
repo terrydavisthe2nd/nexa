@@ -24,12 +24,26 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 
 // handleInstanceInfo is public: the register page needs to know the policy.
 // captchaInfo is what a browser needs to show the captcha: the provider and
-// its public site key, never the secret. Nil when captchas are off.
+// its public site key, never the secret. Nil when captchas are off. Apps from
+// before the move back to Turnstile read only this field and understand only
+// "hcaptcha", so it names hCaptcha while that fallback is configured;
+// turnstileInfo is what current apps read first.
 func (s *Server) captchaInfo() map[string]string {
-	if !s.captchaEnabled() {
+	switch {
+	case s.hcaptchaEnabled():
+		return map[string]string{"provider": "hcaptcha", "site_key": s.Cfg.HCaptchaSiteKey}
+	case s.turnstileEnabled():
+		return map[string]string{"provider": "turnstile", "site_key": s.Cfg.TurnstileSiteKey}
+	}
+	return nil
+}
+
+// turnstileInfo is Turnstile's public site key, nil when it is not set up.
+func (s *Server) turnstileInfo() map[string]string {
+	if !s.turnstileEnabled() {
 		return nil
 	}
-	return map[string]string{"provider": "hcaptcha", "site_key": s.Cfg.HCaptchaSiteKey}
+	return map[string]string{"site_key": s.Cfg.TurnstileSiteKey}
 }
 
 func (s *Server) handleInstanceInfo(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +61,7 @@ func (s *Server) handleInstanceInfo(w http.ResponseWriter, r *http.Request) {
 		"upload_chunk_bytes":  MaxChunkBytes,
 		"upload_single_bytes": SingleUploadBytes,
 		"captcha":             s.captchaInfo(),
+		"turnstile":           s.turnstileInfo(),
 		"plans":               s.plansInfo(),
 	})
 }
@@ -322,6 +337,7 @@ func (s *Server) adminSettingsView(r *http.Request) map[string]any {
 	return map[string]any{
 		"registration":         mode,
 		"registration_key_set": key != "",
+		"signup_ip_limit":      s.signupIPLimitOn(r.Context()),
 		"config_registration":  s.Cfg.Registration,
 		"overrides":            overrides,
 		"max_upload_bytes":     s.Cfg.MaxUploadBytes,
@@ -368,6 +384,19 @@ func (s *Server) handleAdminSettingsPatch(w http.ResponseWriter, r *http.Request
 			return
 		}
 		pending = append(pending, [2]string{"registration_key", key})
+	}
+	if v, ok := raw["signup_ip_limit"]; ok {
+		var on bool
+		if json.Unmarshal(v, &on) != nil {
+			WriteError(w, E(http.StatusBadRequest, "invalid_value", "signup_ip_limit must be true or false."))
+			return
+		}
+		// on is the default, so turning it back on clears the override
+		value := ""
+		if !on {
+			value = "off"
+		}
+		pending = append(pending, [2]string{"signup_ip_limit", value})
 	}
 	if err := s.Store.SetInstanceSettings(r.Context(), pending); err != nil {
 		WriteError(w, err)

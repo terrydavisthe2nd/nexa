@@ -111,10 +111,10 @@ func TestStepUpLimits(t *testing.T) {
 		t.Fatalf("past the free allowance without captchas: %d", code)
 	}
 
-	srv.Cfg.HCaptchaSiteKey = "site-key"
-	srv.Cfg.HCaptchaSecretKey = "secret-key"
+	srv.Cfg.TurnstileSiteKey = "site-key"
+	srv.Cfg.TurnstileSecretKey = "secret-key"
 	srv.Cfg.PublicURL = "https://chat.example"
-	defer hcaptchaStandIn(t, "secret-key")()
+	defer turnstileStandIn(t, "secret-key")()
 	if code, e := invite(""); code != 403 || e != "captcha_required" {
 		t.Fatalf("past the free allowance: %d %s", code, e)
 	}

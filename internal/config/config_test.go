@@ -81,7 +81,7 @@ func TestLoadOverridesAndValidation(t *testing.T) {
 		t.Errorf("PublicURL trailing slash kept: %q", c.PublicURL)
 	}
 	// half a captcha setup is refused rather than quietly leaving captchas off
-	bad := map[string]string{"REGISTRATION": "sometimes", "MAX_UPLOAD_BYTES": "abc", "SESSION_TTL_DAYS": "999999", "PUBLIC_URL": "chat.example", "LOG_LEVEL": "loud", "HCAPTCHA_SITE_KEY": "site", "HCAPTCHA_SECRET_KEY": "secret", "REALTIME_APP_ID": "app", "REALTIME_APP_SECRET": "secret", "REALTIME_MONTHLY_GB": "0"}
+	bad := map[string]string{"REGISTRATION": "sometimes", "MAX_UPLOAD_BYTES": "abc", "SESSION_TTL_DAYS": "999999", "PUBLIC_URL": "chat.example", "LOG_LEVEL": "loud", "TURNSTILE_SITE_KEY": "site", "TURNSTILE_SECRET_KEY": "secret", "REALTIME_APP_ID": "app", "REALTIME_APP_SECRET": "secret", "REALTIME_MONTHLY_GB": "0"}
 	for k, v := range bad {
 		_, err := Load(func(kk string) string {
 			if kk == k {

@@ -52,7 +52,7 @@ sealed interface AuthState {
     data class Ready(val me: MeUser) : AuthState
 }
 
-/** The UI's captcha sheet: a fresh hCaptcha token made for `action` on the instance's own page. */
+/** The UI's captcha sheet: a fresh Turnstile token made for `action` on the instance's own page. */
 fun interface CaptchaProvider {
     suspend fun token(siteKey: String, action: String): String
 }
@@ -105,9 +105,14 @@ class Auth(private val nx: Nexa) {
      * A captcha for `action`, for a request the server turned down for want of
      * one (lib/captcha.ts solveFor): null when this instance has none set up.
      */
+    /** Turnstile's site key, from its own field or from `captcha` when that names Turnstile. */
+    private fun turnstileKey(info: InstanceInfo?): String? =
+        info?.turnstile?.siteKey?.takeIf { it.isNotEmpty() }
+            ?: info?.captcha?.takeIf { it.provider == "turnstile" && it.siteKey.isNotEmpty() }?.siteKey
+
     suspend fun solveCaptcha(action: String): String? {
-        val info = _instance.value?.takeIf { it.captcha != null } ?: loadInstance()
-        val key = info?.captcha?.takeIf { it.provider == "hcaptcha" && it.siteKey.isNotEmpty() }?.siteKey ?: return null
+        val info = _instance.value?.takeIf { turnstileKey(it) != null } ?: loadInstance()
+        val key = turnstileKey(info) ?: return null
         val p = captcha ?: return null
         return p.token(key, action)
     }
@@ -119,16 +124,16 @@ class Auth(private val nx: Nexa) {
     suspend fun <T> guarded(action: String, send: suspend (String?) -> T): T {
         val inst = _instance.value ?: loadInstance()
         suspend fun tokenFor(info: InstanceInfo?): String? {
-            val key = info?.captcha?.takeIf { it.provider == "hcaptcha" && it.siteKey.isNotEmpty() }?.siteKey ?: return null
+            val key = turnstileKey(info) ?: return null
             val p = captcha ?: throw ApiError(0, "captcha_unavailable", "The captcha could not start.")
             return p.token(key, action)
         }
         try {
             return send(tokenFor(inst))
         } catch (e: ApiError) {
-            if (e.code != "captcha_required" || inst?.captcha != null) throw e
+            if (e.code != "captcha_required" || turnstileKey(inst) != null) throw e
             val fresh = loadInstance()
-            if (fresh?.captcha == null) throw e
+            if (turnstileKey(fresh) == null) throw e
             return send(tokenFor(fresh))
         }
     }

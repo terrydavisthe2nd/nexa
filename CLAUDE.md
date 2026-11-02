@@ -235,14 +235,15 @@ repository root against its own database, `DATA_DIR=./data-dev` (this is the one
 never starting chatd from the root: it reads `chatd.env` but never `./data`). It runs in the foreground,
 so start it in the background; stop it with `pkill -f bin/chatd_dev`.
 
-- `chatd.env`'s real hCaptcha keys fail there (dev.nexa.fish is not on the site key's allowed domains),
-  so every captcha says "The captcha check failed". Run it with hCaptcha's test keys in the environment,
-  which win over `chatd.env` and never show a challenge:
+- `chatd.env`'s real captcha keys fail there unless dev.nexa.fish is on the Turnstile widget's
+  hostnames, so every captcha says "The captcha check failed". Run it with Cloudflare's test keys in
+  the environment, which win over `chatd.env` and never show a challenge (`HCAPTCHA_SITE_KEY=` and
+  `HCAPTCHA_SECRET_KEY=` empty turn the fallback off too):
 
   ```
   make web-dev server-dev
-  HCAPTCHA_SITE_KEY=10000000-ffff-ffff-ffff-000000000001 \
-    HCAPTCHA_SECRET_KEY=0x0000000000000000000000000000000000000000 \
+  TURNSTILE_SITE_KEY=1x00000000000000000000AA TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA \
+    HCAPTCHA_SITE_KEY= HCAPTCHA_SECRET_KEY= \
     LISTEN=127.0.0.1:6969 PUBLIC_URL=https://dev.nexa.fish DATA_DIR=./data-dev \
     WEB_DIST=./web/dist-dev ./bin/chatd_dev -env chatd.env      # in the background
   ```
@@ -432,28 +433,36 @@ SIGINT or SIGTERM.
   day per account; batches are in memory, per process. A server holds at most 500 channels and 250 roles
   (`store.MaxServerChannels`, `MaxServerRoles`, counted in the creating transaction).
 - Sign-up: two new accounts a day per IPv4 address or IPv6 /64 (`limSignup`, spent only after every
-  other check passed, never for the first account; `too_many_signups`) on top of `limReg`'s ten attempts
+  other check passed, never for the first account; `too_many_signups`), unless a Developer turned it
+  off in Settings, Nexa Admin (instance setting `signup_ip_limit` = `off`, `signupIPLimitOn`; PATCH
+  `/admin/settings` with `signup_ip_limit`; web `AdminPage.tsx`, Android `HelpPages.kt`), on top of `limReg`'s ten attempts
   an hour. `Store.CreateRegisteredUser` decides the first account's Developer flag and the initial
   `ADMIN_USERNAME` exception inside the inserting transaction under a shared bootstrap lock, so
   concurrent sign-ups cannot each become the first administrator. KDF, login and recovery refuse
   normalized usernames over 32 bytes before lookup or limiter admission. Visitor limits trust only a
   valid `CF-Connecting-IP` from a loopback proxy, never `X-Forwarded-For`; otherwise the socket peer.
-- Captchas (`captcha.go`; invisible hCaptcha, off until both keys are set):
-  `requireCaptcha(w, r, action)` guards what scripts would abuse (sign-up, sign-in, recovery, friend
-  requests, a first DM to a stranger, creating and joining servers, creating apps, joining notes and
-  guest calls, bug reports, Discovery and public sticker packs, Telegram imports, every password check
-  and username change). A refusal names the action in `X-Captcha-Action`, and web `api.captchaSolver`
-  (`lib/captcha.ts`) and Android `Api.captchaSolver` (set by `Auth.solveCaptcha`) solve it and resend,
-  so a guarded call needs nothing of its own. One captcha shows at a time (web `captchaToken`, Android
-  `CaptchaHost.token`): the same action again gets `captcha_pending`, another action waits (a token is
-  good for one request), cancelling cancels those waiting, and a control whose request may meet one is
-  disabled until it ends. hCaptcha binds no action to a token, so the server checks only that it passed
-  on one of Nexa's own hostnames (keep the sitekey's allowed domains the same; the published test secret
-  skips the hostname). Both apps render only once hCaptcha's script calls its `onload` function;
-  Android's (`ui/auth/Captcha.kt`) runs in a web view on the instance's own address. The test sitekey
-  `10000000-ffff-ffff-ffff-000000000001` never shows a challenge, so a real one needs the real keys on a
-  throwaway server. Desktop 1.2.4 and later frame `hcaptcha.com` and its subdomains (`isFrameableUrl`,
-  still allowing Turnstile's `challenges.cloudflare.com`); 1.2.3 and older cannot show hCaptcha.
+- Captchas (`captcha.go`; Cloudflare Turnstile in `interaction-only` appearance, off until a pair of
+  keys is set): `requireCaptcha(w, r, action)` guards what scripts would abuse (sign-up, sign-in,
+  recovery, friend requests, a first DM to a stranger, creating and joining servers, creating apps,
+  joining notes and guest calls, bug reports, Discovery and public sticker packs, Telegram imports,
+  every password check and username change). A refusal names the action in `X-Captcha-Action`, and web
+  `api.captchaSolver` (`lib/captcha.ts`) and Android `Api.captchaSolver` (set by `Auth.solveCaptcha`)
+  solve it and resend, so a guarded call needs nothing of its own. One captcha shows at a time (web
+  `captchaToken`, Android `CaptchaHost.token`): the same action again gets `captcha_pending`, another
+  action waits (a token is good for one request), cancelling cancels those waiting, and a control whose
+  request may meet one is disabled until it ends. A Turnstile token counts only for the action it was
+  rendered with and on one of Nexa's own hostnames (keep the widget's hostnames the same; Cloudflare's
+  test secrets answer `result_with_testing_key` and skip both checks). Both apps render once the
+  script calls its `onload` function; Android's (`ui/auth/Captcha.kt`) runs in a web view on the
+  instance's own address.
+- hCaptcha (moved to on 2026-10-20, back to Turnstile on 2026-11-01) stays as a fallback for apps that
+  predate the move back: with `HCAPTCHA_*` set, `/instance`'s `captcha` keeps naming `hcaptcha` (old
+  apps read only that and accept only that provider) and `turnstile` carries Turnstile's key, which
+  current apps read first. Current apps mark every token with `X-Captcha-Provider: turnstile` (web
+  `captchaHeaders` in `api/client.ts`, Android `Api.request`); an unmarked token is checked with
+  hCaptcha, which binds no action, so only its hostname is checked (its published test secret skips
+  that). Remove the fallback once old apps are gone. Desktop 1.2.4 and later frame both
+  `challenges.cloudflare.com` and `hcaptcha.com` (`isFrameableUrl`).
 - Apps and bots (`bot_*.go`; the guide for bot makers is `docs/bots.md`): the portal (`bot_portal`,
   `/api/v1/applications`), OAuth2, installs and who may use commands (`bot_oauth`,
   `/api/v1/oauth2/authorize`), interactions (`bot_interactions`, `POST /api/v1/interactions`), and the
@@ -478,7 +487,7 @@ SIGINT or SIGTERM.
   links).
 - `static.go` serves `web/dist` (hashed assets immutable, `index.html` for any other path), its own page
   heads for link previews at `/invite/{code}`, `/call/{code}`, `/note/{token}`, `/@{username}` and `/`,
-  and the CSP (plugins load from `blob:`, hCaptcha from `hcaptcha.com` and `*.hcaptcha.com`).
+  and the CSP (plugins load from `blob:`, Turnstile from `challenges.cloudflare.com`).
 - Group chat activity is posted as `system_member_add`, `system_member_remove`, `system_owner_change`,
   `system_name_change` and `system_icon_change` messages (none for a rename to the same name or removing
   an absent icon). Leaving through DELETE channel or DELETE recipient takes `?silent=true` to omit the
@@ -1103,7 +1112,8 @@ Every setting is documented in `chatd.env.example` and loaded by `internal/confi
 (`LISTEN`, `PUBLIC_URL`, `ALT_URLS`, `MOVED_FROM`), storage (`DATA_DIR`, `DATABASE_URL`, `REDIS_URL`,
 `WEB_DIST`, `DESKTOP_DIR`, `ANDROID_DIR`, `NODE_ID`), limits (`MAX_UPLOAD_BYTES`, `MAX_AVATAR_BYTES`,
 `MAX_EMOJI_BYTES`, `MAX_STICKER_BYTES`, `SESSION_TTL_DAYS`), sign-up (`REGISTRATION` open/invite/closed,
-`REGISTRATION_KEY`, `ADMIN_USERNAME`, `HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY`), calls
+`REGISTRATION_KEY`, `ADMIN_USERNAME`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and the
+`HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY` fallback), calls
 (`REALTIME_APP_ID`, `REALTIME_APP_SECRET`, `REALTIME_MONTHLY_GB`, `REALTIME_ACCOUNT_ID`,
 `REALTIME_ANALYTICS_TOKEN`, `REALTIME_TURN_DAILY_GB`, `GUEST_LINKS_P2P`, `STUN_URLS`, `TURN_URLS`,
 `TURN_USERNAME`, `TURN_CREDENTIAL`, `TURN_KEY_ID`, `TURN_API_TOKEN`), outbound (`EGRESS_PROXY`,
