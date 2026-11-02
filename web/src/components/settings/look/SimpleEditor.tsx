@@ -1,5 +1,5 @@
-import { Info } from "lucide-react";
-import { useId } from "react";
+import { Dices, Info } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/common/Button";
 import { Field } from "@/components/common/TextInput";
 import { Select } from "@/components/common/Select";
@@ -9,9 +9,22 @@ import { flipBackground, schemeOf, type Derived } from "@/lib/look/derive";
 import { PRESETS, presetColours } from "@/lib/look/presets";
 import { seasonById } from "@/lib/look/seasonal";
 import { CLASSIC, isClassic } from "@/lib/look/tokens";
+import { accentIdeas, backgroundIdeas, surprise } from "@/lib/look/tools";
 import type { Scheme, SimpleColours } from "@/lib/look/types";
 import { ColourField } from "./ColourField";
 import s from "./Look.module.css";
+import b from "./Builder.module.css";
+
+/** Colours to try with one press, under the colour they would replace. */
+function Ideas({ label, colours, current, onPick, testId }: { label: string; colours: string[]; current: string; onPick: (c: string) => void; testId: string }) {
+  return (
+    <div className={b.ideas} role="group" aria-label={label} data-testid={testId}>
+      {colours.map((c) => (
+        <button key={c} type="button" className={b.idea} style={{ background: c }} onClick={() => onPick(c)} aria-pressed={c === current} aria-label={t("settings.themeBuilder.useColour", { hex: c })} title={c} />
+      ))}
+    </div>
+  );
+}
 
 /**
  * The few colours a preset starts from, for "Start from"; a classic theme gives
@@ -39,10 +52,24 @@ export function SimpleEditor({ value, onChange, derived, handSet, onClearHandSet
     // the same tint, carried over to a background of the other kind
     onChange({ ...value, scheme, background: flipBackground(value.background, scheme) });
   };
+  // Ideas come from the accent as it was before one of them was tried, so
+  // they stay where they are while they are tried one after another
+  const [anchor, setAnchor] = useState(value.accent);
+  const tried = useRef<string | null>(null);
+  useEffect(() => {
+    if (value.accent !== tried.current) setAnchor(value.accent);
+  }, [value.accent]);
+  const bgIdeas = useMemo(() => backgroundIdeas(anchor, value.scheme), [anchor, value.scheme]);
+  const acIdeas = useMemo(() => accentIdeas(anchor, value.scheme), [anchor, value.scheme]);
   const moved = [derived.adjusted.background ? t("settings.themeBuilder.adjustedBackground") : null, derived.adjusted.accent ? t("settings.themeBuilder.adjustedAccent") : null, derived.adjusted.text ? t("settings.themeBuilder.adjustedText") : null].filter(Boolean) as string[];
   return (
     <div>
-      <p className={s.panelHint}>{t("settings.themeBuilder.simpleHint")}</p>
+      <div className={b.hintRow}>
+        <p>{t("settings.themeBuilder.simpleHint")}</p>
+        <Button variant="secondary" size="sm" onClick={() => onChange(surprise())} data-testid="builder-surprise">
+          <Dices size={15} aria-hidden="true" /> {t("settings.themeBuilder.surprise")}
+        </Button>
+      </div>
       <div className={s.fieldRow}>
         <span className={s.fieldLabel} id={modeId}>
           {t("settings.themeBuilder.mode")}
@@ -64,7 +91,12 @@ export function SimpleEditor({ value, onChange, derived, handSet, onClearHandSet
         onChange={(background) => onChange({ ...value, background, scheme: schemeOf(background) })}
         testId="builder-background"
       />
+      <Ideas label={t("settings.themeBuilder.backgroundIdeas")} colours={bgIdeas} current={value.background} onPick={(background) => onChange({ ...value, background })} testId="builder-background-ideas" />
       <ColourField label={t("settings.themeBuilder.accent")} hint={t("settings.themeBuilder.accentHint")} value={value.accent} onChange={(accent) => onChange({ ...value, accent })} testId="builder-accent" />
+      <Ideas label={t("settings.themeBuilder.accentIdeas")} colours={acIdeas} current={value.accent} onPick={(accent) => {
+          tried.current = accent;
+          onChange({ ...value, accent });
+        }} testId="builder-accent-ideas" />
       <div className={s.fieldRow} style={{ borderBottom: value.text ? "0" : undefined }}>
         <Toggle
           checked={value.text !== null}

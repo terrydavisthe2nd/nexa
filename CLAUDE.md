@@ -1469,6 +1469,18 @@ a server's apps `server/pages/AppsSection.tsx`, the consent page `pages/Authoriz
   `components/settings/look/ThemeGallery.tsx` (Android `Presets.cards`, `ThemeModes` in
   `ui/settings/AppearancePage.kt`); a theme with a light version is one card (`presetCards`, `ModeCard`)
   that keeps the light or dark mode being worn.
+- The theme builder (`components/settings/look/ThemeBuilder.tsx`, Android `ui/settings/ThemeBuilder.kt`)
+  has Simple, Advanced and Tune tabs, undo and redo (changes within 600 ms are one step; web Ctrl+Z
+  outside text boxes) and Compare, held to show the saved theme (or the start of a new one). Beside the
+  tools from 760 px of builder width, above them below that, `ThemePreview.tsx` (Android `MiniApp`) is a
+  small Nexa whose every part names its token (`data-token`), so pressing it opens that colour in
+  Advanced (`focus`, scrolled to and lit); Preview As shows that preview through a colour-vision
+  simulation only, and `PaletteStrip` is the keyboard and TalkBack route to every colour. The palette
+  tools (Tune's `tunePalette`, `visionPalette`, `accentIdeas`, `backgroundIdeas`, `surprise`,
+  `withPalette`) are `lib/look/tools.ts` and Android `ui/theme/look/ThemeTools.kt`. Nothing they make
+  is stored as such: results become hand-set overrides, so the saved theme format did not change and
+  older apps read every theme. While the builder is open the Appearance page is as wide as the profile
+  designer (`data-wide-page`, `.content:has(...)` in `Settings.module.css`).
 - Seasonal themes (`lib/look/seasonal.ts` `SEASONS`, kept equal to Android's
   `ui/theme/look/Seasonal.kt`; `look_vectors.ts` checks the palettes) run through `deriveTheme` over a
   span of days in the device's calendar. The gallery offers them only in season (`seasonCards`, a season
@@ -1583,6 +1595,8 @@ cargo-ndk) for notes.
   `SettingsFrame` in `ui/server/Frame.kt`); from 1100 dp (`Nav.roomy`) the member list can stay too
   (`Nav.toggleMembers`, `Nav.membersPinned`). A slow drag settles to its side past 40%, as on the web
   (`AppShell.tsx`).
+- `NxSlider` marks itself `noSwipeWhileTouched` (`ui/server/Frame.kt`), and both settings frames'
+  swipe back check `NoSwipe.active`, so dragging a slider towards the back edge moves the slider.
 - Shared pieces: `openSheet` (`over`, `heading` with `SheetTitle`; an empty footer takes no room),
   `Modifier.floatAbove(gap)` in `components/Controls.kt` (hangs a list over what it sits on),
   `SQUARE_AVATAR`, `TickBox`, `RadioCard(tick = true)`.

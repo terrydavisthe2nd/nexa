@@ -577,7 +577,7 @@ private fun PageView(
                             total += ch.positionChange()
                             if (!taken) {
                                 if (abs(total.x) < 14 * density && abs(total.y) < 14 * density) continue
-                                if (total.x * dir > 0 && abs(total.x) >= 1.4f * abs(total.y)) taken = true else return@awaitEachGesture
+                                if (total.x * dir > 0 && abs(total.x) >= 1.4f * abs(total.y) && !fish.nexa.ui.server.NoSwipe.active) taken = true else return@awaitEachGesture
                             }
                             ch.consume()
                             val dx = (total.x * dir).coerceAtLeast(0f)

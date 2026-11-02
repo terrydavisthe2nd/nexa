@@ -1,5 +1,5 @@
 /* Appearance, the theme builder, Custom CSS and Plugins. Everything here is
-   drawn in the current theme's tokens, except a miniature or a specimen,
+   drawn in the current theme's tokens, except a miniature or the builder's preview,
    which carries the tokens of the theme it shows on its own element. */
 
 .lead { margin: -8px 0 4px; font-size: 14px; line-height: 1.45; color: var(--text-muted); text-wrap: pretty; }
@@ -89,14 +89,7 @@
 .backBtn { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding-inline: 4px 10px; margin-inline-start: -4px; border-radius: var(--radius-xs); font-size: 14px; font-weight: 600; color: var(--text-muted); }
 .backBtn:hover { color: var(--text); background: var(--bg-hover); }
 .backBtn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-.builderHead { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin-bottom: 16px; }
-.builderHead > :first-child { flex: 1 1 240px; min-width: 0; }
-.builder { display: grid; grid-template-columns: minmax(0, 1fr) 272px; gap: 20px; align-items: start; }
-.builderSide { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 10px; }
-@media (max-width: 1100px) {
-  .builder { grid-template-columns: minmax(0, 1fr); }
-  .builderSide { position: static; order: -1; }
-}
+
 .tabs { display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--radius-sm); background: var(--bg-input); }
 .tab { min-height: 32px; padding: 0 14px; border-radius: 6px; font-size: 14px; font-weight: 600; color: var(--text-muted); }
 .tab:hover { color: var(--text); }
@@ -175,45 +168,7 @@
 .builderFoot { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
 .builderFoot > .push { margin-inline-start: auto; }
 
-/* --- the specimen: a slice of a conversation in the theme being made --- */
-.spec { border-radius: var(--radius-md); overflow: hidden; background: var(--bg-raised); color: var(--text); box-shadow: 0 0 0 1px var(--border-subtle); font-size: 13px; }
-.specHead { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border-subtle); font-weight: 600; color: var(--text-strong); }
-.specHead svg { color: var(--icon); }
-.specBody { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; }
-.specMsg { display: flex; gap: 10px; padding: 6px 12px; }
 /* drawn as a message that mentions you is (Chat.module.css) */
-.specMsg[data-mention] { background: color-mix(in srgb, var(--brand) 9%, transparent); box-shadow: inset 2px 0 0 var(--focus-ring); }
-[dir="rtl"] .specMsg[data-mention] { box-shadow: inset -2px 0 0 var(--focus-ring); }
-.specMsg[data-hover] { background: var(--bg-message-hover); }
-.specAvatar { flex: none; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: var(--brand); color: var(--on-brand); }
-.specAvatar[data-alt] { background: var(--positive); color: var(--on-positive); }
-.specLine { min-width: 0; line-height: 1.4; }
-.specName { font-weight: 600; color: var(--text-strong); margin-inline-end: 6px; }
-.specTime { font-size: 11px; color: var(--text-muted); }
-.specPill { padding: 0 2px; border-radius: 3px; background: var(--mention-bg); color: var(--mention-fg); font-weight: 500; unicode-bidi: plaintext; }
-.specLink { color: var(--link); text-decoration: underline; }
-.specCode { padding: 1px 4px; border-radius: 4px; background: var(--code-bg); border: 1px solid var(--code-border); font-family: var(--font-mono); font-size: 11.5px; }
-.specBlock { margin: 6px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--code-bg); border: 1px solid var(--code-border); font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
-.specBlock [data-c="keyword"] { color: var(--code-keyword); }
-.specBlock [data-c="string"] { color: var(--code-string); }
-.specBlock [data-c="number"] { color: var(--code-number); }
-.specBlock [data-c="comment"] { color: var(--code-comment); }
-.specBlock [data-c="variable"] { color: var(--code-variable); }
-.specBlock [data-c="title"] { color: var(--code-title); }
-.specBlock [data-c="type"] { color: var(--code-type); }
-.specComposer { margin: 4px 12px 10px; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--bg-composer); color: var(--text-placeholder); }
-.specFoot { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; background: var(--bg-base); border-top: 1px solid var(--border-subtle); }
-.specBtn { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: var(--radius-xs); font-size: 12px; font-weight: 600; }
-.specBtn[data-kind="brand"] { background: var(--brand); color: var(--on-brand); }
-.specBtn[data-kind="plain"] { background: var(--bg-surface); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
-.specBtn[data-kind="danger"] { background: var(--danger); color: var(--on-danger); }
-.specBtn[data-kind="positive"] { background: var(--positive); color: var(--on-positive); }
-.specStatus { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px 10px; background: var(--bg-base); font-size: 12px; }
-.specStatus span { display: inline-flex; align-items: center; gap: 5px; }
-.specStatus i { width: 8px; height: 8px; border-radius: 50%; }
-.specWarn { color: var(--text-warning); }
-.specErr { color: var(--text-danger); }
-.specCaption { margin: 0; font-size: 12px; color: var(--text-muted); }
 
 /* --- Custom CSS and Plugins --- */
 .caution { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 20px; padding: 12px 14px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--warning) 12%, var(--bg-surface)); border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); color: var(--text); font-size: 14px; line-height: 1.5; }

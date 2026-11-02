@@ -33,6 +33,8 @@
    content ran out past its own padding and the room under the last setting never existed. */
 .content { width: 760px; max-width: 100%; padding: 48px 44px 160px; align-self: flex-start; animation: pageIn 260ms var(--ease-out); }
 .content[data-wide] { width: 1120px; }
+/* the theme builder, inside Appearance, is as wide as the profile designer */
+.content:has([data-wide-page]) { width: 1120px; }
 @keyframes pageIn { from { opacity: 0; transform: translateY(6px); } }
 .closeCol { position: sticky; top: 48px; align-self: flex-start; padding-block: 48px 0; padding-inline: 16px 20px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .close { width: 38px; height: 38px; border-radius: 50%; color: var(--text-muted); display: flex; align-items: center; justify-content: center; background: var(--sheen), var(--bg-surface); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border), var(--shadow-low); transition: color var(--transition), transform var(--dur) var(--ease-out), box-shadow var(--transition); }

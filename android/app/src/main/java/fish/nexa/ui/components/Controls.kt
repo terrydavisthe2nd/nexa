@@ -46,6 +46,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
+import fish.nexa.ui.server.noSwipeWhileTouched
 import fish.nexa.ui.settings.keptAboveSaveBar
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.layout.layout
@@ -555,6 +556,8 @@ fun NxSlider(
             .fillMaxWidth()
             .height(32.dp)
             .onSizeChanged { width = it.width.toFloat() }
+            // its sideways drags are its own, not a settings page's swipe back
+            .noSwipeWhileTouched()
             .pointerInputDrag(onDrag = { x -> onChange(at(x)) }, onEnd = { onDone?.invoke() })
             .semantics {
                 if (label != null) contentDescription = label

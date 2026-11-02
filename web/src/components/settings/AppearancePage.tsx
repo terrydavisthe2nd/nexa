@@ -6,7 +6,7 @@ import { Avatar } from "@/components/common/Avatar";
 import { useAuth } from "@/stores/auth";
 import { useSettings } from "@/stores/settings";
 import { readableOn } from "@/lib/color";
-import { newThemeId, themeTokens } from "@/lib/look/customTheme";
+import { MAX_THEME_NAME, newThemeId, themeTokens } from "@/lib/look/customTheme";
 import type { CustomTheme } from "@/lib/look/types";
 import { resolveLook } from "@/lib/theme";
 import { ImportThemeDialog } from "./look/ImportThemeDialog";
@@ -67,7 +67,13 @@ export default function AppearancePage() {
   if (editing) {
     return (
       <div ref={top}>
-        <ThemeBuilder key={editing.theme.id} initial={editing.theme} isNew={editing.isNew} onClose={() => setEditing(null)} />
+        <ThemeBuilder
+          key={editing.theme.id}
+          initial={editing.theme}
+          isNew={editing.isNew}
+          onClose={() => setEditing(null)}
+          onDuplicate={(from) => setEditing({ theme: { ...from, id: newThemeId(), name: tr_("settings.themeBuilder.copyOf", { name: from.name.trim() || tr_("settings.themeBuilder.untitled") }).slice(0, MAX_THEME_NAME) }, isNew: true })}
+        />
       </div>
     );
   }
