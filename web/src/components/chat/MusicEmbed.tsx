@@ -163,10 +163,18 @@ function TrackRow({ track, index, owner, art, by, onOpen }: { track: MusicTrack;
  */
 function PreviewStrip({ k, length }: { k: string; length: number }) {
   const on = usePreview((p) => p.id === k);
-  const progress = usePreview((p) => (p.id === k ? p.progress : 0));
+  const playing = usePreview((p) => (p.id === k ? p.progress : 0));
   const duration = usePreview((p) => (p.id === k && p.duration > 0 ? p.duration : 0));
+  // while the bar is held it shows where it is held; the song moves there once it is let go,
+  // since seeking on every step played a stutter of snippets
+  const [held, setHeld] = useState<number | null>(null);
+  const progress = held ?? playing;
   const total = duration || length;
   const fill = `${(progress * 100).toFixed(2)}%`;
+  const letGo = () => {
+    if (held !== null) seekPreview(k, held);
+    setHeld(null);
+  };
   return (
     <div className={s.strip} data-on={on || undefined}>
       <span className={s.time}>{formatDuration(Math.floor(progress * total))}</span>
@@ -179,7 +187,16 @@ function PreviewStrip({ k, length }: { k: string; length: number }) {
         value={progress}
         disabled={!on}
         style={{ "--fill": fill } as CSSProperties}
-        onChange={(ev) => seekPreview(k, Number(ev.target.value))}
+        onPointerDown={() => setHeld(playing)}
+        onChange={(ev) => {
+          const v = Number(ev.target.value);
+          // a pointer holding the bar waits for its release; keys move the song at once
+          if (held !== null) setHeld(v);
+          else seekPreview(k, v);
+        }}
+        onPointerUp={letGo}
+        onPointerCancel={letGo}
+        onLostPointerCapture={letGo}
         aria-label={t("chat.embeds.music.seek")}
         aria-valuetext={`${formatDuration(Math.floor(progress * total))} / ${formatDuration(total)}`}
         data-testid="music-seek"

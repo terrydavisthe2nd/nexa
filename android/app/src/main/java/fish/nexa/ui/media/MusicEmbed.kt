@@ -249,7 +249,10 @@ fun MusicEmbed(e: Unfurl, m: MusicCard) {
 private fun PreviewStrip(key: String, site: Color, length: Float) {
     val c = Nx.colors
     val on = SongPreviews.playingId == key
-    val progress = if (on) SongPreviews.progress else 0f
+    // while the bar is held it shows where it is held; the song moves there once it is let go,
+    // since seeking on every step played a stutter of snippets
+    var held by remember { mutableStateOf<Float?>(null) }
+    val progress = held ?: if (on) SongPreviews.progress else 0f
     val total = if (on && SongPreviews.duration > 0f) SongPreviews.duration else length
     val time = Nx.type.hint.copy(fontSize = Nx.type.sp(12f), fontFeatureSettings = "tnum")
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -263,9 +266,13 @@ private fun PreviewStrip(key: String, site: Color, length: Float) {
                 .onSizeChanged { width = it.width.toFloat() }
                 .pointerInput(on) { if (on) detectTapGestures { pos -> SongPreviews.seek(key, at(pos.x)) } }
                 .pointerInput(on) {
-                    if (on) detectHorizontalDragGestures { change, _ ->
+                    if (on) detectHorizontalDragGestures(
+                        onDragStart = { pos -> held = at(pos.x) },
+                        onDragEnd = { held?.let { SongPreviews.seek(key, it) }; held = null },
+                        onDragCancel = { held = null },
+                    ) { change, _ ->
                         change.consume()
-                        SongPreviews.seek(key, at(change.position.x))
+                        held = at(change.position.x)
                     }
                 }
                 .semantics {

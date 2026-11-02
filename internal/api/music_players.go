@@ -54,13 +54,25 @@ var soundcloudSite = &frameSite{
 		return soundcloudTelemetry.MatchString(path)
 	},
 	shimHosts: `soundcloud\.com|sndcdn\.com|soundcloud\.cloud`,
+	shimExtra: soundcloudSafariShim,
 }
+
+// soundcloudSafariShim hides Media Source from SoundCloud's widget in Safari.
+// The widget streams through a MediaSource blob address, and Safari will not
+// load a blob in a sandboxed frame without an origin of its own (which keeps
+// the widget away from Nexa's), so nothing played. Without Media Source the
+// widget hands the stream's playlist to Safari's own HLS player instead.
+const soundcloudSafariShim = `
+if(/Apple/.test(navigator.vendor||"")&&document.createElement("audio").canPlayType("application/vnd.apple.mpegurl")){
+  ["MediaSource","ManagedMediaSource","WebKitMediaSource"].forEach(function(k){try{Object.defineProperty(window,k,{value:undefined,configurable:true,writable:true})}catch(e){}});
+}
+`
 
 var soundcloudTelemetry = regexp.MustCompile(`^/(event-logging|events?|telemetry|me/play-history|audio-ads|promoted|ads|stats)\b`)
 
 var (
-	spotifyKinds    = map[string]bool{"track": true, "album": true, "playlist": true, "artist": true, "episode": true, "show": true}
-	soundcloudIDRe  = regexp.MustCompile(`^\d{1,15}$`)
+	spotifyKinds   = map[string]bool{"track": true, "album": true, "playlist": true, "artist": true, "episode": true, "show": true}
+	soundcloudIDRe = regexp.MustCompile(`^\d{1,15}$`)
 )
 
 func (s *Server) musicPlayerRoutes(mux *http.ServeMux) {

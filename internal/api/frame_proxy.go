@@ -72,6 +72,9 @@ type frameSite struct {
 	// shimHosts is a JavaScript pattern of the hosts' domains, for the
 	// addresses the shim finds written in markup the player builds.
 	shimHosts string
+	// shimExtra runs in the player's page after the shim, for what one
+	// player needs of its own.
+	shimExtra string
 	// pageReferer, when set, is sent as the embed page's Referer instead of
 	// Nexa's own origin (YouTube refuses a player that names no embedder;
 	// the others are told nothing of who embeds them).
@@ -426,7 +429,7 @@ func (fs *frameSite) rewriteCSS(raw []byte, prefix string, base *url.URL) []byte
 // injectShim puts the shim before anything else on the page runs.
 func (fs *frameSite) injectShim(page []byte, prefix, embedder string) []byte {
 	cfg, _ := json.Marshal(map[string]string{"prefix": prefix, "home": fs.home, "embedder": embedder, "hosts": fs.shimHosts})
-	tag := []byte("<script>(function(C){" + frameShim + "})(" + string(cfg) + ");</script>")
+	tag := []byte("<script>(function(C){" + frameShim + fs.shimExtra + "})(" + string(cfg) + ");</script>")
 	if loc := frameHeadRe.FindIndex(page); loc != nil {
 		return append(append(append([]byte{}, page[:loc[1]]...), tag...), page[loc[1]:]...)
 	}
