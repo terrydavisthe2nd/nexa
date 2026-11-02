@@ -104,8 +104,9 @@ built-in ones. If an extra seems worth having, suggest it instead of shipping it
    `GOBIN=$HOME/.local/bin go install github.com/zricethezav/gitleaks/v8@v8.30.1` rather than skipping
    the scan (`docs/REPOSITORY.md` has the workflow).
 4. After a round of app changes, leave a throwaway server running the new build and give the owner its
-   address. WebCrypto needs https or localhost, so from another machine it is reached through an SSH
-   tunnel to localhost, not the LAN address. Do not deploy until they say "deploy".
+   address, with accounts to sign in with. WebCrypto needs https or localhost, so from another machine
+   it is reached through an SSH tunnel to localhost, not the LAN address, or through the dev instance
+   (Testing, The dev instance) when the owner asks for it. Do not deploy until they say "deploy".
 
 ## Every major feature gets a What's New entry
 
@@ -224,6 +225,35 @@ tools/.venv/bin/python tools/seed.py http://127.0.0.1:$PORT
 #general bob joins, posts one message of every kind of formatting and prints the ids. Registration is
 open by default, the first account becomes the owner (staff rank Developer, the oldest), and captchas,
 SFU calls, GIF search and the other keyed services stay off without their keys.
+
+### The dev instance (dev.nexa.fish)
+
+When the owner asks for the dev site, run the new build at https://dev.nexa.fish: the tunnel sends it to
+127.0.0.1:6969. `make run-dev` builds the web app into `web/dist-dev` and the server into
+`bin/chatd_dev` (never `web/dist` or `bin/chatd`, so nothing live changes) and starts it from the
+repository root against its own database, `DATA_DIR=./data-dev` (this is the one sanctioned exception to
+never starting chatd from the root: it reads `chatd.env` but never `./data`). It runs in the foreground,
+so start it in the background; stop it with `pkill -f bin/chatd_dev`.
+
+- `chatd.env`'s real hCaptcha keys fail there (dev.nexa.fish is not on the site key's allowed domains),
+  so every captcha says "The captcha check failed". Run it with hCaptcha's test keys in the environment,
+  which win over `chatd.env` and never show a challenge:
+
+  ```
+  make web-dev server-dev
+  HCAPTCHA_SITE_KEY=10000000-ffff-ffff-ffff-000000000001 \
+    HCAPTCHA_SECRET_KEY=0x0000000000000000000000000000000000000000 \
+    LISTEN=127.0.0.1:6969 PUBLIC_URL=https://dev.nexa.fish DATA_DIR=./data-dev \
+    WEB_DIST=./web/dist-dev ./bin/chatd_dev -env chatd.env      # in the background
+  ```
+
+- `data-dev` keeps its accounts between runs and is not the throwaway server's database: alice and bob
+  exist there only once seeded. Before handing it over, check (`sqlite3 data-dev/chat.db "select username
+  from users"`) and seed what is missing through localhost, `tools/.venv/bin/python tools/seed.py
+  http://127.0.0.1:6969` (it registers alice and bob, so it fails if they already exist), then give the
+  owner the address and the logins (password `correct horse battery staple`).
+- It still has `chatd.env`'s other live keys (Realtime calls, Discord sync, GIFs, Stripe), so what it does
+  with them is real; test on a throwaway server instead when that matters.
 
 ### Web in a headless browser
 
