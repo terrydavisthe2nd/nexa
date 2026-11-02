@@ -61,6 +61,7 @@ func withCaptcha(t *testing.T, ts *httptest.Server, method, path, token, captcha
 }
 
 func TestCaptchaGuardsAbusableActions(t *testing.T) {
+	serial(t)
 	srv, ts := newTestServer(t)
 	tokA, _ := register(t, ts, "alice") // before captchas are on
 	srv.Cfg.TurnstileSiteKey = "site-key"
@@ -141,6 +142,7 @@ func TestCaptchaGuardsAbusableActions(t *testing.T) {
 }
 
 func TestCaptchaTestKeysStillWork(t *testing.T) {
+	serial(t)
 	srv, ts := newTestServer(t)
 	srv.Cfg.TurnstileSiteKey = "1x00000000000000000000AA"
 	srv.Cfg.TurnstileSecretKey = "test-secret"
@@ -154,6 +156,7 @@ func TestCaptchaTestKeysStillWork(t *testing.T) {
 }
 
 func TestCaptchaUnreachableIsNotAPass(t *testing.T) {
+	serial(t)
 	srv, ts := newTestServer(t)
 	srv.Cfg.TurnstileSiteKey = "site-key"
 	srv.Cfg.TurnstileSecretKey = "secret-key"
@@ -168,6 +171,7 @@ func TestCaptchaUnreachableIsNotAPass(t *testing.T) {
 // What a stolen session would be used for, and the abusable writes of a
 // signed-in account, each want a captcha made for them.
 func TestCaptchaGuardsAccountChanges(t *testing.T) {
+	serial(t)
 	srv, ts := newTestServer(t)
 	tokA, _ := register(t, ts, "alice") // before captchas are on
 	_, bobID := register(t, ts, "bob")
@@ -215,6 +219,7 @@ func TestCaptchaGuardsAccountChanges(t *testing.T) {
 // Every other check of a password, and what puts something in front of
 // everyone on Nexa, ask for a captcha too; what was already public does not.
 func TestCaptchaGuardsPublishingAndPasswords(t *testing.T) {
+	serial(t)
 	srv, ts := newTestServer(t)
 	tokA, _ := register(t, ts, "alice") // before captchas are on
 	view := createServer(t, ts, tokA, "Spam Club")
@@ -285,6 +290,7 @@ func hcaptchaStandIn(t *testing.T, secret string) func() {
 // Apps from before Turnstile came back send unmarked hCaptcha tokens and read
 // only "captcha"; current apps mark Turnstile tokens and read "turnstile".
 func TestHCaptchaFallbackForOlderApps(t *testing.T) {
+	serial(t)
 	srv, ts := newTestServer(t)
 	register(t, ts, "alice")
 	srv.Cfg.PublicURL = "https://chat.example"

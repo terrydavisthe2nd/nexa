@@ -92,6 +92,7 @@ func TestAbuseLimits(t *testing.T) {
 // Past the free allowance a captcha buys a batch more, and the captchas
 // themselves run out; with captchas off the free allowance is all there is.
 func TestStepUpLimits(t *testing.T) {
+	serial(t)
 	srv, ts := newTestServer(t)
 	tok, _ := register(t, ts, "alice")
 	view := createServer(t, ts, tok, "Home")

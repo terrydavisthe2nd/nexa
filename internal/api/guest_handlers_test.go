@@ -286,6 +286,7 @@ func TestGuestLinksInAServer(t *testing.T) {
 }
 
 func TestGuestLinkJoinNeedsCaptchaAndLimits(t *testing.T) {
+	serial(t)
 	srv, ts := newTestServer(t)
 	srv.Cfg.GuestLinksP2P = true
 	srv.Meter = realtime.NewMeter(srv.Store, 1000)

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,8 +28,45 @@ import (
 	"evilion.xyz/chat/internal/store"
 )
 
+// The api tests run in parallel: each has its own server and database. A
+// test that changes package-level settings (a stand-in's address, a grace
+// period) calls serial first, which waits for the parallel ones and runs alone.
+var (
+	globalsMu   sync.RWMutex
+	serialTests sync.Map
+	parallelOn  sync.Map
+)
+
+// serial marks a test that changes package-level settings: it runs alone.
+func serial(t *testing.T) {
+	t.Helper()
+	if _, done := serialTests.LoadOrStore(t.Name(), true); done {
+		return
+	}
+	globalsMu.Lock()
+	t.Cleanup(globalsMu.Unlock)
+}
+
+// parallel lets a top-level test run beside the others, holding off any
+// serial test until it ends. Subtests keep their parent's order.
+func parallel(t *testing.T) {
+	if strings.Contains(t.Name(), "/") {
+		return
+	}
+	if _, ok := serialTests.Load(t.Name()); ok {
+		return
+	}
+	if _, done := parallelOn.LoadOrStore(t.Name(), true); done {
+		return
+	}
+	t.Parallel()
+	globalsMu.RLock()
+	t.Cleanup(globalsMu.RUnlock)
+}
+
 func newTestServer(t *testing.T) (*Server, *httptest.Server) {
 	t.Helper()
+	parallel(t)
 	dir := t.TempDir()
 	d, err := openTestDB(t, dir)
 	if err != nil {

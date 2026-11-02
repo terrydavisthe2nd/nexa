@@ -79,6 +79,17 @@ the route by itself (see Android, Releases).
 Build the literal request. "Custom" packs or themes mean letting people make their own, not adding
 built-in ones. If an extra seems worth having, suggest it instead of shipping it.
 
+### Tests earn their place
+
+The owner's rule (2026-11-01): keep a test in the suite only when what it guards is easy to break and
+costly when it breaks: crypto and keys, sign-in and sessions, permissions and moderation gates, rate
+limits and captchas, privacy (what is sent, stored or shown), migrations and data loss, parsers and
+formats another client must match (the vectors), and a bug that already happened. Do not commit tests
+for static rendering, copy, layout, trivial helpers or what the type checker already holds; check
+those once while working (a scratch test, a screenshot) and leave them out of the suite. Keep each
+kept test small and quick: a few hard cases, not a grid of every combination. Adding a test is a
+choice to justify, not a step every change takes.
+
 ### When the work is done
 
 1. Run the checks (`tools/check.sh` covers most) and the web and Android testing above, and update this
@@ -1127,7 +1138,9 @@ payments (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_API_URL` for a f
 ### Go tests
 
 - `internal/api`: `newTestServer(t)` (`testutil_test.go`) is a real `httptest` server with the gateway
-  wired in, on a fresh database (SQLite, or a Postgres schema with `CHAT_TEST_POSTGRES`).
+  wired in, on a fresh database (SQLite, or a Postgres schema with `CHAT_TEST_POSTGRES`). Top-level tests that
+  call it run in parallel; a test that changes a package-level setting (a stand-in's address, a grace
+  period) calls `serial(t)` first, which waits for the others and runs it alone.
   `register(t, ts, username)` (`auth_handlers_test.go`) returns a token and id;
   `do(t, ts, method, path, token, body)` makes a JSON request; `errCode` reads an error;
   `connectGWReady` / `connectGW` open a gateway socket and `gw.next(event, timeout)` waits for an event.

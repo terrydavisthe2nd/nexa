@@ -22,8 +22,8 @@ describe("a theme from a few colours", () => {
   const schemes: Scheme[] = ["dark", "light"];
 
   it("reads everywhere, whatever the background and accent", { timeout: 60_000 }, () => {
-    const backgrounds = [...AWKWARD, ...colours(7, 24)];
-    const accents = [...AWKWARD.slice(0, 10), ...colours(11, 6)];
+    const backgrounds = [...AWKWARD, ...colours(7, 4)];
+    const accents = [...AWKWARD.slice(0, 6), ...colours(11, 2)];
     for (const scheme of schemes) {
       for (const background of backgrounds) {
         for (const accent of accents) {
@@ -36,8 +36,8 @@ describe("a theme from a few colours", () => {
 
   it("reads everywhere with a text colour of the person's own, however close to the background", { timeout: 60_000 }, () => {
     for (const scheme of schemes) {
-      for (const background of [...AWKWARD, ...colours(3, 10)]) {
-        for (const text of [...AWKWARD, ...colours(5, 6)]) {
+      for (const background of [...AWKWARD.slice(0, 8), ...colours(3, 2)]) {
+        for (const text of [...AWKWARD.slice(0, 8), ...colours(5, 2)]) {
           const d = deriveTheme({ background, accent: "#8000ff", text, scheme });
           expect(contrastIssues(d.tokens), `${scheme} ${background} text ${text}`).toEqual([]);
         }
@@ -101,7 +101,7 @@ describe("a theme from a few colours", () => {
 
 describe("backgrounds and schemes", () => {
   it("moves a background into its scheme's range and no further", () => {
-    for (const bg of [...AWKWARD, ...colours(9, 30)]) {
+    for (const bg of [...AWKWARD, ...colours(9, 6)]) {
       for (const scheme of ["dark", "light"] as const) {
         const y = luminance(fitBackground(bg, scheme));
         const [lo, hi] = BACKGROUND_RANGE[scheme];

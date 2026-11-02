@@ -373,6 +373,7 @@ func TestSFUIceRestart(t *testing.T) {
 }
 
 func TestCallSurvivesAGatewayReconnect(t *testing.T) {
+	serial(t)
 	srv, ts := newTestServer(t)
 	rt, cf := newRealtimeStandIn(t)
 	srv.Realtime = realtime.New("app", "secret")

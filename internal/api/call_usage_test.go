@@ -157,6 +157,7 @@ func TestPollRealtimeNamesWhoUsedWhat(t *testing.T) {
 // A session Cloudflare says has lost its connection stops being charged at
 // once; one whose closing never succeeds stops once the retries run out.
 func TestSFURetirementNeverChargesForever(t *testing.T) {
+	serial(t)
 	srv, _ := newTestServer(t)
 	gone := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusGone)
