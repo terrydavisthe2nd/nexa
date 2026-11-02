@@ -575,6 +575,7 @@ class Session(private val nx: Nexa) {
     fun reset() {
         stop()
         ThreadLast.clear()
+        fish.nexa.ui.markdown.LinkedChannels.clear()
         Invites.clear()
         nx.messages.clear()
         nx.users.clear()

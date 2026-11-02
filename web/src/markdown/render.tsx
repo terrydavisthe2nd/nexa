@@ -10,6 +10,7 @@ import { jumpTarget } from "@/lib/appLinks";
 import { channelDisplayName } from "@/lib/names";
 import { useAuth } from "@/stores/auth";
 import type { Channel } from "@/api/types";
+import { channels as channelsApi } from "@/api/channels";
 import { MentionGlyph } from "@/components/common/ChannelGlyph";
 import { ensureShortcodes, mightHaveShortcode, onShortcodesReady, shortcodeVersion, shortcodesReady } from "@/lib/shortcodes";
 import { formatStamp, type StampStyle } from "@/lib/time";
@@ -276,29 +277,10 @@ function renderNode(node: Node, ctx: RenderCtx, jumbo: boolean): ReactNode {
     case "codeblock":
       return <CodeBlock lang={node.lang} text={node.text} />;
     case "link": {
-      // an invite pasted as it is reads without its key, which is most of its length; the link keeps it
-      // a bare link to a channel or message this device knows reads as a pill, as a channel mention does
+      // a bare link to a channel or message this account can see reads as a pill, as a channel mention does
       const jump = node.masked ? null : jumpTarget(node.url);
-      if (jump && ctx.channels[jump.channelId]) return <JumpLink url={node.url} channelId={jump.channelId} messageId={jump.messageId} ctx={ctx} />;
-      const invite = node.masked ? null : shownInvite(node.url);
-      const words = invite ?? <RenderNodes nodes={node.children} ctx={ctx} jumbo={jumbo} />;
-      if (ctx.inert) return <span className="md-link">{words}</span>;
-      // A masked link says where it really goes, after its words, unless they
-      // already name that site: the tooltip that did so shows on no phone.
-      const host = node.masked ? linkHost(node.url) : null;
-      const shows = host && !plainText(node.children).toLowerCase().replace(/\bwww\./g, "").includes(host);
-      return (
-        <a
-          href={node.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="md-link"
-          title={node.masked ? node.url : undefined}
-        >
-          {words}
-          {shows ? <span className="md-link-host" dir="ltr">{host}</span> : null}
-        </a>
-      );
+      if (jump) return <JumpLink url={node.url} channelId={jump.channelId} messageId={jump.messageId} ctx={ctx} fallback={<PlainLink node={node} ctx={ctx} jumbo={jumbo} />} />;
+      return <PlainLink node={node} ctx={ctx} jumbo={jumbo} />;
     }
     case "mention":
       switch (node.kind) {
@@ -602,15 +584,62 @@ function ChannelMention(props: { id: string; ctx: RenderCtx }): JSX.Element {
   );
 }
 
+function PlainLink({ node, ctx, jumbo }: { node: Extract<Node, { type: "link" }>; ctx: RenderCtx; jumbo?: boolean }): JSX.Element {
+  // an invite pasted as it is reads without its key, which is most of its length; the link keeps it
+  const invite = node.masked ? null : shownInvite(node.url);
+  const words = invite ?? <RenderNodes nodes={node.children} ctx={ctx} jumbo={jumbo} />;
+  if (ctx.inert) return <span className="md-link">{words}</span>;
+  // A masked link says where it really goes, after its words, unless they
+  // already name that site: the tooltip that did so shows on no phone.
+  const host = node.masked ? linkHost(node.url) : null;
+  const shows = host && !plainText(node.children).toLowerCase().replace(/\bwww\./g, "").includes(host);
+  return (
+    <a
+      href={node.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="md-link"
+      title={node.masked ? node.url : undefined}
+    >
+      {words}
+      {shows ? <span className="md-link-host" dir="ltr">{host}</span> : null}
+    </a>
+  );
+}
+
+// Channels a link names that this device has not loaded (an archived thread, say), asked of the
+// server once each; it answers only for one this account can see. null: not one of ours.
+const linkedChannels = new Map<string, Channel | null | Promise<void>>();
+
+function useLinkedChannel(id: string | null): Channel | null {
+  const [, redraw] = useState(0);
+  const got = id ? linkedChannels.get(id) : undefined;
+  useEffect(() => {
+    if (!id) return;
+    let live = true;
+    let p = linkedChannels.get(id);
+    if (p === undefined) {
+      p = channelsApi.get(id).then((c) => void linkedChannels.set(id, c), () => void linkedChannels.set(id, null));
+      linkedChannels.set(id, p);
+    }
+    if (p instanceof Promise) void p.then(() => live && redraw((n) => n + 1));
+    return () => { live = false; };
+  }, [id]);
+  return got && !(got instanceof Promise) ? got : null;
+}
+
 /**
  * A link to a channel or a message in this app, drawn as a mention: the
  * channel's name (a direct message's person or group), then for a message a
  * small caret and a speech bubble. Still an anchor, so AppLinks opens it in
  * the app, jumps to the message, and a middle click opens a new tab.
  */
-function JumpLink(props: { url: string; channelId: string; messageId: string | null; ctx: RenderCtx }): JSX.Element {
+function JumpLink(props: { url: string; channelId: string; messageId: string | null; ctx: RenderCtx; fallback: ReactNode }): JSX.Element {
   const meId = useAuth((s) => s.me?.id);
-  const channel = props.ctx.channels[props.channelId] as Channel;
+  const known = props.ctx.channels[props.channelId] as Channel | undefined;
+  const fetched = useLinkedChannel(known ? null : props.channelId);
+  const channel = known ?? fetched;
+  if (!channel) return <>{props.fallback}</>;
   const dm = channel.type === "dm" || channel.type === "group_dm";
   const name = dm ? channelDisplayName(channel, props.ctx.users as Parameters<typeof channelDisplayName>[1], meId) : channel.name;
   const label = props.messageId ? t("render.jumpToMessage", { name }) : t("render.jumpToChannel", { name });

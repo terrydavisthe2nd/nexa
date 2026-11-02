@@ -1007,10 +1007,13 @@ as Discord holds it:
 ### Messages: forwarding and voice messages
 
 - A bare link to a channel or message on this instance (`/channels/<server or @me>/<channel>[/<message>]`,
-  no query or fragment) whose channel this device knows is drawn as a mention-style pill, as Fluxer
+  no query or fragment) to a channel this account can see is drawn as a mention-style pill, as Fluxer
   does: the channel's glyph and name (a DM's person, a group's name), then for a message a caret and a
   speech bubble (web `jumpTarget` in `lib/appLinks.ts` and `JumpLink` in `markdown/render.tsx`; Android
-  `AppLinks.jumpTarget` and `jumpLink` in `ui/markdown/Render.kt`). It opens as any app link does. No
+  `AppLinks.jumpTarget` and `jumpLink` in `ui/markdown/Render.kt`). A channel not in the stores (an
+  archived thread) is asked of `GET /channels/{id}` once (web `linkedChannels` in `render.tsx`,
+  Android `ui/markdown/LinkedChannels`, cleared on session reset); until it answers, or if it refuses,
+  the link stays a plain link. It opens as any app link does. No
   preview is fetched for these links, and previews older apps sent for them are not drawn.
 
 - Forwarding goes to one conversation or channel at a time (`body.forward` on send; web

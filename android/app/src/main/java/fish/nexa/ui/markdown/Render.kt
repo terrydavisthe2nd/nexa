@@ -380,9 +380,9 @@ private class Builder(
     }
 
     private fun AnnotatedString.Builder.link(n: Node.Link, sp: Int, covered: Boolean) {
-        // a bare link to a channel or message this device knows reads as a pill, as a channel mention does
+        // a bare link to a channel or message this account can see reads as a pill, as a channel mention does
         val jump = if (n.masked) null else AppLinks.jumpTarget(n.url, Nexa.api.baseUrl)
-        val jumpChannel = jump?.let { Nexa.channels.get(it.first) }
+        val jumpChannel = jump?.let { LinkedChannels.get(it.first) }
         if (jump != null && jumpChannel != null) return jumpLink(n.url, jumpChannel, jump.second != null, covered)
         val invite = if (n.masked) null else AppLinks.shownInvite(n.url, Nexa.api.baseUrl)
         val style = SpanStyle(color = if (covered) Color.Transparent else colors.link, textDecoration = if (underlineLinks) TextDecoration.Underline else null)
@@ -553,10 +553,11 @@ private fun InlineText(
     val underline = Nexa.settings.underlineLinks
     val users by Nexa.users.byId.collectAsState()
     val me by Nexa.users.me.collectAsState()
+    val linked by LinkedChannels.found.collectAsState()
     val measurer = rememberTextMeasurer()
     val nameDensity = LocalDensity.current
     val mentionStyle = style.copy(fontWeight = FontWeight(600))
-    val built = remember(nodes, revealed, now, c, edited, ctx, underline, users, me, mentionStyle, measurer, nameDensity, inlineWidth.pixels) {
+    val built = remember(nodes, revealed, now, c, edited, ctx, underline, users, me, linked, mentionStyle, measurer, nameDensity, inlineWidth.pixels) {
         Builder(
             ctx, revealed, { revealed = revealed + it }, jumbo, now, c, underline,
             openUser = { id -> fish.nexa.ui.shell.openProfile(id) },
