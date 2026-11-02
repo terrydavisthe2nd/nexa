@@ -87,6 +87,26 @@ func (s *Server) proxied(res *unfurl.Result) *unfurl.Result {
 	out.Icon = s.ProxyURL(out.Icon)
 	out.Media = s.ProxyURL(out.Media)
 	out.Post = s.proxiedPost(out.Post)
+	out.Music = s.proxiedMusic(out.Music)
+	return &out
+}
+
+// proxiedMusic is a music card with its cover and previews through the proxy.
+// Deezer's previews already come through this server (/media/music/preview).
+func (s *Server) proxiedMusic(m *unfurl.Music) *unfurl.Music {
+	if m == nil {
+		return nil
+	}
+	out := *m
+	out.Art = s.ProxyURL(out.Art)
+	out.Preview = s.ProxyURL(out.Preview)
+	if len(m.Tracks) > 0 {
+		out.Tracks = make([]unfurl.MusicTrack, len(m.Tracks))
+		for i, t := range m.Tracks {
+			t.Preview = s.ProxyURL(t.Preview)
+			out.Tracks[i] = t
+		}
+	}
 	return &out
 }
 

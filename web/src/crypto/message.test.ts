@@ -13,6 +13,7 @@ import {
   brokenLimit,
   typedLength,
   sanitizeAttachment,
+  sanitizeEmbed,
 } from "./message";
 
 const root = newRootKey();
@@ -490,5 +491,46 @@ describe("what a message may hold", () => {
     expect(brokenLimit({ t: 42 })).toBe("text");
     expect(brokenLimit({ sticker: { id: "1", name: "s".repeat(31) } })).toBe("sticker");
     expect(brokenLimit({ poll: { question: "q".repeat(301), answers: [{ text: "a" }, { text: "b" }] } })).toBe("poll");
+  });
+});
+
+describe("a music card in a link's card", () => {
+  it("keeps what the card draws and nothing else", () => {
+    const e = sanitizeEmbed({
+      url: "https://www.deezer.com/album/302127",
+      type: "link",
+      music: {
+        platform: "deezer",
+        kind: "album",
+        id: "302127",
+        title: "Discovery",
+        artist: "Daft Punk",
+        art: "/media/proxy/1-x/aGk",
+        count: 14,
+        year: 2001,
+        evil: "<script>",
+        player: "spotify",
+        tracks: [
+          { title: "One More Time", artist: "Daft Punk", duration: 320, preview: "/media/music/preview/3135553" },
+          { title: "Bad", preview: "javascript:alert(1)" },
+          { nope: true },
+          ...Array.from({ length: 10 }, (_, i) => ({ title: `t${i}` })),
+        ],
+      },
+    });
+    const m = e["music"] as Record<string, unknown>;
+    expect(m["title"]).toBe("Discovery");
+    expect(m["evil"]).toBeUndefined();
+    // a player is only the platform's own
+    expect(m["player"]).toBeUndefined();
+    const tracks = m["tracks"] as Record<string, unknown>[];
+    expect(tracks.length).toBe(4);
+    expect(tracks[0]!["preview"]).toBe("/media/music/preview/3135553");
+    expect(tracks[1]!["preview"]).toBeUndefined();
+  });
+
+  it("drops a card that is not music", () => {
+    expect(sanitizeEmbed({ url: "https://x.example", music: { platform: "napster", kind: "track", id: "1", title: "x" } })["music"]).toBeUndefined();
+    expect(sanitizeEmbed({ url: "https://x.example", music: { platform: "spotify", kind: "track", id: "../../x", title: "x" } })["music"]).toBeUndefined();
   });
 });

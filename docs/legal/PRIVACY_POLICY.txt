@@ -30,8 +30,9 @@ under data protection law, including the GDPR (sections 9 to 11).
   each one gets. Cloudflare carries all traffic to and from Nexa, runs
   the captcha, and relays calls. None of them can read your messages.
 - Links you share are previewed by the server through Cloudflare, so
-  the sites never see your address, and YouTube videos play through
-  the server, so YouTube never learns who is watching.
+  the sites never see your address, and YouTube videos and music from
+  Spotify, Apple Music, Deezer and SoundCloud play through the server,
+  so those services never learn who is watching or listening.
 - No email, no phone number, no real name, no payment details, no
   location, no contacts, no analytics, and no push tokens are ever
   collected. If you buy a plan, you pay on Stripe's page, and Nexa
@@ -325,8 +326,9 @@ drafts live only inside your encrypted settings.
   safety reports.
   For a reported message, staff can read its complete content and files,
   not the rest of the encrypted conversation.
-- Link previews, pictures and videos linked from elsewhere, GIFs, and
-  YouTube videos are fetched by the Nexa server, not by your device,
+- Link previews, pictures and videos linked from elsewhere, GIFs,
+  YouTube videos, and music from Spotify, Apple Music, Deezer and
+  SoundCloud are fetched by the Nexa server, not by your device,
   and the server fetches them through Cloudflare's WARP network. The
   sites see a Cloudflare address, never yours and never the server's,
   and your device never connects to them. A YouTube video plays in
@@ -334,7 +336,11 @@ drafts live only inside your encrypted settings.
   frame that cannot reach anything else in the app: YouTube is told
   the video is shown on the Nexa address you are using, as any site
   that shows one says, and gets your browser's description, but not
-  who is watching, and it gets no cookies. Nothing ties a fetch to who
+  who is watching, and it gets no cookies. Spotify's and SoundCloud's
+  own players load through the server in the same kind of frame and
+  are told nothing about the page they are shown on. Apple Music's and
+  Deezer's thirty-second previews play in Nexa's own player, fetched
+  by the server. Nothing ties a fetch to who
   asked for it, and a preview is kept in memory for at most an hour so
   the same link is not fetched twice. In a chat, a link is only
   previewed when you send it, and you can turn previews off in

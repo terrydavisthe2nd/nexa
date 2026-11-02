@@ -43,6 +43,7 @@ data class Unfurl(
     val username: String? = null,
     val imageLayout: String? = null,
     val post: SocialPost? = null,
+    val music: MusicCard? = null,
 ) {
     companion object {
         private fun JsonObject.s(k: String) = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
@@ -57,6 +58,49 @@ data class Unfurl(
                 media = o.s("media"), mediaKind = o.s("media_kind"), mediaW = o.n("media_w"), mediaH = o.n("media_h"), player = o.s("player"),
                 inviteCode = o.s("invite_code"), memberCount = o.n("member_count")?.toInt(), onlineCount = o.n("online_count")?.toInt(), banner = o.s("banner"),
                 username = o.s("username"), imageLayout = o.s("image_layout"), post = (o["post"] as? JsonObject)?.let { SocialPost.of(it) },
+                music = (o["music"] as? JsonObject)?.let { MusicCard.of(it) },
+            )
+        }
+    }
+}
+
+data class MusicTrack(val title: String, val artist: String?, val duration: Double?, val preview: String?, val explicit: Boolean)
+
+/** A song, album, playlist, artist or episode on a music service (internal/unfurl/music.go), drawn as music. */
+data class MusicCard(
+    val platform: String,
+    val kind: String,
+    val id: String,
+    val title: String,
+    val artist: String?,
+    val album: String?,
+    val art: String?,
+    val duration: Double?,
+    val count: Int?,
+    val year: Int?,
+    val explicit: Boolean,
+    val preview: String?,
+    val tracks: List<MusicTrack>,
+    val player: String?,
+) {
+    companion object {
+        private fun JsonObject.s(k: String) = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
+        private fun JsonObject.n(k: String) = (this[k] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull?.takeIf { it.isFinite() }
+        private fun JsonObject.b(k: String) = (this[k] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull == true
+        private val PLATFORMS = setOf("spotify", "apple", "deezer", "soundcloud")
+        private val KINDS = setOf("track", "album", "playlist", "artist", "episode", "show")
+
+        fun of(o: JsonObject): MusicCard? {
+            val platform = o.s("platform")?.takeIf { it in PLATFORMS } ?: return null
+            val kind = o.s("kind")?.takeIf { it in KINDS } ?: return null
+            val title = o.s("title")?.takeIf { it.isNotEmpty() } ?: return null
+            val tracks = (o["tracks"] as? JsonArray).orEmpty().mapNotNull { t ->
+                val to = t as? JsonObject ?: return@mapNotNull null
+                MusicTrack(to.s("title") ?: return@mapNotNull null, to.s("artist"), to.n("duration"), to.s("preview"), to.b("explicit"))
+            }.take(5)
+            return MusicCard(
+                platform, kind, o.s("id") ?: return null, title, o.s("artist"), o.s("album"), o.s("art"), o.n("duration"), o.n("count")?.toInt(), o.n("year")?.toInt(),
+                o.b("explicit"), o.s("preview"), tracks, o.s("player"),
             )
         }
     }

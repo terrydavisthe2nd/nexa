@@ -12,6 +12,7 @@ import { PostEmbed } from "./PostEmbed";
 import { VideoPlayer } from "./VideoPlayer";
 import { isYouTubeID, YouTubeVideo } from "./YouTubePlayer";
 import c from "./Chat.module.css";
+import { isMusicCard, MusicEmbed } from "./MusicEmbed";
 import s from "./Embeds.module.css";
 import { imageNameFromUrl } from "@/lib/imageActions";
 import { useMediaSrc } from "@/lib/mediaLinks";
@@ -387,6 +388,8 @@ function embedFor(e: UnfurlResult, imagePreviews: boolean): ReactNode {
   if (!e || typeof e !== "object" || typeof e.url !== "string") return null;
   // a social post is drawn as a post; without one of those it is a link like any other
   if (e.post && typeof e.post === "object") return <PostEmbed e={e} />;
+  // so is music, with its cover, tracks and a way to listen
+  if (isMusicCard(e.music)) return <MusicEmbed e={e} m={e.music} />;
   if (e.type === "image" || e.type === "gif") return imagePreviews ? <ImageEmbed e={e} /> : null;
   // played through this server's proxy, so the host of the file never sees who is watching
   if (e.type === "video") return imagePreviews ? <VideoEmbed e={e} /> : null;

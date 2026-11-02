@@ -326,17 +326,22 @@ object SongPreviews {
 
     fun toggle(song: Widgets.Music, by: String) {
         val id = song.id ?: return
+        play(id, "${Nexa.api.baseUrl}/media/music/preview/$id", by)
+    }
+
+    /** Plays any preview, or pauses it (and plays it on) when it is the one playing: a widget's song or a music card's. */
+    fun play(key: String, url: String, by: String) {
         val p = player()
-        if (playingId == id) {
+        if (playingId == key) {
             if (p.isPlaying) p.pause() else p.play()
             return
         }
-        playingId = id
+        playingId = key
         owner = by
         state = "loading"
         progress = 0f
         p.volume = if (muted) 0f else volume
-        p.setMediaItem(MediaItem.fromUri("${Nexa.api.baseUrl}/media/music/preview/$id"))
+        p.setMediaItem(MediaItem.fromUri(url))
         p.prepare()
         p.play()
     }
@@ -348,6 +353,11 @@ object SongPreviews {
             if (p != null && playingId != null && p.duration > 0) progress = (p.currentPosition.toFloat() / p.duration).coerceIn(0f, 1f)
             delay(250)
         }
+    }
+
+    /** Stops whatever preview is playing: a service's own player opening takes over. */
+    fun stopAny() {
+        owner?.let { stop(it) }
     }
 
     fun stop(by: String) {
@@ -845,15 +855,14 @@ private fun SongRow(m: Widgets.Music, index: Int, owner: String) {
 
 /** Three bars that move while a preview plays (still, at two heights, with reduced motion). */
 @Composable
-private fun Equalizer() {
-    val c = Nx.colors
+internal fun Equalizer(color: Color = Nx.colors.textBrand) {
     val reduced = Nx.motion.reduced
     val transition = rememberInfiniteTransition(label = "eq")
     Row(Modifier.width(13.dp).height(12.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
         for ((i, ms) in listOf(820, 640, 940).withIndex()) {
             val h by transition.animateFloat(0.3f, 1f, infiniteRepeatable(tween(ms), RepeatMode.Reverse), label = "bar")
             val shown = if (reduced) listOf(0.55f, 1f, 0.75f)[i] else h
-            Box(Modifier.width(3.dp).fillMaxHeight(shown).background(c.textBrand, RoundedCornerShape(1.dp)))
+            Box(Modifier.width(3.dp).fillMaxHeight(shown).background(color, RoundedCornerShape(1.dp)))
         }
     }
 }

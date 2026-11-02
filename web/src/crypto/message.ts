@@ -252,6 +252,54 @@ export function sanitizeEmbed(e: Obj): Obj {
   }
   const post = sanitizePost(e["post"], false);
   if (post) out["post"] = post;
+  const music = sanitizeMusic(e["music"]);
+  if (music) out["music"] = music;
+  return out;
+}
+
+// A music card (internal/unfurl/music.go), held to the same rule: listed
+// fields only, its sounds and cover web addresses, everything with a length.
+const MUSIC_PLATFORMS = ["spotify", "apple", "deezer", "soundcloud"];
+const MUSIC_KINDS = ["track", "album", "playlist", "artist", "episode", "show"];
+const MUSIC_PLAYERS = ["spotify", "soundcloud"];
+const MAX_MUSIC_TRACKS = 5;
+
+function sanitizeMusicTrack(x: unknown): Obj | undefined {
+  if (!isObj(x) || typeof x["title"] !== "string" || !x["title"]) return undefined;
+  const out: Obj = { title: cap(x["title"], 256) };
+  if (typeof x["artist"] === "string" && x["artist"]) out["artist"] = cap(x["artist"], 256);
+  const d = x["duration"];
+  if (isNum(d) && d > 0 && d <= 360000) out["duration"] = Math.floor(d);
+  const preview = address(x["preview"]);
+  if (preview) out["preview"] = preview;
+  if (x["explicit"] === true) out["explicit"] = true;
+  return out;
+}
+
+function sanitizeMusic(x: unknown): Obj | undefined {
+  if (!isObj(x)) return undefined;
+  const { platform, kind, id, title } = x;
+  if (typeof platform !== "string" || !MUSIC_PLATFORMS.includes(platform) || typeof kind !== "string" || !MUSIC_KINDS.includes(kind)) return undefined;
+  if (typeof id !== "string" || !/^[A-Za-z0-9.-]{1,64}$/.test(id) || typeof title !== "string" || !title) return undefined;
+  const out: Obj = { platform, kind, id, title: cap(title, 256) };
+  for (const k of ["artist", "album"]) {
+    const v = x[k];
+    if (typeof v === "string" && v) out[k] = cap(v, 256);
+  }
+  const art = address(x["art"]);
+  if (art) out["art"] = art;
+  const preview = address(x["preview"]);
+  if (preview) out["preview"] = preview;
+  for (const [k, max] of [["duration", 360000], ["count", 100000], ["year", 3000]] as const) {
+    const v = x[k];
+    if (isNum(v) && v > 0 && v <= max) out[k] = Math.floor(v);
+  }
+  if (x["explicit"] === true) out["explicit"] = true;
+  if (typeof x["player"] === "string" && MUSIC_PLAYERS.includes(x["player"]) && x["player"] === platform) out["player"] = x["player"];
+  if (Array.isArray(x["tracks"])) {
+    const tracks = x["tracks"].slice(0, MAX_MUSIC_TRACKS).map(sanitizeMusicTrack).filter((t): t is Obj => !!t);
+    if (tracks.length) out["tracks"] = tracks;
+  }
   return out;
 }
 

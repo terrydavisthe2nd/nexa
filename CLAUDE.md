@@ -655,10 +655,28 @@ as Discord holds it:
 - Everything a person can make the server fetch goes through `internal/egress` (WARP's SOCKS5 proxy,
   `EGRESS_PROXY=warp|off|socks5://...`): link previews (`unfurl`, asked for by the sender's app, which
   seals the preview in the message), the media proxy (only addresses the server signed;
-  `POST /proxy/refresh` re-signs old ones), the YouTube player (`/yt/...`), IGDB, Deezer, Discord's Rich
+  `POST /proxy/refresh` re-signs old ones), the YouTube, Spotify and SoundCloud players (`/yt/`, `/sp/`, `/sc/`), music cards' details, IGDB, Deezer, Discord's Rich
   Presence apps and Discord templates (`GET /servers/templates/discord/{code}`,
   `POST /servers/import/discord`). Discord's gateway, Cloudflare Realtime and the tunnel go out
   directly.
+- Music links (`unfurl/music.go`) carry a `music` card (platform, kind, id, title, artist, album, art,
+  duration, count, year, explicit, preview, up to five `tracks`, `player`), held by `sanitizeMusic` in web
+  `crypto/message.ts` and Android `MessageCrypto`, drawn by web `chat/MusicEmbed.tsx` and Android
+  `ui/media/MusicEmbed.kt`. Spotify (its embed page's `__NEXT_DATA__`), Apple Music (the iTunes lookup,
+  playlists from the page), Deezer (its API) and SoundCloud (oEmbed). Each service's terms decide how it
+  plays: Deezer's and Apple's thirty-second previews play in the app's own preview player (web
+  `profile/previews.ts` `playPreview`, Android `SongPreviews.play`, one at a time with profile songs;
+  Deezer's through `/media/music/preview/{id}` since its links expire, Apple's through the media proxy,
+  whose type aliases map `audio/x-m4p` to `audio/mp4`); Spotify and SoundCloud open their own player
+  through this server (below), and opening one stops any preview. Bandcamp sits behind a bot challenge
+  and Tidal's pages carry nothing, so both stay ordinary link cards.
+- Other sites' players are served through this server by `api/frame_proxy.go` (`frameSite`: path root,
+  hosts, telemetry answered 204, the shim's host pattern): YouTube at `/yt/` (`youtube_proxy.go`),
+  Spotify's embed at `/sp/` and SoundCloud's widget at `/sc/` (`music_players.go`, addresses from
+  `GET /api/v1/music/player/{platform}/{kind}/{id}`). Tokens are signed per site, so one site's token
+  opens no other. The apps frame them sandboxed without `allow-same-origin` (Android in a WebView whose
+  page holds the same sandboxed frame); Spotify's embed says `ready` to its parent and takes
+  `{command: "play"}`, which the web sends so one press plays.
 - A Tenor page (`tenor.com/view/...`, with or without a language before `view`) previews as type `gif`
   of the GIF its `og:image` names, sized by `twitter:player` (`unfurl/tenor.go`), so it draws, hides
   its link and can be favourited like a picker GIF.

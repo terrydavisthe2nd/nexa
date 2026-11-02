@@ -80,11 +80,36 @@ function play(el: HTMLAudioElement) {
   });
 }
 
+/** A preview to play: what it is called while it plays, and where its sound is. */
+export interface PreviewTrack {
+  /** Tells it apart from every other preview: a Deezer id, or a music card's track. */
+  key: string;
+  src: string;
+  name: string;
+  by?: string | undefined;
+  /** A cover for a phone's lock screen. */
+  art?: string | undefined;
+}
+
 /** Plays a song's preview, or pauses it (and plays it on) when it is the one playing. */
 export function togglePreview(song: WidgetMusic, owner: string): void {
   if (!song.id) return;
+  playPreview(
+    {
+      key: song.id,
+      src: `${api.baseUrl}/media/music/preview/${song.id}`,
+      name: song.name,
+      by: song.by,
+      art: song.art ? musicArtUrl("cover", song.art, "l") : undefined,
+    },
+    owner,
+  );
+}
+
+/** Plays any preview, or pauses it (and plays it on) when it is the one playing: a widget's song or a music card's. */
+export function playPreview(track: PreviewTrack, owner: string): void {
   const el = audio();
-  if (usePreview.getState().id === song.id) {
+  if (usePreview.getState().id === track.key) {
     if (el.paused) play(el);
     else el.pause();
     return;
@@ -92,15 +117,15 @@ export function togglePreview(song: WidgetMusic, owner: string): void {
   const { volume, muted } = usePreview.getState();
   el.volume = volume;
   el.muted = muted;
-  el.src = `${api.baseUrl}/media/music/preview/${song.id}`;
-  usePreview.setState({ id: song.id, owner, state: "loading", progress: 0 });
+  el.src = track.src;
+  usePreview.setState({ id: track.key, owner, state: "loading", progress: 0 });
   play(el);
   // what a phone's lock screen and a headset's buttons show
   if (typeof navigator !== "undefined" && "mediaSession" in navigator && typeof MediaMetadata !== "undefined") {
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: song.name,
-      artist: song.by ?? "",
-      artwork: song.art ? [{ src: musicArtUrl("cover", song.art, "l"), sizes: "400x400", type: "image/jpeg" }] : [],
+      title: track.name,
+      artist: track.by ?? "",
+      artwork: track.art ? [{ src: track.art, sizes: "400x400", type: "image/jpeg" }] : [],
     });
   }
 }
@@ -113,6 +138,12 @@ export function stopPreview(owner: string): void {
   player.pause();
   player.removeAttribute("src");
   player.load();
+}
+
+/** Stops whatever preview is playing: a service's own player opening takes over. */
+export function stopAnyPreview(): void {
+  const { owner } = usePreview.getState();
+  if (owner) stopPreview(owner);
 }
 
 /** Sets how loud previews play, on the one playing now too, and keeps it on this device. */

@@ -273,6 +273,45 @@ object MessageCrypto {
             if (v in allowed) out[k] = JsonPrimitive(v)
         }
         sanitizePost(e["post"], false)?.let { out["post"] = it }
+        sanitizeMusic(e["music"])?.let { out["music"] = it }
+        return JsonObject(out)
+    }
+
+    // A music card (internal/unfurl/music.go), as crypto/message.ts sanitizeMusic holds it.
+    private val MUSIC_PLATFORMS = setOf("spotify", "apple", "deezer", "soundcloud")
+    private val MUSIC_KINDS = setOf("track", "album", "playlist", "artist", "episode", "show")
+    private val MUSIC_PLAYERS = setOf("spotify", "soundcloud")
+    private val MUSIC_ID = Regex("^[A-Za-z0-9.-]{1,64}$")
+
+    private fun sanitizeMusicTrack(x: JsonElement?): JsonObject? {
+        val o = x as? JsonObject ?: return null
+        val title = o.str("title")?.takeIf { it.isNotEmpty() } ?: return null
+        val out = LinkedHashMap<String, JsonElement>()
+        out["title"] = JsonPrimitive(cap(title, 256))
+        o.str("artist")?.takeIf { it.isNotEmpty() }?.let { out["artist"] = JsonPrimitive(cap(it, 256)) }
+        o.number("duration")?.takeIf { it > 0 && it <= 360000 }?.let { out["duration"] = JsonPrimitive(kotlin.math.floor(it).toLong()) }
+        address(o["preview"])?.let { out["preview"] = JsonPrimitive(it) }
+        if (o.bool("explicit") == true) out["explicit"] = JsonPrimitive(true)
+        return JsonObject(out)
+    }
+
+    fun sanitizeMusic(x: JsonElement?): JsonObject? {
+        val o = x as? JsonObject ?: return null
+        val platform = o.str("platform")?.takeIf { it in MUSIC_PLATFORMS } ?: return null
+        val kind = o.str("kind")?.takeIf { it in MUSIC_KINDS } ?: return null
+        val id = o.str("id")?.takeIf { MUSIC_ID.matches(it) } ?: return null
+        val title = o.str("title")?.takeIf { it.isNotEmpty() } ?: return null
+        val out = LinkedHashMap<String, JsonElement>()
+        out["platform"] = JsonPrimitive(platform); out["kind"] = JsonPrimitive(kind); out["id"] = JsonPrimitive(id); out["title"] = JsonPrimitive(cap(title, 256))
+        for (k in listOf("artist", "album")) o.str(k)?.takeIf { it.isNotEmpty() }?.let { out[k] = JsonPrimitive(cap(it, 256)) }
+        address(o["art"])?.let { out["art"] = JsonPrimitive(it) }
+        address(o["preview"])?.let { out["preview"] = JsonPrimitive(it) }
+        for ((k, max) in listOf("duration" to 360000.0, "count" to 100000.0, "year" to 3000.0)) {
+            o.number(k)?.takeIf { it > 0 && it <= max }?.let { out[k] = JsonPrimitive(kotlin.math.floor(it).toLong()) }
+        }
+        if (o.bool("explicit") == true) out["explicit"] = JsonPrimitive(true)
+        o.str("player")?.takeIf { it in MUSIC_PLAYERS && it == platform }?.let { out["player"] = JsonPrimitive(it) }
+        (o["tracks"] as? JsonArray)?.take(5)?.mapNotNull { sanitizeMusicTrack(it) }?.takeIf { it.isNotEmpty() }?.let { out["tracks"] = JsonArray(it) }
         return JsonObject(out)
     }
 

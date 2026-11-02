@@ -1262,6 +1262,40 @@ export interface UnfurlResult {
   image_layout?: "large" | "thumbnail";
   /** Set when the link is a social post. The fields above still describe it, for an app that does not draw posts. */
   post?: SocialPost;
+  /** Set when the link is music on Spotify, Apple Music, Deezer or SoundCloud (internal/unfurl/music.go). */
+  music?: MusicCard;
+}
+
+/** A track in a music card's list. */
+export interface MusicTrack {
+  title: string;
+  artist?: string;
+  /** In seconds. */
+  duration?: number;
+  /** Thirty seconds the app plays itself: a proxy address, or Deezer's through /media/music/preview. */
+  preview?: string;
+  explicit?: boolean;
+}
+
+/** A song, album, playlist, artist or podcast episode on a music service. */
+export interface MusicCard {
+  platform: "spotify" | "apple" | "deezer" | "soundcloud" | string;
+  kind: "track" | "album" | "playlist" | "artist" | "episode" | "show" | string;
+  id: string;
+  title: string;
+  artist?: string;
+  album?: string;
+  /** The cover, a proxy address. */
+  art?: string;
+  duration?: number;
+  /** How many tracks an album or playlist holds. */
+  count?: number;
+  year?: number;
+  explicit?: boolean;
+  preview?: string;
+  tracks?: MusicTrack[];
+  /** Set when it plays in the service's own player, through this server. */
+  player?: "spotify" | "soundcloud" | string;
 }
 
 export interface KdfParamsJson {

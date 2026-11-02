@@ -108,6 +108,7 @@ fun EmbedList(list: List<Unfurl>, from: String) {
         for (e in list.take(5)) {
             when {
                 e.post != null -> PostEmbed(e)
+                e.music != null -> MusicEmbed(e, e.music)
                 e.type == "image" || e.type == "gif" -> if (imagePreviews) ImageEmbed(e, from)
                 e.type == "video" -> if (imagePreviews) VideoEmbed(e)
                 e.type == "audio" -> AudioEmbed(e)

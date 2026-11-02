@@ -106,7 +106,7 @@ func TestYouTubeRewrite(t *testing.T) {
 		`<style>@font-face{src:url(//fonts.gstatic.com/s/roboto/a.woff2)}</style></head>` +
 		`<body><img src="https://i.ytimg.com/vi/abc/hq.jpg"><a href="https://evil.example/">x</a>` +
 		`<script>var c={"u":"https:\/\/www.youtube.com\/youtubei"}</script></body></html>`
-	out := string(ytInjectShim(ytRewriteHTML([]byte(page), "T", base), "T", "https://chat.example/"))
+	out := string(ytSite.injectShim(ytSite.rewriteHTML([]byte(page), "/yt/T", base), "/yt/T", "https://chat.example/"))
 	for _, want := range []string{
 		`href="/yt/T/p/www.youtube-nocookie.com/s/player/x/www-player.css"`,
 		`<script crossorigin="anonymous" nonce="n" src="/yt/T/p/www.youtube-nocookie.com/s/player/x/base.js"`,
@@ -123,7 +123,7 @@ func TestYouTubeRewrite(t *testing.T) {
 	if head := strings.Index(out, "<head>"); !strings.HasPrefix(out[head+len("<head>"):], "<script>(function(C){") {
 		t.Errorf("shim not first in head:\n%s", out)
 	}
-	css := string(ytRewriteCSS([]byte(`a{background:url("https://i.ytimg.com/a.png")} b{background:url(/img/b.png)} c{background:url(data:image/png;base64,AA)}`), "T", base))
+	css := string(ytSite.rewriteCSS([]byte(`a{background:url("https://i.ytimg.com/a.png")} b{background:url(/img/b.png)} c{background:url(data:image/png;base64,AA)}`), "/yt/T", base))
 	for _, want := range []string{`url("/yt/T/p/i.ytimg.com/a.png")`, `url(/yt/T/p/www.youtube-nocookie.com/img/b.png)`, `url(data:image/png;base64,AA)`} {
 		if !strings.Contains(css, want) {
 			t.Errorf("rewritten css lacks %s: %s", want, css)

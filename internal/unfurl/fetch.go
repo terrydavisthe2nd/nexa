@@ -54,7 +54,7 @@ var ProxyImageTypes = map[string]bool{
 	"image/svg+xml": true, "image/avif": true, "image/bmp": true, "image/x-icon": true, "image/vnd.microsoft.icon": true,
 }
 
-// imageAliases are the names servers give common image types besides the
+// imageAliases are the names servers give common image (and audio) types besides the
 // standard one. Browsers read them all, so the proxy passes them under the
 // standard name.
 var imageAliases = map[string]string{
@@ -62,6 +62,8 @@ var imageAliases = map[string]string{
 	"image/x-png": "image/png", "image/apng": "image/png", "image/vnd.mozilla.apng": "image/png",
 	"image/x-ms-bmp": "image/bmp", "image/x-bmp": "image/bmp", "image/ico": "image/x-icon", "image/icon": "image/x-icon",
 	"image/svg": "image/svg+xml",
+	// audio the same way: Apple labels its AAC previews as protected (m4p) though they are not
+	"audio/x-m4a": "audio/mp4", "audio/m4a": "audio/mp4", "audio/x-m4p": "audio/mp4", "audio/mp4a-latm": "audio/mp4", "audio/mp3": "audio/mpeg",
 }
 
 // ImageAlias is the standard name of an image type a server named another way.
@@ -149,6 +151,10 @@ type Result struct {
 	// Post is set when the link is a social post the app draws as one (see
 	// post.go). The fields above still describe it, for an app that does not.
 	Post *Post `json:"post,omitempty"`
+	// Music is set when the link is a song, album, playlist or artist on a
+	// music service (music.go), drawn as music. The fields above still
+	// describe it, for an app that does not.
+	Music *Music `json:"music,omitempty"`
 }
 
 // Fetcher fetches previews with SSRF protection.
@@ -308,6 +314,10 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (*Result, error) {
 	// A social post has a card of its own. A post no source could read is
 	// fetched like any other link, for the card its page asks for.
 	if r := f.postResult(ctx, u); r != nil {
+		return r, nil
+	}
+	// So has music. A link no service could read is fetched like any other.
+	if r := f.musicResult(ctx, u); r != nil {
 		return r, nil
 	}
 
