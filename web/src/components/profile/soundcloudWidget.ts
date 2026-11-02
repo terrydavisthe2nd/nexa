@@ -14,6 +14,8 @@ export interface WidgetEvents {
   progress(at: number, seconds: number): void;
   ended(): void;
   failed(): void;
+  /** The browser would not let it start without a tap inside SoundCloud's player (Safari). */
+  blocked(): void;
 }
 
 let frame: HTMLIFrameElement | null = null;
@@ -22,6 +24,8 @@ let duration = 0;
 let ready = false;
 let pending: unknown[] = [];
 let readyTimer: ReturnType<typeof setTimeout> | null = null;
+let startTimer: ReturnType<typeof setTimeout> | null = null;
+let started = false;
 
 function send(method: string, value?: unknown) {
   const msg = value === undefined ? { method } : { method, value };
@@ -52,6 +56,10 @@ function heard(ev: MessageEvent) {
       frame.contentWindow?.postMessage(JSON.stringify({ method: "getDuration" }), "*");
       for (const msg of pending) frame.contentWindow?.postMessage(JSON.stringify(msg), "*");
       pending = [];
+      // Safari lets a frame play only after a tap inside it: a play that never starts is that
+      startTimer = setTimeout(() => {
+        if (!started && events === on) on.blocked();
+      }, 4000);
       return;
     }
     case "getDuration":
@@ -71,6 +79,8 @@ function heard(ev: MessageEvent) {
       return;
     case "playProgress": {
       const cur = typeof value.currentPosition === "number" ? value.currentPosition / 1000 : 0;
+      // only time moving counts as started: Safari says "play" for a play it then refuses
+      if (cur > 0.2) started = true;
       const rel = typeof value.relativePosition === "number" ? value.relativePosition : 0;
       if (!duration && rel > 0) duration = cur / rel;
       on.progress(Math.min(1, Math.max(0, rel)), duration);
@@ -85,6 +95,7 @@ export function widgetStart(src: string, volume: number, on: WidgetEvents): void
   events = on;
   duration = 0;
   ready = false;
+  started = false;
   pending = [{ method: "setVolume", value: Math.round(volume * 100) }, { method: "play" }];
   window.addEventListener("message", heard);
   const el = document.createElement("iframe");
@@ -131,6 +142,8 @@ export function widgetActive(): boolean {
 
 export function widgetStop(): void {
   if (readyTimer) clearTimeout(readyTimer);
+  if (startTimer) clearTimeout(startTimer);
+  startTimer = null;
   readyTimer = null;
   window.removeEventListener("message", heard);
   frame?.remove();

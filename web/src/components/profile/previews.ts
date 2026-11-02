@@ -25,6 +25,8 @@ export interface PreviewState {
   progress: number;
   /** How long it is, in seconds, once known (0 before). */
   duration: number;
+  /** A widget's key the browser would not start out of sight: its card shows the service's own player. */
+  blocked: string | null;
   /** How loud previews play, from 0 to 1, and whether they are muted: this device's, kept. */
   volume: number;
   muted: boolean;
@@ -47,7 +49,7 @@ function keptVolume(): { volume: number; muted: boolean } {
 
 const IDLE = { id: null, owner: null, state: "paused", progress: 0, duration: 0 } as const;
 
-export const usePreview = create<PreviewState>(() => ({ ...IDLE, ...keptVolume() }));
+export const usePreview = create<PreviewState>(() => ({ ...IDLE, blocked: null, ...keptVolume() }));
 
 let player: HTMLAudioElement | null = null;
 /** The preview the audio element is playing, so its late events never speak for a widget's. */
@@ -142,6 +144,12 @@ export function playPreview(track: PreviewTrack, owner: string): void {
         if (!ours()) return;
         widgetStop();
         idle();
+      },
+      blocked: () => {
+        if (!ours()) return;
+        widgetStop();
+        idle();
+        usePreview.setState({ blocked: track.key });
       },
       failed: () => {
         if (!ours()) return;

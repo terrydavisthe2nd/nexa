@@ -209,8 +209,13 @@ export function MusicEmbed({ e, m }: { e: UnfurlResult; m: MusicCard }) {
   // a SoundCloud track plays in this card through SoundCloud's widget, out of
   // sight; a Spotify track with a preview found elsewhere plays that; the rest
   // open the service's own player
-  const widget = m.player === "soundcloud" && m.kind === "track";
+  // a browser that will not start SoundCloud's player out of sight (Safari) gets it in the card, for a tap of its own
+  const blocked = usePreview((p) => p.blocked === `${owner}:main`);
+  const widget = m.player === "soundcloud" && m.kind === "track" && !blocked;
   const player = (m.player === "spotify" && !preview) || (m.player === "soundcloud" && !widget);
+  useEffect(() => {
+    if (blocked) setOpen(true);
+  }, [blocked]);
   const widgetSrc = useRef<string | null>(null);
   const [fetching, setFetching] = useState(false);
   const playWidget = () => {
