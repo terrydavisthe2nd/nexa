@@ -240,7 +240,8 @@ func (s *Server) handleMediaProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	ct := strings.ToLower(strings.TrimSpace(strings.Split(res.Header.Get("Content-Type"), ";")[0]))
 	body := io.Reader(res.Body)
-	if untypedMedia[ct] {
+	ct = unfurl.ImageAlias(ct)
+	if unfurl.NeedsSniff(ct) {
 		ct, body = sniffedType(target.String(), res)
 	}
 	if !unfurl.PlayableMediaType(ct) && !unfurl.ProxyImageTypes[ct] {
@@ -277,10 +278,6 @@ func (s *Server) handleMediaProxy(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, watch.Body(io.LimitReader(body, maxProxyBytes)))
 }
 
-// untypedMedia are the types a file server gives when it does not say what a
-// file is: a Bluesky video's poster, a file kept exactly as it was uploaded.
-var untypedMedia = map[string]bool{"": true, "application/octet-stream": true, "binary/octet-stream": true}
-
 // sniffedTypes remembers what untyped files turned out to be, by address.
 // Only the start of a file says what it is, and a video is fetched in pieces:
 // the first piece is read for its type and the later ones go by it.
@@ -302,8 +299,8 @@ func sniffedType(address string, res *http.Response) (string, io.Reader) {
 	}
 	head := bufio.NewReaderSize(res.Body, 512)
 	peek, _ := head.Peek(512)
-	ct := strings.ToLower(strings.TrimSpace(strings.Split(http.DetectContentType(peek), ";")[0]))
-	if unfurl.PlayableMediaType(ct) || unfurl.ProxyImageTypes[ct] {
+	ct := unfurl.SniffMedia(peek)
+	if ct != "" {
 		sniffedTypes.Lock()
 		if len(sniffedTypes.m) >= 2000 {
 			clear(sniffedTypes.m)

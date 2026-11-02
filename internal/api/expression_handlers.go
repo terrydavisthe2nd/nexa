@@ -17,6 +17,7 @@ import (
 	"evilion.xyz/chat/internal/ids"
 	"evilion.xyz/chat/internal/perms"
 	"evilion.xyz/chat/internal/store"
+	"evilion.xyz/chat/internal/unfurl"
 )
 
 var reEmojiName = regexp.MustCompile(`^[A-Za-z0-9_]{2,32}$`)
@@ -953,6 +954,7 @@ type klipyFile struct {
 	URL    string `json:"url"`
 	Width  int    `json:"width"`
 	Height int    `json:"height"`
+	Size   int64  `json:"size"`
 }
 
 // pick returns the first rendition present, in the order asked for.
@@ -963,6 +965,27 @@ func pickKlipy(sizes map[string]map[string]klipyFile, order []string, format str
 		}
 	}
 	return klipyFile{}
+}
+
+// gifToSend picks the file a GIF is sent as: the first GIF, from medium down,
+// small enough for the media proxy to pass, since one it refuses shows as a
+// broken picture to everyone (a medium GIF can be over 50 MB). Failing that, an
+// animated WebP, which is a fraction of the size, then the medium GIF anyway.
+// A result with no GIF at all is not offered.
+func gifToSend(sizes map[string]map[string]klipyFile) klipyFile {
+	order := []string{"md", "hd", "sm", "xs"}
+	gif := pickKlipy(sizes, order, "gif")
+	if gif.URL == "" {
+		return gif
+	}
+	for _, format := range []string{"gif", "webp"} {
+		for _, size := range order {
+			if f, ok := sizes[size][format]; ok && f.URL != "" && f.Size <= unfurl.MaxMediaBytes {
+				return f
+			}
+		}
+	}
+	return gif
 }
 
 // gifPreviewWidth is how many pixels across a picker preview needs to stay
@@ -1039,7 +1062,7 @@ func (s *Server) klipyPage(r *http.Request, query, pos string) (gifPage, error) 
 		out.Next = strconv.Itoa(parsed.Data.CurrentPage + 1)
 	}
 	for _, item := range parsed.Data.Data {
-		full := pickKlipy(item.File, []string{"md", "hd", "sm", "xs"}, "gif")
+		full := gifToSend(item.File)
 		if full.URL == "" {
 			continue
 		}

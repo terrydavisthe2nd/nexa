@@ -23,6 +23,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -118,6 +122,31 @@ private fun fileNameOf(url: String, fallback: String): String = runCatching {
     URI(url).path.split('/').lastOrNull { it.isNotEmpty() }?.let { URLDecoder.decode(it, "UTF-8") }
 }.getOrNull() ?: fallback
 
+/** How long a picture link that failed waits before each automatic try again. */
+private val IMAGE_RETRY_MS = listOf(1500L, 5000L)
+
+/**
+ * A picture that tries again by itself when it fails (the proxy's fetch can
+ * fail for a moment), then says it failed, as the web's useRetriedImage does.
+ * The proxy reads only the path, so the attempt rides in the query.
+ */
+private class RetriedImage(val src: String, private val scope: kotlinx.coroutines.CoroutineScope) {
+    var tries by mutableIntStateOf(0)
+    var failed by mutableStateOf(false)
+    val shown: String get() = if (tries > 0 && src.isNotEmpty()) src + (if ('?' in src) "&" else "?") + "try=$tries" else src
+    fun onError() {
+        val wait = IMAGE_RETRY_MS.getOrNull(tries)
+        if (wait == null) failed = true else scope.launch { delay(wait); tries++ }
+    }
+    fun retry() { failed = false; tries++ }
+}
+
+@Composable
+private fun rememberRetriedImage(src: String): RetriedImage {
+    val scope = rememberCoroutineScope()
+    return remember(src) { RetriedImage(src, scope) }
+}
+
 /** A GIF or picture link shown like an upload: its frame, the GIF badge, the star, and the viewer on a tap. */
 @Composable
 private fun ImageEmbed(e: Unfurl, from: String) {
@@ -137,11 +166,14 @@ private fun ImageEmbed(e: Unfurl, from: String) {
                 openLightbox(listOf(LightboxItem(fileName, if (e.type == "gif") "image/gif" else null, src = src, from = from)), 0)
             } else Modifier),
     ) {
-        if (src.isNotEmpty()) AsyncImage(src, name, imageLoader = Media.loader, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        val pic = rememberRetriedImage(src)
+        if (pic.failed) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            LoadFailed("load", "image") { pic.retry() }
+        } else if (src.isNotEmpty()) AsyncImage(pic.shown, name, imageLoader = Media.loader, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(), onError = { pic.onError() })
         if (e.type == "gif") Box(
             Modifier.align(Alignment.BottomStart).padding(8.dp).background(Color(0xB3000000), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
         ) { Txt(t("chat.embeds.gif"), style = Nx.type.hint.copy(fontSize = Nx.type.sp(11f), fontWeight = FontWeight(700)), color = Color.White) }
-        if (src.isNotEmpty()) GifStar(src, e.imageW, e.imageH, null, Modifier.align(Alignment.TopEnd))
+        if (src.isNotEmpty() && !pic.failed) GifStar(src, e.imageW, e.imageH, null, Modifier.align(Alignment.TopEnd))
     }
 }
 
@@ -266,6 +298,8 @@ private fun LinkCard(e: Unfurl, from: String) {
             .topEdge(shape, c.edgeLight)
             .startBar(bar, 3.dp),
     ) {
+        // a card picture that still fails after its retries leaves the card its words, as on the web
+        val thumb = rememberRetriedImage(image.orEmpty())
         Column(Modifier.padding(start = 11.dp, end = 12.dp, top = 8.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -279,9 +313,9 @@ private fun LinkCard(e: Unfurl, from: String) {
                     }
                     e.description?.let { d -> Folding(linkify(d, c.link), Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.2f), color = c.text), 3) }
                 }
-                if (!image.isNullOrEmpty() && !big && e.media == null && yt == null && !player) {
+                if (!image.isNullOrEmpty() && !big && e.media == null && yt == null && !player && !thumb.failed) {
                     AsyncImage(
-                        image, t("chat.embeds.linkPreviewImage"), imageLoader = Media.loader, contentScale = ContentScale.Crop,
+                        thumb.shown, t("chat.embeds.linkPreviewImage"), imageLoader = Media.loader, contentScale = ContentScale.Crop, onError = { thumb.onError() },
                         modifier = Modifier.size(64.dp).clip(Radii.Sm).pressable(remember { MutableInteractionSource() }) {
                             openLightbox(listOf(LightboxItem(fileNameOf(image, "image"), src = image, from = from)), 0)
                         },
@@ -295,10 +329,10 @@ private fun LinkCard(e: Unfurl, from: String) {
                 !media.isNullOrEmpty() && e.mediaKind == "audio" -> Box(Modifier.widthIn(max = 400.dp)) {
                     AudioPlayer(android.net.Uri.parse(media), fileNameOf(e.url, t("chat.embeds.audio")), null, null, null, null, null)
                 }
-                !image.isNullOrEmpty() && big -> {
+                !image.isNullOrEmpty() && big && !thumb.failed -> {
                     val fit = Fit.within(e.imageW, e.imageH, 360, 240)
                     AsyncImage(
-                        image, e.title ?: e.siteName ?: t("chat.embeds.linkPreviewImage"), imageLoader = Media.loader, contentScale = ContentScale.Fit,
+                        thumb.shown, onError = { thumb.onError() }, contentDescription = e.title ?: e.siteName ?: t("chat.embeds.linkPreviewImage"), imageLoader = Media.loader, contentScale = ContentScale.Fit,
                         modifier = Modifier
                             .then(if (fit != null) Modifier.width(fit.width.dp).aspectRatio(fit.width.toFloat() / fit.height) else Modifier.widthIn(max = 360.dp).heightIn(max = 240.dp))
                             .clip(Radii.Sm)

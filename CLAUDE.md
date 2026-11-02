@@ -672,7 +672,14 @@ as Discord holds it:
   sandbox and serves them as downloads on direct navigation, and the clients draw them only as images
   (Android with Coil's SVG decoder). Every file a preview loads goes through the signed media proxy
   (`unfurl.PlayableMediaType` keeps its accepted types aligned), so no reader fetches the original. HEIC
-  and TIFF stay unsupported in browsers.
+  and TIFF stay unsupported in browsers. Mislabelled files go by their bytes: `unfurl.ImageAlias` renames
+  `image/jpg` and the like, and `NeedsSniff`/`SniffMedia` judge untyped, `text/plain` or unknown
+  `image/*` files by their header (AVIF included, SVG never), for both previews and the proxy.
+- The GIF picker sends the first Klipy GIF from medium down that fits under `unfurl.MaxMediaBytes`
+  (`gifToSend`, by Klipy's `size`; some medium GIFs pass 50 MB), else the animated WebP. Picture
+  previews whose proxy fetch fails try again twice, then show the attachments' "could not be loaded"
+  state with Retry (web `useRetriedImage` in `chat/Embeds.tsx`, Android `rememberRetriedImage` in
+  `ui/media/Embeds.kt`); a link card's picture that still fails is dropped, leaving the words.
 
 ### Calls
 

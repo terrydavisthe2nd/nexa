@@ -1,11 +1,11 @@
 import { Play, X } from "lucide-react";
-import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { UnfurlResult } from "@/api/types";
 import { trimUrl } from "@/markdown/parse";
 import { FavoriteButton } from "./FavoriteButton";
 import { useSettings } from "@/stores/settings";
 import { useUI } from "@/stores/ui";
-import { fitMedia } from "./Attachments";
+import { fitMedia, LoadFailed } from "./Attachments";
 import { Lightbox } from "./Lightbox";
 import { AudioPlayer } from "./AudioPlayer";
 import { PostEmbed } from "./PostEmbed";
@@ -41,8 +41,44 @@ function fitCard(w: number | undefined, h: number | undefined, maxW = 400, maxH 
  * stale link is signed again, and a preview naming any other address is not
  * shown at all.
  */
+/** How long a picture that failed waits before each automatic try again. */
+const IMAGE_RETRY_MS = [1500, 5000];
+
+/**
+ * A picture that tries again by itself when it fails (the proxy's fetch can
+ * fail for a moment) and then reports failure, so the frame never sits empty.
+ * The proxy reads only the path, so the attempt rides in the query.
+ */
+export function useRetriedImage(src: string | null | undefined): { src: string | null | undefined; failed: boolean; onError: () => void; retry: () => void } {
+  const [tries, setTries] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    setTries(0);
+    setFailed(false);
+  }, [src]);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  const onError = () => {
+    const wait = IMAGE_RETRY_MS[tries];
+    if (wait === undefined) {
+      setFailed(true);
+      return;
+    }
+    timer.current = setTimeout(() => setTries((n) => n + 1), wait);
+  };
+  const retry = () => {
+    setFailed(false);
+    setTries((n) => n + 1);
+  };
+  const shown = src && tries > 0 ? `${src}${src.includes("?") ? "&" : "?"}try=${tries}` : src;
+  return { src: shown, failed, onError, retry };
+}
+
 function ImageEmbed({ e }: { e: UnfurlResult }) {
-  const src = useMediaSrc(e.image ?? e.url);
+  const signed = useMediaSrc(e.image ?? e.url);
+  const { src, failed, onError, retry } = useRetriedImage(signed);
   const [open, setOpen] = useState(false);
   // without a recorded size, the picture's own tells the frame what shape to be
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
@@ -54,17 +90,29 @@ function ImageEmbed({ e }: { e: UnfurlResult }) {
   if (src === undefined) {
     return <div className={[c.imgWrap, s.media].join(" ")} style={{ width: dims.width, aspectRatio: `${dims.width} / ${dims.height}` }} aria-busy="true" />;
   }
+  // what the picture is, for saving, favouriting and the viewer; src is that plus the attempt
+  const original = signed ?? src;
+  if (failed) {
+    return (
+      <div className={[c.imgWrap, s.media].join(" ")} style={{ width: dims.width, aspectRatio: `${dims.width} / ${dims.height}` }}>
+        <div className={c.imgPlaceholder}>
+          <LoadFailed error="load" what="image" onRetry={retry} />
+        </div>
+      </div>
+    );
+  }
   return (
     <>
       <div className={[c.imgWrap, s.media].join(" ")} style={{ width: dims.width, aspectRatio: `${dims.width} / ${dims.height}` }} onClick={() => setOpen(true)}>
         <img
           src={src}
+          onError={onError}
           alt={name}
           width={dims.width}
           height={dims.height}
           loading="lazy"
           referrerPolicy="no-referrer"
-          data-image-src={src}
+          data-image-src={original}
           data-image-name={fileName}
           // the way into the viewer, for a keyboard as for a pointer
           role="button"
@@ -80,9 +128,9 @@ function ImageEmbed({ e }: { e: UnfurlResult }) {
           }}
         />
         {e.type === "gif" ? <span className={s.gifBadge}>GIF</span> : null}
-        <FavoriteButton url={src} {...(e.image_w ? { w: e.image_w } : {})} {...(e.image_h ? { h: e.image_h } : {})} />
+        <FavoriteButton url={original} {...(e.image_w ? { w: e.image_w } : {})} {...(e.image_h ? { h: e.image_h } : {})} />
       </div>
-      {open ? <Lightbox items={[{ src, name: fileName }]} onClose={() => setOpen(false)} /> : null}
+      {open ? <Lightbox items={[{ src: original, name: fileName }]} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }
@@ -195,11 +243,15 @@ function CardPicture({ e, src, large }: { e: UnfurlResult; src: string; large: b
   const show = () => setOpen(true);
   // a width and a shape rather than a height, so a narrow screen shrinks it whole instead of squeezing it
   const fit = large ? fitCard(e.image_w, e.image_h, 360, 240) : undefined;
+  // tried again a couple of times; a picture that still fails leaves the card its words
+  const tried = useRetriedImage(src);
+  if (tried.failed) return null;
   return (
     <>
       <img
         className={large ? s.large : s.thumb}
-        src={src}
+        src={tried.src ?? src}
+        onError={tried.onError}
         // the picture is most of what a large preview says, so it is named
         alt={large ? e.title || e.site_name || t("chat.embeds.linkPreviewImage") : ""}
         loading="lazy"

@@ -611,3 +611,59 @@ func TestMediaFileLinksAlwaysUseProxy(t *testing.T) {
 		})
 	}
 }
+
+// Servers that name a picture wrongly (image/jpg, text/plain) still get it
+// shown, judged by its bytes; what those bytes do not show to be a picture is
+// still refused.
+func TestMediaProxyPassesMislabelledPictures(t *testing.T) {
+	srv, ts := newTestServer(t)
+	avif := append([]byte{0, 0, 0, 0x1c, 'f', 't', 'y', 'p', 'a', 'v', 'i', 'f'}, make([]byte, 64)...)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/jpg":
+			w.Header().Set("Content-Type", "image/jpg")
+			_, _ = w.Write(pngBytes(8, 8))
+		case "/plain":
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			_, _ = w.Write(pngBytes(8, 8))
+		case "/avif":
+			w.Header().Set("Content-Type", "image/unknown")
+			_, _ = w.Write(avif)
+		case "/script":
+			w.Header().Set("Content-Type", "text/plain")
+			_, _ = io.WriteString(w, "<html><script>alert(1)</script></html>")
+		case "/svg":
+			w.Header().Set("Content-Type", "image/svg")
+			_, _ = io.WriteString(w, `<svg xmlns="http://www.w3.org/2000/svg"></svg>`)
+		case "/tiff":
+			w.Header().Set("Content-Type", "image/tiff")
+			_, _ = w.Write([]byte("II*\x00junkjunkjunk"))
+		}
+	}))
+	defer upstream.Close()
+	tr := &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, network, upstream.Listener.Addr().String())
+	}}
+	t.Cleanup(tr.CloseIdleConnections)
+	srv.Unfurl = &unfurl.Service{Fetcher: &unfurl.Fetcher{Timeout: 5 * time.Second, Transport: tr, Resolver: proxyResolver{[]net.IPAddr{{IP: net.ParseIP("8.8.8.8")}}}}}
+	get := func(path string) (int, string) {
+		t.Helper()
+		res, err := http.Get(ts.URL + srv.ProxyURL("http://files.test"+path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode, res.Header.Get("Content-Type")
+	}
+	for path, want := range map[string]string{"/jpg": "image/jpeg", "/plain": "image/png", "/avif": "image/avif", "/svg": "image/svg+xml"} {
+		if code, ct := get(path); code != http.StatusOK || ct != want {
+			t.Errorf("%s: %d %s, want %s", path, code, ct, want)
+		}
+	}
+	for _, path := range []string{"/script", "/tiff"} {
+		if code, ct := get(path); code != http.StatusUnsupportedMediaType {
+			t.Errorf("%s got through as %d %s", path, code, ct)
+		}
+	}
+}

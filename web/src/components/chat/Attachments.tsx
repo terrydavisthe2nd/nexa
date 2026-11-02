@@ -153,7 +153,7 @@ const FAILED = {
   audio: ["chat.attachments.audioUndecryptable", "chat.attachments.audioUnloadable"],
 } as const;
 
-function LoadFailed({ error, what, onRetry }: { error: LoadError; what: keyof typeof FAILED; onRetry: () => void }) {
+export function LoadFailed({ error, what, onRetry }: { error: LoadError; what: keyof typeof FAILED; onRetry: () => void }) {
   return (
     <span className={s.loadFailed}>
       {tr_(FAILED[what][error === "decrypt" ? 0 : 1])}

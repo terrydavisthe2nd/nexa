@@ -54,6 +54,50 @@ var ProxyImageTypes = map[string]bool{
 	"image/svg+xml": true, "image/avif": true, "image/bmp": true, "image/x-icon": true, "image/vnd.microsoft.icon": true,
 }
 
+// imageAliases are the names servers give common image types besides the
+// standard one. Browsers read them all, so the proxy passes them under the
+// standard name.
+var imageAliases = map[string]string{
+	"image/jpg": "image/jpeg", "image/pjpeg": "image/jpeg", "image/jfif": "image/jpeg", "image/pjp": "image/jpeg",
+	"image/x-png": "image/png", "image/apng": "image/png", "image/vnd.mozilla.apng": "image/png",
+	"image/x-ms-bmp": "image/bmp", "image/x-bmp": "image/bmp", "image/ico": "image/x-icon", "image/icon": "image/x-icon",
+	"image/svg": "image/svg+xml",
+}
+
+// ImageAlias is the standard name of an image type a server named another way.
+func ImageAlias(ct string) string {
+	if std, ok := imageAliases[ct]; ok {
+		return std
+	}
+	return ct
+}
+
+// NeedsSniff reports whether a declared type says too little to go by: none,
+// a generic one, or an image or plain-text type the proxy does not pass as
+// named (file hosts label pictures text/plain or image/unknown). What such a
+// file is comes from its first bytes instead.
+func NeedsSniff(ct string) bool {
+	switch ct {
+	case "", "application/octet-stream", "binary/octet-stream", "application/binary", "application/unknown", "text/plain":
+		return true
+	}
+	return strings.HasPrefix(ct, "image/") && !ProxyImageTypes[ct]
+}
+
+// SniffMedia is the type a file's first bytes show it to be, when that is a
+// type the proxy passes, else "". SVG is never sniffed: it is only passed when
+// a server says so.
+func SniffMedia(peek []byte) string {
+	if len(peek) >= 12 && string(peek[4:8]) == "ftyp" && (string(peek[8:12]) == "avif" || string(peek[8:12]) == "avis") {
+		return "image/avif"
+	}
+	detected, _, _ := mime.ParseMediaType(http.DetectContentType(peek))
+	if (ProxyImageTypes[detected] && detected != "image/svg+xml") || PlayableMediaType(detected) {
+		return detected
+	}
+	return ""
+}
+
 // Result is a link preview.
 type Result struct {
 	URL         string `json:"url"`
@@ -304,13 +348,14 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (*Result, error) {
 	ct, _, _ := mime.ParseMediaType(res.Header.Get("Content-Type"))
 	ct = strings.ToLower(ct)
 	var body io.Reader = res.Body
-	// File hosts sometimes omit the type. Judge only the bounded file header,
-	// never its extension, and keep those bytes for the image reader below.
-	if ct == "" || ct == "application/octet-stream" || ct == "binary/octet-stream" {
+	// File hosts sometimes omit the type or give a wrong one. Judge only the
+	// bounded file header, never its extension, and keep those bytes for the
+	// image reader below.
+	ct = ImageAlias(ct)
+	if NeedsSniff(ct) {
 		head := bufio.NewReaderSize(res.Body, 512)
 		peek, _ := head.Peek(512)
-		detected, _, _ := mime.ParseMediaType(http.DetectContentType(peek))
-		if ProxyImageTypes[detected] || PlayableMediaType(detected) {
+		if detected := SniffMedia(peek); detected != "" {
 			ct = detected
 		}
 		body = head
