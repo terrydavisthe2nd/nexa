@@ -945,11 +945,11 @@ Message on someone else's message, for one).
 | `friend` | A person on the Friends page | `user` | `viewFriendProfile`, `messageFriend`, `callFriend`, `removeFriend`, `blockFriend`, `copyFriendProfileLink`, `copyFriendId`, `copyFriendBotId`, `selectFriends` |
 | `friendsBulk` | Several people picked on the Friends page | none | `groupChatWithFriends`, `acceptFriendRequests`, `ignoreFriendRequests`, `cancelFriendRequests`, `unblockPeople`, `removeFriends`, `blockFriends` |
 | `gifResult` | A search result in the GIF picker | none | `sendGif`, `favoriteGif` |
-| `groupMember` | A person in a group conversation's member list | `user`, `channel` | `viewGroupMemberProfile`, `copyGroupMemberProfileLink`, `mentionGroupMember`, `messageGroupMember`, `groupMemberFriendship`, `blockGroupMember`, `transferGroupOwnership`, `removeGroupMember`, `leaveGroupFromMembers`, `groupMemberApps`, `copyGroupMemberId`, `copyGroupMemberBotId`, `selectGroupMembers` |
+| `groupMember` | A person in a group conversation's member list | `user`, `channel` | `viewGroupMemberProfile`, `mentionGroupMember`, `messageGroupMember`, `groupMemberApps`, `groupMemberFriendship`, `blockGroupMember`, `transferGroupOwnership`, `removeGroupMember`, `leaveGroupFromMembers`, `copyGroupMemberProfileLink`, `copyGroupMemberId`, `copyGroupMemberBotId`, `selectGroupMembers` |
 | `groupMemberBulk` | Several people picked in a group conversation's member list | none | `removeGroupMembers`, `blockGroupMembers` |
 | `image` | A picture opened full size | none | `copyImage`, `saveImage` |
 | `invitePause` | Pausing invites, in Server Settings | none | `pauseInvites` |
-| `member` | A person in a server's member list, or their name in a server | `user`, `server` | `viewMemberProfile`, `copyMemberProfileLink`, `mentionMember`, `memberFriendship`, `blockMember`, `editMemberNickname`, `editMemberRoles`, `timeoutMember`, `kickMember`, `banMember`, `memberApps`, `copyMemberId`, `copyMemberBotId`, `selectMembers` |
+| `member` | A person in a server's member list, or their name in a server | `user`, `server` | `viewMemberProfile`, `mentionMember`, `memberApps`, `memberFriendship`, `blockMember`, `editMemberNickname`, `timeoutMember`, `kickMember`, `banMember`, `editMemberRoles`, `copyMemberProfileLink`, `copyMemberId`, `copyMemberBotId`, `selectMembers` |
 | `memberAgeFilter` | The account age filter of Server Settings, Members | none | `memberAgeFilter` |
 | `memberBulk` | Several people picked in a server's member list | none | `addRoleToMembers`, `removeRoleFromMembers`, `kickMembers`, `banMembers`, `blockMembers` |
 | `memberJoinFilter` | The join method filter of Server Settings, Members | none | `memberJoinMethodFilter`, `memberInviteFilter` |

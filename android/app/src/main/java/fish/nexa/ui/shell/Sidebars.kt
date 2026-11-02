@@ -339,7 +339,7 @@ private fun ChannelRow(serverId: String, ch: Channel, selected: Boolean, threads
                     ChannelTyping(serverId, ch.id, lit = selected || unread)
                 }
                 if (ch.isVoice && people.isNotEmpty()) fish.nexa.ui.voice.CallTimer(ch.id, pill = true)
-                if (ch.isVoice && ch.userLimit > 0) Txt("${people.size}/${ch.userLimit}", style = Nx.type.hint, color = c.textMuted)
+                if (ch.isVoice && ch.userLimit > 0) Txt("${people.size}/${ch.userLimit}", style = Nx.type.hint, color = c.textMuted, maxLines = 1)
                 // a link channel leads out of the app, which the arrow says before it is pressed
                 if (ch.isLink) Icon("ArrowUpRight", if (pressed) c.text else c.textMuted, size = 14.dp, modifier = Modifier.padding(end = 4.dp))
                 if (mentions > 0) CountBadge(mentions, Modifier.padding(start = 4.dp))

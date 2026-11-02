@@ -70,9 +70,9 @@
 @media (prefers-reduced-motion: reduce) { .typing i { animation-name: rowTypingCalm; } }
 [data-reduced-motion="true"] .typing i { animation-name: rowTypingCalm; }
 .empty { padding: 24px 8px; color: var(--text-muted); font-size: 14px; text-align: center; }
-.limit { margin-inline-start: auto; font-size: 12px; color: var(--text-muted); }
+.limit { margin-inline-start: auto; flex: none; white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
 /* how long a voice channel's call has been going, at the end of the row; it makes way for the row's buttons */
-.callTimer { margin-inline-start: auto; }
+.callTimer { margin-inline-start: auto; flex: none; white-space: nowrap; }
 .callTimer + .limit { margin-inline-start: 6px; }
 /* a link channel leads out of the app, which the arrow at the end of its row says before it is pressed */
 .leaves { margin-inline-start: auto; flex: none; color: var(--text-muted); }

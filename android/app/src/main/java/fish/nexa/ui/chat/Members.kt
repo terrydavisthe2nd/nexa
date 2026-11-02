@@ -359,8 +359,9 @@ fun memberMenuItems(serverId: String, userId: String): List<MenuItem.Action> {
     val above = outranks(serverId, userId)
     val username = Nexa.users.get(userId)?.username ?: if (self) me.username else null
     val items = ArrayList<MenuItem.Action>()
+    // the order people know from other chat apps: who they are, friendship and blocking,
+    // moderation, roles, then the copy items (Apps goes in after the first group)
     items += MenuItem.Action(t("profile.profile.profile")) { Profiles.openFull(userId) }
-    ProfileLinks.item(userId)?.let { items += it }
     items += MenuItem.Action(t("settings.notifications.mention"), disabled = username.isNullOrEmpty(), separatorAfter = true) { username?.let(::mention) }
     // being friends, and blocking: the same choices a profile offers
     val people = relationshipMenuItems(userId)
@@ -373,17 +374,10 @@ fun memberMenuItems(serverId: String, userId: String): List<MenuItem.Action> {
     if (canNick) items += MenuItem.Action(if (self) t("sidebar.serverMenu.editServerProfile") else t("server.memberMenu.changeTheirNickname")) {
         if (self) fish.nexa.ui.shell.openServerProfile(serverId) else Dialogs.serverProfile(serverId, userId)
     }
-    if (Nexa.servers.canI(st, P.MANAGE_ROLES) && above) items += MenuItem.Action(t("server.members.roles")) { MemberActions.open(serverId, userId, MemberActions.Kind.ROLES) }
-    val mod = memberModerationItems(serverId, userId)
-    if (mod.isNotEmpty()) {
-        items[items.lastIndex] = items.last().copy(separatorAfter = true)
-        items += mod
-    }
-    if (Nexa.settings.developerMode) {
-        items[items.lastIndex] = items.last().copy(separatorAfter = true)
-        items += MenuItem.Action(t("chat.groupMemberMenu.copyUserId")) { copyWithToast(userId, t("clipboard.idCopied")) }
-        items += copyBotIdItem(userId)
-    }
+    items += memberModerationItems(serverId, userId)
+    items[items.lastIndex] = items.last().copy(separatorAfter = true)
+    if (Nexa.servers.canI(st, P.MANAGE_ROLES) && above) items += MenuItem.Action(t("server.members.roles"), separatorAfter = true) { MemberActions.open(serverId, userId, MemberActions.Kind.ROLES) }
+    copyItems(items, userId)
     return items
 }
 
@@ -398,7 +392,7 @@ private fun openMemberMenu(serverId: String, userId: String, name: String, list:
     if (items.isEmpty()) return
     // what apps can do with someone, used in the conversation open in this server
     val here = Nexa.ui.activeChannel.value?.takeIf { Nexa.channels.get(it)?.serverId == serverId }
-    fish.nexa.ui.apps.withApps(items, fish.nexa.ui.apps.userAppsItem(here, userId))
+    withAppsUpFront(items, fish.nexa.ui.apps.userAppsItem(here, userId))
     items[items.lastIndex] = items.last().withSeparator()
     items += MenuItem.Action(t("pick.select")) { Pick.start(list, userId) }
     openMenu(items, name, titleWords = fish.nexa.ui.chat.PersonWords(fish.nexa.ui.chat.PERSON_SLOT, listOf(userId to name)))
@@ -582,7 +576,6 @@ fun groupMemberMenuItems(channelId: String, userId: String): List<MenuItem.Actio
     val owner = ch.ownerId?.let { nameOf(it) } ?: t("chat.groupMemberMenu.itsCurrentOwner")
     val items = ArrayList<MenuItem.Action>()
     items += MenuItem.Action(t("profile.profile.profile")) { Profiles.openFull(userId) }
-    ProfileLinks.item(userId)?.let { items += it }
     items += MenuItem.Action(t("settings.notifications.mention"), disabled = user?.username.isNullOrEmpty()) { user?.username?.let(::mention) }
     if (!self) items += MenuItem.Action(t("profile.profileCard.message")) { messageUser(userId) }
     items[items.lastIndex] = items.last().copy(separatorAfter = true)
@@ -630,12 +623,28 @@ fun groupMemberMenuItems(channelId: String, userId: String): List<MenuItem.Actio
             ) { silent -> closeDm(channelId, silent) }
         }
     }
+    if (items.isNotEmpty()) items[items.lastIndex] = items.last().copy(separatorAfter = true)
+    copyItems(items, userId)
+    return items
+}
+
+/** Copy Profile Link, then (with Developer Mode) the user and bot ids: the last group of a person's menu. */
+private fun copyItems(items: ArrayList<MenuItem.Action>, userId: String) {
+    ProfileLinks.item(userId)?.let { items += it }
     if (Nexa.settings.developerMode) {
-        items[items.lastIndex] = items.last().copy(separatorAfter = true)
         items += MenuItem.Action(t("chat.groupMemberMenu.copyUserId")) { copyWithToast(userId, t("clipboard.idCopied")) }
         items += copyBotIdItem(userId)
     }
-    return items
+    // no line hanging under the menu's last item
+    if (items.isNotEmpty()) items[items.lastIndex] = items.last().copy(separatorAfter = false)
+}
+
+/** Puts Apps after the first group of a person's menu (who they are), as the web's menus do. */
+private fun withAppsUpFront(items: ArrayList<MenuItem>, apps: MenuItem.Submenu?) {
+    if (apps == null || items.isEmpty()) return
+    val first = items.indexOfFirst { it is MenuItem.Action && it.separatorAfter }
+    if (first < 0) return fish.nexa.ui.apps.withApps(items, apps)
+    items.add(first + 1, apps.copy(separatorAfter = true))
 }
 
 /**
@@ -656,7 +665,7 @@ fun openPersonMenu(channelId: String, userId: String): Boolean {
     )
     if (items.isEmpty()) return false
     // what apps can do with someone, used in this conversation
-    fish.nexa.ui.apps.withApps(items, fish.nexa.ui.apps.userAppsItem(channelId, userId))
+    withAppsUpFront(items, fish.nexa.ui.apps.userAppsItem(channelId, userId))
     openMenu(items, Names.member(sid, userId), titleWords = fish.nexa.ui.chat.PersonWords(fish.nexa.ui.chat.PERSON_SLOT, listOf(userId to Names.member(sid, userId)), sid))
     return true
 }
@@ -670,7 +679,7 @@ private fun openGroupMemberMenu(channelId: String, userId: String, name: String,
     val items = ArrayList<MenuItem>(groupMemberMenuItems(channelId, userId))
     if (items.isEmpty()) return
     // what apps can do with someone, used in this group
-    fish.nexa.ui.apps.withApps(items, fish.nexa.ui.apps.userAppsItem(channelId, userId))
+    withAppsUpFront(items, fish.nexa.ui.apps.userAppsItem(channelId, userId))
     items[items.lastIndex] = items.last().withSeparator()
     items += MenuItem.Action(t("pick.select")) { Pick.start(list, userId) }
     openMenu(items, name, titleWords = fish.nexa.ui.chat.PersonWords(fish.nexa.ui.chat.PERSON_SLOT, listOf(userId to name)))

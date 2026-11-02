@@ -24,7 +24,9 @@
 @keyframes settle { from { opacity: 0; transform: scale(0.82); } }
 @media (prefers-reduced-motion: reduce) { .mark { animation: none; } }
 .form { display: flex; flex-direction: column; gap: 20px; }
-.row { display: flex; gap: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; }
+/* side by side buttons share the row (shared buttons never shrink, so two at full width ran off the card) */
+.row > button { flex: 1 1 140px; width: auto; }
 .foot { font-size: 14px; color: var(--text-muted); }
 .foot a { color: var(--link); }
 /* two links that read as one name each: "Terms of / Service" helps nobody */

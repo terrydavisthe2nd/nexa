@@ -44,23 +44,23 @@ describe("groupMemberMenuItems", () => {
 
   it("gives a member the profile, a mention, a message and the friend and block choices, and nothing over others", () => {
     signIn();
-    expect(ids("bob")).toEqual(["profile", "copy-profile-link", "mention", "message", "add-friend", "block"]);
-    expect(ids("owner")).toEqual(["profile", "copy-profile-link", "mention", "message", "add-friend", "block"]);
+    expect(ids("bob")).toEqual(["profile", "mention", "message", "add-friend", "block", "copy-profile-link"]);
+    expect(ids("owner")).toEqual(["profile", "mention", "message", "add-friend", "block", "copy-profile-link"]);
     expect(ids("me")).toEqual(["profile", "mention", "leave"]);
   });
 
   it("lets the owner hand the group on and remove people", () => {
     useChannels.setState({ byId: { g: { ...group, owner_id: "me" } } });
     signIn();
-    expect(ids("bob")).toEqual(["profile", "copy-profile-link", "mention", "message", "add-friend", "block", "owner", "remove"]);
+    expect(ids("bob")).toEqual(["profile", "mention", "message", "add-friend", "block", "owner", "remove", "copy-profile-link"]);
     // leaving is still how the owner goes
     expect(ids("me")).toEqual(["profile", "mention", "leave"]);
   });
 
   it("gives a Nexa admin the owner's actions, short of removing the owner", () => {
     signIn(ADMIN);
-    expect(ids("bob")).toEqual(["profile", "copy-profile-link", "mention", "message", "add-friend", "block", "owner", "remove"]);
-    expect(ids("owner")).toEqual(["profile", "copy-profile-link", "mention", "message", "add-friend", "block"]);
+    expect(ids("bob")).toEqual(["profile", "mention", "message", "add-friend", "block", "owner", "remove", "copy-profile-link"]);
+    expect(ids("owner")).toEqual(["profile", "mention", "message", "add-friend", "block", "copy-profile-link"]);
     const mine = groupMemberMenu.items({ channelId: "g", userId: "me", nav: vi.fn(), openModal: vi.fn() });
     expect(mine.find((i) => i.id === "owner")?.label).toBe("Take Ownership");
   });
@@ -91,12 +91,13 @@ describe("groupMemberMenuItems", () => {
     expect(api.patch).toHaveBeenCalledWith("g", { owner_id: "bob" });
   });
 
-  it("puts Remove from Group last among the owner's choices, as a danger, and removes once confirmed", async () => {
+  it("puts Remove from Group last among the owner's actions, as a danger, and removes once confirmed", async () => {
     useChannels.setState({ byId: { g: { ...group, owner_id: "me" } } });
     signIn();
     const openModal = vi.fn();
     const items = groupMemberMenu.items({ channelId: "g", userId: "bob", nav: vi.fn(), openModal });
-    const remove = items[items.length - 1]!;
+    const remove = items.find((i) => i.id === "remove")!;
+    expect(items[items.indexOf(remove) - 1]?.id).toBe("owner");
     expect([remove.id, remove.label, remove.danger]).toEqual(["remove", "Remove from Group", true]);
     remove.onSelect!();
     const props = openModal.mock.calls[0]![1] as { title: ReactNode; body: ReactNode; danger: boolean; onConfirm: () => Promise<unknown> };
@@ -119,7 +120,7 @@ describe("groupMemberMenu in a one-to-one conversation", () => {
 
   it("offers the person's choices and none of a group's", () => {
     signIn(ADMIN);
-    expect(dmIds("bob")).toEqual(["profile", "copy-profile-link", "mention", "message", "add-friend", "block"]);
+    expect(dmIds("bob")).toEqual(["profile", "mention", "message", "add-friend", "block", "copy-profile-link"]);
     // there is no group to leave, hand on or remove anyone from
     expect(dmIds("me")).toEqual(["profile", "mention"]);
   });

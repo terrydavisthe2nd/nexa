@@ -48,7 +48,7 @@ export interface MemberTarget {
 const moderatable = (serverId: string, userId: string) => useAuth.getState().me?.id !== userId && outranks(serverId, userId);
 
 /** Profile, Copy Profile Link and Mention: who the member is. `ids` names them in the menu they are in. */
-export function memberProfileButtons<C>(ids: { profile: string; link: string; mention: string }, of: (ctx: C) => MemberTarget | null): MenuButton<C>[] {
+export function memberProfileButtons<C>(ids: { profile: string; link: string; mention: string }, of: (ctx: C) => MemberTarget | null): [MenuButton<C>, MenuButton<C>, MenuButton<C>] {
   const target = (c: C) => {
     const m = of(c);
     return m && where(m.serverId) ? m : null;
@@ -72,7 +72,7 @@ export function memberProfileButtons<C>(ids: { profile: string; link: string; me
 }
 
 /** Their server profile (one's own to edit; someone else's nickname takes Manage Nicknames) and their roles. */
-export function memberManageButtons<C>(ids: { nickname: string; roles: string }, of: (ctx: C) => MemberTarget | null): MenuButton<C>[] {
+export function memberManageButtons<C>(ids: { nickname: string; roles: string }, of: (ctx: C) => MemberTarget | null): [MenuButton<C>, MenuButton<C>] {
   return [
     button(ids.nickname, (c) => {
       const m = of(c);
@@ -120,19 +120,27 @@ export function memberModerationButtons<C>(ids: { timeout: string; kick: string;
   ];
 }
 
-/** Context menu for a member row: profile, mention, nickname, roles, moderation. */
+const [viewMemberProfile, copyMemberProfileLink, mentionMember] = memberProfileButtons<MemberMenuCtx>({ profile: "viewMemberProfile", link: "copyMemberProfileLink", mention: "mentionMember" }, (c) => c);
+const [editMemberNickname, editMemberRoles] = memberManageButtons<MemberMenuCtx>({ nickname: "editMemberNickname", roles: "editMemberRoles" }, (c) => c);
+
+/**
+ * Context menu for a member row, in the order people know from other chat
+ * apps: who they are, apps, friendship and blocking, moderation, roles, then
+ * the copy items.
+ */
 export const memberMenu = defineMenu<MemberMenuCtx>("member", [
-  memberProfileButtons<MemberMenuCtx>({ profile: "viewMemberProfile", link: "copyMemberProfileLink", mention: "mentionMember" }, (c) => c),
-  // being friends, and blocking: the same choices a profile offers
-  relationshipButtons<MemberMenuCtx>({ friend: "memberFriendship", block: "blockMember" }, ({ serverId, userId }) => (where(serverId) ? userId : null)),
-  memberManageButtons<MemberMenuCtx>({ nickname: "editMemberNickname", roles: "editMemberRoles" }, (c) => c),
-  memberModerationButtons<MemberMenuCtx>({ timeout: "timeoutMember", kick: "kickMember", ban: "banMember" }, (c) => c),
+  [viewMemberProfile, mentionMember],
   // what apps can do with someone, used in the conversation open in this server
   [button("memberApps", ({ serverId, userId }) => {
     const here = useUI.getState().activeChannelId;
     return !!where(serverId) && useChannels.getState().byId[here ?? ""]?.server_id === serverId ? userAppsItem(here, userId) : null;
   })],
+  // being friends, and blocking: the same choices a profile offers
+  relationshipButtons<MemberMenuCtx>({ friend: "memberFriendship", block: "blockMember" }, ({ serverId, userId }) => (where(serverId) ? userId : null)),
+  [editMemberNickname, ...memberModerationButtons<MemberMenuCtx>({ timeout: "timeoutMember", kick: "kickMember", ban: "banMember" }, (c) => c)],
+  [editMemberRoles],
   [
+    copyMemberProfileLink,
     button("copyMemberId", ({ serverId, userId }) => !!where(serverId) && useSettings.getState().settings.developerMode && { id: "copy", label: t("chat.groupMemberMenu.copyUserId"), onSelect: () => copyAndSay(userId) }),
     button("copyMemberBotId", ({ serverId, userId }) => !!where(serverId) && useSettings.getState().settings.developerMode && copyBotIdItem(userId)),
   ],

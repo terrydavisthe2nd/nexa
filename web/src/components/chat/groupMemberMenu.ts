@@ -73,7 +73,6 @@ function about(channelId: string, userId: string) {
 export const groupMemberMenu = defineMenu<GroupMemberMenuRowCtx>("groupMember", [
   [
     button("viewGroupMemberProfile", ({ channelId, userId, openModal }) => !!about(channelId, userId) && { id: "profile", label: t("profile.profile.profile"), onSelect: () => openModal("profile", { userId }) }),
-    button("copyGroupMemberProfileLink", ({ channelId, userId }) => !!about(channelId, userId) && profileLinkItem(userId)),
     button("mentionGroupMember", ({ channelId, userId }) => {
       const a = about(channelId, userId);
       return a && { id: "mention", label: t("settings.notifications.mention"), disabled: !a.user?.username, onSelect: () => window.dispatchEvent(new CustomEvent("ec:insert-text", { detail: `@${a.user?.username} ` })) };
@@ -83,6 +82,8 @@ export const groupMemberMenu = defineMenu<GroupMemberMenuRowCtx>("groupMember", 
       return !!a && !a.self && { id: "message", label: t("profile.profileCard.message"), onSelect: () => void messageUser(userId, nav) };
     }),
   ],
+  // what apps can do with someone, used in this group
+  [button("groupMemberApps", ({ channelId, userId }) => !!about(channelId, userId) && userAppsItem(channelId, userId))],
   // being friends, and blocking: the same choices a profile offers
   relationshipButtons<GroupMemberMenuRowCtx>({ friend: "groupMemberFriendship", block: "blockGroupMember" }, ({ channelId, userId }) => (about(channelId, userId) ? userId : null)),
   [
@@ -142,9 +143,8 @@ export const groupMemberMenu = defineMenu<GroupMemberMenuRowCtx>("groupMember", 
       };
     }),
   ],
-  // what apps can do with someone, used in this group
-  [button("groupMemberApps", ({ channelId, userId }) => !!about(channelId, userId) && userAppsItem(channelId, userId))],
   [
+    button("copyGroupMemberProfileLink", ({ channelId, userId }) => !!about(channelId, userId) && profileLinkItem(userId)),
     button("copyGroupMemberId", ({ channelId, userId }) => !!about(channelId, userId) && useSettings.getState().settings.developerMode && { id: "copy", label: t("chat.groupMemberMenu.copyUserId"), onSelect: () => void copyText(userId, t("clipboard.idCopied")) }),
     button("copyGroupMemberBotId", ({ channelId, userId }) => !!about(channelId, userId) && useSettings.getState().settings.developerMode && copyBotIdItem(userId)),
   ],
