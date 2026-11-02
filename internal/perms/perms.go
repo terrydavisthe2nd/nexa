@@ -68,6 +68,11 @@ const (
 	// account rather than to the server) answer in a channel be seen by
 	// everyone; without it only they see it.
 	UseExternalApps Perm = 1 << 50
+	// UseCustomTyping is Nexa's own, kept far above Discord's bits: whether
+	// someone's own typing style (their emoji and words) is shown when they
+	// type in a channel, rather than the plain dots. The server never sees a
+	// style being drawn, so every reader's app holds it.
+	UseCustomTyping Perm = 1 << 60
 )
 
 // All is every permission this server knows.
@@ -75,12 +80,12 @@ const All = CreateInstantInvite | KickMembers | BanMembers | Administrator | Man
 	PrioritySpeaker | Stream | ViewChannel | SendMessages | ManageMessages | EmbedLinks | AttachFiles | ReadMessageHistory | MentionEveryone |
 	UseExternalEmojis | Connect | Speak | MuteMembers | DeafenMembers | MoveMembers | UseVAD | ChangeNickname | ManageNicknames | ManageRoles |
 	ManageWebhooks | ManageEmojis | ManageThreads | CreatePublicThreads | CreatePrivateThreads | UseExternalStickers | SendMessagesInThreads |
-	ModerateMembers | UseSoundboard | CreateExpressions | CreatePolls | PinMessages | BypassSlowmode | UseApplicationCommands | UseExternalApps
+	ModerateMembers | UseSoundboard | CreateExpressions | CreatePolls | PinMessages | BypassSlowmode | UseApplicationCommands | UseExternalApps | UseCustomTyping
 
 // DefaultEveryone is what a fresh server's @everyone role gets.
 const DefaultEveryone = CreateInstantInvite | AddReactions | Stream | ViewChannel | SendMessages | EmbedLinks | AttachFiles |
 	ReadMessageHistory | UseExternalEmojis | Connect | Speak | UseVAD | ChangeNickname | UseSoundboard | CreatePolls |
-	CreatePublicThreads | CreatePrivateThreads | UseExternalStickers | SendMessagesInThreads | UseApplicationCommands | UseExternalApps
+	CreatePublicThreads | CreatePrivateThreads | UseExternalStickers | SendMessagesInThreads | UseApplicationCommands | UseExternalApps | UseCustomTyping
 
 // TimedOutKeep is all a timed-out member retains.
 const TimedOutKeep = ViewChannel | ReadMessageHistory
@@ -97,7 +102,7 @@ var Names = map[string]Perm{
 	"CREATE_POLLS": CreatePolls, "USE_EXTERNAL_EMOJIS": UseExternalEmojis, "MANAGE_THREADS": ManageThreads, "CREATE_PUBLIC_THREADS": CreatePublicThreads,
 	"CREATE_PRIVATE_THREADS": CreatePrivateThreads, "USE_EXTERNAL_STICKERS": UseExternalStickers, "SEND_MESSAGES_IN_THREADS": SendMessagesInThreads,
 	"CREATE_EXPRESSIONS": CreateExpressions, "PIN_MESSAGES": PinMessages, "BYPASS_SLOWMODE": BypassSlowmode,
-	"USE_APPLICATION_COMMANDS": UseApplicationCommands, "USE_EXTERNAL_APPS": UseExternalApps,
+	"USE_APPLICATION_COMMANDS": UseApplicationCommands, "USE_EXTERNAL_APPS": UseExternalApps, "USE_CUSTOM_TYPING": UseCustomTyping,
 }
 
 // MarshalJSON writes the bitset as a decimal string.

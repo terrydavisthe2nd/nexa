@@ -102,7 +102,7 @@ func TestHierarchy(t *testing.T) {
 	if !CanActOn(5, 2, false, false) || CanActOn(5, 5, false, false) || CanActOn(9, 0, false, true) || !CanActOn(0, 9, true, false) {
 		t.Error("act on")
 	}
-	if len(Names) != 42 {
+	if len(Names) != 43 {
 		t.Errorf("names = %d", len(Names))
 	}
 	var all Perm

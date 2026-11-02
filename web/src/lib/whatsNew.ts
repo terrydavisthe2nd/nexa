@@ -33,6 +33,7 @@ export const RELEASES: Release[] = [
       { icon: AtSign, title: "whatsNew.r20261101.mentionsTitle", body: "whatsNew.r20261101.mentionsBody" },
       { icon: Gamepad2, title: "whatsNew.r20261101.activityMovedTitle", body: "whatsNew.r20261101.activityMovedBody" },
       { icon: ZoomIn, title: "whatsNew.r20261101.avatarViewerTitle", body: "whatsNew.r20261101.avatarViewerBody" },
+      { icon: MessageCircleMore, title: "whatsNew.r20261101.customTypingPermTitle", body: "whatsNew.r20261101.customTypingPermBody" },
       { icon: EyeOff, title: "whatsNew.r20261101.hideTypingTitle", body: "whatsNew.r20261101.hideTypingBody" },
       { icon: Type, title: "whatsNew.r20261101.channelNamesTitle", body: "whatsNew.r20261101.channelNamesBody" },
       { icon: ImagePlay, title: "whatsNew.r20261101.tenorTitle", body: "whatsNew.r20261101.tenorBody" },

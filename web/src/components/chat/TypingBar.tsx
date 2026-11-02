@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/stores/auth";
 import { useChannels } from "@/stores/channels";
 import { useRelationships } from "@/stores/relationships";
-import { useServers } from "@/stores/servers";
+import { channelPerms, useServers } from "@/stores/servers";
+import { has, P } from "@/lib/perms";
 import { useSettings } from "@/stores/settings";
 import { typingUsers, useTyping } from "@/stores/typing";
 import { useUsers, displayName, fetchMissingUsers } from "@/stores/users";
@@ -31,6 +32,7 @@ export function TypingBar({ channelId }: { channelId: string }) {
   const serverId = useChannels((c) => c.byId[channelId]?.server_id ?? null);
   const members = useServers((st) => (serverId ? st.byId[serverId]?.members : undefined));
   const rels = useRelationships((r) => r.byUser);
+  const serverState = useServers((st) => (serverId ? st.byId[serverId] : undefined));
   const showStyles = useSettings((x) => x.settings.customTyping !== false);
   const [card, setCard] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -47,7 +49,9 @@ export function TypingBar({ channelId }: { channelId: string }) {
   const nameOf = (id: string) => members?.[id]?.nickname || rels[id]?.nickname || displayName(users[id]);
   const who = ids.map(nameOf);
   const solo = ids.length === 1 ? ids[0]! : null;
-  const style = solo && showStyles ? readTypingStyle(users[solo]?.typing_style) : null;
+  // a server channel can take typing styles away (Use Custom Typing Indicators); roles not loaded count as allowed
+  const allowed = !solo || !serverState || (serverState.server.owner_id !== solo && !serverState.members[solo]) || has(channelPerms(serverState, channelId, solo), P.USE_CUSTOM_TYPING);
+  const style = solo && showStyles && allowed ? readTypingStyle(users[solo]?.typing_style) : null;
   const styled = !!style;
   // the card goes with the style it shows off
   useEffect(() => {

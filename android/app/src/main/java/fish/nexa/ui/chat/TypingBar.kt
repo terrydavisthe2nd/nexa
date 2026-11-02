@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import fish.nexa.Nexa
+import fish.nexa.data.P
 import fish.nexa.data.TypingStyle
 import fish.nexa.media.Media
 import fish.nexa.media.TwemojiImage
@@ -72,6 +73,7 @@ import kotlinx.coroutines.delay
 fun TypingBar(channel: Channel) {
     val c = Nx.colors
     val all by Nexa.typing.byChannel.collectAsState()
+    val servers by Nexa.servers.byId.collectAsState()
     val meId = Nexa.users.meId
     LaunchedEffect(all[channel.id]?.size ?: 0) {
         while ((Nexa.typing.byChannel.value[channel.id]?.size ?: 0) > 0) {
@@ -89,7 +91,11 @@ fun TypingBar(channel: Channel) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (ids.isEmpty()) return@Row
-        val style = if (ids.size == 1 && Nexa.settings.customTyping) TypingStyle.read(Nexa.users.get(ids[0])?.typingStyle) else null
+        // a server channel can take typing styles away (Use Custom Typing Indicators); roles not loaded count as allowed
+        val st = sid?.let { servers[it] }
+        val allowed = ids.size != 1 || st == null || (st.server.ownerId != ids[0] && st.members[ids[0]] == null) ||
+            P.has(Nexa.servers.channelPerms(st, channel.id, ids[0]), P.USE_CUSTOM_TYPING)
+        val style = if (ids.size == 1 && allowed && Nexa.settings.customTyping) TypingStyle.read(Nexa.users.get(ids[0])?.typingStyle) else null
         val textStyle = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f), color = c.textSubtle)
         val bold = SpanStyle(fontWeight = FontWeight(600), color = c.text)
         if (style != null) {

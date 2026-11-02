@@ -80,6 +80,7 @@ object PermInfo {
                 PermItem(P.MENTION_EVERYONE, t("perms.mentionEveryoneAndAllRoles"), t("perms.allowsMembersToUseEveryoneAnd"), TEXT),
                 PermItem(P.MANAGE_MESSAGES, t("perms.manageMessages"), t("perms.allowsMembersToDeleteMessagesBy"), TEXT),
                 PermItem(P.READ_MESSAGE_HISTORY, t("perms.readMessageHistory"), t("perms.allowsMembersToReadPreviousMessages"), TEXT),
+                PermItem(P.USE_CUSTOM_TYPING, t("perms.useCustomTyping"), t("perms.useCustomTypingDescription"), BOTH),
                 PermItem(P.CREATE_POLLS, t("perms.createPolls"), t("perms.allowsMembersToCreatePolls"), TEXT),
             ),
         ),

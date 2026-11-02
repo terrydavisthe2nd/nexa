@@ -49,6 +49,8 @@ export const P = {
   USE_EXTERNAL_APPS: 1n << 50n,
   PIN_MESSAGES: 1n << 51n,
   BYPASS_SLOWMODE: 1n << 52n,
+  /** Nexa's own: someone's typing style is shown when they type here; without it, the plain dots. Readers' apps hold it. */
+  USE_CUSTOM_TYPING: 1n << 60n,
 } as const;
 
 export type PermName = keyof typeof P;
@@ -56,7 +58,7 @@ export type PermName = keyof typeof P;
 export const ALL: bigint = Object.values(P).reduce((a, b) => a | b, 0n);
 export const DEFAULT_EVERYONE: bigint =
   P.CREATE_INSTANT_INVITE | P.ADD_REACTIONS | P.STREAM | P.VIEW_CHANNEL | P.SEND_MESSAGES | P.EMBED_LINKS | P.ATTACH_FILES | P.READ_MESSAGE_HISTORY | P.USE_EXTERNAL_EMOJIS | P.CONNECT | P.SPEAK | P.USE_VAD | P.CHANGE_NICKNAME | P.USE_SOUNDBOARD | P.CREATE_POLLS |
-  P.CREATE_PUBLIC_THREADS | P.CREATE_PRIVATE_THREADS | P.USE_EXTERNAL_STICKERS | P.SEND_MESSAGES_IN_THREADS | P.USE_APPLICATION_COMMANDS | P.USE_EXTERNAL_APPS;
+  P.CREATE_PUBLIC_THREADS | P.CREATE_PRIVATE_THREADS | P.USE_EXTERNAL_STICKERS | P.SEND_MESSAGES_IN_THREADS | P.USE_APPLICATION_COMMANDS | P.USE_EXTERNAL_APPS | P.USE_CUSTOM_TYPING;
 export const TIMED_OUT_KEEP: bigint = P.VIEW_CHANNEL | P.READ_MESSAGE_HISTORY;
 
 /** The kinds of channel a permission matters in, for the channel permission editor. */
@@ -108,6 +110,7 @@ export function permGroups(): { group: string; items: { name: PermName; label: s
       { name: "MANAGE_THREADS", label: t("perms.manageThreads"), description: t("perms.manageThreadsDescription"), channel: ["text", "forum"] },
       { name: "READ_MESSAGE_HISTORY", label: t("perms.readMessageHistory"), description: t("perms.allowsMembersToReadPreviousMessages"), channel: ["text", "forum"] },
       { name: "BYPASS_SLOWMODE", label: t("perms.bypassSlowmode"), description: t("perms.bypassSlowmodeDescription"), channel: ["text", "forum"] },
+      { name: "USE_CUSTOM_TYPING", label: t("perms.useCustomTyping"), description: t("perms.useCustomTypingDescription"), channel: ["text", "voice", "forum"] },
       { name: "CREATE_POLLS", label: t("perms.createPolls"), description: t("perms.allowsMembersToCreatePolls"), channel: ["text", "forum"] },
     ],
   },

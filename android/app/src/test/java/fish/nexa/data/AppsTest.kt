@@ -19,8 +19,8 @@ class AppsTest {
     @Test
     fun permissionBitsMatchTheServer() {
         // the same totals the web's test expects, which the server's own values give
-        assertEquals("1693765554523713", java.lang.Long.toUnsignedString(P.DEFAULT_EVERYONE))
-        assertEquals("8459079822864383", java.lang.Long.toUnsignedString(P.ALL))
+        assertEquals("1154615270161370689", java.lang.Long.toUnsignedString(P.DEFAULT_EVERYONE))
+        assertEquals("1161380584429711359", java.lang.Long.toUnsignedString(P.ALL))
     }
 
     private fun slot(type: Int, text: String = "", required: Boolean = false, value: JsonPrimitive? = null, file: InteractionFile? = null, choices: List<CommandChoice>? = null, minValue: Double? = null, maxValue: Double? = null, minLength: Int? = null, maxLength: Int? = null) =

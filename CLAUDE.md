@@ -567,7 +567,10 @@ as Discord holds it:
 - What the server cannot see, every reader's app holds: Use Voice Activity (push to talk without it,
   `pushToTalkOn`), and Use External Emoji and Stickers, drawn as `:name:` when the author lacks them
   (web `lib/authorPerms.ts`, Android `data/AuthorPerms`, both with `RenderCtx.plainEmoji`; an author
-  whose roles are not loaded counts as allowed).
+  whose roles are not loaded counts as allowed), and Use Custom Typing Indicators (1 << 60, Nexa's own
+  bit, far above Discord's; migration 0045 gave every existing @everyone it): without it in a channel the
+  typing bar shows that person with the plain dots instead of their typing style (web `TypingBar.tsx`,
+  Android `ui/chat/TypingBar.kt`).
 - Use Application Commands (1 << 31) and Use External Apps (1 << 50) are for apps, and @everyone has
   both. Use Soundboard (1 << 42) stays in the maths for the bot API and Discord templates, but Nexa has
   no soundboard and the role editors do not offer it.
