@@ -8359,6 +8359,8 @@
   "whatsNew.r20261102.cardsTitle": "Более богатые карточки профиля",
   "whatsNew.r20261102.gamePageBody": "Нажмите на игру в чьём-то профиле или на «Об игре» у того, во что человек играет, чтобы увидеть трейлеры, скриншоты, сюжет, подробности, где купить и похожие игры.",
   "whatsNew.r20261102.gamePageTitle": "Страницы игр",
+  "whatsNew.r20261102.musicLinkBody": "Вставьте ссылку Spotify, Apple Music, Deezer или SoundCloud в музыкальный виджет, и песни, альбом или исполнитель добавятся сразу, с превью.",
+  "whatsNew.r20261102.musicLinkTitle": "Музыка по ссылке",
   "whatsNew.r20261102.pwywBody": "Поддержите Nexa один раз любой суммой от $1 на странице «Поддержать Nexa». Каждые $10 дают месяц Pro, а каждые оставшиеся $5 — месяц Supporter, и вы видите, что получите, ещё до оплаты.",
   "whatsNew.r20261102.pwywTitle": "Плати сколько хочешь",
   "whatsNew.r20261102.refundsBody": "На странице «Поддержать Nexa» теперь прямо написано, как вернуть деньги: напишите в течение 14 дней после любого платежа, и вам вернут всю сумму.",
@@ -8470,6 +8472,19 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (это устройство)",
   "widgets.localtime.zone": "Часовой пояс",
+  "widgets.music.fromLink": "Добавить по ссылке",
+  "widgets.music.fromLinkAdd": "Добавить",
+  "widgets.music.fromLinkAdded": {
+    "one": "Добавлен {count}.",
+    "few": "Добавлено {count}.",
+    "many": "Добавлено {count}.",
+    "other": "Добавлено {count}."
+  },
+  "widgets.music.fromLinkMissed": "Не найдено в Deezer: {names}.",
+  "widgets.music.fromLinkPlaceholder.albums": "Вставьте ссылку на альбом или песню",
+  "widgets.music.fromLinkPlaceholder.artists": "Вставьте ссылку на исполнителя, альбом или песню",
+  "widgets.music.fromLinkPlaceholder.songs": "Вставьте ссылку на плейлист, альбом или песню",
+  "widgets.music.linkFailed": "Не удалось прочитать эту ссылку.",
   "widgets.screen.count": {
     "one": "{count} название",
     "few": "{count} названия",

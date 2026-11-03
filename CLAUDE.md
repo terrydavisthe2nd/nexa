@@ -1071,6 +1071,12 @@ as Discord holds it:
   `DATA_DIR/screen`), through the egress proxy. TMDB's terms require its logo
   (`web/public/brand/tmdb.svg`, Android loads it from the server) and the English notice
   `widgets.screen.tmdbNotice` under the search and in Settings, About ("Where Profile Info Comes From").
+- Music widgets can be filled from a Spotify, Apple Music, Deezer or SoundCloud link: `POST
+  /api/v1/music/from-link` (`kind`, `url`; `limMusic`) reads it with `unfurl.Fetcher.MusicList` (the
+  card's reader, keeping up to ten tracks through the `tracksWanted` context value), searches Deezer
+  for each piece and keeps those whose name and lead artist match (`sameMusic`), naming the rest in
+  `missed`. A playlist or album fills Songs, an album or song link fills Albums, an artist (or any
+  link's artist) fills Artists.
 - Current apps always send `links` on a card, even empty. A card saved without it comes from an app
   before cards had several links, colours and bars, so `carryCardExtras` keeps the saved card's
   extra links, colours and bars (`TestOldAppsKeepWhatCardsGained`).

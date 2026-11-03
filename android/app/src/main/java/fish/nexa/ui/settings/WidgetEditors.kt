@@ -91,6 +91,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -720,6 +721,9 @@ private fun openMusicEditor(initial: Widgets.MusicWidget, onDone: (Widgets.Widge
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         var q by remember { mutableStateOf("") }
+        var link by remember { mutableStateOf("") }
+        var linkBusy by remember { mutableStateOf(false) }
+        var linkNote by remember { mutableStateOf<String?>(null) }
         var found by remember { mutableStateOf<Pair<String, List<FoundMusic>>?>(null) }
         var searching by remember { mutableStateOf(false) }
         var failed by remember { mutableStateOf(false) }
@@ -822,6 +826,44 @@ private fun openMusicEditor(initial: Widgets.MusicWidget, onDone: (Widgets.Widge
                 if (byName && !searching) ByNameRow(query, !isFull, square = true, round = type == "artists") { addByName() }
             }
             if (ready == true) Txt(t("widgets.music.credit", "site" to "Deezer"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(12f)), color = c.textMuted, modifier = Modifier.padding(start = 2.dp, top = 6.dp))
+            // a Spotify, Apple Music, Deezer or SoundCloud link, read by the server and matched to Deezer (web fillFromLink)
+            if (ready == true) Column(Modifier.padding(top = 18.dp)) {
+                EditLabel(t("widgets.music.fromLink"))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NxTextField(link, { link = it.take(1024) }, Modifier.weight(1f).semantics { contentDescription = t("widgets.music.fromLink") }, placeholder = t("widgets.music.fromLinkPlaceholder.$type"), keyboardType = KeyboardType.Uri)
+                    NxButton(t("widgets.music.fromLinkAdd"), {
+                        val url = link.trim()
+                        if (url.isNotEmpty() && !linkBusy) scope.launch {
+                            linkBusy = true
+                            linkNote = null
+                            try {
+                                val res = Nexa.api.request("POST", "/music/from-link", buildJsonObject { put("kind", JsonPrimitive(type)); put("url", JsonPrimitive(url)) }) as JsonObject
+                                var next = items
+                                var added = 0
+                                for (o in (res["items"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: emptyList()) {
+                                    fun s(k: String) = (o[k] as? JsonPrimitive)?.contentOrNull
+                                    val id = s("id") ?: continue
+                                    val m = fromFound(FoundMusic(id, s("name") ?: continue, s("by"), s("art"), (o["duration"] as? JsonPrimitive)?.intOrNull, null, null, null, null))
+                                    if (next.any { musicKey(it) == musicKey(m) } || next.size >= most) continue
+                                    next = next + m
+                                    added++
+                                }
+                                items = next
+                                val missed = (res["missed"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()
+                                linkNote = t("widgets.music.fromLinkAdded", "count" to added) + if (missed.isNotEmpty()) " " + t("widgets.music.fromLinkMissed", "names" to missed.joinToString(", ")) else ""
+                                link = ""
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Nexa.ui.toast(describeError(e, t("widgets.music.linkFailed")), "error")
+                            } finally {
+                                linkBusy = false
+                            }
+                        }
+                    }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, loading = linkBusy, enabled = link.isNotBlank() && !isFull)
+                }
+                linkNote?.let { Txt(it, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.2f)), color = c.textMuted, modifier = Modifier.padding(top = 8.dp)) }
+            }
 
             ChosenHeading(t("widgets.music.yours.$type"), t("widgets.used", "count" to items.size, "max" to most))
             if (items.isEmpty()) ChosenEmpty(t("widgets.music.noneYet"))

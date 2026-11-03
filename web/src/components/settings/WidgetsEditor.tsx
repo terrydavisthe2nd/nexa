@@ -576,6 +576,34 @@ export function MusicWidgetDialog({ initial, onDone, onClose }: { initial: Music
     setItems([...items, m]);
   };
   const fromFound = (r: FoundMusic): WidgetMusic => ({ id: r.id, name: r.name, ...(r.by && type !== "artists" ? { by: r.by } : {}), ...(r.art ? { art: r.art } : {}), ...(r.duration && type === "songs" ? { duration: r.duration } : {}) });
+  // a Spotify, Apple Music, Deezer or SoundCloud link, read by the server and matched to Deezer
+  const [link, setLink] = useState("");
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkNote, setLinkNote] = useState<{ added: number; missed: string[] } | null>(null);
+  const fillFromLink = async () => {
+    const url = link.trim();
+    if (!url || linkBusy) return;
+    setLinkBusy(true);
+    setLinkNote(null);
+    try {
+      const res = await usersApi.musicFromLink(type, url);
+      let next = items;
+      let added = 0;
+      for (const r of res.items) {
+        const m = fromFound(r);
+        if (next.some((x) => musicKey(x) === musicKey(m)) || next.length >= most) continue;
+        next = [...next, m];
+        added++;
+      }
+      setItems(next);
+      setLinkNote({ added, missed: res.missed });
+      setLink("");
+    } catch (err) {
+      toast(describeError(err, t("widgets.music.linkFailed")), "error");
+    } finally {
+      setLinkBusy(false);
+    }
+  };
   const addByName = () => {
     const name = query.slice(0, LIMITS.music);
     if (!name) return;
@@ -706,6 +734,36 @@ export function MusicWidgetDialog({ initial, onDone, onClose }: { initial: Music
         <p className={s.credit}>
           <Tr id="widgets.music.credit" values={{ site: <a href="https://www.deezer.com" target="_blank" rel="noopener noreferrer">Deezer</a> }} />
         </p>
+      ) : null}
+      {ready ? (
+        <div className={s.fromLink}>
+          <span className={s.label}>{t("widgets.music.fromLink")}</span>
+          <div className={s.linkRow}>
+            <TextInput
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void fillFromLink();
+                }
+              }}
+              placeholder={t(`widgets.music.fromLinkPlaceholder.${type}`)}
+              aria-label={t("widgets.music.fromLink")}
+              inputMode="url"
+              autoComplete="off"
+              spellCheck={false}
+              data-testid="music-link-input"
+            />
+            <Button variant="secondary" onClick={() => void fillFromLink()} loading={linkBusy} disabled={!link.trim() || isFull} data-testid="music-link-add">{t("widgets.music.fromLinkAdd")}</Button>
+          </div>
+          {linkNote ? (
+            <p className={s.note} role="status" data-testid="music-link-note">
+              {t("widgets.music.fromLinkAdded", { count: linkNote.added })}
+              {linkNote.missed.length ? ` ${t("widgets.music.fromLinkMissed", { names: linkNote.missed.join(", ") })}` : ""}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       <div className={s.labelRow}>

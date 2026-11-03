@@ -199,3 +199,5 @@
 .tmdbLogo { flex: none; height: 12px; width: auto; }
 .numLabel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-subtle); }
 .numLabel .progressInput { width: 76px; }
+.fromLink { margin-top: 18px; }
+.fromLink .linkRow { grid-template-columns: minmax(0, 1fr) auto; }

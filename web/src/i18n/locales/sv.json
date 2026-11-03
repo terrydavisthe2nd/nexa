@@ -7886,6 +7886,8 @@
   "whatsNew.r20261102.cardsTitle": "Rikare Profilkort",
   "whatsNew.r20261102.gamePageBody": "Tryck på ett spel i någons profil, eller på Visa Spel i det de spelar, för att se trailers, skärmbilder, handling, detaljer, var det finns och liknande spel.",
   "whatsNew.r20261102.gamePageTitle": "Spelsidor",
+  "whatsNew.r20261102.musicLinkBody": "Klistra in en länk från Spotify, Apple Music, Deezer eller SoundCloud i en musikwidget så läggs låtarna, albumet eller artisten till direkt, med smakprov.",
+  "whatsNew.r20261102.musicLinkTitle": "Fyll Musik Från en Länk",
   "whatsNew.r20261102.pwywBody": "Stöd Nexa en gång med valfritt belopp från 1 $ på sidan Stöd Nexa. Varje 10 $ blir en månad Pro och varje 5 $ som blir över en månad Supporter, och du ser vad du får innan du betalar.",
   "whatsNew.r20261102.pwywTitle": "Betala vad du vill",
   "whatsNew.r20261102.refundsBody": "Sidan Stöd Nexa säger nu tydligt hur återbetalningar fungerar: hör av dig inom 14 dagar efter en betalning så får du tillbaka allt.",
@@ -7991,6 +7993,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (den här enheten)",
   "widgets.localtime.zone": "Tidszon",
+  "widgets.music.fromLink": "Lägg Till Från en Länk",
+  "widgets.music.fromLinkAdd": "Lägg Till",
+  "widgets.music.fromLinkAdded": {
+    "one": "{count} tillagd.",
+    "other": "{count} tillagda."
+  },
+  "widgets.music.fromLinkMissed": "Hittades inte på Deezer: {names}.",
+  "widgets.music.fromLinkPlaceholder.albums": "Klistra in en länk till ett album eller en låt",
+  "widgets.music.fromLinkPlaceholder.artists": "Klistra in en länk till en artist, ett album eller en låt",
+  "widgets.music.fromLinkPlaceholder.songs": "Klistra in en länk till en spellista, ett album eller en låt",
+  "widgets.music.linkFailed": "Länken kunde inte läsas.",
   "widgets.screen.count": {
     "one": "{count} titel",
     "other": "{count} titlar"

@@ -7886,6 +7886,8 @@
   "whatsNew.r20261102.cardsTitle": "Richer Profile Cards",
   "whatsNew.r20261102.gamePageBody": "Press a game on someone's profile, or View Game on what they're playing, to see its trailers, screenshots, story, details, where to get it and similar games.",
   "whatsNew.r20261102.gamePageTitle": "Game Pages",
+  "whatsNew.r20261102.musicLinkBody": "Paste a Spotify, Apple Music, Deezer or SoundCloud link into a music widget and its songs, album or artist go straight in, with previews.",
+  "whatsNew.r20261102.musicLinkTitle": "Fill Music From a Link",
   "whatsNew.r20261102.pwywBody": "Support Nexa once with any amount from $1 on the Support Nexa page. Each $10 is a month of Pro and each $5 left over a month of Supporter, and you see what you get before you pay.",
   "whatsNew.r20261102.pwywTitle": "Pay What You Want",
   "whatsNew.r20261102.refundsBody": "The Support Nexa page now says plainly how refunds work: ask within 14 days of any payment and you get all of it back.",
@@ -7991,6 +7993,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (this device)",
   "widgets.localtime.zone": "Time Zone",
+  "widgets.music.fromLink": "Add From a Link",
+  "widgets.music.fromLinkAdd": "Add",
+  "widgets.music.fromLinkAdded": {
+    "one": "{count} added.",
+    "other": "{count} added."
+  },
+  "widgets.music.fromLinkMissed": "Not found on Deezer: {names}.",
+  "widgets.music.fromLinkPlaceholder.albums": "Paste an album or song link",
+  "widgets.music.fromLinkPlaceholder.artists": "Paste an artist, album or song link",
+  "widgets.music.fromLinkPlaceholder.songs": "Paste a playlist, album or song link",
+  "widgets.music.linkFailed": "That link couldn't be read.",
   "widgets.screen.count": {
     "one": "{count} title",
     "other": "{count} titles"

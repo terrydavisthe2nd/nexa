@@ -8002,6 +8002,8 @@
   "whatsNew.r20261102.cardsTitle": "Des Cartes de Profil Plus Riches",
   "whatsNew.r20261102.gamePageBody": "Appuie sur un jeu dans le profil de quelqu'un, ou sur Voir le Jeu dans ce à quoi la personne joue, pour voir ses bandes-annonces, captures, son histoire, ses détails, où se le procurer et des jeux similaires.",
   "whatsNew.r20261102.gamePageTitle": "Pages de Jeux",
+  "whatsNew.r20261102.musicLinkBody": "Colle un lien Spotify, Apple Music, Deezer ou SoundCloud dans un widget de musique et ses titres, son album ou son artiste s'ajoutent directement, avec des extraits.",
+  "whatsNew.r20261102.musicLinkTitle": "Remplir la Musique depuis un Lien",
   "whatsNew.r20261102.pwywBody": "Soutenez Nexa une fois avec le montant de votre choix à partir de 1 $ sur la page Soutenir Nexa. Chaque 10 $ donne un mois de Pro et chaque 5 $ restant un mois de Supporter, et vous voyez ce que vous obtenez avant de payer.",
   "whatsNew.r20261102.pwywTitle": "Payez ce que vous voulez",
   "whatsNew.r20261102.refundsBody": "La page Soutenir Nexa explique maintenant clairement les remboursements : demandez-le dans les 14 jours suivant un paiement et vous êtes remboursé en entier.",
@@ -8107,6 +8109,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (cet appareil)",
   "widgets.localtime.zone": "Fuseau Horaire",
+  "widgets.music.fromLink": "Ajouter depuis un Lien",
+  "widgets.music.fromLinkAdd": "Ajouter",
+  "widgets.music.fromLinkAdded": {
+    "one": "{count} ajouté.",
+    "other": "{count} ajoutés."
+  },
+  "widgets.music.fromLinkMissed": "Introuvable sur Deezer : {names}.",
+  "widgets.music.fromLinkPlaceholder.albums": "Colle le lien d'un album ou d'un titre",
+  "widgets.music.fromLinkPlaceholder.artists": "Colle le lien d'un artiste, d'un album ou d'un titre",
+  "widgets.music.fromLinkPlaceholder.songs": "Colle le lien d'une playlist, d'un album ou d'un titre",
+  "widgets.music.linkFailed": "Ce lien n'a pas pu être lu.",
   "widgets.screen.count": {
     "one": "{count} titre",
     "other": "{count} titres"

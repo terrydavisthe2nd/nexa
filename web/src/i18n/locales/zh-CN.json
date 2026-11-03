@@ -7636,6 +7636,8 @@
   "whatsNew.r20261102.cardsTitle": "更丰富的资料卡片",
   "whatsNew.r20261102.gamePageBody": "点按某人资料里的游戏，或点按其正在玩的游戏上的“查看游戏”，即可查看预告片、截图、故事、详情、获取渠道和类似游戏。",
   "whatsNew.r20261102.gamePageTitle": "游戏页面",
+  "whatsNew.r20261102.musicLinkBody": "在音乐小组件中粘贴 Spotify、Apple Music、Deezer 或 SoundCloud 链接，其中的歌曲、专辑或艺人会直接加入，并可试听。",
+  "whatsNew.r20261102.musicLinkTitle": "通过链接添加音乐",
   "whatsNew.r20261102.pwywBody": "在“支持 Nexa”页面，用 1 美元起的任意金额一次性支持 Nexa。每 10 美元换一个月 Pro，剩下的每 5 美元换一个月 Supporter，付款前就能看到你会得到什么。",
   "whatsNew.r20261102.pwywTitle": "随心支付",
   "whatsNew.r20261102.refundsBody": "“支持 Nexa”页面现在清楚写明了退款方式：任何一笔付款在 14 天内提出，都会全额退还。",
@@ -7738,6 +7740,16 @@
   "widgets.localtime.where": "{place}，{gap}",
   "widgets.localtime.yours": "{zone}（此设备）",
   "widgets.localtime.zone": "时区",
+  "widgets.music.fromLink": "从链接添加",
+  "widgets.music.fromLinkAdd": "添加",
+  "widgets.music.fromLinkAdded": {
+    "other": "已添加 {count} 项。"
+  },
+  "widgets.music.fromLinkMissed": "在 Deezer 上未找到：{names}。",
+  "widgets.music.fromLinkPlaceholder.albums": "粘贴专辑或歌曲链接",
+  "widgets.music.fromLinkPlaceholder.artists": "粘贴艺人、专辑或歌曲链接",
+  "widgets.music.fromLinkPlaceholder.songs": "粘贴歌单、专辑或歌曲链接",
+  "widgets.music.linkFailed": "无法读取该链接。",
   "widgets.screen.count": {
     "other": "{count} 部"
   },

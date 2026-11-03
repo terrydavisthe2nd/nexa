@@ -81,6 +81,10 @@ export const users = {
     const q = new URLSearchParams({ shape, ...(crop ? { x: String(crop.x), y: String(crop.y), w: String(crop.w), h: String(crop.h) } : {}) });
     return api.upload(`/users/@me/widgets/image?${q.toString()}`, file, { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" } });
   },
+  /** A music link read into a music widget, each piece matched to Deezer; `missed` names what was not found there. */
+  musicFromLink(kind: MusicWidgetType, url: string): Promise<{ kind: string; title: string; items: FoundMusic[]; missed: string[] }> {
+    return api.request("POST", "/music/from-link", { kind, url });
+  },
   /** Shows and films on TMDB by name, found by this server; `ready` is false where the search is off. */
   searchScreen(q: string): Promise<{ titles: FoundScreen[]; ready: boolean }> {
     return api.request("GET", `/screen/search?q=${encodeURIComponent(q)}`);

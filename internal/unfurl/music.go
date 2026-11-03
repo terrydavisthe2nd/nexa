@@ -186,22 +186,33 @@ func MusicHost(host string) bool {
 	return false
 }
 
-// musicResult is the preview for a music link, or nil when the link is not
-// one or the service had nothing to say about it.
-func (f *Fetcher) musicResult(ctx context.Context, link *url.URL) *Result {
+// tracksWanted is how many tracks a reading of a music link keeps, carried
+// in its context: a card's few, or a profile widget's more.
+type tracksWanted struct{}
+
+func wantTracks(ctx context.Context) int {
+	if n, ok := ctx.Value(tracksWanted{}).(int); ok && n > 0 {
+		return n
+	}
+	return musicTracks
+}
+
+// readMusic is what a music link points at, with up to most of its tracks,
+// or nil when the link is not one or the service had nothing to say.
+func (f *Fetcher) readMusic(ctx context.Context, link *url.URL, most int) (*Music, *musicRef) {
 	ref := musicRefOf(link)
 	if ref == nil {
-		return nil
+		return nil, nil
 	}
-	ctx, cancel := context.WithTimeout(ctx, musicBudget)
+	ctx, cancel := context.WithTimeout(context.WithValue(ctx, tracksWanted{}, most), musicBudget)
 	defer cancel()
 	if ref.short {
 		final, err := f.finalURL(ctx, ref.link.String(), nil)
 		if err != nil {
-			return nil
+			return nil, nil
 		}
 		if ref = musicRefOf(final); ref == nil || ref.short {
-			return nil
+			return nil, nil
 		}
 	}
 	var m *Music
@@ -217,18 +228,40 @@ func (f *Fetcher) musicResult(ctx context.Context, link *url.URL) *Result {
 		m, err = f.soundcloudMusic(ctx, ref)
 	}
 	if err != nil || m == nil || m.Title == "" {
-		return nil
+		return nil, nil
 	}
 	m.Platform = ref.platform
 	m.Title = clip(m.Title, maxTitleRunes)
 	m.Artist = clip(m.Artist, maxTitleRunes)
 	m.Album = clip(m.Album, maxTitleRunes)
-	if len(m.Tracks) > musicTracks {
-		m.Tracks = m.Tracks[:musicTracks]
+	if len(m.Tracks) > most {
+		m.Tracks = m.Tracks[:most]
 	}
 	for i := range m.Tracks {
 		m.Tracks[i].Title = clip(m.Tracks[i].Title, maxTitleRunes)
 		m.Tracks[i].Artist = clip(m.Tracks[i].Artist, maxTitleRunes)
+	}
+	return m, ref
+}
+
+// MusicList reads a Spotify, Apple Music, Deezer or SoundCloud link for a
+// profile's music widgets: what it is, with up to most of its tracks. Nil
+// when it is not a music link or the service had nothing to say.
+func (f *Fetcher) MusicList(ctx context.Context, raw string, most int) *Music {
+	link, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (link.Scheme != "https" && link.Scheme != "http") || link.Host == "" || link.User != nil {
+		return nil
+	}
+	m, _ := f.readMusic(ctx, link, most)
+	return m
+}
+
+// musicResult is the preview for a music link, or nil when the link is not
+// one or the service had nothing to say about it.
+func (f *Fetcher) musicResult(ctx context.Context, link *url.URL) *Result {
+	m, ref := f.readMusic(ctx, link, musicTracks)
+	if m == nil {
+		return nil
 	}
 	site := musicSites[ref.platform]
 	r := &Result{
@@ -290,7 +323,7 @@ func (f *Fetcher) spotifyMusic(ctx context.Context, ref *musicRef) (*Music, erro
 	m.Count = len(e.TrackList)
 	for _, t := range e.TrackList {
 		m.Tracks = append(m.Tracks, MusicTrack{Title: t.Title, Artist: t.Subtitle, Duration: t.Duration / 1000, Explicit: t.IsExplicit})
-		if len(m.Tracks) == musicTracks {
+		if len(m.Tracks) == wantTracks(ctx) {
 			break
 		}
 	}
@@ -437,7 +470,7 @@ func (f *Fetcher) appleMusic(ctx context.Context, ref *musicRef) (*Music, error)
 	q := url.Values{"id": {id}, "country": {ref.country}}
 	if ref.kind == "album" || ref.kind == "artist" {
 		q.Set("entity", "song")
-		q.Set("limit", strconv.Itoa(musicTracks+1))
+		q.Set("limit", strconv.Itoa(wantTracks(ctx)+1))
 	}
 	if ref.kind == "artist" {
 		q.Set("sort", "popular")
@@ -607,7 +640,7 @@ func (f *Fetcher) deezerMusic(ctx context.Context, ref *musicRef) (*Music, error
 		m.Art, m.Year = webOnly(firstOf(a.CoverBig, a.PictureBig)), appleYear(a.ReleaseDate)
 		for _, t := range a.Tracks.Data {
 			m.Tracks = append(m.Tracks, t.line())
-			if len(m.Tracks) == musicTracks {
+			if len(m.Tracks) == wantTracks(ctx) {
 				break
 			}
 		}
@@ -631,7 +664,7 @@ func (f *Fetcher) deezerMusic(ctx context.Context, ref *musicRef) (*Music, error
 		var top struct {
 			Data []deezerTrack `json:"data"`
 		}
-		if f.getJSON(ctx, api+"/top?limit="+strconv.Itoa(musicTracks), nil, &top) == nil {
+		if f.getJSON(ctx, api+"/top?limit="+strconv.Itoa(wantTracks(ctx)), nil, &top) == nil {
 			for _, t := range top.Data {
 				m.Tracks = append(m.Tracks, t.line())
 			}

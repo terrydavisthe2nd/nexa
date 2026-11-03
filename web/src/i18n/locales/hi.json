@@ -7886,6 +7886,8 @@
   "whatsNew.r20261102.cardsTitle": "बेहतर प्रोफ़ाइल कार्ड",
   "whatsNew.r20261102.gamePageBody": "किसी की प्रोफ़ाइल पर किसी गेम को दबाएँ, या वे जो खेल रहे हैं उस पर गेम देखें दबाएँ, ताकि उसके ट्रेलर, स्क्रीनशॉट, कहानी, विवरण, उसे कहाँ से पाएँ और मिलते-जुलते गेम दिखें।",
   "whatsNew.r20261102.gamePageTitle": "गेम पेज",
+  "whatsNew.r20261102.musicLinkBody": "किसी संगीत विजेट में Spotify, Apple Music, Deezer या SoundCloud का लिंक पेस्ट करें और उसके गाने, एल्बम या कलाकार प्रीव्यू के साथ सीधे जुड़ जाते हैं।",
+  "whatsNew.r20261102.musicLinkTitle": "लिंक से संगीत भरें",
   "whatsNew.r20261102.pwywBody": "Nexa का साथ दें पेज पर $1 से कोई भी रकम एक बार देकर Nexa का साथ दें। हर $10 पर Pro का एक महीना और बचे हुए हर $5 पर Supporter का एक महीना मिलता है, और भुगतान से पहले आप देख लेते हैं कि क्या मिलेगा।",
   "whatsNew.r20261102.pwywTitle": "जितना चाहें उतना दें",
   "whatsNew.r20261102.refundsBody": "Nexa का साथ दें पेज अब साफ़ बताता है कि रिफ़ंड कैसे होता है: किसी भी भुगतान के 14 दिनों के अंदर कहें और पूरी रकम वापस पाएँ।",
@@ -7991,6 +7993,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (यह डिवाइस)",
   "widgets.localtime.zone": "समय क्षेत्र",
+  "widgets.music.fromLink": "लिंक से जोड़ें",
+  "widgets.music.fromLinkAdd": "जोड़ें",
+  "widgets.music.fromLinkAdded": {
+    "one": "{count} जोड़ा गया।",
+    "other": "{count} जोड़े गए।"
+  },
+  "widgets.music.fromLinkMissed": "Deezer पर नहीं मिला: {names}।",
+  "widgets.music.fromLinkPlaceholder.albums": "एल्बम या गाने का लिंक पेस्ट करें",
+  "widgets.music.fromLinkPlaceholder.artists": "कलाकार, एल्बम या गाने का लिंक पेस्ट करें",
+  "widgets.music.fromLinkPlaceholder.songs": "प्लेलिस्ट, एल्बम या गाने का लिंक पेस्ट करें",
+  "widgets.music.linkFailed": "वह लिंक पढ़ा नहीं जा सका।",
   "widgets.screen.count": {
     "one": "{count} शीर्षक",
     "other": "{count} शीर्षक"

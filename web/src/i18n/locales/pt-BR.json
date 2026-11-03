@@ -8003,6 +8003,8 @@
   "whatsNew.r20261102.cardsTitle": "Cartões de Perfil Mais Completos",
   "whatsNew.r20261102.gamePageBody": "Toque em um jogo no perfil de alguém, ou em Ver Jogo no que a pessoa está jogando, para ver trailers, capturas, enredo, detalhes, onde conseguir e jogos parecidos.",
   "whatsNew.r20261102.gamePageTitle": "Páginas de Jogos",
+  "whatsNew.r20261102.musicLinkBody": "Cole um link do Spotify, Apple Music, Deezer ou SoundCloud num widget de música e as músicas, o álbum ou o artista entram direto, com prévias.",
+  "whatsNew.r20261102.musicLinkTitle": "Preencha a Música a Partir de um Link",
   "whatsNew.r20261102.pwywBody": "Apoie o Nexa uma vez com qualquer valor a partir de US$ 1 na página Apoie o Nexa. Cada US$ 10 vale um mês de Pro e cada US$ 5 que sobram um mês de Supporter, e você vê o que ganha antes de pagar.",
   "whatsNew.r20261102.pwywTitle": "Pague quanto quiser",
   "whatsNew.r20261102.refundsBody": "A página Apoie o Nexa agora diz claramente como funcionam os reembolsos: peça em até 14 dias de qualquer pagamento e você recebe tudo de volta.",
@@ -8108,6 +8110,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (este dispositivo)",
   "widgets.localtime.zone": "Fuso Horário",
+  "widgets.music.fromLink": "Adicionar de um Link",
+  "widgets.music.fromLinkAdd": "Adicionar",
+  "widgets.music.fromLinkAdded": {
+    "one": "{count} adicionado.",
+    "other": "{count} adicionados."
+  },
+  "widgets.music.fromLinkMissed": "Não encontrado no Deezer: {names}.",
+  "widgets.music.fromLinkPlaceholder.albums": "Cole o link de um álbum ou música",
+  "widgets.music.fromLinkPlaceholder.artists": "Cole o link de um artista, álbum ou música",
+  "widgets.music.fromLinkPlaceholder.songs": "Cole o link de uma playlist, álbum ou música",
+  "widgets.music.linkFailed": "Não foi possível ler esse link.",
   "widgets.screen.count": {
     "one": "{count} título",
     "other": "{count} títulos"

@@ -7636,6 +7636,8 @@
   "whatsNew.r20261102.cardsTitle": "もっと表現できるプロフィールカード",
   "whatsNew.r20261102.gamePageBody": "誰かのプロフィールにあるゲーム、またはプレイ中の「ゲームを見る」を押すと、トレーラー、スクリーンショット、ストーリー、詳細、入手先、似ているゲームを見られます。",
   "whatsNew.r20261102.gamePageTitle": "ゲームページ",
+  "whatsNew.r20261102.musicLinkBody": "音楽ウィジェットにSpotify、Apple Music、Deezer、SoundCloudのリンクを貼り付けると、曲やアルバム、アーティストが試聴付きでそのまま追加されます。",
+  "whatsNew.r20261102.musicLinkTitle": "リンクから音楽を追加",
   "whatsNew.r20261102.pwywBody": "「Nexaを応援」ページで、$1から好きな金額を一度だけ支払って Nexa を支援できます。$10ごとに Pro 1か月、残りの$5ごとに Supporter 1か月で、支払う前に内容を確認できます。",
   "whatsNew.r20261102.pwywTitle": "好きな金額で支払う",
   "whatsNew.r20261102.refundsBody": "「Nexaを応援」ページに返金の仕組みをはっきり書きました。どの支払いでも14日以内に連絡すれば全額返金されます。",
@@ -7738,6 +7740,16 @@
   "widgets.localtime.where": "{place}、{gap}",
   "widgets.localtime.yours": "{zone}（この端末）",
   "widgets.localtime.zone": "タイムゾーン",
+  "widgets.music.fromLink": "リンクから追加",
+  "widgets.music.fromLinkAdd": "追加",
+  "widgets.music.fromLinkAdded": {
+    "other": "{count}件追加しました。"
+  },
+  "widgets.music.fromLinkMissed": "Deezerで見つかりませんでした：{names}。",
+  "widgets.music.fromLinkPlaceholder.albums": "アルバムか曲のリンクを貼り付け",
+  "widgets.music.fromLinkPlaceholder.artists": "アーティスト、アルバム、曲のリンクを貼り付け",
+  "widgets.music.fromLinkPlaceholder.songs": "プレイリスト、アルバム、曲のリンクを貼り付け",
+  "widgets.music.linkFailed": "そのリンクを読み込めませんでした。",
   "widgets.screen.count": {
     "other": "{count}作品"
   },

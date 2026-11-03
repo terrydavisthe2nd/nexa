@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 	_ "time/tzdata" // local time widgets need every zone, whatever the host has
+	"unicode"
 
 	"evilion.xyz/chat/internal/auth"
 	"evilion.xyz/chat/internal/books"
@@ -201,6 +202,8 @@ func (s *Server) widgetRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/books/search", s.userLimited(s.limSearch, s.handleBookSearch))
 	mux.HandleFunc("GET /media/book/{cover}", s.handleBookCover)
 	mux.Handle("GET /api/v1/music/search", s.userLimited(s.limMusic, s.handleMusicSearch))
+	// a Spotify, Apple Music, Deezer or SoundCloud link read into a music widget, matched to Deezer
+	mux.Handle("POST /api/v1/music/from-link", s.userLimited(s.limMusic, s.handleMusicFromLink))
 	mux.HandleFunc("GET /media/music/{kind}/{art}", s.handleMusicArt)
 	// a song's thirty seconds, played on a profile; a play asks for a few ranges of it
 	mux.Handle("GET /media/music/preview/{id}", ipLimited(s.limPreview, s.handleMusicPreview))
@@ -1132,6 +1135,150 @@ func (s *Server) handleGameMatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	WriteJSON(w, http.StatusOK, map[string]any{"id": id})
+}
+
+// musicKey is a title or a name as two services' copies of it are compared:
+// case folded, without what follows a dash or sits in brackets ("Remastered",
+// "feat. ..."), and without punctuation.
+func musicKey(s string) string {
+	s = strings.ToLower(s)
+	if i := strings.Index(s, " - "); i > 0 {
+		s = s[:i]
+	}
+	for _, open := range []string{"(", "["} {
+		if i := strings.Index(s, open); i > 0 {
+			s = s[:i]
+		}
+	}
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// sameMusic says whether a Deezer result is the piece a link named: the same
+// name, and an artist that shares the lead artist's name.
+func sameMusic(name, by string, it music.Item) bool {
+	if musicKey(name) == "" || musicKey(name) != musicKey(it.Name) {
+		return false
+	}
+	lead := by
+	for _, sep := range []string{",", "&", " feat", " x "} {
+		if i := strings.Index(strings.ToLower(lead), sep); i > 0 {
+			lead = lead[:i]
+		}
+	}
+	a, b := musicKey(lead), musicKey(it.By)
+	return a == "" || b == "" || strings.Contains(b, a) || strings.Contains(a, b)
+}
+
+// handleMusicFromLink reads a music link into a music widget: an album's or
+// playlist's songs (up to the widget's ten), an album, or an artist, each
+// matched to Deezer so previews play. What could not be matched is named in
+// "missed" for the person to add by hand.
+func (s *Server) handleMusicFromLink(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		URL  string `json:"url"`
+		Kind string `json:"kind"`
+	}
+	if err := ReadJSON(w, r, &req, 4096); err != nil {
+		WriteError(w, err)
+		return
+	}
+	kind, ok := musicKinds[req.Kind]
+	if !ok {
+		WriteError(w, E(http.StatusBadRequest, "invalid_kind", "kind is artists, albums or songs."))
+		return
+	}
+	if s.Unfurl == nil || s.Unfurl.Fetcher == nil || !s.Music.On() {
+		WriteError(w, E(http.StatusServiceUnavailable, "music_unavailable", "Music links can't be read here. Add them by searching instead."))
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+	defer cancel()
+	m := s.Unfurl.Fetcher.MusicList(ctx, req.URL, mostMusic["songs"])
+	if m == nil {
+		WriteError(w, E(http.StatusUnprocessableEntity, "not_music", "That isn't a Spotify, Apple Music, Deezer or SoundCloud link Nexa can read."))
+		return
+	}
+	// what to look for on Deezer, by the widget's kind
+	type want struct{ name, by string }
+	var wants []want
+	switch kind {
+	case music.Songs:
+		if len(m.Tracks) > 0 && m.Kind != "track" {
+			for _, t := range m.Tracks {
+				wants = append(wants, want{t.Title, t.Artist})
+			}
+		} else if m.Kind == "track" {
+			wants = append(wants, want{m.Title, m.Artist})
+		}
+	case music.Albums:
+		switch m.Kind {
+		case "album":
+			wants = append(wants, want{m.Title, m.Artist})
+		case "track":
+			if m.Album != "" {
+				wants = append(wants, want{m.Album, m.Artist})
+			}
+		}
+	case music.Artists:
+		if m.Kind == "artist" {
+			wants = append(wants, want{m.Title, ""})
+		} else if m.Artist != "" {
+			wants = append(wants, want{m.Artist, ""})
+		}
+	}
+	if len(wants) == 0 {
+		WriteError(w, E(http.StatusUnprocessableEntity, "wrong_kind", "That link has nothing for this widget."))
+		return
+	}
+	found := make([]*music.Item, len(wants))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 3)
+	for i, wt := range wants {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			q := strings.TrimSpace(wt.name + " " + wt.by)
+			list, err := s.Music.Search(ctx, kind, q)
+			if err != nil {
+				return
+			}
+			for _, it := range list {
+				if kind == music.Artists && musicKey(it.Name) == musicKey(wt.name) || kind != music.Artists && sameMusic(wt.name, wt.by, it) {
+					hit := it
+					found[i] = &hit
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	items := []music.Item{}
+	missed := []string{}
+	seen := map[string]bool{}
+	for i, f := range found {
+		if f == nil {
+			name := wants[i].name
+			if wants[i].by != "" {
+				name += " (" + wants[i].by + ")"
+			}
+			missed = append(missed, name)
+			continue
+		}
+		if seen[f.ID] {
+			continue
+		}
+		seen[f.ID] = true
+		items = append(items, *f)
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"kind": m.Kind, "title": m.Title, "items": items, "missed": missed})
 }
 
 // handleMusicSearch finds artists, albums or songs on Deezer, from a name,

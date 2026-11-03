@@ -7886,6 +7886,8 @@
   "whatsNew.r20261102.cardsTitle": "Vielseitigere Profilkarten",
   "whatsNew.r20261102.gamePageBody": "Tippe auf ein Spiel im Profil von jemandem oder auf Spiel Ansehen bei dem, was die Person gerade spielt, um Trailer, Screenshots, Handlung, Details, Bezugsquellen und ähnliche Spiele zu sehen.",
   "whatsNew.r20261102.gamePageTitle": "Spielseiten",
+  "whatsNew.r20261102.musicLinkBody": "Füge einen Spotify-, Apple-Music-, Deezer- oder SoundCloud-Link in ein Musik-Widget ein, und Songs, Album oder Künstler landen direkt darin, mit Hörproben.",
+  "whatsNew.r20261102.musicLinkTitle": "Musik aus Einem Link Füllen",
   "whatsNew.r20261102.pwywBody": "Unterstütze Nexa einmalig mit einem beliebigen Betrag ab 1 $ auf der Seite „Nexa unterstützen“. Je 10 $ gibt es einen Monat Pro und je übrige 5 $ einen Monat Supporter, und du siehst vor dem Bezahlen, was du bekommst.",
   "whatsNew.r20261102.pwywTitle": "Zahl, was du willst",
   "whatsNew.r20261102.refundsBody": "Die Seite „Nexa unterstützen“ sagt jetzt klar, wie Erstattungen funktionieren: Melde dich innerhalb von 14 Tagen nach einer Zahlung, und du bekommst alles zurück.",
@@ -7991,6 +7993,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (dieses Gerät)",
   "widgets.localtime.zone": "Zeitzone",
+  "widgets.music.fromLink": "Aus Einem Link Hinzufügen",
+  "widgets.music.fromLinkAdd": "Hinzufügen",
+  "widgets.music.fromLinkAdded": {
+    "one": "{count} hinzugefügt.",
+    "other": "{count} hinzugefügt."
+  },
+  "widgets.music.fromLinkMissed": "Nicht auf Deezer gefunden: {names}.",
+  "widgets.music.fromLinkPlaceholder.albums": "Link zu Album oder Song einfügen",
+  "widgets.music.fromLinkPlaceholder.artists": "Link zu Künstler, Album oder Song einfügen",
+  "widgets.music.fromLinkPlaceholder.songs": "Link zu Playlist, Album oder Song einfügen",
+  "widgets.music.linkFailed": "Dieser Link konnte nicht gelesen werden.",
   "widgets.screen.count": {
     "one": "{count} Titel",
     "other": "{count} Titel"
