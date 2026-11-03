@@ -49,6 +49,8 @@ export default function AdminPanelPage() {
   const rank = useMyRank();
   const isAdmin = rank !== null;
   const unread = useModeration((s) => s.unread);
+  const reportCounts = useModeration((s) => s.reportCounts);
+  const waitingReports = (reportCounts?.open ?? 0) + (reportCounts?.in_review ?? 0);
   const loc = useLocation();
   const nav = useNavigate();
   const tab = tabOf(loc.pathname);
@@ -61,6 +63,7 @@ export default function AdminPanelPage() {
         const st = useModeration.getState();
         st.setCounts(r.counts);
         st.setBugCounts(r.bugs);
+        st.setReportCounts(r.reports);
         st.setUnread(r.unread);
         st.setOwner(r.owner_id);
         st.mergePeople(r.people);
@@ -83,7 +86,8 @@ export default function AdminPanelPage() {
   if (!isAdmin) return <Navigate to="/channels/@me" replace />;
 
   const all: { id: Tab; label: string; icon: JSX.Element; badge?: number; badgeLabel?: string }[] = [
-    { id: "reports", label: t("reports.title"), icon: <Flag size={17} /> },
+    // the queue's size: reports leave it only when staff resolve them
+    { id: "reports", label: t("reports.title"), icon: <Flag size={17} />, badge: waitingReports || undefined, badgeLabel: waitingReports ? t("reports.waitingCount", { count: waitingReports }) : undefined },
     { id: "users", label: t("moderation.tabs.users"), icon: <LayoutGrid size={17} /> },
     { id: "bots", label: t("moderation.tabs.bots"), icon: <Bot size={17} /> },
     { id: "servers", label: t("moderation.tabs.servers"), icon: <Server size={17} /> },

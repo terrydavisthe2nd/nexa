@@ -347,6 +347,12 @@ class Session(private val nx: Nexa) {
                 Moderation.onEvent(e.t, d)
             }
             "mod_case", "mod_log", "mod_bug", "mod_unread" -> Moderation.onEvent(e.t, d)
+            "mod_report" -> Reports.onStaffEvent(d)
+            "report_update" -> runCatching { wireJson.decodeFromJsonElement(ReportReceipt.serializer(), d!!) }.getOrNull()?.let { r ->
+                val before = Reports.mine.value?.firstOrNull { it.id == r.id }
+                Reports.onReceipt(r)
+                NexaInbox.onReport(r, before)
+            }
             "note_update", "note_delete", "note_invite", "note_invite_delete", "note_presence", "note_cursor", "note_crdt" -> fish.nexa.notes.Notes.onEvent(e.t, d)
             "session_expired" -> onSignedOut?.invoke(d.str("reason") ?: "expired")
             // the socket was shut on a ban; what the ban screen needs comes over REST

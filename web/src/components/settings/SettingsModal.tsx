@@ -1,5 +1,5 @@
 import { openReport } from "@/lib/reporting";
-import { Bug, CodeXml, Download, LogOut, Smartphone } from "lucide-react";
+import { Bug, CodeXml, Download, Flag, LogOut, Smartphone } from "lucide-react";
 import { GITHUB_URL } from "@/lib/legal";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { android } from "@/api/android";
@@ -24,6 +24,7 @@ const ProfilePage = lazyPage(() => import("./ProfilePage"));
 const PrivacyPage = lazyPage(() => import("./PrivacyPage"));
 const ActivityPage = lazyPage(() => import("./ActivityPage"));
 const BlockedPage = lazyPage(() => import("./BlockedPage"));
+const YourReportsPage = lazyPage(() => import("./YourReportsPage"));
 const SecurityPage = lazyPage(() => import("./SecurityPage"));
 const DevicesPage = lazyPage(() => import("./DevicesPage"));
 const SubscriptionPage = lazyPage(() => import("@/components/support/SupportPage").then((m) => ({ default: () => <m.SupportPanel inSettings /> })));
@@ -70,6 +71,7 @@ function navGroups(opts: { inApp: boolean; admin: boolean }): NavGroup[] {
       items: [
         { id: "privacy", label: t("settings.privacy.title") },
         { id: "blocked", label: t("people.blockedPage.title") },
+        { id: "reports", label: t("reports.yours.title") },
         { id: "authorizedApps", label: t("apps.authorized.title") },
         { id: "data", label: t("settings.privacy.yourData") },
       ],
@@ -206,6 +208,7 @@ export default function SettingsModal({ onClose, page: initial, packId, modalId,
     page === "keybinds" ? <KeybindsPage onVoice={() => setPage("voice")} /> :
     page === "advanced" ? <AdvancedPage /> :
     page === "blocked" ? <BlockedPage /> :
+    page === "reports" ? <YourReportsPage /> :
     page === "licenses" ? <LicensesPage /> :
     page === "developers" ? <DeveloperPortalPage /> :
     page === "authorizedApps" ? <AuthorizedAppsPage /> :
@@ -224,7 +227,7 @@ export default function SettingsModal({ onClose, page: initial, packId, modalId,
           <NavIcon icon={CodeXml} />
           <span className={s.navLabel}>{t("project.github")}</span>
         </button>
-        <button className={s.navItem} onClick={() => openReport()} data-nav="report-content"><NavIcon icon={Bug} /><span className={s.navLabel}>{t("reports.report")}</span></button>
+        <button className={s.navItem} onClick={() => openReport()} data-nav="report-content"><NavIcon icon={Flag} /><span className={s.navLabel}>{t("reports.report")}</span></button>
         <button className={s.navItem} onClick={() => openReportBug("settings")} data-nav="report-bug">
           <NavIcon icon={Bug} />
           <span className={s.navLabel}>{t("bugs.report")}</span>

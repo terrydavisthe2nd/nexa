@@ -228,7 +228,7 @@ function onNexa(a: NexaAlert): void {
   const me = useAuth.getState().me;
   if (!me || doNotDisturb()) return;
   const path =
-    a.kind === "appeal" ? `/channels/@admin/cases/${a.caseId}` : a.kind === "announcement" ? "/channels/@me/nexa" : a.kind === "reply" ? `/channels/@me/nexa/cases/${a.case.id}` : "/channels/@me/nexa";
+    a.kind === "appeal" ? `/channels/@admin/cases/${a.caseId}` : a.kind === "announcement" || a.kind === "report" ? "/channels/@me/nexa" : a.kind === "reply" ? `/channels/@me/nexa/cases/${a.case.id}` : "/channels/@me/nexa";
   const onScreen = appOnScreen();
   const viewing = typeof location !== "undefined" && (location.pathname === path || (a.kind === "appeal" && location.pathname.endsWith(`/cases/${a.caseId}`)));
   if (onScreen && viewing) return;
@@ -243,8 +243,10 @@ function onNexa(a: NexaAlert): void {
         ? t("nexa.notify.reply", { number: a.case.number })
         : a.kind === "announcement"
           ? a.announcement.title || plainText(parse(a.announcement.body)).slice(0, 140)
-          : t("nexa.notify.appeal");
-  const tag = a.kind === "appeal" ? `ec-appeal-${a.caseId}` : a.kind === "announcement" ? `ec-nexa-a-${a.announcement.id}` : `ec-nexa-${a.case.id}`;
+          : a.kind === "report"
+            ? t("reports.outcome.notify")
+            : t("nexa.notify.appeal");
+  const tag = a.kind === "appeal" ? `ec-appeal-${a.caseId}` : a.kind === "announcement" ? `ec-nexa-a-${a.announcement.id}` : a.kind === "report" ? `ec-report-${a.report.id}` : `ec-nexa-${a.case.id}`;
   void showNotification(title, { body, tag, icon: "/icons/icon-192.png", silent: true }, path);
 }
 

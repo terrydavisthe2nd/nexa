@@ -139,6 +139,7 @@ object Settings {
                 listOf(
                     SettingsPageInfo("privacy", t("settings.privacy.title"), "ShieldCheck"),
                     SettingsPageInfo("blocked", t("people.blockedPage.title"), "Ban"),
+                    SettingsPageInfo("reports", t("reports.yours.title"), "Flag"),
                     SettingsPageInfo("authorizedApps", t("apps.authorized.title"), "AppWindow"),
                     SettingsPageInfo("data", t("settings.privacy.yourData"), "DatabaseZap"),
                 ),
@@ -634,6 +635,7 @@ private fun SettingsPageContent(id: String, anchor: String?, openPage: (String, 
         "subscription" -> fish.nexa.ui.support.SupportPanel(inSettings = true)
         "privacy" -> PrivacyPage()
         "blocked" -> BlockedPage()
+        "reports" -> YourReportsPage()
         "data" -> DataPage(openPage)
         "chat" -> ChatSettingsPage()
         "notifications" -> NotificationsPage(openPage)

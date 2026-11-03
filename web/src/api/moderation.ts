@@ -1,3 +1,4 @@
+import type { ReportReceipt } from "./reports";
 /**
  * Moderation, both sides of it.
  *
@@ -202,7 +203,9 @@ export type FeedItem =
   /** A bug report the member sent. */
   | { kind: "bug"; at: number; bug: MemberBug }
   /** A staff reply in one of the member's bug reports, or a change of its status. */
-  | { kind: "bug_reply" | "bug_status"; at: number; bug: MemberBug; message: BugMessage };
+  | { kind: "bug_reply" | "bug_status"; at: number; bug: MemberBug; message: BugMessage }
+  /** A safety report the member sent, and what staff told them on closing it. */
+  | { kind: "report" | "report_outcome"; at: number; report: ReportReceipt };
 
 export type BlockReason = "" | "self" | "system" | "deleted" | "owner" | "staff";
 
@@ -486,7 +489,7 @@ export const nexa = {
 };
 
 export const moderation = {
-  summary(): Promise<{ counts: CaseCounts; bugs?: BugCounts | null; unread?: ModUnread; owner_id: Snowflake; nexa_id: Snowflake; staff_ids: Snowflake[]; people: People }> {
+  summary(): Promise<{ counts: CaseCounts; bugs?: BugCounts | null; reports?: Record<string, number>; unread?: ModUnread; owner_id: Snowflake; nexa_id: Snowflake; staff_ids: Snowflake[]; people: People }> {
     return api.request("GET", "/moderation/summary");
   },
   /** Mark as Read: every case thread and bug report, read up to now. */

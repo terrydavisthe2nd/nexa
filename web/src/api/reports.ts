@@ -16,18 +16,23 @@ export const REPORT_KINDS = [
   "other",
 ] as const;
 export type ReportKind = (typeof REPORT_KINDS)[number];
+/** In the order the forms list them (the server's own order). */
 export const REPORT_REASONS = [
   "harassment",
   "hate",
-  "sexual",
   "violence",
+  "self_harm",
+  "sexual",
   "child_safety",
+  "underage",
   "spam",
   "scam",
   "privacy",
+  "ban_evasion",
   "illegal",
   "other",
 ] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
 export const REPORT_STATUSES = [
   "open",
   "in_review",
@@ -43,6 +48,25 @@ export interface ReportTarget {
   parts: string[];
   reasons?: string[];
   snapshot: Record<string, unknown>;
+  /** This person's own report about the item that still waits on staff. */
+  already_reported?: ReportReceipt;
+}
+/** What a reporter sees of their own report: never notes or who reviewed it. */
+export interface ReportReceipt {
+  id: string;
+  target_kind: ReportKind;
+  target_id: string;
+  /** The item's name when it was reported ("" for a message). */
+  target_label?: string;
+  reason: string;
+  description: string;
+  status: ReportStatus;
+  /** What staff told the reporter on closing it ("" for the outcome alone). */
+  outcome?: string;
+  /** When they were told (0 while nobody has). */
+  outcome_at?: number;
+  created_at: number;
+  updated_at: number;
 }
 export interface SafetyReport {
   id: string;
@@ -62,6 +86,11 @@ export interface SafetyReport {
   version: number;
   created_at: number;
   updated_at: number;
+  /** Open or in-review reports about the same item, this one included. */
+  duplicates?: number;
+  /** What the reporter was told on closing it, and when (0: not told). */
+  outcome?: string;
+  outcome_at?: number;
 }
 export interface ReportEvent {
   id: string;
@@ -71,16 +100,36 @@ export interface ReportEvent {
   note: string;
   created_at: number;
 }
+/** Where the responsible account stands, beside a report. */
+export interface ReportSubject {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_id: string | null;
+  case_count: number;
+  open_cases: number;
+  alt_count: number;
+  mute: { expires_at: number | null; case_number?: number } | null;
+  ban: { expires_at: number | null; case_number?: number } | null;
+  /** Why this member of staff cannot act on the account ("" when they can). */
+  blocked: string;
+}
 export interface ReportDetail {
   report: SafetyReport;
   events: ReportEvent[];
   files: BugFile[];
   people: Record<string, Person>;
+  /** Other reports about the same item or the same account, newest first. */
+  related?: SafetyReport[];
+  /** How the reporter's reports have gone, by status. */
+  reporter_stats?: Record<ReportStatus, number>;
+  subject?: ReportSubject | null;
 }
 export interface ReportList {
   reports: SafetyReport[];
   counts: Record<ReportStatus, number>;
   has_more: boolean;
+  people?: Record<string, Person>;
 }
 export interface ReportedMessage {
   content: Record<string, unknown>;
@@ -119,11 +168,13 @@ export const reports = {
       ...(signal ? { signal } : {}),
     }),
   send: (body: ReportSubmission) =>
-    api.request<{ report: SafetyReport }>("POST", "/reports", body),
-  mine: () =>
-    api.request<{ reports: SafetyReport[]; has_more: boolean }>(
+    api.request<{ report: ReportReceipt }>("POST", "/reports", body),
+  mine: (before?: string) =>
+    api.request<{ reports: ReportReceipt[]; has_more: boolean }>(
       "GET",
       "/reports",
+      undefined,
+      { query: { before } },
     ),
   upload: (file: File, signal?: AbortSignal) =>
     api.upload<BugFile>(
@@ -142,12 +193,17 @@ export const reports = {
       status: ReportStatus;
       note: string;
       assigned_to: string;
+      /** Close the other open reports about the same item the same way. */
+      resolve_related?: boolean;
+      /** Told to the reporter in their Nexa conversation when it closes. */
+      reporter_message?: string;
     },
   ) => api.request<ReportDetail>("PATCH", `/moderation/reports/${id}`, body),
-  removeMessage: (id: string, version: number, reason: string) =>
+  removeMessage: (id: string, version: number, reason: string, reporterMessage = "") =>
     api.request("POST", `/moderation/reports/${id}/remove-message`, {
       version,
       reason,
+      reporter_message: reporterMessage,
     }),
   fileUrl: (id: string) => api.url(`/media/reports/${id}`),
 };

@@ -1,7 +1,7 @@
 NEXA - PRIVACY POLICY
 Site: nexa.fish (also at mathtest.lol, and formerly chat.evilion.xyz)
 Contact the owner (nora) here: evilionx3@proton.me
-Effective: 2026-11-01
+Effective: 2026-11-02
 
 This policy lists exactly what Nexa holds. It is written against the
 actual database, so if something is not listed here, there is no place
@@ -190,8 +190,12 @@ g) Moderation records (not end-to-end encrypted, kept as the record
      end-to-end encrypted. Reported files include their individual file keys
      so staff can read them. Reports do not share conversation or note keys,
      or grant staff access to the rest of an encrypted conversation. Staff
-     record assignments, review decisions and internal notes. The reported
-     person is not shown the reporter's identity or the report itself.
+     record assignments, review decisions and internal notes. When staff
+     close a report, they may also write the reporter a short message
+     about the outcome; the reporter sees it, with the report's status,
+     in their Nexa conversation and in Settings, but never the notes or
+     who reviewed it. The reported person is not shown the reporter's
+     identity or the report itself.
    - The moderation log: an append-only record of every staff action
      (who, to whom, what, why, and when), with the names as they were
      at the time. Nobody can edit or delete it.

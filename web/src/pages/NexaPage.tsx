@@ -8,6 +8,7 @@ import { NexaAvatar, OfficialBadge, PersonChip } from "@/components/nexa/NexaBit
 import { NoticeCard } from "@/components/nexa/NoticeCard";
 import { BugFeedEntry, bugFeedKind, isBugItem, type BugItem } from "@/components/bugs/BugFeed";
 import { ReportBugButton } from "@/components/bugs/ReportBugButton";
+import { ReportFeedEntry, isReportItem, type ReportItem } from "@/components/reports/ReportFeed";
 import { PageHeaderButtons } from "@/components/shell/PageHeader";
 import { useRenderCtx } from "@/lib/markdownCtx";
 import { fullDate } from "@/lib/moderation";
@@ -123,17 +124,27 @@ export default function NexaPage() {
                 <span>{formatDateDivider(it.at)}</span>
               </div>
             ) : null;
-            return isBugItem(it) ? (
-              <Fragment key={it.kind === "bug" ? `bug${it.bug.id}` : `bugline${it.message.id}`}>
+            if (isReportItem(it))
+              return (
+                <Fragment key={`${it.kind}${it.report.id}`}>
+                  {day}
+                  <FeedFrame kind={it.kind} kindLabel={t(it.kind === "report" ? "reports.feed.kindReport" : "reports.feed.kindOutcome")} at={it.at}>
+                    <ReportFeedEntry item={it} />
+                  </FeedFrame>
+                </Fragment>
+              );
+            const rest = it as Exclude<FeedItem, ReportItem>;
+            return isBugItem(rest) ? (
+              <Fragment key={rest.kind === "bug" ? `bug${rest.bug.id}` : `bugline${rest.message.id}`}>
                 {day}
-                <FeedFrame kind={it.kind} kindLabel={bugFeedKind(it)} at={it.at}>
-                  <BugFeedEntry item={it} people={people} onOpen={(id) => nav(`/channels/@me/nexa/bugs/${id}`)} />
+                <FeedFrame kind={rest.kind} kindLabel={bugFeedKind(rest)} at={rest.at}>
+                  <BugFeedEntry item={rest} people={people} onOpen={(id) => nav(`/channels/@me/nexa/bugs/${id}`)} />
                 </FeedFrame>
               </Fragment>
             ) : (
-              <Fragment key={it.kind === "announcement" ? `a${it.announcement.id}` : `${it.kind}${it.case.id}`}>
+              <Fragment key={rest.kind === "announcement" ? `a${rest.announcement.id}` : `${rest.kind}${rest.case.id}`}>
                 {day}
-                <FeedEntry item={it} people={people} onOpen={(id) => nav(`/channels/@me/nexa/cases/${id}`)} />
+                <FeedEntry item={rest} people={people} onOpen={(id) => nav(`/channels/@me/nexa/cases/${id}`)} />
               </Fragment>
             );
           })
@@ -167,7 +178,7 @@ function FeedFrame({ kind, kindLabel, at, children }: { kind: string; kindLabel:
   );
 }
 
-function FeedEntry({ item, people, onOpen }: { item: Exclude<FeedItem, BugItem>; people: People; onOpen: (caseId: string) => void }) {
+function FeedEntry({ item, people, onOpen }: { item: Exclude<FeedItem, BugItem | ReportItem>; people: People; onOpen: (caseId: string) => void }) {
   const ctx = useRenderCtx();
   const kind = item.kind === "announcement" ? t("nexa.kind.announcement") : item.kind === "lift" ? t("nexa.kind.update") : t("nexa.kind.notice");
   return (

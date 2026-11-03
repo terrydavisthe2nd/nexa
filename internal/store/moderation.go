@@ -1211,8 +1211,9 @@ func (s *Store) MarkNexaRead(ctx context.Context, uid ids.ID, at int64) error {
 
 // NexaUnread counts what is waiting for the member from Nexa: notices and
 // announcements that arrived after they last looked, staff replies in their
-// cases they have not read, and staff replies and status changes in their bug
-// reports they have not read. createdAt is when their account was made;
+// cases they have not read, staff replies and status changes in their bug
+// reports they have not read, and outcomes of safety reports they sent that
+// arrived after they last looked. createdAt is when their account was made;
 // announcements from before it were never theirs.
 func (s *Store) NexaUnread(ctx context.Context, uid ids.ID, createdAt int64) (int, error) {
 	seen, err := s.NexaSeen(ctx, uid)
@@ -1225,8 +1226,9 @@ func (s *Store) NexaUnread(ctx context.Context, uid ids.ID, createdAt int64) (in
 		(SELECT count(*) FROM mod_cases WHERE user_id = ? AND lifted_at IS NOT NULL AND lifted_at > ?) +
 		(SELECT count(*) FROM mod_announcements WHERE created_at > ? AND created_at >= ?) +
 		(SELECT count(*) FROM mod_messages m JOIN mod_cases c ON c.id = m.case_id WHERE c.user_id = ? AND m.kind = 'staff' AND m.id > c.member_read_id) +
-		(SELECT count(*) FROM bug_messages m JOIN bug_reports r ON r.id = m.report_id WHERE r.user_id = ? AND `+bugNews+` AND m.id > r.member_read_id)`,
-		int64(uid), seen, int64(uid), seen, seen, createdAt, int64(uid), int64(uid)).Scan(&n)
+		(SELECT count(*) FROM bug_messages m JOIN bug_reports r ON r.id = m.report_id WHERE r.user_id = ? AND `+bugNews+` AND m.id > r.member_read_id) +
+		(SELECT count(*) FROM safety_reports WHERE reporter_id = ? AND outcome_at > ?)`,
+		int64(uid), seen, int64(uid), seen, seen, createdAt, int64(uid), int64(uid), int64(uid), seen).Scan(&n)
 	return n, err
 }
 
@@ -1236,16 +1238,18 @@ func (s *Store) NexaUnread(ctx context.Context, uid ids.ID, createdAt int64) (in
 // whether their Nexa conversation shows at all, where it sorts among their
 // conversations, and whether one they closed comes back.
 func (s *Store) NexaLatest(ctx context.Context, uid ids.ID, createdAt int64) (int64, error) {
-	var a, b, c, d, e, f sql.NullInt64
+	var a, b, c, d, e, f, g, h sql.NullInt64
 	err := s.db.R.QueryRowContext(ctx, `SELECT
 		(SELECT max(created_at) FROM mod_cases WHERE user_id = ?),
 		(SELECT max(lifted_at) FROM mod_cases WHERE user_id = ?),
 		(SELECT max(created_at) FROM mod_announcements WHERE created_at >= ?),
 		(SELECT max(m.created_at) FROM mod_messages m JOIN mod_cases c ON c.id = m.case_id WHERE c.user_id = ? AND m.kind = 'staff'),
 		(SELECT max(created_at) FROM bug_reports WHERE user_id = ?),
-		(SELECT max(m.created_at) FROM bug_messages m JOIN bug_reports r ON r.id = m.report_id WHERE r.user_id = ? AND `+bugNews+`)`,
-		int64(uid), int64(uid), createdAt, int64(uid), int64(uid), int64(uid)).Scan(&a, &b, &c, &d, &e, &f)
-	return max(a.Int64, b.Int64, c.Int64, d.Int64, e.Int64, f.Int64), err
+		(SELECT max(m.created_at) FROM bug_messages m JOIN bug_reports r ON r.id = m.report_id WHERE r.user_id = ? AND `+bugNews+`),
+		(SELECT max(created_at) FROM safety_reports WHERE reporter_id = ?),
+		(SELECT max(outcome_at) FROM safety_reports WHERE reporter_id = ?)`,
+		int64(uid), int64(uid), createdAt, int64(uid), int64(uid), int64(uid), int64(uid), int64(uid)).Scan(&a, &b, &c, &d, &e, &f, &g, &h)
+	return max(a.Int64, b.Int64, c.Int64, d.Int64, e.Int64, f.Int64, g.Int64, h.Int64), err
 }
 
 // --- accounts -------------------------------------------------------------------

@@ -523,7 +523,7 @@ SIGINT or SIGTERM.
 - Events are the `Ev*` constants in `protocol.go`: messages, reactions, typing, channels, servers,
   members, roles, presence, users, relationships, read states, voice and calls, keys (`key_grant`,
   `keys_needed`, `key_rotation_needed`), expressions, pins, bans, invites, webhooks, polls, settings,
-  threads, follows, AutoMod, the audit log, notes (`note_*`), Nexa and moderation (`nexa_*`, `mod_*`),
+  threads, follows, AutoMod, the audit log, notes (`note_*`), Nexa and moderation (`nexa_*`, `mod_*`, `mod_report` and `report_update` for safety reports),
   apps (`application_commands_update`, `integrations_update`, and `reaction_remove_all` and
   `reaction_remove_emoji` for what bots clear), guests and sessions. Handlers emit through the
   `Broadcaster` interface in `api/router.go` (`EmitUsers`, `EmitChannel`, ...); the hub sends an event
@@ -568,7 +568,7 @@ SIGINT or SIGTERM.
   `note_version_files`, `note_keys`, `note_updates`, `note_uploads`), Nexa and moderation (`mod_cases`,
   `mod_messages`, `mod_message_files`, `mod_restrictions`, `mod_announcements`, `mod_log`, `mod_reads`,
   `nexa_reads`, `bug_reports`, `bug_attachments`, `bug_messages`, `bug_message_files`, `client_errors`),
-  reports (`safety_reports`, `safety_report_events`, `safety_report_files`,
+  reports (`safety_reports` with `outcome`, `safety_report_events`, `safety_report_files`,
   `safety_report_snapshot_blobs`), apps (`applications`, `application_emojis`, `application_commands`,
   `application_command_permissions`, `application_guild_installs`, `application_user_installs`,
   `oauth_codes`, `oauth_tokens` (gone with its refresh token, 90 days unused), `interactions` and
@@ -907,26 +907,53 @@ as Discord holds it:
 ### Safety reports
 
 - Routes (`api/reports.go`): `/api/v1/reports` (submit, own receipts), `GET /reports/target` (a
-  permission-checked preview with the allowed reasons), `POST /reports/attachments`,
-  `GET /media/reports/{id}`, and the staff's `/api/v1/moderation/reports` list, `/{id}` detail and
-  version-checked review. `POST /{id}/remove-message` (Admin and up) removes exactly the reported
-  message without joining its conversation or granting keys, opening a case and logging in the same
-  transaction. Every staff rank can review reports; rank limits still govern other actions, and `staff`
-  keeps the required rank immutable across requests, rejected ones included.
+  permission-checked preview with the allowed reasons and `already_reported`, the caller's own open report
+  about the item), `POST /reports/attachments`, `GET /media/reports/{id}`, and the staff's
+  `/api/v1/moderation/reports` list (`status` active, closed or one status; `kind`, `reason`,
+  `assigned` me or none, the old `mine=1` too; `sort=oldest` with `after`, else `before`; `q` matches
+  words, report, item and account ids and usernames; `people` and each report's `duplicates`), `/{id}`
+  detail (plus `related` reports about the same item or account, `reporter_stats` and `subject`, the
+  account's standing) and version-checked review (`resolve_related` closes the other active reports
+  about the same item the same way, `reporter_message` is what the reporter is told). `POST
+  /{id}/remove-message` (Admin and up) removes exactly the reported message without joining its
+  conversation or granting keys, opening a case and logging in the same transaction, and closes it and
+  every other active report about the message as Action Taken. Every staff rank can review reports;
+  rank limits still govern other actions, and `staff` keeps the required rank immutable across requests,
+  rejected ones included. `/moderation/summary` carries `reports`, the counts by status.
 - Migration 0041 adds `safety_reports`, `safety_report_events`, `safety_report_files` and
-  `safety_report_snapshot_blobs` (both databases; queries in `store/reports.go`). A per-account request
-  reference makes retries idempotent. `limReport` (ten an hour, captcha action `safety_report`) and the
-  upload budgets limit abuse; muted members can report. Receipts show only the reporter's own
-  submissions and statuses, never notes or assignments. Evidence files are private blobs of kind
-  `report`, seen only by their uploader until submitted, then by staff too; snapshot pictures take blob
-  references so later edits cannot garbage-collect them.
-- Reports cover profiles (server profiles included), servers and Discovery listings, channels,
-  conversations, messages, emoji, stickers, packs, shared notes, applications and roles. Every form is a
-  reason, a content preview and an explanation (no part selector, selected text, evidence checkboxes or
-  upload picker; the API still takes legacy part metadata for non-message reports, and message reports
-  only `whole`). Sexual content is not offered, and the API refuses it against the target's current
-  settings, for DMs and group chats, NSFW channels (inherited designations included) and content tied to
-  NSFW communities.
+  `safety_report_snapshot_blobs`; 0046 adds `outcome` and `outcome_at` (both databases; queries in
+  `store/reports.go`). A per-account request reference makes retries idempotent. `limReport` (ten an
+  hour, captcha action `safety_report`) and the upload budgets limit abuse; muted members can report.
+  Receipts (`reportReceipt`) show only the reporter's own submissions, statuses, the item's name as they
+  saw it (`target_label`) and what staff told them, never notes, assignments or who reviewed. Evidence
+  files are private blobs of kind `report`, seen only by their uploader until submitted, then by staff
+  too; snapshot pictures take blob references so later edits cannot garbage-collect them.
+- Reasons (`reportReasons`, the order the forms list them) are harassment, hate, violence, self_harm,
+  sexual, child_safety, underage, spam, scam, privacy, ban_evasion, illegal and other; underage and
+  ban_evasion are offered only for profiles, messages and something else (`reasonKinds`). Each has an
+  icon and a tone (urgent, serious, routine) in web `lib/reportReasons.ts` and Android `Reports.icon`,
+  `Reports.tone`; urgent reasons show an emergency-services note in the form (self-harm its own words).
+  Sexual content is not offered, and the API refuses it against the target's current settings, for DMs
+  and group chats, NSFW channels (inherited designations included) and content tied to NSFW communities.
+- Feedback: closing a report (or changing a closed one's outcome) sets `outcome_at`, which puts a
+  `report_outcome` item in the reporter's Nexa conversation (`handleNexaFeed`, counted unread by
+  `NexaUnread` and in `NexaLatest`; a sent report is a `report` item, not unread); reopening clears it.
+  `report_update` carries the receipt to the reporter when the status moves (the apps update Your Reports
+  and the conversation, and notify on a new outcome), `mod_report` carries changed reports, people and
+  counts to every member of staff (the queue moves live; the Reports tab's badge is open plus in review).
+  Staff leave the reporter message empty to send the standard words (`reports.outcome.actioned`,
+  `.dismissed`).
+- The form (web `ReportModal.tsx`, Android `openReport` in `ui/reports/ReportForm.kt`) is steps: from an
+  item's menu it opens on the reasons (one press on a reason goes on), then the details (the chosen
+  reason with Change, what staff will see, What Happened?, the sharing notice), then a receipt that
+  offers Block for a profile or message and links Your Reports. From Settings it first asks what to
+  report: a pasted message, channel, profile or pack link of this instance, Something Else, or by ID.
+  Only Something Else takes screenshots (up to five, 100 MB); every other report shares the captured
+  content instead (the API still takes legacy part metadata for non-message reports, and message
+  reports only `whole`). Your Reports is a Settings page (web `settings/YourReportsPage.tsx` with
+  `stores/myReports.ts`, Android `ui/settings/YourReportsPage.kt` with `Reports.mine`), and the
+  conversation's items are web `reports/ReportFeed.tsx`, Android `ReportFeedEntry` in `NexaPages.kt`,
+  both drawing the shared receipt (`ReceiptView.tsx`, `ReceiptCard`).
 - Message evidence: the backend resolves the responsible account and keeps only explicit readable
   fields. A message report must carry the complete current message and every attached file (stale edit
   versions, missing content, omitted attachments and invalid file keys are refused), sharing only each
@@ -935,18 +962,19 @@ as Discord holds it:
   AES-GCM with range support (`media/reported.go`), and reported files keep their blob references after
   the source is deleted. Evidence is not end-to-end encrypted and is labelled reporter-supplied, not
   authenticated proof. Reports give staff no conversation keys and no unreported content.
-- Look: forms use one modal inset, 24px section spacing, 15px labels and notices, 16px input text, the
-  sharing disclosure with the explanation, and the standard chat row as an inert message preview with a
-  mandatory full-message disclosure. Staff views use 18px section headings, 16px reading text and 14px
-  metadata, the report ID in expandable details, and the same chat message row for evidence.
-- Clients: web `api/reports.ts`, `lib/reporting.ts`, `components/reports/` (registered context-menu
-  actions, the dialog, `/channels/@admin/reports[/:reportId]`; `lib/bugMedia.ts` and `nexa/ThreadFiles`
-  serve private evidence, snapshots keep expression formats with the TGS and WebM players); Android
-  `data/Reports.kt`, `ui/reports/ReportForm.kt`, `ui/moderation/Reports.kt` (private snapshots read from
-  its cache, never a public URL). Staff views have Report, Review and History tabs; web queue filters
-  live in the URL and Android keeps its queue state. Account, server and pack pages opened from a report
-  keep a return link and Back returns there (Android `Nav.returnTo` drops the inspected pages from Back
-  history). Settings has Report Content as a fallback. Reporting adds no staff privileges.
+- Staff (web `ReportsTab.tsx`, Android `ui/moderation/Reports.kt`): the queue has view chips with
+  counts (Needs Review, Open, In Review, Resolved, All), search, and filters folded behind a toggle;
+  rows show the reason's glyph, who or what, the words, status, how many open reports share the item and
+  the assignee. A report shows, in one page, what the reporter said, the reported content (the chat row
+  or a target card, then the captured snapshot), the responsible account's standing, the reporter's
+  record, links to the account, server and pack pages, the decision (Remove Message for admins on
+  messages; Open, In Review, Action Taken, Dismissed; the reporter message; closing the duplicates; the
+  internal note, required to close), the other reports and the history. Claiming puts an open report in
+  review and unclaiming opens it again. On a wide web panel the account, reporter and links sit in a
+  side column; below 1080 px of panel everything is one column in that order, as on Android. Web queue
+  filters live in the URL and Android keeps its queue state. Account, server and pack pages opened from
+  a report keep a return link and Back returns there (Android `Nav.returnTo` drops the inspected pages
+  from Back history). Reporting adds no staff privileges.
 
 ### NSFW communities
 

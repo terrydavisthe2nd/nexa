@@ -107,6 +107,8 @@ fun AdminPanel(route: Route.Admin) {
     val c = Nx.colors
     val me by Nexa.users.me.collectAsState()
     val unread by Moderation.unread.collectAsState()
+    val reportCounts by fish.nexa.data.Reports.counts.collectAsState()
+    val waitingReports = (reportCounts?.get("open") ?: 0) + (reportCounts?.get("in_review") ?: 0)
     val rank = fish.nexa.data.StaffRanks.of(me?.id, me?.flags ?: 0L)
     if (me != null && rank == null) {
         LaunchedEffect(Unit) { Nav.go(Route.Friends, replace = true) }
@@ -114,7 +116,8 @@ fun AdminPanel(route: Route.Admin) {
     }
     LaunchedEffect(Unit) { runCatching { Moderation.summary() } }
     val all = listOf(
-        PanelTab("reports", t("reports.title"), "Flag"),
+        // the queue's size: reports leave it only when staff resolve them
+        PanelTab("reports", t("reports.title"), "Flag", waitingReports, t("reports.waitingCount", "count" to waitingReports)),
         PanelTab("users", t("moderation.tabs.users"), "LayoutGrid"),
         PanelTab("bots", t("moderation.tabs.bots"), "Bot"),
         PanelTab("servers", t("moderation.tabs.servers"), "Server"),

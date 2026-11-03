@@ -357,7 +357,7 @@ func (s *Server) handleNexa(w http.ResponseWriter, r *http.Request) {
 // case, a lifted mute or ban, an announcement, a bug report they sent, or a
 // reply or a change of status in one.
 type feedItem struct {
-	Kind         string            `json:"kind"` // notice | lift | announcement | bug | bug_reply | bug_status
+	Kind         string            `json:"kind"` // notice | lift | announcement | bug | bug_reply | bug_status | report | report_outcome
 	At           int64             `json:"at"`
 	Case         *memberCase       `json:"case,omitempty"`
 	Announcement *announcementView `json:"announcement,omitempty"`
@@ -365,6 +365,9 @@ type feedItem struct {
 	// status line, for bug_reply and bug_status.
 	Bug     *memberBug        `json:"bug,omitempty"`
 	Message *store.BugMessage `json:"message,omitempty"`
+	// Report is a safety report the member sent (its receipt: never staff
+	// notes), for report and report_outcome.
+	Report map[string]any `json:"report,omitempty"`
 }
 
 // announcementView is an announcement as anyone sees it; the author is in the
@@ -449,6 +452,21 @@ func (s *Server) handleNexaFeed(w http.ResponseWriter, r *http.Request) {
 			kind = "bug_status"
 		}
 		items = append(items, feedItem{Kind: kind, At: m.CreatedAt, Bug: b, Message: m})
+	}
+	// the safety reports they sent, and what staff told them on closing each
+	sent, err := s.Store.SafetyReportsForReporter(ctx, me.ID)
+	if err != nil {
+		WriteError(w, err)
+		return
+	}
+	for _, v := range sent {
+		receipt := reportReceipt(v)
+		if keep(v.CreatedAt) {
+			items = append(items, feedItem{Kind: "report", At: v.CreatedAt, Report: receipt})
+		}
+		if v.OutcomeAt > 0 && keep(v.OutcomeAt) {
+			items = append(items, feedItem{Kind: "report_outcome", At: v.OutcomeAt, Report: receipt})
+		}
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].At > items[j].At })
 	more := len(items) > feedPage

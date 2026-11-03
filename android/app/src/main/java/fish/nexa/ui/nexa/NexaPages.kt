@@ -697,6 +697,7 @@ private fun FeedEntry(it: FeedItem) {
         is FeedItem.Notice -> t("nexa.kind.notice")
         is FeedItem.Bug -> t("bugs.feed.kindReport")
         is FeedItem.BugLine -> if (it.status) t("bugs.feed.kindUpdate") else t("bugs.feed.kindReply")
+        is FeedItem.Report -> t(if (it.outcome) "reports.feed.kindOutcome" else "reports.feed.kindReport")
     }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         NexaAvatar(40.dp)
@@ -712,6 +713,7 @@ private fun FeedEntry(it: FeedItem) {
                 is FeedItem.Lift -> LiftItem(it.case)
                 is FeedItem.News -> AnnouncementCard(it.announcement)
                 is FeedItem.Bug, is FeedItem.BugLine -> BugFeedEntry(it) { id -> Nav.go(Route.NexaBug(id)) }
+                is FeedItem.Report -> ReportFeedEntry(it)
             }
         }
     }
@@ -1040,5 +1042,25 @@ private fun Missing(text: String, retry: () -> Unit) {
             NxButton(t("chat.messageList.tryAgain"), retry, kind = ButtonKind.SECONDARY)
             NxButton(t("nexa.backToNexa"), { Nav.go(Route.NexaConvo, replace = true) }, kind = ButtonKind.GHOST)
         }
+    }
+}
+
+/** ReportFeed.tsx: a safety report the member sent, then what staff decided and told them. */
+@Composable
+private fun ReportFeedEntry(it: FeedItem.Report) {
+    val c = Nx.colors
+    val r = it.report
+    Column(Modifier.widthIn(max = 560.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Txt(
+            when {
+                !it.outcome -> t("reports.feed.sent")
+                r.status == "dismissed" -> t("reports.feed.reviewedNoAction")
+                else -> t("reports.feed.reviewedAction")
+            },
+            style = Nx.type.body,
+            color = c.text,
+        )
+        fish.nexa.ui.reports.ReceiptCard(r, compact = it.outcome, showOutcome = it.outcome)
+        if (it.outcome) NxButton(t("reports.yours.view"), { fish.nexa.ui.settings.Settings.open("reports") }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM)
     }
 }

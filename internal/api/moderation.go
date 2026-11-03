@@ -109,7 +109,12 @@ func (s *Server) handleModSummary(w http.ResponseWriter, r *http.Request) {
 	if s.rankOf(ctx, me) >= rankAdmin {
 		bugs = s.bugCountsFor(ctx)
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"counts": counts, "bugs": bugs, "unread": s.modUnreadFor(ctx, me.ID), "owner_id": owner, "nexa_id": nexa, "staff_ids": staff, "people": s.people(ctx, staff...)})
+	reports, err := s.Store.SafetyReportCounts(ctx)
+	if err != nil {
+		WriteError(w, err)
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"counts": counts, "bugs": bugs, "reports": reports, "unread": s.modUnreadFor(ctx, me.ID), "owner_id": owner, "nexa_id": nexa, "staff_ids": staff, "people": s.people(ctx, staff...)})
 }
 
 // modUserView is one account in the grid or at the top of its case list:

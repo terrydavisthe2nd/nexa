@@ -296,6 +296,10 @@ web/src/pages/RegisterPage.tsx:147	TextInput	{password}	credential
 web/src/pages/RegisterPage.tsx:155	TextInput	{confirm}	credential
 web/src/pages/RegisterPage.tsx:160	TextInput	{inviteKey}	credential
 web/src/pages/RegisterPage.tsx:166	TextInput	{inviteKey}	credential
-web/src/components/reports/ReportModal.tsx:168	TextInput	custom part (120)	staff
-web/src/components/reports/ReportModal.tsx:221	TextArea	description (4000), selected evidence (16000)	staff
-web/src/components/reports/ReportsTab.tsx:396	TextArea	internal note (2000), public removal reason (1000)	staff
+web/src/components/reports/ReportModal.tsx:275	TextArea	description (4000; Something Else also sends its first 120 as the custom part), selected evidence (16000)	staff
+web/src/components/reports/ReportModal.tsx:304	input	"file" (Something Else screenshots)	nontext
+web/src/components/reports/ReportModal.tsx:428	TextInput	link to report (500, parsed, never stored)	nontext
+web/src/components/reports/ReportModal.tsx:452	TextInput	content ID (20 digits)	nontext
+web/src/components/reports/ReportsTab.tsx:889	TextArea	public removal reason (1000)	staff
+web/src/components/reports/ReportsTab.tsx:1258	TextArea	message to the reporter (1000, shown to the reporter)	staff
+web/src/components/reports/ReportsTab.tsx:974	TextArea	internal note (2000)	staff

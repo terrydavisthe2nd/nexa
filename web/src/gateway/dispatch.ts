@@ -1,3 +1,5 @@
+import type { ReportReceipt } from "@/api/reports";
+import { useMyReports } from "@/stores/myReports";
 import { useBilling } from "@/stores/billing";
 import type { GatewayEvent, MentionMeta } from "./events";
 import { useAuth } from "@/stores/auth";
@@ -61,7 +63,7 @@ function voice(): Promise<VoiceModule> {
 }
 
 /** Something from Nexa worth a sound or a notification. */
-export type NexaAlert = { kind: "notice" | "reply"; case: MemberCase } | { kind: "announcement"; announcement: Announcement } | { kind: "appeal"; caseId: string; userId: string };
+export type NexaAlert = { kind: "notice" | "reply"; case: MemberCase } | { kind: "announcement"; announcement: Announcement } | { kind: "appeal"; caseId: string; userId: string } | { kind: "report"; report: ReportReceipt };
 
 /** A message edited or deleted, or conversations gone, for what keeps its own copy (the search index). */
 export type MessageChange =
@@ -749,6 +751,18 @@ export async function applyEvent(e: GatewayEvent): Promise<void> {
     case "mod_unread":
       useModeration.getState().setUnread(e.d);
       return;
+    case "mod_report":
+      useModeration.getState().setReportCounts(e.d.counts);
+      emitModEvent({ type: "report", reports: e.d.reports, people: e.d.people });
+      return;
+    case "report_update": {
+      const before = useMyReports.getState().list?.find((x) => x.id === e.d.id);
+      useMyReports.getState().onUpdate(e.d);
+      useNexa.getState().onReport(e.d);
+      // staff closed it: the outcome is news, told like anything else from Nexa
+      if (e.d.outcome_at && before?.outcome_at !== e.d.outcome_at) each(dispatchHooks.onNexa, (h) => h({ kind: "report", report: e.d }));
+      return;
+    }
     case "account_banned":
       // the socket was shut on a ban; what the ban screen needs comes over REST
       void nexaApi

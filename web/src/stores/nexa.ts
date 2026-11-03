@@ -1,3 +1,4 @@
+import type { ReportReceipt } from "@/api/reports";
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { nexa as nexaApi, type Announcement, type CaseFile, type CaseMessage, type FeedItem, type MemberCase, type NexaState, type People, type Restriction } from "@/api/moderation";
@@ -63,6 +64,12 @@ interface NexaStore {
   clearMarks: () => void;
   ack: (caseId: string) => Promise<void>;
   loadBugThread: (reportId: string) => Promise<BugThread>;
+  /**
+   * A safety report this account sent moved: sent (from any device), or closed
+   * with an outcome. Its items in the conversation follow, and an outcome taken
+   * back (the report reopened) leaves it.
+   */
+  onReport: (r: ReportReceipt) => void;
   /** A report of this account's moved: sent from another device, answered, or given a new status. */
   onBug: (report: MemberBug, messages: BugMessage[], people: People, st: NexaState) => void;
   replyBug: (reportId: string, body: string, files?: BugFile[]) => Promise<void>;
@@ -86,6 +93,9 @@ function feedKey(it: FeedItem): string {
     case "bug_reply":
     case "bug_status":
       return `bugline:${it.message.id}`;
+    case "report":
+    case "report_outcome":
+      return `${it.kind}:${it.report.id}`;
     default:
       return `${it.kind}:${it.case.id}`;
   }
@@ -289,6 +299,16 @@ export const useNexa = create<NexaStore>()((set, get) => ({
     if (gen !== generation) return thread;
     set((s) => ({ bugThreads: { ...s.bugThreads, [reportId]: thread }, people: { ...s.people, ...r.people }, feed: bugIntoFeed(s.feed, r.report, []) }));
     return thread;
+  },
+
+  onReport: (r) => {
+    set((s) => {
+      if (!s.feed) return {};
+      const items: FeedItem[] = [{ kind: "report", at: r.created_at, report: r }];
+      if (r.outcome_at) items.push({ kind: "report_outcome", at: r.outcome_at, report: r });
+      const kept = s.feed.filter((it) => !(it.kind === "report_outcome" && it.report.id === r.id) || !!r.outcome_at);
+      return { feed: mergeFeed(kept, items) };
+    });
   },
 
   onBug: (report, messages, people, st) => {

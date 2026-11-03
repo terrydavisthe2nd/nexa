@@ -144,6 +144,11 @@ const (
 	// EvModUnread tells one member of staff which case threads and bug
 	// reports waiting on the staff they have not read (moderation_reads.go).
 	EvModUnread = "mod_unread"
+	// EvModReport carries new or changed safety reports, and the queue's counts,
+	// to every member of staff; EvReportUpdate carries a report's receipt (its new
+	// status, never staff notes) to the person who sent it.
+	EvModReport    = "mod_report"
+	EvReportUpdate = "report_update"
 	// Nexa's note to someone a friend put in a group directly, and its
 	// dismissal on another of their devices. Only that person is sent either.
 	EvGroupAddNotice       = "group_add_notice"

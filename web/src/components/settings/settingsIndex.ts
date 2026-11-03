@@ -58,6 +58,7 @@ export function settingsIndex(opts: { pageLabels: Record<string, string> }): Set
     e("privacy", t("server.encryption.encryption"), "encryption"),
     e("privacy", t("settings.privacy.search"), "encryption"),
     e("blocked", t("people.block.hideMessages"), "blockedMessages"),
+    e("reports", t("reports.report")),
     e("data", t("settings.privacy.exportMyData"), "export"),
     e("chat", t("settings.appearance.messageDisplay"), "messageDisplay"),
     e("chat", t("settings.privacy.fetchLinkPreviewsWhenISend"), "linkPreviews"),

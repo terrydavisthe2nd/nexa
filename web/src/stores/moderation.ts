@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { create } from "zustand";
 import { moderation as modApi, type Announcement, type CaseCounts, type CaseMessage, type ModLogEntry, type ModUnread, type People, type StaffCase } from "@/api/moderation";
 import { staffBugs } from "@/api/bugs";
+import type { SafetyReport } from "@/api/reports";
 import type { BugCounts, BugMessage, StaffBug } from "@/api/bugs";
 
 /**
@@ -16,12 +17,16 @@ export type ModEvent =
   | { type: "log"; entry: ModLogEntry; people: People }
   | { type: "announcement"; announcement: Announcement; people: People }
   | { type: "announcement_gone"; id: string }
-  | { type: "bug"; report: StaffBug; messages: BugMessage[]; people: People };
+  | { type: "bug"; report: StaffBug; messages: BugMessage[]; people: People }
+  | { type: "report"; reports: SafetyReport[]; people: People };
 
 interface ModerationStore {
   counts: CaseCounts | null;
   /** How many bug reports each view of the Bug Reports tab holds. */
   bugCounts: BugCounts | null;
+  /** How many safety reports hold each status: the Reports tab's badge. */
+  reportCounts: Record<string, number> | null;
+  setReportCounts: (c: Record<string, number> | null | undefined) => void;
   /**
    * The case threads and bug reports waiting on the staff that this person
    * has not read: what the badges on the rail, the sidebar and the panel's
@@ -52,6 +57,8 @@ export function unreadCount(u: ModUnread): number {
 export const useModeration = create<ModerationStore>()((set, get) => ({
   counts: null,
   bugCounts: null,
+  reportCounts: null,
+  setReportCounts: (reportCounts) => reportCounts && set({ reportCounts }),
   unread: NONE,
   ownerId: null,
   people: {},
@@ -79,7 +86,7 @@ export const useModeration = create<ModerationStore>()((set, get) => ({
   },
   setOwner: (id) => id && set({ ownerId: id }),
   mergePeople: (p) => p && set((s) => ({ people: { ...s.people, ...p } })),
-  reset: () => set({ counts: null, bugCounts: null, unread: NONE, ownerId: null, people: {} }),
+  reset: () => set({ counts: null, bugCounts: null, reportCounts: null, unread: NONE, ownerId: null, people: {} }),
 }));
 
 const listeners = new Set<(e: ModEvent) => void>();

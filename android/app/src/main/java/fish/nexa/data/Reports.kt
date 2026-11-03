@@ -2,8 +2,10 @@ package fish.nexa.data
 
 import fish.nexa.Nexa
 import fish.nexa.net.Message
+import fish.nexa.net.wireJson
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.*
 
 @Serializable
@@ -25,15 +27,54 @@ data class SafetyReport(
     val version: Int = 1,
     @SerialName("created_at") val createdAt: Long = 0,
     @SerialName("updated_at") val updatedAt: Long = 0,
+    /** Open or in-review reports about the same item, this one included. */
+    val duplicates: Int = 1,
+    /** What the reporter was told on closing it, and when (0: not told). */
+    val outcome: String = "",
+    @SerialName("outcome_at") val outcomeAt: Long = 0,
+)
+
+/** What a reporter sees of their own report: never notes or who reviewed it. */
+@Serializable
+data class ReportReceipt(
+    val id: String,
+    @SerialName("target_kind") val targetKind: String = "other",
+    @SerialName("target_id") val targetId: String = "0",
+    /** The item's name when it was reported ("" for a message or something else). */
+    @SerialName("target_label") val targetLabel: String = "",
+    val reason: String = "other",
+    val description: String = "",
+    val status: String = "open",
+    val outcome: String = "",
+    @SerialName("outcome_at") val outcomeAt: Long = 0,
+    @SerialName("created_at") val createdAt: Long = 0,
+    @SerialName("updated_at") val updatedAt: Long = 0,
 )
 
 @Serializable
 data class SafetyReportTarget(
     val kind: String,
     val id: String,
+    @SerialName("subject_id") val subjectId: String = "0",
     val parts: List<String>,
     val reasons: List<String> = emptyList(),
     val snapshot: JsonObject = JsonObject(emptyMap()),
+    /** This person's own report about the item that still waits on staff. */
+    @SerialName("already_reported") val alreadyReported: ReportReceipt? = null,
+)
+
+/** Where the responsible account stands, beside a report. */
+@Serializable
+data class ReportSubject(
+    val id: String,
+    val username: String = "",
+    @SerialName("display_name") val displayName: String = "",
+    @SerialName("avatar_id") val avatarId: String? = null,
+    @SerialName("case_count") val caseCount: Int = 0,
+    @SerialName("alt_count") val altCount: Int = 0,
+    val mute: JsonElement? = null,
+    val ban: JsonElement? = null,
+    val blocked: String = "",
 )
 
 @Serializable
@@ -52,6 +93,9 @@ data class SafetyReportDetail(
     val events: List<SafetyReportEvent> = emptyList(),
     val files: List<NexaFile> = emptyList(),
     val people: Map<String, NexaPerson> = emptyMap(),
+    val related: List<SafetyReport> = emptyList(),
+    @SerialName("reporter_stats") val reporterStats: Map<String, Int> = emptyMap(),
+    val subject: ReportSubject? = null,
 )
 
 @Serializable
@@ -59,7 +103,17 @@ data class SafetyReportList(
     val reports: List<SafetyReport> = emptyList(),
     val counts: Map<String, Int> = emptyMap(),
     @SerialName("has_more") val hasMore: Boolean = false,
+    val people: Map<String, NexaPerson> = emptyMap(),
 )
+
+@Serializable
+data class ReportReceiptPage(
+    val reports: List<ReportReceipt> = emptyList(),
+    @SerialName("has_more") val hasMore: Boolean = false,
+)
+
+/** How urgent a reason is: urgent ones (someone may be in danger) carry the danger colour. */
+enum class ReasonTone { URGENT, SERIOUS, ROUTINE }
 
 data class ReportEvidence(val part: String, val label: String, val text: String)
 
@@ -86,20 +140,103 @@ object Reports {
             "role",
             "other",
         )
+    /** In the order the forms list them (the server's own order). */
     val reasons =
         listOf(
             "harassment",
             "hate",
-            "sexual",
             "violence",
+            "self_harm",
+            "sexual",
             "child_safety",
+            "underage",
             "spam",
             "scam",
             "privacy",
+            "ban_evasion",
             "illegal",
             "other",
         )
     val statuses = listOf("open", "in_review", "actioned", "dismissed")
+
+    /** lib/reportReasons.ts: each reason's Lucide icon and how urgent it is. */
+    private val looks =
+        mapOf(
+            "harassment" to ("MessageSquareWarning" to ReasonTone.SERIOUS),
+            "hate" to ("HeartCrack" to ReasonTone.SERIOUS),
+            "violence" to ("Swords" to ReasonTone.URGENT),
+            "self_harm" to ("LifeBuoy" to ReasonTone.URGENT),
+            "sexual" to ("CircleOff" to ReasonTone.SERIOUS),
+            "child_safety" to ("ShieldAlert" to ReasonTone.URGENT),
+            "underage" to ("Baby" to ReasonTone.SERIOUS),
+            "spam" to ("Mails" to ReasonTone.ROUTINE),
+            "scam" to ("VenetianMask" to ReasonTone.SERIOUS),
+            "privacy" to ("Fingerprint" to ReasonTone.SERIOUS),
+            "ban_evasion" to ("UserX" to ReasonTone.ROUTINE),
+            "illegal" to ("Gavel" to ReasonTone.SERIOUS),
+            "other" to ("CircleHelp" to ReasonTone.ROUTINE),
+        )
+
+    fun icon(reason: String) = looks[reason]?.first ?: "CircleHelp"
+
+    fun tone(reason: String) = looks[reason]?.second ?: ReasonTone.ROUTINE
+
+    fun closing(status: String) = status == "actioned" || status == "dismissed"
+
+    /** The standard words a reporter is told when staff leave the message empty. */
+    fun outcomeText(r: ReportReceipt) =
+        r.outcome.ifEmpty { fish.nexa.ui.t(if (r.status == "dismissed") "reports.outcome.dismissed" else "reports.outcome.actioned") }
+
+    /** "Profile: maya", "Message". */
+    fun subjectLine(r: ReportReceipt): String {
+        val kind = fish.nexa.ui.t("reports.kind.${r.targetKind}")
+        return if (r.targetLabel.isNotEmpty()) fish.nexa.ui.t("reports.yours.about", "kind" to kind, "name" to r.targetLabel) else kind
+    }
+
+    // ---- the reporter's receipts (Settings, Your Reports) ----
+
+    private val _mine = kotlinx.coroutines.flow.MutableStateFlow<List<ReportReceipt>?>(null)
+    val mine: kotlinx.coroutines.flow.StateFlow<List<ReportReceipt>?> = _mine
+    val mineMore = kotlinx.coroutines.flow.MutableStateFlow(false)
+
+    suspend fun loadMine(older: Boolean = false) {
+        val before = if (older) _mine.value?.lastOrNull()?.id ?: "" else ""
+        val page = Nexa.api.get("/reports" + query(mapOf("before" to before)), ReportReceiptPage.serializer())
+        _mine.value = if (older) (_mine.value ?: emptyList()) + page.reports.filter { r -> _mine.value?.none { it.id == r.id } != false } else page.reports
+        mineMore.value = page.hasMore
+    }
+
+    /** report_update: a report this account sent moved (sent from any device, or decided). */
+    fun onReceipt(r: ReportReceipt) {
+        val list = _mine.value ?: return
+        _mine.value = if (list.any { it.id == r.id }) list.map { if (it.id == r.id) r else it } else listOf(r) + list
+    }
+
+    fun reset() {
+        _mine.value = null
+        mineMore.value = false
+        counts.value = null
+    }
+
+    // ---- staff ----
+
+    /** How many safety reports hold each status: the Reports tab's badge. */
+    val counts = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Int>?>(null)
+
+    /** mod_report: new or changed reports, for open queues and report pages. */
+    private val _changes = kotlinx.coroutines.flow.MutableSharedFlow<Pair<List<SafetyReport>, Map<String, NexaPerson>>>(extraBufferCapacity = 32)
+    val changes: kotlinx.coroutines.flow.SharedFlow<Pair<List<SafetyReport>, Map<String, NexaPerson>>> = _changes
+
+    fun onStaffEvent(d: JsonElement?) {
+        val o = d as? JsonObject ?: return
+        runCatching {
+            o["counts"]?.let { counts.value = wireJson.decodeFromJsonElement(kotlinx.serialization.builtins.MapSerializer(String.serializer(), Int.serializer()), it) }
+            val list = wireJson.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(SafetyReport.serializer()), o["reports"] ?: JsonArray(emptyList()))
+            val people = wireJson.decodeFromJsonElement(kotlinx.serialization.builtins.MapSerializer(String.serializer(), NexaPerson.serializer()), o["people"] ?: JsonObject(emptyMap()))
+            NexaInbox.mergePeople(people)
+            _changes.tryEmit(list to people)
+        }
+    }
 
     private fun query(values: Map<String, String>) =
         values.entries
@@ -113,31 +250,40 @@ object Reports {
             SafetyReportTarget.serializer(),
         )
 
-    suspend fun send(body: JsonObject): String =
-        (Nexa.api.request("POST", "/reports", body).jsonObject["report"]!!.jsonObject["id"]
-                as JsonPrimitive)
-            .content
+    suspend fun send(body: JsonObject): ReportReceipt {
+        val r = wireJson.decodeFromJsonElement(ReportReceipt.serializer(), Nexa.api.request("POST", "/reports", body).jsonObject["report"]!!)
+        onReceipt(r)
+        return r
+    }
 
     suspend fun list(
         status: String,
         kind: String,
+        reason: String,
+        assigned: String,
+        sort: String,
         search: String,
-        mine: Boolean,
-        before: String = "",
-    ) =
-        Nexa.api.get(
-            "/moderation/reports" +
-                query(
-                    mapOf(
-                        "status" to status,
-                        "kind" to kind,
-                        "q" to search,
-                        "mine" to if (mine) "1" else "",
-                        "before" to before,
-                    )
-                ),
-            SafetyReportList.serializer(),
-        )
+        cursor: String = "",
+    ): SafetyReportList {
+        val r =
+            Nexa.api.get(
+                "/moderation/reports" +
+                    query(
+                        mapOf(
+                            "status" to status,
+                            "kind" to kind,
+                            "reason" to reason,
+                            "assigned" to assigned,
+                            "sort" to sort,
+                            "q" to search,
+                            (if (sort == "oldest") "after" else "before") to cursor,
+                        )
+                    ),
+                SafetyReportList.serializer(),
+            )
+        counts.value = r.counts
+        return r
+    }
 
     suspend fun detail(id: String) =
         Nexa.api.get("/moderation/reports/$id", SafetyReportDetail.serializer())
@@ -147,6 +293,8 @@ object Reports {
         status: String,
         note: String,
         assigned: String,
+        told: String = "",
+        related: Boolean = false,
     ): SafetyReportDetail =
         Nexa.api.request(
             "PATCH",
@@ -157,8 +305,24 @@ object Reports {
                 put("status", status)
                 put("note", note)
                 put("assigned_to", assigned)
+                if (closing(status)) {
+                    put("reporter_message", told)
+                    put("resolve_related", related)
+                }
             },
         )
+
+    suspend fun removeMessage(v: SafetyReport, reason: String, told: String) {
+        Nexa.api.request(
+            "POST",
+            "/moderation/reports/${v.id}/remove-message",
+            buildJsonObject {
+                put("version", v.version)
+                put("reason", reason)
+                put("reporter_message", told)
+            },
+        )
+    }
 
     /** Complete readable message and per-file keys only; never conversation keys. */
     suspend fun fullMessage(target: SafetyReportTarget, preview: (ChatMessage) -> Unit = {}): JsonObject {

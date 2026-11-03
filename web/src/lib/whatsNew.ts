@@ -31,6 +31,8 @@ export const RELEASES: Release[] = [
       { icon: Palette, title: "whatsNew.r20261102.themeBuilderTitle", body: "whatsNew.r20261102.themeBuilderBody" },
       { icon: SlidersHorizontal, title: "whatsNew.r20261102.tuneTitle", body: "whatsNew.r20261102.tuneBody" },
       { icon: Eye, title: "whatsNew.r20261102.visionTitle", body: "whatsNew.r20261102.visionBody" },
+      { icon: Flag, title: "whatsNew.r20261102.reportsTitle", body: "whatsNew.r20261102.reportsBody" },
+      { icon: MessageSquareText, title: "whatsNew.r20261102.reportFeedbackTitle", body: "whatsNew.r20261102.reportFeedbackBody" },
     ],
   },
   {

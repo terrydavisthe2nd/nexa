@@ -504,6 +504,7 @@ object Moderation {
         val o = obj(Nexa.api.get("/moderation/summary"))
         peopleIn(o)
         val s = Summary(decode(CaseCounts.serializer(), o["counts"]), decode(BugCounts.serializer(), o["bugs"]), decode(ModUnread.serializer(), o["unread"]), (o["owner_id"] as? JsonPrimitive)?.contentOrNull)
+        decode(MapSerializer(String.serializer(), Int.serializer()), o["reports"])?.let { Reports.counts.value = it }
         s.counts?.let { counts.value = it }
         s.bugs?.let { bugCounts.value = it }
         s.unread?.let { _unread.value = it }

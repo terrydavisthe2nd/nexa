@@ -1,3 +1,4 @@
+import type { ReportReceipt, SafetyReport } from "@/api/reports";
 import type { DiscordState } from "@/api/connections";
 import type {
   AuditEntry,
@@ -132,6 +133,8 @@ export type GatewayEvent =
   | { t: "mod_bug"; d: { report: StaffBug; messages: BugMessage[]; people: People; counts: BugCounts } }
   /** Staff: the case threads and bug reports waiting on the staff that this person has not read. */
   | { t: "mod_unread"; d: ModUnread }
+  | { t: "mod_report"; d: { reports: SafetyReport[]; counts: Record<string, number>; people: People } }
+  | { t: "report_update"; d: ReportReceipt }
   /** This account's linked Discord account changed: linked, unlinked, out of the activity server or back in it. */
   | { t: "discord_link"; d: DiscordState }
   /** A thread started, changed (renamed, closed, opened, locked, retagged) or was shown to someone just put in it. */

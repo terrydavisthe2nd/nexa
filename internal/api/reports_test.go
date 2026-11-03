@@ -291,8 +291,8 @@ func TestSafetyReportRemovalIsScopedAndAudited(t *testing.T) {
 		t.Fatal("removal granted channel access")
 	}
 	_, detail := do(t, ts, "GET", "/api/v1/moderation/reports/"+id, staff, nil)
-	if detail["report"].(map[string]any)["version"] != float64(2) || len(detail["events"].([]any)) != 1 {
-		t.Fatalf("missing report audit: %v", detail)
+	if r := detail["report"].(map[string]any); r["version"] != float64(2) || r["status"] != "actioned" || len(detail["events"].([]any)) != 1 {
+		t.Fatalf("removal did not close the report with an audit entry: %v", detail)
 	}
 	if res, _ := do(t, ts, "POST", path, staff, body); res.StatusCode != 404 {
 		t.Fatal("repeated removal made another case")
@@ -546,5 +546,69 @@ func TestSafetyReportSexualReasonFollowsContentContext(t *testing.T) {
 			t.Fatalf("message: %d %v", res.StatusCode, msg)
 		}
 		check("message", msg["id"].(string), false)
+	}
+}
+
+// Closing a report can close the other open reports about the same item, and
+// only those; reporters see the new status but never notes, and only staff see
+// the reporter's record and the other reports.
+func TestSafetyReportResolveRelatedAndPrivacy(t *testing.T) {
+	_, ts := newTestServer(t)
+	owner, _ := register(t, ts, "owner")
+	r1, _ := register(t, ts, "reporter1")
+	r2, _ := register(t, ts, "reporter2")
+	_, tid := register(t, ts, "target")
+	_, oid := register(t, ts, "other")
+	first := sendReport(t, ts, r1, reportBody("user", tid))["id"].(string)
+	if _, target := do(t, ts, "GET", "/api/v1/reports/target?kind=user&id="+tid, r1, nil); target["already_reported"].(map[string]any)["id"] != first {
+		t.Fatalf("reporter not told of their open report: %v", target)
+	}
+	if _, target := do(t, ts, "GET", "/api/v1/reports/target?kind=user&id="+tid, r2, nil); target["already_reported"] != nil {
+		t.Fatal("another person's report revealed")
+	}
+	second := sendReport(t, ts, r2, reportBody("user", tid))["id"].(string)
+	elsewhere := sendReport(t, ts, r2, reportBody("user", oid))["id"].(string)
+	res, detail := do(t, ts, "GET", "/api/v1/moderation/reports/"+first, owner, nil)
+	if res.StatusCode != 200 || len(detail["related"].([]any)) != 1 || detail["report"].(map[string]any)["duplicates"] != float64(2) || detail["reporter_stats"].(map[string]any)["open"] != float64(1) {
+		t.Fatalf("staff context: %v", detail)
+	}
+	res, _ = do(t, ts, "PATCH", "/api/v1/moderation/reports/"+first, owner, map[string]any{"version": 1, "status": "actioned", "note": "Private staff outcome", "reporter_message": "Thanks, we dealt with it.", "assigned_to": "0", "resolve_related": true})
+	if res.StatusCode != 200 {
+		t.Fatalf("resolve: %d", res.StatusCode)
+	}
+	for id, want := range map[string]string{second: "actioned", elsewhere: "open"} {
+		if _, d := do(t, ts, "GET", "/api/v1/moderation/reports/"+id, owner, nil); d["report"].(map[string]any)["status"] != want {
+			t.Errorf("report %s: want %s, got %v", id, want, d["report"])
+		}
+	}
+	_, mine := do(t, ts, "GET", "/api/v1/reports", r2, nil)
+	encoded, _ := json.Marshal(mine)
+	if !strings.Contains(string(encoded), `"actioned"`) || !strings.Contains(string(encoded), `"target_label":"User target"`) || strings.Contains(string(encoded), "Private staff outcome") || strings.Contains(string(encoded), "reporter_stats") {
+		t.Fatalf("receipts: %s", encoded)
+	}
+	// the second reporter hears the outcome in their Nexa conversation, unread
+	_, feed := do(t, ts, "GET", "/api/v1/nexa/feed", r2, nil)
+	told := false
+	for _, it := range feed["items"].([]any) {
+		item := it.(map[string]any)
+		if item["kind"] == "report_outcome" && item["report"].(map[string]any)["outcome"] == "Thanks, we dealt with it." {
+			told = true
+		}
+	}
+	if encoded, _ := json.Marshal(feed); !told || strings.Contains(string(encoded), "Private staff outcome") {
+		t.Fatalf("reporter feed: %s", encoded)
+	}
+	if _, st := do(t, ts, "GET", "/api/v1/nexa", r2, nil); st["state"].(map[string]any)["unread"].(float64) < 1 {
+		t.Fatalf("outcome not unread: %v", st)
+	}
+	_, sv := do(t, ts, "POST", "/api/v1/servers", r1, map[string]any{"name": "Place"})
+	res, body := do(t, ts, "GET", "/api/v1/reports/target?kind=server&id="+sv["id"].(string), r1, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("server target: %d %v", res.StatusCode, body)
+	}
+	for _, r := range body["reasons"].([]any) {
+		if r == "underage" {
+			t.Fatal("a server offered the under-13 reason")
+		}
 	}
 }

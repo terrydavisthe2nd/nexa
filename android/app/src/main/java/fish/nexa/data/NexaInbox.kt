@@ -153,6 +153,8 @@ sealed class FeedItem {
     data class News(override val at: Long, val announcement: Announcement) : FeedItem() { override val key get() = "a:${announcement.id}" }
     data class Bug(override val at: Long, val bug: MemberBug) : FeedItem() { override val key get() = "bug:${bug.id}" }
     data class BugLine(override val at: Long, val bug: MemberBug, val message: BugMessage, val status: Boolean) : FeedItem() { override val key get() = "bugline:${message.id}" }
+    /** A safety report the member sent, or (outcome) what staff told them on closing it. */
+    data class Report(override val at: Long, val report: ReportReceipt, val outcome: Boolean) : FeedItem() { override val key get() = (if (outcome) "report_outcome:" else "report:") + report.id }
 
     companion object {
         fun parse(el: JsonElement): FeedItem? {
@@ -170,6 +172,7 @@ sealed class FeedItem {
                         wireJson.decodeFromJsonElement(BugMessage.serializer(), o["message"]!!),
                         status = (o["kind"] as JsonPrimitive).content == "bug_status",
                     )
+                    "report", "report_outcome" -> Report(at, wireJson.decodeFromJsonElement(ReportReceipt.serializer(), o["report"]!!), outcome = (o["kind"] as JsonPrimitive).content == "report_outcome")
                     else -> null
                 }
             }.getOrNull()
@@ -489,6 +492,22 @@ object NexaInbox {
         data class News(val announcement: Announcement) : Alert
         data class BugReply(val report: MemberBug) : Alert
         data class BugStatus(val report: MemberBug, val status: String) : Alert
+        data class ReportReviewed(val report: ReportReceipt) : Alert
+    }
+
+    /**
+     * report_update: a safety report this account sent moved. Its items in the
+     * conversation follow (an outcome taken back, the report reopened, leaves),
+     * and a new outcome is news.
+     */
+    fun onReport(r: ReportReceipt, before: ReportReceipt?) {
+        _feed.value?.let { feed ->
+            val items = mutableListOf<FeedItem>(FeedItem.Report(r.createdAt, r, outcome = false))
+            if (r.outcomeAt > 0) items += FeedItem.Report(r.outcomeAt, r, outcome = true)
+            val kept = feed.filter { !(it is FeedItem.Report && it.outcome && it.report.id == r.id) || r.outcomeAt > 0 }
+            _feed.value = merged(kept, items)
+        }
+        if (r.outcomeAt > 0 && before?.outcomeAt != r.outcomeAt) onAlert?.invoke(Alert.ReportReviewed(r))
     }
 
     fun onEvent(type: String, d: JsonElement?) {
@@ -554,6 +573,7 @@ object NexaInbox {
     fun reset() {
         generation++
         Moderation.reset()
+        Reports.reset()
         _standing.value = null
         _people.value = emptyMap()
         _feed.value = null

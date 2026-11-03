@@ -158,8 +158,8 @@ From the owner (CLAUDE.md and standing feedback):
 | Tabs that do not fit on a phone (an app's five) slide sideways in their bar, not the whole page | Done: Designer.module.css `.scopeTabs` |
 | While picking accounts in the staff panel, a tap anywhere on a card picks it | Done: UserGrid cards |
 | Choose a save location for files and pictures | Done: lib/saveFile.ts uses a picker where supported and mobile file sharing, with the browser download flow elsewhere |
-| Full-message reporting and Report, Review, History staff tabs, with a return path from related staff pages | Done: ReportModal, ReportsTab and reportNavigation on the web |
+| Full-message reporting, the stepped report form, Your Reports and the one-page staff report with a return path from related staff pages | Done: ReportModal, ReportsTab, YourReportsPage and reportNavigation on the web |
 
-Report forms use a reason, content preview and explanation. Message previews and staff evidence use MessageRow, with readonly polls and retained files supplied to the staff row. All report forms omit extra evidence fields and upload controls, matching the web.
+Report forms are steps, as on the web: the reasons as one panel of rows (glyph tinted by urgency, name, what it covers; a press goes on), then the details (the chosen reason with Change, an emergency note for urgent reasons, What Staff Will See, What Happened?, the sharing notice), then the receipt with Block and Your Reports. Message previews and staff evidence use MessageRow, with readonly polls and retained files supplied to the staff row. Only Something Else reports take screenshots.
 
-Reports use 24 dp section spacing, 15 sp labels and sharing notices, and 16 sp reading and input text. The message preview keeps the chat row gutter. Sharing notices sit with the explanation, and staff report headers keep their status and assignment controls aligned.
+Reports use 20 dp section spacing in the form and 18 dp on the staff page, 15 sp labels and notices, and 16 sp reading and input text. The staff page is one column in the order the web's narrow panel uses (said, content, account, reporter, decision, other reports, history); the decision's four outcomes sit two by two, as on the web at phone width.
