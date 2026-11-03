@@ -116,6 +116,7 @@ function ProfileLinkPage({ username }: { username: string }) {
           visitor={{
             user,
             widgets: user.widgets,
+            badges: user.badges,
             actions: (
               <>
                 <Link to={`/login?next=${next}`} className={p.primary} data-testid="profile-link-login">{t("profileLink.logInToAddFriend")}</Link>

@@ -46,7 +46,7 @@ import fish.nexa.ui.theme.boxShadow
 import fish.nexa.ui.theme.mixSrgb
 
 /** The parts of a profile the designer changes, each pressed where it is shown. */
-enum class ProfilePart { BANNER, AVATAR, STATUS, NAME, TAG, PRONOUNS, ABOUT }
+enum class ProfilePart { BANNER, AVATAR, STATUS, NAME, TAG, PRONOUNS, ABOUT, BADGES }
 
 /**
  * ProfileDesign (ProfileCard.tsx): your own profile drawn in Settings,

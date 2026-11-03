@@ -34,6 +34,10 @@ fun actionLabel(action: String): String = when (action) {
     "report_review" -> t("reports.review")
     "message_remove" -> t("reports.messageRemoved")
     "rank_change" -> t("staff.log.rankChange")
+    "badge_change" -> t("badges.log.change")
+    "badge_create" -> t("badges.log.create")
+    "badge_edit" -> t("badges.log.edit")
+    "badge_delete" -> t("badges.log.delete")
     "admin_grant" -> t("moderation.action.adminGrant")
     "admin_revoke" -> t("moderation.action.adminRevoke")
     "account_disable" -> t("moderation.action.accountDisable")
@@ -61,6 +65,7 @@ fun logIcon(action: String): String = when (action) {
     "announcement", "announcement_delete" -> "Megaphone"
     "admin_grant", "rank_change" -> "ShieldPlus"
     "admin_revoke" -> "ShieldMinus"
+    "badge_change", "badge_create", "badge_edit", "badge_delete" -> "Award"
     "account_disable" -> "Lock"
     else -> "KeyRound"
 }
@@ -71,6 +76,7 @@ val LOG_GROUPS: Map<String, List<String>> = mapOf(
     "lifts" to listOf("unmute", "unban", "expression_relist", "discovery_restore"),
     "announcements" to listOf("announcement", "announcement_delete"),
     "access" to listOf("rank_change", "admin_grant", "admin_revoke", "account_disable", "account_enable"),
+    "badges" to listOf("badge_change", "badge_create", "badge_edit", "badge_delete"),
 )
 
 private fun JsonObject.str(k: String) = (this[k] as? JsonPrimitive)?.contentOrNull
@@ -110,6 +116,19 @@ fun logDetail(e: ModLogEntry): String {
         } ?: ""
         "announcement", "announcement_delete" -> d.str("title")?.takeIf { it.isNotEmpty() }?.let { "“$it”" } ?: ""
         "account_delete_profile" -> t("moderation.log.messagesKept")
+        "badge_change" -> {
+            fun named(k: String) = d.list(k).mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.map { if (it == "contributor") t("badges.contributor") else it }.joinToString(", ")
+            listOfNotNull(
+                named("added").takeIf { it.isNotEmpty() }?.let { t("badges.log.gave", "names" to it) },
+                named("removed").takeIf { it.isNotEmpty() }?.let { t("badges.log.took", "names" to it) },
+            ).joinToString("; ")
+        }
+        "badge_create", "badge_delete" -> d.str("name")?.let { "“$it”" } ?: ""
+        "badge_edit" -> {
+            val from = d.str("from")
+            val to = d.str("name")
+            if (from != null && to != null && from != to) t("staff.log.fromTo", "from" to from, "to" to to) else to?.let { "“$it”" } ?: ""
+        }
         "rank_change" -> {
             fun name(x: String?) = fish.nexa.data.StaffRank.entries.firstOrNull { it.key == x && it != fish.nexa.data.StaffRank.OWNER }?.label ?: t("staff.rankModal.none")
             t("staff.log.fromTo", "from" to name(d.str("from")), "to" to name(d.str("to")))

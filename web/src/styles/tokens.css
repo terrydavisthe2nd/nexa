@@ -376,10 +376,27 @@
   --text-supporter: color-mix(in oklab, #ff5c93 82%, var(--text-strong));
   --tier-pro: var(--brand);
   --text-pro: var(--text-brand);
+  /* profile badges' tones (components/badges; Android NxColors.badge*) */
+  --badge-og: #4cc9b0;
+  --badge-years: #8fb4d9;
+  --badge-bug: #5fd17a;
+  --badge-dev: #6aa2ff;
+  --badge-contributor: #b48cff;
+  --badge-bronze: #d08a52;
+  --badge-silver: #b9c3cf;
+  --badge-gold: #f0c04a;
 }
 :root[data-scheme="light"] {
   --tier-supporter: #e8336f;
   --text-supporter: color-mix(in oklab, #e8336f 82%, #000);
+  --badge-og: #138a75;
+  --badge-years: #3d6f9e;
+  --badge-bug: #1f8f3e;
+  --badge-dev: #2a64d6;
+  --badge-contributor: #7a45e0;
+  --badge-bronze: #a35f2c;
+  --badge-silver: #66717e;
+  --badge-gold: #a9790f;
 }
 [data-theme="light"] {
   --rail-shade: 93%;

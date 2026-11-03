@@ -363,10 +363,10 @@ private fun Designer(serverId: String, servers: List<String>, onServer: (String)
                 ProfilePart.PRONOUNS -> open("pronouns")
                 ProfilePart.ABOUT -> open("about")
                 // a status and a server tag are the account's, the same in every server
-                ProfilePart.STATUS, ProfilePart.TAG -> Unit
+                ProfilePart.STATUS, ProfilePart.TAG, ProfilePart.BADGES -> Unit
             }
         },
-        fixed = if (canNick) setOf(ProfilePart.STATUS, ProfilePart.TAG) else setOf(ProfilePart.STATUS, ProfilePart.TAG, ProfilePart.NAME),
+        fixed = if (canNick) setOf(ProfilePart.STATUS, ProfilePart.TAG, ProfilePart.BADGES) else setOf(ProfilePart.STATUS, ProfilePart.TAG, ProfilePart.NAME, ProfilePart.BADGES),
     )
     // whatever is left empty here is the main profile's, and is drawn so
     val aboutOut = AboutMe.toSave(f.about).trim()

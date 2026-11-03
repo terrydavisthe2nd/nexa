@@ -99,6 +99,18 @@ data class NexaColors(
     val tierPro: Color get() = brand
     val textPro: Color get() = textBrand
 
+    /** Profile badges' tones (tokens.css --badge-*); a badge's text is its tone mixed toward the strongest text, as the plans' are. */
+    val badgeOg: Color = if (isLight) Color(0xFF138A75) else Color(0xFF4CC9B0)
+    val badgeYears: Color = if (isLight) Color(0xFF3D6F9E) else Color(0xFF8FB4D9)
+    val badgeBug: Color = if (isLight) Color(0xFF1F8F3E) else Color(0xFF5FD17A)
+    val badgeDev: Color = if (isLight) Color(0xFF2A64D6) else Color(0xFF6AA2FF)
+    val badgeContributor: Color = if (isLight) Color(0xFF7A45E0) else Color(0xFFB48CFF)
+    val badgeBronze: Color = if (isLight) Color(0xFFA35F2C) else Color(0xFFD08A52)
+    val badgeSilver: Color = if (isLight) Color(0xFF66717E) else Color(0xFFB9C3CF)
+    val badgeGold: Color = if (isLight) Color(0xFFA9790F) else Color(0xFFF0C04A)
+    /** A badge's words and icon in its [tone]. */
+    fun badgeText(tone: Color): Color = mixOklab(tone, if (isLight) Color.Black else textStrong, if (isLight) 0.22f else 0.18f)
+
     fun shadeAt(a: Float): Color = shade.copy(alpha = (a * shadeAlpha).coerceIn(0f, 1f))
 
     fun statusColor(status: String?): Color = when (status) {

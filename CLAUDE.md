@@ -584,7 +584,8 @@ SIGINT or SIGTERM.
   `application_command_permissions`, `application_guild_installs`, `application_user_installs`,
   `oauth_codes`, `oauth_tokens` (gone with its refresh token, 90 days unused), `interactions` and
   `ephemeral_messages` (15 minutes), `ephemeral_files`, `interaction_files` (a day), `bot_copies`,
-  `roles.managed_by` for a bot's role), the instance (`instance_settings`).
+  `roles.managed_by` for a bot's role), badges (`badge_defs`, `user_badges`, `badge_prefs`), the
+  instance (`instance_settings`).
 - Channel types: `dm`, `group_dm`, `subchat`, `text`, `voice`, `category`, `announcement`, `forum`,
   `media`, `link`, `thread`, `private_thread`. `store.IsForum` is forum or media (posts only),
   `store.HoldsNoMessages` is category or link (no messages, invites, read states, mentions or own key). A channel's `key_conv_id` names the conversation whose keys encrypt it:
@@ -1011,6 +1012,30 @@ as Discord holds it:
   `/moderation/servers?discovery=all|listed|held`, which searches and paginates listings and holds
   before returning them, with matching totals, and reuses the audited hide/restore actions and owner
   cases. Both clients use the same catalogue strings and Terms version.
+
+### Profile badges (`store/badges.go`, `api/badge_handlers.go`)
+
+- Badge ids: `staff` (the rank, never hideable), `plan`, `og` (account made before `OGCutoff`, the start
+  of 2026-11-02 in Alaska), `years` (whole years on Nexa as `level`), `bug_hunter` (a bug report staff
+  resolved), `app_developer` (an owned app's bot in `AppDeveloperServers`, 5, servers the owner does not
+  own), `gift_giver` (paid plan gifts to others, `level` 1 to 3 at `GiftTiers` 1, 5, 20), and the two
+  staff give by hand in `user_badges`: `contributor` and `event:<badge_defs id>` (a name, a Lucide icon
+  name and a colour). Earned badges are worked out when asked for, never stored; bots, Nexa's accounts
+  and deleted accounts have none (deleting an account drops its rows).
+- `GET /users/{id}/profile` and `/profiles/{username}` carry `badges`, visible ones in the holder's
+  order; `GET`/`PUT /users/@me/badges` (`order`, `hidden`; open to muted and banned accounts) is the
+  account's own list with `hidden` marked. Admins and up: `/moderation/badges` (event badges, CRUD) and
+  `PUT /moderation/users/{id}/badges` (the whole hand-given set), logged as `badge_change` (names added
+  and removed), `badge_create`, `badge_edit`, `badge_delete`.
+- Web `lib/badges.ts` (looks, `EVENT_ICONS`, `EVENT_COLOURS`), `components/badges/Badges.tsx`
+  (`BadgePill`, `BadgeRow`; staff rank and plan stay tags on the username line beside the pronouns,
+  every other badge is an icon tile on its own line under it, in its tone from `--badge-*` in
+  `tokens.css`, named only in the tooltip or, with `named`, in lists; the editor groups them the same way), `stores/myBadges.ts` (the
+  designer and its preview), `settings/BadgeEditor.tsx` (Settings, Profiles, Badges),
+  `moderation/BadgesTab.tsx` (`/channels/@admin/badges`) and `GrantBadgesModal.tsx` (a person's page);
+  Android `data/Badges`, `ui/profile/Badges.kt`, `BadgeEditor` in `ui/settings/DesignerForm.kt`,
+  `ui/moderation/BadgeTab.kt` (also `openGiveBadgesSheet`), and `badges` in `Route.Admin.TABS`. The
+  event icon list must name icons both lucide-react and Android's `lucide.json` have.
 
 ### Plans and payments (`api/billing.go`, `internal/stripe`)
 

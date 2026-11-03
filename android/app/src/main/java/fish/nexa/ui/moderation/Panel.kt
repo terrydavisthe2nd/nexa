@@ -130,6 +130,7 @@ fun AdminPanel(route: Route.Admin) {
         PanelTab("bugs", t("moderation.tabs.bugs"), "Bug", unread.bugs.size, t("bugs.staff.waitingCount", "count" to unread.bugs.size)),
         PanelTab("logs", t("moderation.tabs.logs"), "ScrollText"),
         PanelTab("announcements", t("moderation.tabs.announcements"), "Megaphone"),
+        PanelTab("badges", t("moderation.tabs.badges"), "Award"),
     )
     // a mod has the people, cases and log; admins and above every tab
     val tabs = if (rank != null && rank.atLeast(fish.nexa.data.StaffRank.ADMIN)) all else all.filter { it.id in listOf("reports", "users", "cases", "logs") }
@@ -167,6 +168,7 @@ fun AdminPanel(route: Route.Admin) {
                 "bugs" -> BugsTab(parts.getOrNull(1))
                 "logs" -> LogsTab()
                 "announcements" -> AnnouncementsTab()
+                "badges" -> BadgesTab()
             }
         }
     }

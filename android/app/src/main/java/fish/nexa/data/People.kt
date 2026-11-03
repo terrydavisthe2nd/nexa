@@ -273,7 +273,7 @@ object People {
 
     /** The person's public profile: mutual friends and servers and widgets come with it. */
     /** [serverWidgets]: the widgets are the ones they chose for the server asked about, not their main profile's. */
-    data class Profile(val user: PublicUser, val mutualFriends: List<String>, val mutualServers: List<String>, val widgets: List<JsonObject>, val serverWidgets: Boolean = false)
+    data class Profile(val user: PublicUser, val mutualFriends: List<String>, val mutualServers: List<String>, val widgets: List<JsonObject>, val serverWidgets: Boolean = false, val badges: List<Badges.Badge>? = null)
 
     /** Someone's whole profile; opened in a server both are in, with the widgets they chose for it, if they did. */
     suspend fun profile(userId: String, serverId: String? = null): Profile {
@@ -282,6 +282,6 @@ object People {
         Nexa.users.upsert(listOf(user))
         fun ids(k: String) = (res[k] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content } ?: emptyList()
         val widgets = (res["widgets"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: emptyList()
-        return Profile(user, ids("mutual_friends"), ids("mutual_servers"), widgets, (res["server_widgets"] as? JsonPrimitive)?.booleanOrNull == true)
+        return Profile(user, ids("mutual_friends"), ids("mutual_servers"), widgets, (res["server_widgets"] as? JsonPrimitive)?.booleanOrNull == true, Badges.parse(res["badges"]))
     }
 }

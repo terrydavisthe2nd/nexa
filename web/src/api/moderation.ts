@@ -10,7 +10,7 @@ import type { ReportReceipt } from "./reports";
  */
 import { api, type UploadOptions } from "./client";
 import type { BugCounts, BugMessage, MemberBug } from "./bugs";
-import type { Activity, Emoji, PublicUser, ServerTag, Snowflake, StickerPack } from "./types";
+import type { Activity, BadgeDef, Emoji, PublicUser, ServerTag, Snowflake, StickerPack } from "./types";
 
 export type ModAction = "message_remove" | "avatar_remove" | "field_reset" | "mute" | "ban" | "delete" | "server_reset" | "expression_takedown";
 export type ResetField = "username" | "display_name" | "about_me" | "pronouns" | "status" | "nicknames" | "server_profiles" | "typing_style" | "name_style" | "widgets" | "server_tag";
@@ -592,6 +592,26 @@ export const moderation = {
   },
   retract(id: Snowflake): Promise<void> {
     return api.request("DELETE", `/moderation/announcements/${id}`);
+  },
+  /** The event badges staff made, and how many hold Contributor. */
+  badges(): Promise<{ badges: BadgeDef[]; contributors: number }> {
+    return api.request("GET", "/moderation/badges");
+  },
+  createBadge(b: { name: string; icon: string; color: number }): Promise<BadgeDef> {
+    return api.request("POST", "/moderation/badges", b);
+  },
+  editBadge(id: Snowflake, b: { name: string; icon: string; color: number }): Promise<BadgeDef> {
+    return api.request("PATCH", `/moderation/badges/${id}`, b);
+  },
+  deleteBadge(id: Snowflake): Promise<void> {
+    return api.request("DELETE", `/moderation/badges/${id}`);
+  },
+  /** The badges staff gave someone: "contributor" and "event:<id>". */
+  userBadges(id: Snowflake): Promise<{ granted: string[] }> {
+    return api.request("GET", `/moderation/users/${id}/badges`);
+  },
+  setUserBadges(id: Snowflake, badges: string[]): Promise<{ granted: string[] }> {
+    return api.request("PUT", `/moderation/users/${id}/badges`, { badges });
   },
   /** Gives or takes a staff rank ("" for none; the owner alone), or disables or restores sign-in, with an optional reason for the log. */
   access(id: Snowflake, body: { rank?: "developer" | "admin" | "mod" | ""; disabled?: boolean; reason?: string }): Promise<{ flags: number }> {

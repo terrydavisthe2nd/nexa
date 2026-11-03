@@ -74,6 +74,8 @@ export function installDemoRuntime() {
       if (method === "PUT") { settingsBlob = String(data["blob"]); settingsVersion++; }
       return reading ? (settingsBlob ? { blob: settingsBlob, version: settingsVersion } : null) : { version: settingsVersion };
     }
+    // a fresh visitor account has earned no badges
+    if (path === "/users/@me/badges") return { badges: [] };
     if (path === "/users/@me/widgets") { if (!reading) widgets = data["widgets"] as unknown[]; return { widgets }; }
     if (path === `/users/${me.id}/profile`) return { user: { ...me }, mutual_friends: [], mutual_servers: [...servers.keys()], widgets };
     if (path === `/users/${me.id}`) return { ...me };

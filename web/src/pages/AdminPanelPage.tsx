@@ -1,6 +1,6 @@
 import { reportReturnPath } from "@/lib/reportNavigation";
 import { Button } from "@/components/common/Button";
-import { Flag, Compass, Bot, Bug, FolderOpen, LayoutGrid, Megaphone, Phone, ScrollText, Server, Shield, Sticker } from "lucide-react";
+import { Award, Flag, Compass, Bot, Bug, FolderOpen, LayoutGrid, Megaphone, Phone, ScrollText, Server, Shield, Sticker } from "lucide-react";
 import { Suspense, useEffect, type KeyboardEvent } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { moderation as modApi } from "@/api/moderation";
@@ -13,6 +13,7 @@ import m from "@/components/moderation/Moderation.module.css";
 
 // the tabs, routed in routes.tsx and loaded with the panel
 export { AnnouncementsTab } from "@/components/moderation/AnnouncementsTab";
+export { BadgesTab } from "@/components/moderation/BadgesTab";
 export { BugsTab } from "@/components/moderation/BugsTab";
 export { BotsTab } from "@/components/moderation/BotsTab";
 export { CallsTab } from "@/components/moderation/CallsTab";
@@ -27,7 +28,7 @@ export { UserGrid } from "@/components/moderation/UserGrid";
 
 export { ReportsTab } from "@/components/reports/ReportsTab";
 
-type Tab = "reports" | "discovery" | "users" | "bots" | "servers" | "expressions" | "calls" | "cases" | "bugs" | "logs" | "announcements";
+type Tab = "reports" | "discovery" | "users" | "bots" | "servers" | "expressions" | "calls" | "cases" | "bugs" | "logs" | "announcements" | "badges";
 
 const BASE = "/channels/@admin";
 
@@ -36,7 +37,7 @@ const MOD_TABS: Tab[] = ["users", "reports", "cases", "logs"];
 
 function tabOf(path: string): Tab {
   const seg = path.slice(BASE.length + 1).split("/")[0];
-  return seg === "reports" || seg === "discovery" || seg === "bots" || seg === "servers" || seg === "expressions" || seg === "calls" || seg === "cases" || seg === "bugs" || seg === "logs" || seg === "announcements" ? seg : "users";
+  return seg === "reports" || seg === "discovery" || seg === "bots" || seg === "servers" || seg === "expressions" || seg === "calls" || seg === "cases" || seg === "bugs" || seg === "logs" || seg === "announcements" || seg === "badges" ? seg : "users";
 }
 
 /**
@@ -100,6 +101,7 @@ export default function AdminPanelPage() {
     { id: "bugs", label: t("moderation.tabs.bugs"), icon: <Bug size={17} />, badge: unread.bugs.length || undefined, badgeLabel: unread.bugs.length ? t("bugs.staff.waitingCount", { count: unread.bugs.length }) : undefined },
     { id: "logs", label: t("moderation.tabs.logs"), icon: <ScrollText size={17} /> },
     { id: "announcements", label: t("moderation.tabs.announcements"), icon: <Megaphone size={17} /> },
+    { id: "badges", label: t("moderation.tabs.badges"), icon: <Award size={17} /> },
   ];
   const tabs = atLeast(rank, "admin") ? all : all.filter((x) => MOD_TABS.includes(x.id));
   if (!tabs.some((x) => x.id === tab)) return <Navigate to={BASE} replace />;

@@ -31,6 +31,7 @@ import { readNameStyle, sameNameStyle, type NameStyle } from "@/lib/nameStyle";
 import { AddWidgetDialog, CardDialog, GameWidgetDialog, MusicWidgetDialog } from "./WidgetsEditor";
 import st from "./Settings.module.css";
 import d from "./Designer.module.css";
+import { BadgeEditor } from "./BadgeEditor";
 
 type View = "full" | "card" | "chat";
 /** A part of the profile, as the preview and the form name it. */
@@ -358,6 +359,12 @@ function MainDesigner({ anchor }: { anchor?: string | null | undefined }) {
           <p className={d.fieldHint}>{t("typing.editor.hint")}</p>
           <TypingStyleEditor value={typing} onChange={setTyping} name={shownName} preview={false} />
         </FormExpander>
+      </FormSection>
+
+      <FormSection title={t("badges.title")}>
+        <FormField field="badges" setting="badges" label={t("badges.yourBadges")} hint={t("badges.hint")}>
+          <BadgeEditor me={me} />
+        </FormField>
       </FormSection>
     </div>
   );

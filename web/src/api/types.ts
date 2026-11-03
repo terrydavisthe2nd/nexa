@@ -13,6 +13,34 @@ import type { Envelope } from "@/crypto/message";
 /** A 64-bit id, rendered as a decimal string so it survives JSON. */
 export type Snowflake = string;
 
+/**
+ * One badge on a profile (internal/store/badges.go), in its holder's order.
+ * "staff" and "plan" carry nothing more: they are drawn from the account.
+ */
+export interface Badge {
+  /** "staff", "plan", "og", "years", "bug_hunter", "app_developer", "gift_giver", "contributor" or "event:<id>". */
+  id: string;
+  /** Gift Giver's tier (1 bronze, 2 silver, 3 gold), or the years on Nexa. */
+  level?: number;
+  /** An event badge's name, Lucide icon and colour. */
+  name?: string;
+  icon?: string;
+  color?: number;
+  /** Only in the person's own list: they hid it from their profile. */
+  hidden?: boolean;
+}
+
+/** A badge staff made for an event, with how many hold it. */
+export interface BadgeDef {
+  id: Snowflake;
+  name: string;
+  icon: string;
+  color: number;
+  created_by: Snowflake;
+  created_at: number;
+  holders: number;
+}
+
 export interface PublicUser {
   id: Snowflake;
   username: string;

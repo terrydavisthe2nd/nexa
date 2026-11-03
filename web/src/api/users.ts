@@ -1,7 +1,7 @@
 import { useSettings } from "@/stores/settings";
 import { api } from "./client";
 import type { PurgeCounts } from "./moderation";
-import type { KdfParamsJson, MeUser, PublicUser, SettingsBlob, Snowflake } from "./types";
+import type { Badge, KdfParamsJson, MeUser, PublicUser, SettingsBlob, Snowflake } from "./types";
 import type { TypingStyle } from "@/lib/typingStyle";
 import type { NameStyle } from "@/lib/nameStyle";
 import type { FoundMusic, MusicWidgetType } from "@/lib/widgets";
@@ -64,7 +64,7 @@ export const users = {
    * (read with readWidgets). Opened in a server, the widgets are the ones
    * chosen for it, where there are (server_widgets says so).
    */
-  profile(id: Snowflake, serverId?: Snowflake | null): Promise<{ user: PublicUser; mutual_friends: Snowflake[]; mutual_servers: Snowflake[]; widgets?: unknown; server_widgets?: boolean }> {
+  profile(id: Snowflake, serverId?: Snowflake | null): Promise<{ user: PublicUser; mutual_friends: Snowflake[]; mutual_servers: Snowflake[]; widgets?: unknown; server_widgets?: boolean; badges?: Badge[] }> {
     return api.request("GET", `/users/${id}/profile`, undefined, serverId ? { query: { server_id: serverId } } : undefined);
   },
   /** Replaces the account's widgets (lib/widgets), as the server cleaned them. */
@@ -98,8 +98,16 @@ export const users = {
    * status or encryption key. Never put it in the users store, where it would
    * stand in for the full record.
    */
-  shared(username: string): Promise<PublicUser & { widgets?: unknown }> {
+  shared(username: string): Promise<PublicUser & { widgets?: unknown; badges?: Badge[] }> {
     return api.request("GET", `/profiles/${encodeURIComponent(username)}`);
+  },
+  /** Every badge this account holds, in its order, the hidden ones marked. */
+  myBadges(): Promise<{ badges: Badge[] }> {
+    return api.request("GET", "/users/@me/badges");
+  },
+  /** Keeps the order of this account's badges and which it hides (never its staff rank). */
+  setBadges(order: string[], hidden: string[]): Promise<{ badges: Badge[] }> {
+    return api.request("PUT", "/users/@me/badges", { order, hidden });
   },
   search(q: string): Promise<PublicUser[]> {
     return api.request<PublicUser[]>("GET", "/users/search", undefined, { query: { q } });

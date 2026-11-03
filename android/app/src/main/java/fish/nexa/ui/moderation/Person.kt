@@ -136,6 +136,10 @@ fun PersonPage(userId: String, cases: Boolean, caseId: String?) {
                 if (fish.nexa.data.StaffRanks.mine() == fish.nexa.data.StaffRank.OWNER && user.blocked != "self" && user.blocked != "owner") {
                     NxButton(t("staff.rankModal.menu"), { openRankSheet(user) { load() } }, kind = ButtonKind.SECONDARY, size = ButtonSize.TOUCH, icon = "ShieldCheck")
                 }
+                // admins give Contributor and event badges by hand; bots hold none
+                if (fish.nexa.data.StaffRanks.mine()?.atLeast(fish.nexa.data.StaffRank.ADMIN) == true && user.adminFlags and 64L == 0L) {
+                    NxButton(t("badges.staff.giveMenu"), { openGiveBadgesSheet(user) }, kind = ButtonKind.SECONDARY, size = ButtonSize.TOUCH, icon = "Award")
+                }
                 if (user.blocked.isEmpty()) NxButton(t("moderation.moderate"), { moderate() }, size = ButtonSize.TOUCH, icon = "Gavel")
             }),
         )

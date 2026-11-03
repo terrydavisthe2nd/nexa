@@ -462,7 +462,7 @@ func (s *Server) handleUserProfile(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"user": u.Public(), "mutual_friends": friends, "mutual_servers": servers, "widgets": widgetsJSON(widgets), "server_widgets": own})
+	WriteJSON(w, http.StatusOK, map[string]any{"user": u.Public(), "mutual_friends": friends, "mutual_servers": servers, "widgets": widgetsJSON(widgets), "server_widgets": own, "badges": s.profileBadges(r, u)})
 }
 
 func (s *Server) handlePublicKey(w http.ResponseWriter, r *http.Request) {

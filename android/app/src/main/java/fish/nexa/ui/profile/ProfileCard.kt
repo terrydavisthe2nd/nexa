@@ -90,6 +90,7 @@ import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import fish.nexa.Nexa
 import fish.nexa.data.P
+import fish.nexa.data.Badges
 import fish.nexa.data.People
 import fish.nexa.data.Perms
 import fish.nexa.data.Send
@@ -138,6 +139,8 @@ class ProfileExtras {
     var mutualFriends by mutableStateOf<List<String>>(emptyList())
     var mutualServers by mutableStateOf<List<String>>(emptyList())
     var widgets by mutableStateOf<List<Widgets.Widget>>(emptyList())
+    /** Their badges in their order; null until the profile arrives (then their staff rank and plan show). */
+    var badges by mutableStateOf<List<fish.nexa.data.Badges.Badge>?>(null)
 }
 
 @Composable
@@ -149,6 +152,7 @@ fun rememberProfileExtras(userId: String, serverId: String? = null): ProfileExtr
             x.mutualFriends = p.mutualFriends
             x.mutualServers = p.mutualServers
             x.widgets = Widgets.read(p.widgets)
+            x.badges = p.badges
         } catch (_: Exception) {
             // a profile already on hand still shows
         }
@@ -415,7 +419,7 @@ private fun ProfileTop(
 
 /** A member of Nexa's staff's rank: its mark and name on a pill tinted with the accent. */
 @Composable
-private fun StaffBadge(userId: String, flags: Long) {
+internal fun StaffBadge(userId: String, flags: Long) {
     val c = Nx.colors
     val rank = fish.nexa.data.StaffRanks.of(userId, flags) ?: return
     val icon = rank.icon
@@ -439,12 +443,15 @@ private fun StaffBadge(userId: String, flags: Long) {
 
 /** Their name (a nickname you gave first), their tag, the note button; then username, pronouns and staff badge. */
 @Composable
-private fun Identity(user: PublicUser, rel: Relationship?, full: Boolean, theme: ProfileTheme.Theme?, onName: (() -> Unit)?, onNote: (() -> Unit)?, noteLabel: String, design: ProfileDesign? = null) {
+private fun Identity(user: PublicUser, rel: Relationship?, full: Boolean, theme: ProfileTheme.Theme?, onName: (() -> Unit)?, onNote: (() -> Unit)?, noteLabel: String, design: ProfileDesign? = null, badges: List<fish.nexa.data.Badges.Badge>? = null) {
     val c = Nx.colors
     val friend = rel?.type == "friend"
     val nick = if (friend) rel?.nickname?.takeIf { it.isNotBlank() } else null
     val shownName = nick ?: Names.display(user)
     val shadow = themedShadow(theme)
+    // the designer draws this account's own list as it is being arranged
+    val own by fish.nexa.data.Badges.mine.collectAsState()
+    val shownBadges = if (design != null) own else badges
     Column {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             val nameEditor = design?.name
@@ -509,8 +516,14 @@ private fun Identity(user: PublicUser, rel: Relationship?, full: Boolean, theme:
                 Txt("·", style = line, color = c.textMuted)
                 GhostInline(design, line)
             }
-            StaffBadge(user.id, user.flags)
-            fish.nexa.ui.support.PlanBadge(user.plan)
+            // the staff rank and plan tags stay on this line, in their holder's order
+            BadgeTags(user.id, user.flags, user.plan, shownBadges)
+        }
+        // the icon badges, under the username line
+        if ((shownBadges ?: emptyList()).any { !it.hidden && it.id != "staff" && it.id != "plan" }) {
+            Spotted(design, ProfilePart.BADGES, t("designer.spot.badges"), Modifier.padding(top = 8.dp)) {
+                BadgeRow(user.id, user.flags, user.plan, shownBadges)
+            }
         }
     }
 }
@@ -1091,6 +1104,7 @@ fun ProfilePopoutCard(user: PublicUser, serverId: String?, close: () -> Unit, de
                     onNote = if (isMe || design != null) null else ({ noteOpen = !noteOpen }),
                     noteLabel = if (note.isNotEmpty()) t("profile.profileCard.editNote2") else t("profile.profileCard.addNote2"),
                     design = design,
+                    badges = extras.badges,
                 )
                 if (!isMe && !bot) RelationshipBar(user, rel)
                 if (!isMe && extras.mutualFriends.size + mutualServers.size > 0) MutualRow(extras.mutualFriends, mutualServers.size) { viewFull(ProfileTab.MUTUALS) }
@@ -1323,6 +1337,7 @@ fun FullProfileCard(
                 }),
                 noteLabel = if (note.isNotEmpty()) t("profile.profileCard.editNote2") else t("profile.profileCard.addNote2"),
                 design = design,
+                badges = extras.badges,
             )
             if (!isMe && !bot) RelationshipBar(user, rel)
             if (!preview) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {

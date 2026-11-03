@@ -67,11 +67,17 @@ func (s *Server) handleSharedProfile(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, err)
 		return
 	}
+	// badges too, worked out from the account behind the link
+	badges := []store.Badge{}
+	if u, err := s.Store.UserByID(r.Context(), p.ID); err == nil {
+		badges = s.profileBadges(r, u)
+	}
 	w.Header().Set("Cache-Control", "no-cache")
 	WriteJSON(w, http.StatusOK, struct {
 		*store.PublicUser
 		Widgets json.RawMessage `json:"widgets"`
-	}{p, widgetsJSON(widgets)})
+		Badges  []store.Badge   `json:"badges"`
+	}{p, widgetsJSON(widgets), badges})
 }
 
 // profileLinkName is the username a link to one of our profiles names, at any

@@ -37,7 +37,7 @@ type View = "full" | "card" | "chat";
 type Part = ProfilePart | "colours" | "widgets";
 
 /** A status and a server tag are the account's, the same in every server. */
-const FIXED: ProfilePart[] = ["status", "tag"];
+const FIXED: ProfilePart[] = ["status", "tag", "badges"];
 
 const hex = (v: string | null) => (v ? parseInt(v.slice(1), 16) : null);
 

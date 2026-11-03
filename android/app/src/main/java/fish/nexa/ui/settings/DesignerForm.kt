@@ -8,6 +8,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -320,5 +323,90 @@ fun BoxScope.ProfilesPreviewBar(host: AnchorHost?) {
             .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp),
     ) {
         PreviewBar(true, { if (host != null) scrollToMark(host, PREVIEW_KEY, scope, center = false, reduced = reduced) })
+    }
+}
+
+/**
+ * The account's badges in the form (BadgeEditor.tsx), in the two groups a
+ * profile draws them in: the tags (staff rank, plan) and, under them, the
+ * icon badges. Each moves within its group and hides, saved as it changes.
+ * A staff rank never hides, so staff are always known as staff.
+ */
+@Composable
+fun BadgeEditor(userId: String, flags: Long, plan: String) {
+    val c = Nx.colors
+    val list by fish.nexa.data.Badges.mine.collectAsState()
+    val failed by fish.nexa.data.Badges.mineFailed.collectAsState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    androidx.compose.runtime.LaunchedEffect(Unit) { fish.nexa.data.Badges.loadMine() }
+    fun commit(next: List<fish.nexa.data.Badges.Badge>) = scope.launch {
+        try {
+            fish.nexa.data.Badges.save(next)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            fish.nexa.Nexa.ui.toast(fish.nexa.ui.describeError(e, t("settings.privacy.couldNotSave")), "error")
+        }
+    }
+    val all = list
+    when {
+        all == null && failed -> Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Txt(t("badges.couldNotLoad"), style = Nx.type.body.copy(fontSize = Nx.type.sp(14f)), color = c.textMuted, modifier = Modifier.weight(1f))
+            NxButton(t("invite.tryAgain"), { scope.launch { fish.nexa.data.Badges.loadMine() } }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM)
+        }
+        all == null -> FieldHint(t("chat.pins.loading"))
+        all.isEmpty() -> FieldHint(t("badges.none"))
+        else -> {
+            val (tags, icons) = all.partition { it.id == "staff" || it.id == "plan" }
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                for ((tagGroup, group) in listOf(true to tags, false to icons)) {
+                    if (group.isEmpty()) continue
+                    fun set(next: List<fish.nexa.data.Badges.Badge>) = commit(if (tagGroup) next + icons else tags + next)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Txt(if (tagGroup) t("badges.tags") else t("badges.icons"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(12.5f), fontWeight = FontWeight(700)), color = c.textMuted)
+                            if (!tagGroup) Txt(t("badges.shownCount", "shown" to group.count { !it.hidden }, "total" to group.size), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(12.5f)), color = c.textMuted.copy(alpha = 0.8f))
+                        }
+                        group.forEachIndexed { i, b ->
+                            val name = fish.nexa.data.Badges.name(b, userId, flags, plan)
+                            val locked = b.id == "staff"
+                            val why = when {
+                                b.hidden -> t("badges.hiddenWhy")
+                                locked -> t("badges.staffAlways")
+                                b.id == "plan" -> t("badges.planWhy")
+                                else -> fish.nexa.data.Badges.look(b)?.tip ?: ""
+                            }
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 52.dp)
+                                    .clip(Radii.Sm)
+                                    .background(c.bgInput)
+                                    .ring(Radii.Sm, c.borderSubtle)
+                                    .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Box(Modifier.alpha(if (b.hidden) 0.4f else 1f)) {
+                                    fish.nexa.ui.profile.BadgePill(b, userId, flags, plan, still = true)
+                                }
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                    if (!tagGroup) Txt(name, style = Nx.type.body.copy(fontSize = Nx.type.sp(14.5f), fontWeight = FontWeight(650)), color = if (b.hidden) c.textMuted else c.textStrong)
+                                    Txt(why, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(17.5f)), color = c.textMuted)
+                                }
+                                IconTool("ArrowUp", t("badges.moveUp", "name" to name), enabled = i > 0) {
+                                    set(group.toMutableList().also { l -> l.add(i - 1, l.removeAt(i)) })
+                                }
+                                IconTool("ArrowDown", t("badges.moveDown", "name" to name), enabled = i < group.size - 1) {
+                                    set(group.toMutableList().also { l -> l.add(i + 1, l.removeAt(i)) })
+                                }
+                                IconTool(if (b.hidden) "EyeOff" else "Eye", if (locked) t("badges.staffAlways") else if (b.hidden) t("badges.show", "name" to name) else t("badges.hide", "name" to name), enabled = !locked) {
+                                    set(group.map { if (it.id == b.id) it.copy(hidden = !it.hidden) else it })
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

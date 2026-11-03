@@ -421,3 +421,6 @@
 .card[data-design][data-layout="wide"] { height: auto; }
 .card[data-design] .side, .card[data-design] .tabPanel { overflow: visible; }
 .card[data-variant="popout"][data-design] { max-height: none; overflow: visible; }
+
+/* the profile's badges, under the username line */
+.badges { margin-top: 8px; }

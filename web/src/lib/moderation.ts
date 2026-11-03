@@ -3,12 +3,12 @@
  * the ban screen and the staff's panel all describe the same action the same
  * way — in the reader's language.
  */
-import { Ban, Eraser, ImageOff, KeyRound, Lock, LockOpen, Megaphone, MessageSquareOff, ServerCog, ShieldMinus, ShieldPlus, Sticker, UserX, type LucideIcon } from "lucide-react";
+import { Award, Ban, Eraser, ImageOff, KeyRound, Lock, LockOpen, Megaphone, MessageSquareOff, ServerCog, ShieldMinus, ShieldPlus, Sticker, UserX, type LucideIcon } from "lucide-react";
 import type { CaseDetails, CaseMessage, MemberCase, ModAction, ModLogEntry, PackField, People, Person, ResetField, ServerField } from "@/api/moderation";
 import type { BugStatus } from "@/api/bugs";
 import { bugStatusLabel } from "@/lib/bugs";
 import { formatStamp } from "@/lib/time";
-import { t } from "@/i18n";
+import { formatList, t } from "@/i18n";
 import { rankName } from "@/lib/staffRank";
 
 /** The flag the server sets on the Nexa system account. */
@@ -73,6 +73,11 @@ export function actionIcon(action: string): LucideIcon {
       return ShieldPlus;
     case "admin_revoke":
       return ShieldMinus;
+    case "badge_change":
+    case "badge_create":
+    case "badge_edit":
+    case "badge_delete":
+      return Award;
     case "account_disable":
       return Lock;
     default:
@@ -115,6 +120,14 @@ export function actionLabel(action: string): string {
       return t("moderation.action.adminRevoke");
     case "rank_change":
       return t("staff.log.rankChange");
+    case "badge_change":
+      return t("badges.log.change");
+    case "badge_create":
+      return t("badges.log.create");
+    case "badge_edit":
+      return t("badges.log.edit");
+    case "badge_delete":
+      return t("badges.log.delete");
     case "message_remove":
       return t("reports.messageRemoved");
     case "report_review":
@@ -378,6 +391,18 @@ export function logDetail(e: ModLogEntry): string {
       return d.title ? `“${d.title}”` : "";
     case "account_delete_profile":
       return t("moderation.log.messagesKept");
+    case "badge_change": {
+      const d = e.details as { added?: string[]; removed?: string[] };
+      const named = (list: string[] | undefined) => formatList((list ?? []).map((b) => (b === "contributor" ? t("badges.contributor") : b)));
+      return [d.added?.length ? t("badges.log.gave", { names: named(d.added) }) : "", d.removed?.length ? t("badges.log.took", { names: named(d.removed) }) : ""].filter(Boolean).join("; ");
+    }
+    case "badge_create":
+    case "badge_delete":
+      return (e.details as { name?: string }).name ? `“${(e.details as { name: string }).name}”` : "";
+    case "badge_edit": {
+      const d = e.details as { name?: string; from?: string };
+      return d.from && d.from !== d.name ? t("staff.log.fromTo", { from: d.from, to: d.name ?? "" }) : d.name ? `“${d.name}”` : "";
+    }
     case "rank_change": {
       const r = e.details as { from?: string; to?: string };
       const name = (x: string | undefined) => (x === "developer" || x === "admin" || x === "mod" ? rankName(x) : t("staff.rankModal.none"));
@@ -405,6 +430,7 @@ export const LOG_GROUPS: Record<string, string[]> = {
   lifts: ["unmute", "unban", "expression_relist", "discovery_restore"],
   announcements: ["announcement", "announcement_delete"],
   access: ["rank_change", "admin_grant", "admin_revoke", "account_disable", "account_enable"],
+  badges: ["badge_change", "badge_create", "badge_edit", "badge_delete"],
 };
 
 /** Why a muted account cannot do something, in a sentence for a toast. */

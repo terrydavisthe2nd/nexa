@@ -1,4 +1,5 @@
 import { useMyReports } from "@/stores/myReports";
+import { useMyBadges } from "@/stores/myBadges";
 import { CLOSE_TOO_MANY, GatewayClient, type GatewayStatus } from "./client";
 import type { GatewayEvent } from "./events";
 import { applyEvent, applyLockedEvent, dispatchGeneration, endDispatchSession, forgetRotations, resetAll } from "./dispatch";
@@ -263,6 +264,7 @@ export async function endSession(): Promise<void> {
   useNexa.getState().reset();
   useModeration.getState().reset();
   useMyReports.getState().reset();
+  useMyBadges.getState().reset();
   useDiscord.getState().clear();
   // files picked or on their way belong to the account that picked them, and
   // so do messages still being sent or left failed: the next person on this

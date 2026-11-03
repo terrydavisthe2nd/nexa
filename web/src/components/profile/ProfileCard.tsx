@@ -14,14 +14,14 @@ import { dmOpenError } from "@/lib/errors";
 import { channels as channelsApi } from "@/api/channels";
 import { relationships as relApi } from "@/api/relationships";
 import { sendFriendRequest, useBusyWith } from "@/lib/friendship";
-import type { PublicUser } from "@/api/types";
+import type { Badge, PublicUser } from "@/api/types";
 import { avatarUrl, bannerUrl, iconUrl, users as usersApi } from "@/api/users";
 import { ActivityList } from "@/components/activity/ActivityCard";
 import { StatusEmoji } from "@/components/activity/StatusEmoji";
 import { Avatar } from "@/components/common/Avatar";
 import { Lightbox } from "@/components/chat/Lightbox";
-import { PlanBadge, StaffBadge } from "@/components/common/OwnerBadge";
-import { rankOf } from "@/lib/staffRank";
+import { BadgeRow } from "@/components/badges/Badges";
+import { useMyBadges } from "@/stores/myBadges";
 import { ServerTagChip } from "@/components/servertag/ServerTagChip";
 import { ProfileWidgets, WidgetPeek, type WidgetDesign } from "./Widgets";
 import { readWidgets, type Widget } from "@/lib/widgets";
@@ -77,7 +77,7 @@ interface Props {
    * link shows, with the visitor's own way in where the person's buttons go,
    * and nothing that needs an account (status, notes, mutuals, the key).
    */
-  visitor?: { user: PublicUser; widgets?: unknown; actions: ReactNode };
+  visitor?: { user: PublicUser; widgets?: unknown; badges?: Badge[]; actions: ReactNode };
   /** The full profile's tab to open on, when it is opened for one thing (all their widgets, what you have in common). */
   initialTab?: ProfileTab | undefined;
   /** Drawn in the profile designer, every part editable (with preview). */
@@ -274,7 +274,7 @@ function BannerButton({ label, onClick, children, testId, busy }: { label: strin
 }
 
 /** A part of a profile the profile designer (Settings, Profiles) changes when it is pressed. */
-export type ProfilePart = "banner" | "avatar" | "name" | "pronouns" | "tag" | "status" | "about";
+export type ProfilePart = "banner" | "avatar" | "name" | "pronouns" | "tag" | "status" | "about" | "badges";
 
 /**
  * The profile as the profile designer draws it: every part a button that
@@ -429,6 +429,8 @@ export function ProfileCard({ userId, variant, onClose, preview, previewWidgets,
   const ctx = useRenderCtx();
   const [mutual, setMutual] = useState<{ friends: string[]; servers: string[] }>({ friends: [], servers: [] });
   const [widgets, setWidgets] = useState<Widget[]>([]);
+  // the badges the profile came with, in their order; until then its staff rank and plan
+  const [fetchedBadges, setBadges] = useState<Badge[] | undefined>(undefined);
   const [noteOpen, setNoteOpen] = useState(false);
   const [viewing, setViewing] = useState<"avatar" | "banner" | null>(null);
   const [bioClamped, setBioClamped] = useState(false);
@@ -461,6 +463,9 @@ export function ProfileCard({ userId, variant, onClose, preview, previewWidgets,
   const cardWidth = useCardWidth(cardEl, !compact);
   const narrow = cardWidth < TWO_COLUMNS;
   const visitorWidgets = visitor?.widgets;
+  // the designer's preview draws this account's own list as it is being arranged
+  const ownBadges = useMyBadges((b) => (preview ? b.list : null));
+  const badges = visitor ? visitor.badges : preview ? (ownBadges ?? undefined) : fetchedBadges;
   const shownWidgets = useMemo(() => previewWidgets ?? (visitor ? readWidgets(visitorWidgets) : widgets), [previewWidgets, visitor, visitorWidgets, widgets]);
 
   useEffect(() => {
@@ -471,6 +476,7 @@ export function ProfileCard({ userId, variant, onClose, preview, previewWidgets,
     // and servers under the new name — forever if the request fails.
     setMutual({ friends: [], servers: [] });
     setWidgets([]);
+    setBadges(undefined);
     usersApi
       .profile(userId, inServer)
       .then((p) => {
@@ -478,6 +484,7 @@ export function ProfileCard({ userId, variant, onClose, preview, previewWidgets,
         upsertUser(p.user);
         setMutual({ friends: p.mutual_friends, servers: p.mutual_servers ?? [] });
         setWidgets(readWidgets(p.widgets));
+        setBadges(p.badges);
       })
       .catch(() => {
         /* a profile already on hand still shows; the dialog says when there is none */
@@ -796,9 +803,16 @@ export function ProfileCard({ userId, variant, onClose, preview, previewWidgets,
               </button>
             </>
           ) : null}
-          {rankOf(user.id, user.flags) ? <StaffBadge rank={rankOf(user.id, user.flags)!} /> : null}
-          <PlanBadge plan={user.plan} />
+          <BadgeRow user={user} badges={badges} part="tags" />
         </div>
+        {design ? (
+          <span className={s.spotWrap}>
+            <BadgeRow user={user} badges={badges} part="icons" className={s.badges} />
+            <Spot design={design} part="badges" label={t("designer.spot.badges")} />
+          </span>
+        ) : (
+          <BadgeRow user={user} badges={badges} part="icons" className={s.badges} />
+        )}
       </div>
 
       {interactive && !isMe && !bot ? <RelationshipBar user={user} rel={rel} /> : null}

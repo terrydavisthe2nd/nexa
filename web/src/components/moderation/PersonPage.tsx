@@ -1,6 +1,6 @@
 import { useReportNavigation } from "@/lib/reportNavigation";
 import { PersonName } from "@/components/common/PersonName";
-import { ChevronLeft, FolderOpen, Gavel, IdCard, ShieldCheck, UserRound } from "lucide-react";
+import { Award, ChevronLeft, FolderOpen, Gavel, IdCard, ShieldCheck, UserRound } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { moderation as modApi, type ModAction, type ModMembership, type ModUser, type People, type StaffCase, type ModPack } from "@/api/moderation";
@@ -18,6 +18,8 @@ import { AltAccountsModal, AltBadge } from "./AltAccounts";
 import { ModerateModal, type ModeratePreset } from "./ModerateModal";
 import { modStatus, RankPill, StatusSummary } from "./ModStatus";
 import { RankModal } from "./RankModal";
+import { GrantBadgesModal } from "./GrantBadgesModal";
+import { isBot } from "@/lib/botCopies";
 import { ProfileSheet } from "./ProfileSheet";
 import m from "./Moderation.module.css";
 
@@ -47,6 +49,7 @@ export function PersonPage() {
   const [moderating, setModerating] = useState<ModerateIntent | null>(null);
   const [altsOpen, setAltsOpen] = useState(false);
   const [ranking, setRanking] = useState(false);
+  const [badging, setBadging] = useState(false);
   const mine = useMyRank();
   const live = usePresence((p) => p.byUser[userId]);
   // the cases tab is open on its own address, so a case can be linked to
@@ -154,6 +157,12 @@ export function PersonPage() {
               <ShieldCheck size={15} aria-hidden="true" /> {t("staff.rankModal.menu")}
             </Button>
           ) : null}
+          {/* admins give Contributor and event badges by hand; bots hold none */}
+          {atLeast(mine, "admin") && !deleted && !isBot({ flags: user.admin_flags }) ? (
+            <Button size="sm" variant="secondary" onClick={() => setBadging(true)} data-testid="user-badges">
+              <Award size={15} aria-hidden="true" /> {t("badges.staff.giveMenu")}
+            </Button>
+          ) : null}
           {!user.blocked && !deleted ? (
             <Button size="sm" onClick={() => setModerating({})} data-testid="user-moderate">
               <Gavel size={15} aria-hidden="true" /> {t("moderation.moderate")}
@@ -201,6 +210,7 @@ export function PersonPage() {
         </div>
       )}
       {ranking ? <RankModal user={user} current={rank} onClose={() => setRanking(false)} onDone={() => void load()} /> : null}
+      {badging ? <GrantBadgesModal user={user} onClose={() => setBadging(false)} /> : null}
       {altsOpen ? <AltAccountsModal user={user} onClose={() => setAltsOpen(false)} /> : null}
       {moderating ? (
         <ModerateModal

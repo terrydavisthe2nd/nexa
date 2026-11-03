@@ -45,6 +45,13 @@ const (
 	LogExpressionRelist = "expression_relist"
 	// LogDiscoveryRestore lets a server taken off Discovery be listed again.
 	LogDiscoveryRestore = "discovery_restore"
+	// Badges (badges.go): giving and taking an account's badges by hand, with
+	// the names added and removed in its details, and making, changing and
+	// deleting event badges, with the name.
+	LogBadgeChange = "badge_change"
+	LogBadgeCreate = "badge_create"
+	LogBadgeEdit   = "badge_edit"
+	LogBadgeDelete = "badge_delete"
 )
 
 // The restrictions a case can put in force.

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { ApiError } from "@/api/client";
-import type { PublicUser } from "@/api/types";
+import type { Badge, PublicUser } from "@/api/types";
 import { users as usersApi } from "@/api/users";
 import { t } from "@/i18n";
 import { shareOrigin } from "@/lib/appLinks";
@@ -47,7 +47,7 @@ export function profileLinkItem(userId: string): ContextMenuItem | null {
 }
 
 /** A profile as its link shows it: the person, and the widgets on their profile (lib/widgets). */
-export type SharedUser = PublicUser & { widgets?: unknown };
+export type SharedUser = PublicUser & { widgets?: unknown; badges?: Badge[] };
 
 export type SharedProfileEntry =
   | { status: "loading" }

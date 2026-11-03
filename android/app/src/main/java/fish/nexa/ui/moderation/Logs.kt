@@ -116,7 +116,7 @@ fun LogsTab() {
             if (matches && entries.none { it.id == e.entry.id }) entries.add(0, e.entry)
         }
     }
-    val groups = listOf("all" to t("moderation.logs.all"), "punishments" to t("moderation.logs.punishments"), "lifts" to t("moderation.logs.lifts"), "announcements" to t("moderation.logs.announcements"), "access" to t("moderation.logs.access"))
+    val groups = listOf("all" to t("moderation.logs.all"), "punishments" to t("moderation.logs.punishments"), "lifts" to t("moderation.logs.lifts"), "announcements" to t("moderation.logs.announcements"), "access" to t("moderation.logs.access"), "badges" to t("moderation.logs.badges"))
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PanelPad, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item("tools") {
             Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

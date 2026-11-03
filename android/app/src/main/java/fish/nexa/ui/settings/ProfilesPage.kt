@@ -406,6 +406,7 @@ private fun MainDesigner(anchor: String?) {
                     ProfilePart.TAG -> "tag"
                     ProfilePart.PRONOUNS -> "pronouns"
                     ProfilePart.ABOUT -> "about"
+                    ProfilePart.BADGES -> "badges"
                 },
             )
         },
@@ -520,6 +521,11 @@ private fun MainDesigner(anchor: String?) {
             FormExpander("typing", "typingStyle", t("typing.editor.title"), "typing" in opened, { toggle("typing", it) }, value = { FieldValue(typingWords.ifEmpty { t("designer.value.plain") }) }) {
                 FieldHint(t("typing.editor.hint"))
                 TypingStyleEditor(f.typing) { f.typing = it }
+            }
+        }
+        FormSection(t("badges.title")) {
+            FormField("badges", "badges", t("badges.yourBadges"), hint = t("badges.hint")) {
+                BadgeEditor(me.id, me.flags, me.plan)
             }
         }
     }

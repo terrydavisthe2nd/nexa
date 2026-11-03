@@ -157,3 +157,18 @@
   .stage { padding: 10px; border-radius: var(--radius-lg); }
   .formInner { gap: 30px; }
 }
+
+/* the badge list (BadgeEditor): the tags, then the icon badges, as a profile draws them; each row
+   the badge as it shows, its name and why it is held, and its tools; a hidden one fades */
+.badgeGroups { display: flex; flex-direction: column; gap: 16px; }
+.badgeGroup { display: flex; flex-direction: column; gap: 8px; }
+.badgeGroupTitle { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 12.5px; font-weight: 700; color: var(--text-muted); }
+.badgeCount { font-weight: 550; color: var(--text-muted); opacity: 0.8; }
+.badgeRows { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.badgeRow { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 4px 6px 12px; border-radius: var(--radius-sm); background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.badgeMark { flex: none; display: flex; }
+.badgeText { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.badgeName { font-size: 14.5px; font-weight: 650; color: var(--text-strong); overflow-wrap: anywhere; }
+.badgeWhy { font-size: 13px; line-height: 1.35; color: var(--text-muted); overflow-wrap: anywhere; }
+.badgeRow[data-hidden] .badgeMark { opacity: 0.4; filter: saturate(0.3); }
+.badgeRow[data-hidden] .badgeName { color: var(--text-muted); }
