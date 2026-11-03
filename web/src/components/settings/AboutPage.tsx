@@ -1,10 +1,11 @@
-import { ArrowLeft, AtSign, Check, ExternalLink, Info, Mail, MessagesSquare, ScrollText, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, AtSign, Check, ExternalLink, Info, Library, Mail, MessagesSquare, ScrollText, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { admin as adminApi } from "@/api/admin";
 import { NexaTile, NexaWordmark } from "@/components/common/Brand";
 import { Button } from "@/components/common/Button";
 import { Spinner } from "@/components/common/Spinner";
 import { LegalHighlights, OpenSourceBlock } from "@/components/legal/LegalContent";
+import { TMDB_LOGO } from "@/lib/widgets";
 import { LegalDocument } from "@/components/legal/LegalDocument";
 import { WhatsNewDialog, markSeen } from "@/components/shell/WhatsNewDialog";
 import { CONTACT_EMAIL, LEGAL_EFFECTIVE, LEGAL_VERSION, OWNER_USERNAME, termsAccepted } from "@/lib/legal";
@@ -176,6 +177,30 @@ export default function AboutPage() {
             <Button size="sm" variant="secondary" onClick={() => setNews(true)} data-testid="about-whats-new">
               {t("settings.about.show")}
             </Button>
+          </div>
+        </div>
+      </section>
+
+      <section className={l.aboutGroup}>
+        <h3 data-setting="sources" className={l.aboutLabel}>{t("settings.about.sources")}</h3>
+        <div className={l.rows}>
+          <div className={l.row}>
+            <span className={l.rowIcon} aria-hidden="true">
+              <img src={TMDB_LOGO} alt="" width={22} draggable={false} />
+            </span>
+            <span className={l.rowText}>
+              <span className={l.rowTitle}>TMDB</span>
+              <span className={l.rowSub}>{t("widgets.screen.tmdbNotice")}</span>
+            </span>
+          </div>
+          <div className={l.row}>
+            <span className={l.rowIcon} aria-hidden="true">
+              <Library size={18} />
+            </span>
+            <span className={l.rowText}>
+              <span className={l.rowTitle}>{t("settings.about.sourcesOthers")}</span>
+              <span className={l.rowSub}>{t("settings.about.sourcesOthersSub")}</span>
+            </span>
           </div>
         </div>
       </section>

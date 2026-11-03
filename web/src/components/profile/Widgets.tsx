@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUp, ArrowUpRight, CalendarClock, Clock, ExternalLink, L
 import { createContext, useContext, useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
 import { Tooltip } from "@/components/common/Tooltip";
 import { avatarColor, initials } from "@/lib/avatarColor";
-import { bookPicture, gamePicture, isBookWidget, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type BookWidget, type CardWidget, type CountdownWidget, type GameWidget, type LocalTimeWidget, type StickersWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetBook, type WidgetGame, type WidgetLink, type WidgetMusic } from "@/lib/widgets";
+import { bookPicture, gamePicture, isBookWidget, isScreenWidget, screenPicture, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type BookWidget, type ScreenWidget, type WidgetScreen, type CardWidget, type CountdownWidget, type GameWidget, type LocalTimeWidget, type StickersWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetBook, type WidgetGame, type WidgetLink, type WidgetMusic } from "@/lib/widgets";
 import { t } from "@/i18n";
 import { canOpenGames, openGame } from "@/lib/games";
 import { useRenderCtx } from "@/lib/markdownCtx";
@@ -84,6 +84,10 @@ export function widgetTitle(w: Pick<Widget, "type">): string {
       return t("widgets.type.localtime");
     case "stickers":
       return t("widgets.type.stickers");
+    case "watching":
+      return t("widgets.type.watching");
+    case "screen":
+      return t("widgets.type.screen");
     case "reading":
       return t("widgets.type.reading");
     case "books":
@@ -454,6 +458,94 @@ export function BookCover({ book, css, named, className }: { book: WidgetBook; c
   );
 }
 
+/** A show's or film's poster, or its title on a colour of its own. */
+export function ScreenPoster({ item, css, named, className }: { item: WidgetScreen; css: number; named?: boolean; className?: string }) {
+  const src = screenPicture(item, css);
+  const [broken, setBroken] = useState<string | null>(null);
+  const shown = src && broken !== src ? src : null;
+  return (
+    <span
+      className={[s.cover, s.poster, className ?? ""].join(" ")}
+      style={{ "--cover-tint": avatarColor(item.title) } as CSSProperties}
+      {...(named ? { role: "img", "aria-label": screenLabel(item) } : { "aria-hidden": true })}
+    >
+      {shown ? <img src={shown} alt="" loading="lazy" draggable={false} onError={() => setBroken(shown)} /> : <span className={s.coverName} dir="auto">{item.title}</span>}
+    </span>
+  );
+}
+
+/** A title with what it is and when: "Severance, show, 2022". */
+function screenLabel(x: WidgetScreen): string {
+  return [x.title, x.kind === "tv" ? t("widgets.screen.show") : t("widgets.screen.film"), x.year].filter(Boolean).join(", ");
+}
+
+/** Where someone is in a show: "Season 2, Episode 5", or just the season or the episode. */
+export function episodeWords(x: WidgetScreen): string | null {
+  if (x.season && x.episode) return t("widgets.screen.seasonEpisode", { season: x.season, episode: x.episode });
+  if (x.season) return t("widgets.screen.season", { season: x.season });
+  if (x.episode) return t("widgets.screen.episode", { episode: x.episode });
+  return null;
+}
+
+/** Watching Now: a row a title, what it is and when, and where they are in a show. */
+function Watching({ w }: { w: ScreenWidget }) {
+  return (
+    <section className={s.widget} data-testid="widget-watching">
+      <h3>{t("widgets.type.watching")}</h3>
+      <ul className={s.rows}>
+        {w.screen.map((x, i) => {
+          const where = episodeWords(x);
+          return (
+            <li key={`${x.kind}${x.id ?? x.title}-${i}`} className={s.row}>
+              <ScreenPoster item={x} css={40} className={s.rowBook} />
+              <div className={s.rowText}>
+                <span className={s.rowName} dir="auto">{x.title}</span>
+                <span className={s.rowBy}>{[x.kind === "tv" ? t("widgets.screen.show") : t("widgets.screen.film"), x.year].filter(Boolean).join(", ")}</span>
+                {where ? <span className={s.readWords}>{where}</span> : null}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/** Favourite Shows & Films: a shelf of posters. */
+function ScreenShelf({ w, variant, onShowAll }: { w: ScreenWidget; variant: Variant; onShowAll?: (() => void) | undefined }) {
+  const [all, setAll] = useState(false);
+  const most = variant === "panel" ? 4 : onShowAll ? 6 : 12;
+  const shown = all ? w.screen : w.screen.slice(0, most);
+  const title = widgetTitle(w);
+  return (
+    <section className={[s.widget, s.shelfWrap].join(" ")} data-testid="widget-screen">
+      <div className={s.head}>
+        <h3>{title}</h3>
+        <span className={s.count} aria-label={t("widgets.screen.count", { count: w.screen.length })}>{w.screen.length.toLocaleString()}</span>
+      </div>
+      <ul className={s.shelf} aria-label={title}>
+        {shown.map((x, i) => (
+          <li key={`${x.kind}${x.id ?? x.title}-${i}`}>
+            <Tooltip text={screenLabel(x)} className={s.tip}>
+              <ScreenPoster item={x} css={80} named />
+            </Tooltip>
+            <span className={s.caption} aria-hidden="true" dir="auto">{x.title}</span>
+          </li>
+        ))}
+      </ul>
+      {w.screen.length > most ? (
+        onShowAll ? (
+          <button className={s.more} onClick={onShowAll}>{t("widgets.showAll")}</button>
+        ) : (
+          <button className={s.more} onClick={() => setAll((v) => !v)} aria-expanded={all}>
+            {all ? t("widgets.showFewer") : t("widgets.showAll")}
+          </button>
+        )
+      ) : null}
+    </section>
+  );
+}
+
 /** How far into a book someone is, in words: "Page 120" or "40%". */
 function progressWords(p: NonNullable<WidgetBook["progress"]>): string {
   return p.kind === "page" ? t("widgets.books.page", { page: p.value.toLocaleString() }) : t("widgets.books.percent", { percent: p.value });
@@ -652,6 +744,9 @@ export function WidgetPeek({ widgets, onOpen }: { widgets: Widget[]; onOpen?: ((
     art = w.emoji ? <span className={s.peekEmoji}>{w.emoji}</span> : null;
   } else if (w.type === "localtime") {
     sub = zonePlace(w.zone);
+  } else if (isScreenWidget(w)) {
+    sub = w.screen.length === 1 ? w.screen[0]!.title : t("widgets.screen.count", { count: w.screen.length });
+    art = w.screen.slice(0, 3).map((x, i) => <ScreenPoster key={i} item={x} css={30} className={s.peekCover} />);
   } else if (isBookWidget(w)) {
     sub = w.books.length === 1 ? w.books[0]!.title : t("widgets.books.count", { count: w.books.length });
     art = w.books.slice(0, 3).map((b, i) => <BookCover key={i} book={b} css={30} className={s.peekCover} />);
@@ -708,6 +803,7 @@ export function ProfileWidgets({ widgets, variant, onAdd, onShowAll, design }: {
     if (w.type === "countdown") return <Countdown key={w.id} w={w} />;
     if (w.type === "localtime") return <LocalTime key={w.id} w={w} variant={variant} />;
     if (w.type === "stickers") return <Showcase key={w.id} w={w} />;
+    if (isScreenWidget(w)) return w.type === "watching" ? <Watching key={w.id} w={w} /> : <ScreenShelf key={w.id} w={w} variant={variant} onShowAll={onShowAll} />;
     if (isBookWidget(w)) return w.type === "reading" ? <Reading key={w.id} w={w} /> : <BookShelf key={w.id} w={w} variant={variant} onShowAll={onShowAll} />;
     if (!isGameWidget(w)) return <Card key={w.id} w={w} variant={variant} />;
     if (w.type === "favorite") return <Favorite key={w.id} w={w} variant={variant} />;

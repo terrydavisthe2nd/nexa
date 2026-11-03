@@ -23,6 +23,7 @@ import (
 	"evilion.xyz/chat/internal/ids"
 	"evilion.xyz/chat/internal/media"
 	"evilion.xyz/chat/internal/music"
+	"evilion.xyz/chat/internal/screen"
 	"evilion.xyz/chat/internal/store"
 )
 
@@ -114,6 +115,23 @@ type widgetProgress struct {
 	Value int    `json:"value"`
 }
 
+// widgetScreen is a show or film: found on TMDB (ID, Kind, Poster) or added
+// by name with a poster of the person's own (Image).
+type widgetScreen struct {
+	ID     string `json:"id,omitempty"`
+	Kind   string `json:"kind"`
+	Title  string `json:"title"`
+	Year   int    `json:"year,omitempty"`
+	Poster string `json:"poster,omitempty"`
+	Image  string `json:"image,omitempty"`
+	// Season and Episode, only for a show on Watching Now: where they are
+	Season  int `json:"season,omitempty"`
+	Episode int `json:"episode,omitempty"`
+}
+
+// mostScreen is how many each shows and films widget holds.
+var mostScreen = map[string]int{"watching": 3, "screen": 12}
+
 // mostBooks is how many each books widget holds.
 var mostBooks = map[string]int{"reading": 3, "books": 12}
 
@@ -141,12 +159,14 @@ type widget struct {
 	Games []widgetGame  `json:"games,omitempty"`
 	Music []widgetMusic `json:"music,omitempty"`
 	Books []widgetBook  `json:"books,omitempty"`
-	Note  string        `json:"note,omitempty"`
-	Title string        `json:"title,omitempty"`
-	Image string        `json:"image,omitempty"`
-	Shape string        `json:"shape,omitempty"`
-	Text  string        `json:"text,omitempty"`
-	Stats []widgetStat  `json:"stats,omitempty"`
+	// Screen are a shows and films widget's titles
+	Screen []widgetScreen `json:"screen,omitempty"`
+	Note   string         `json:"note,omitempty"`
+	Title  string         `json:"title,omitempty"`
+	Image  string         `json:"image,omitempty"`
+	Shape  string         `json:"shape,omitempty"`
+	Text   string         `json:"text,omitempty"`
+	Stats  []widgetStat   `json:"stats,omitempty"`
 	// Links are a card's buttons, up to three; Link repeats the first for
 	// apps from before there could be more than one
 	Links []widgetLink `json:"links,omitempty"`
@@ -176,6 +196,8 @@ func (s *Server) widgetRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/games/{id}", s.userLimited(s.limSearch, s.handleGameDetails))
 	// kept pictures are served like avatars; only fetching one counts against a limit (fetchLimited)
 	mux.HandleFunc("GET /media/game/{cover}", s.handleGameCover)
+	mux.Handle("GET /api/v1/screen/search", s.userLimited(s.limSearch, s.handleScreenSearch))
+	mux.HandleFunc("GET /media/screen/{poster}", s.handleScreenPoster)
 	mux.Handle("GET /api/v1/books/search", s.userLimited(s.limSearch, s.handleBookSearch))
 	mux.HandleFunc("GET /media/book/{cover}", s.handleBookCover)
 	mux.Handle("GET /api/v1/music/search", s.userLimited(s.limMusic, s.handleMusicSearch))
@@ -468,6 +490,30 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 				seen[key] = true
 				next.Music = append(next.Music, clean)
 			}
+		case "watching", "screen":
+			if seenType[w.Type] {
+				return "", "A profile has one of each kind of shows and films widget."
+			}
+			seenType[w.Type] = true
+			if len(w.Screen) == 0 || len(w.Screen) > mostScreen[w.Type] {
+				return "", "A shows and films widget holds between one and its most."
+			}
+			seenTitle := map[string]bool{}
+			for _, t := range w.Screen {
+				clean, problem := cleanScreen(t, w.Type == "watching")
+				if problem != "" {
+					return "", problem
+				}
+				key := clean.Kind + ":" + clean.ID
+				if clean.ID == "" {
+					key = "title:" + strings.ToLower(clean.Title)
+				}
+				if seenTitle[key] {
+					continue
+				}
+				seenTitle[key] = true
+				next.Screen = append(next.Screen, clean)
+			}
 		case "reading", "books":
 			if seenType[w.Type] {
 				return "", "A profile has one of each kind of books widget."
@@ -678,6 +724,43 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 	return text, ""
 }
 
+// cleanScreen checks one show or film, with where they are in a show on Watching Now.
+func cleanScreen(in widgetScreen, episode bool) (widgetScreen, string) {
+	out := widgetScreen{Kind: in.Kind}
+	if in.Kind != "tv" && in.Kind != "movie" {
+		return out, "A title is a show or a film."
+	}
+	title, ok := line(in.Title, maxBookTitle)
+	if !ok || title == "" {
+		return out, "Each show or film needs a title of at most 200 characters."
+	}
+	out.Title = title
+	if in.Year != 0 {
+		if in.Year < 1870 || in.Year > 2200 {
+			return out, "That year doesn't look right."
+		}
+		out.Year = in.Year
+	}
+	if in.ID != "" {
+		if !screen.IDPattern.MatchString(in.ID) || (in.Poster != "" && !screen.PosterPattern.MatchString(in.Poster)) {
+			return out, "That title isn't one from the search."
+		}
+		out.ID, out.Poster = in.ID, in.Poster
+	} else if in.Image != "" {
+		if _, err := ids.Parse(in.Image); err != nil {
+			return out, "That poster has gone. Put it up again."
+		}
+		out.Image = in.Image
+	}
+	if episode && in.Kind == "tv" && (in.Season != 0 || in.Episode != 0) {
+		if in.Season < 0 || in.Season > 200 || in.Episode < 0 || in.Episode > 10000 {
+			return out, "That season or episode doesn't look right."
+		}
+		out.Season, out.Episode = in.Season, in.Episode
+	}
+	return out, ""
+}
+
 // cleanBook checks one book of a widget, with how far into it they are when
 // it is on Reading Now.
 func cleanBook(in widgetBook, progress bool) (widgetBook, string) {
@@ -880,6 +963,58 @@ func (s *Server) handleGameCover(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.Error(w, "could not fetch the cover", http.StatusBadGateway)
+		return
+	}
+	serveKept(w, r, path)
+}
+
+// handleScreenSearch finds shows and films on TMDB by name.
+func (s *Server) handleScreenSearch(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	list := []screen.Title{}
+	on := s.Screen.On()
+	if on && q != "" && len(q) <= 200 {
+		ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
+		found, err := s.Screen.Search(ctx, q, 24)
+		cancel()
+		if err != nil {
+			s.Log.Warn("tmdb search", "err", err)
+			WriteError(w, E(http.StatusBadGateway, "screen_unavailable", "Show and film search isn't answering right now. Try again in a moment, or add it by name."))
+			return
+		}
+		list = found
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"titles": list, "ready": on})
+}
+
+// handleScreenPoster serves a show's or film's poster, fetched from TMDB once and kept.
+func (s *Server) handleScreenPoster(w http.ResponseWriter, r *http.Request) {
+	file := r.PathValue("poster")
+	size := r.URL.Query().Get("size")
+	if size != "s" {
+		size = "l"
+	}
+	if s.Screen == nil || !screen.PosterPattern.MatchString(file) {
+		http.NotFound(w, r)
+		return
+	}
+	if path, ok := s.Screen.Kept(file, size); ok {
+		serveKept(w, r, path)
+		return
+	}
+	if !s.Screen.On() || !s.fetchLimited(w, r) {
+		if !s.Screen.On() {
+			http.NotFound(w, r)
+		}
+		return
+	}
+	path, err := s.Screen.PosterFile(r.Context(), file, size)
+	if err != nil {
+		if errors.Is(err, screen.ErrUnknown) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "could not fetch the poster", http.StatusBadGateway)
 		return
 	}
 	serveKept(w, r, path)
@@ -1176,6 +1311,10 @@ func widgetsText(raw string) string {
 			parts = append(parts, strings.TrimSpace(w.Emoji+" "+w.Title))
 		} else if w.Type == "localtime" {
 			parts = append(parts, w.Zone)
+		} else if w.Type == "watching" || w.Type == "screen" {
+			for _, t := range w.Screen {
+				parts = append(parts, t.Title)
+			}
 		} else if w.Type == "reading" || w.Type == "books" {
 			for _, b := range w.Books {
 				name := b.Title

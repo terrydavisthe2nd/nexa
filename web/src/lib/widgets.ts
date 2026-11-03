@@ -68,7 +68,39 @@ export interface WidgetLink {
 export type GameWidgetType = "favorite" | "playing" | "wishlist" | "played";
 export type MusicWidgetType = "artists" | "albums" | "songs";
 export type BookWidgetType = "reading" | "books";
-export type WidgetType = GameWidgetType | MusicWidgetType | BookWidgetType | "custom" | "countdown" | "localtime" | "stickers";
+export type ScreenWidgetType = "watching" | "screen";
+export type WidgetType = GameWidgetType | MusicWidgetType | BookWidgetType | ScreenWidgetType | "custom" | "countdown" | "localtime" | "stickers";
+
+/** A show or a film: found on TMDB (`id`, `poster`), or added by name with a poster of the person's own. */
+export interface WidgetScreen {
+  id?: string;
+  kind: "tv" | "movie";
+  title: string;
+  year?: number;
+  poster?: string;
+  image?: string;
+  /** Only for a show on Watching Now: where they are in it. */
+  season?: number;
+  episode?: number;
+}
+
+/** A show or film the search found. */
+export interface FoundScreen {
+  id: string;
+  kind: "tv" | "movie";
+  title: string;
+  year?: number;
+  poster?: string;
+}
+
+export interface ScreenWidget {
+  id: string;
+  type: ScreenWidgetType;
+  screen: WidgetScreen[];
+}
+
+export const SCREEN_TYPES: ScreenWidgetType[] = ["watching", "screen"];
+export const MOST_SCREEN: Record<ScreenWidgetType, number> = { watching: 3, screen: 12 };
 
 /** A book: found on Open Library (`id`, `cover`), or added by name with a picture of the person's own. */
 export interface WidgetBook {
@@ -161,11 +193,11 @@ export interface StickersWidget {
 
 export const MAX_SHOWCASE_PACKS = 2;
 
-export type Widget = GameWidget | MusicWidget | BookWidget | CardWidget | CountdownWidget | LocalTimeWidget | StickersWidget;
+export type Widget = GameWidget | MusicWidget | BookWidget | ScreenWidget | CardWidget | CountdownWidget | LocalTimeWidget | StickersWidget;
 
 export const GAME_TYPES: GameWidgetType[] = ["favorite", "playing", "wishlist", "played"];
 export const MUSIC_TYPES: MusicWidgetType[] = ["artists", "albums", "songs"];
-export const WIDGET_TYPES: WidgetType[] = [...GAME_TYPES, ...MUSIC_TYPES, ...BOOK_TYPES, "custom", "countdown", "localtime", "stickers"];
+export const WIDGET_TYPES: WidgetType[] = [...GAME_TYPES, ...MUSIC_TYPES, ...BOOK_TYPES, ...SCREEN_TYPES, "custom", "countdown", "localtime", "stickers"];
 export const MAX_WIDGETS = 12;
 export const MAX_CARD_LINKS = 3;
 export const MAX_CARDS = 4;
@@ -199,6 +231,7 @@ export function blankWidget(type: WidgetType, id: string): Widget {
   if (type === "countdown") return { id, type, title: "", date: "" };
   if (type === "stickers") return { id, type, packs: [] };
   if (type === "reading" || type === "books") return { id, type, books: [] };
+  if (type === "watching" || type === "screen") return { id, type, screen: [] };
   if (type === "localtime") return { id, type, zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" };
   if (isMusicType(type)) return { id, type, music: [] };
   return { id, type, games: [] };
@@ -255,6 +288,43 @@ function readBook(x: unknown, progress: boolean): WidgetBook | null {
   return out;
 }
 
+function readScreen(x: unknown, episode: boolean): WidgetScreen | null {
+  if (!x || typeof x !== "object") return null;
+  const o = x as Record<string, unknown>;
+  const title = str(o["title"], 200).trim();
+  const kind = o["kind"] === "tv" || o["kind"] === "movie" ? o["kind"] : null;
+  if (!title || !kind) return null;
+  const out: WidgetScreen = { kind, title };
+  if (typeof o["id"] === "string" && /^\d{1,10}$/.test(o["id"])) out.id = o["id"];
+  if (typeof o["poster"] === "string" && /^[A-Za-z0-9]{10,40}\.(jpg|png)$/.test(o["poster"])) out.poster = o["poster"];
+  if (typeof o["image"] === "string" && /^\d{1,20}$/.test(o["image"])) out.image = o["image"];
+  if (typeof o["year"] === "number" && o["year"] > 1800 && o["year"] < 2300) out.year = o["year"];
+  if (episode && kind === "tv") {
+    if (typeof o["season"] === "number" && o["season"] > 0) out.season = o["season"];
+    if (typeof o["episode"] === "number" && o["episode"] > 0) out.episode = o["episode"];
+  }
+  return out;
+}
+
+export function isScreenWidget(w: Widget): w is ScreenWidget {
+  return w.type === "watching" || w.type === "screen";
+}
+
+/** A poster from TMDB, kept by this server: "s" for rows, "l" for shelves. */
+export function screenPosterUrl(poster: string, size: "s" | "l"): string {
+  return `${api.baseUrl}/media/screen/${poster}?size=${size}`;
+}
+
+/** A show's or film's picture drawn `css` pixels across: its poster, the one its owner put up, or none. */
+export function screenPicture(x: WidgetScreen, css: number): string | null {
+  if (x.poster) return screenPosterUrl(x.poster, css > 60 ? "l" : "s");
+  if (x.image) return widgetImageUrl(x.image, css);
+  return null;
+}
+
+/** TMDB's logo, served by this server for the credit its terms ask for. */
+export const TMDB_LOGO = "/brand/tmdb.svg";
+
 export function isBookWidget(w: Widget): w is BookWidget {
   return w.type === "reading" || w.type === "books";
 }
@@ -287,6 +357,11 @@ export function readWidgets(x: unknown): Widget[] {
       if (!title || (!date && !at)) continue;
       const emoji = str(w["emoji"], 32).trim();
       out.push({ id, type, title, ...(emoji ? { emoji } : {}), ...(date ? { date } : { at: at! }) });
+      continue;
+    }
+    if (type === "watching" || type === "screen") {
+      const list = Array.isArray(w["screen"]) ? w["screen"].map((x) => readScreen(x, type === "watching")).filter((x): x is WidgetScreen => !!x).slice(0, MOST_SCREEN[type]) : [];
+      if (list.length) out.push({ id, type, screen: list });
       continue;
     }
     if (type === "reading" || type === "books") {
@@ -431,6 +506,7 @@ export function widgetsText(widgets: Widget[], title: (w: Widget) => string): { 
     if (w.type === "countdown") return { title: title(w), text: [w.emoji, w.title, w.date ?? (w.at ? new Date(w.at).toISOString() : "")].filter(Boolean).join(" ") };
     if (w.type === "localtime") return { title: title(w), text: w.zone };
     if (w.type === "stickers") return { title: title(w), text: w.packs.join(", ") };
+    if (isScreenWidget(w)) return { title: title(w), text: w.screen.map((x) => (x.year ? `${x.title} (${x.year})` : x.title)).join(", ") };
     if (isBookWidget(w)) return { title: title(w), text: w.books.map((b) => (b.author ? `${b.title} (${b.author})` : b.title)).join(", ") };
     return { title: title(w), text: [w.title, w.text, ...(w.stats ?? []).map((st) => `${st.label}: ${st.value}`), ...(w.links ?? []).map((l) => l.url)].filter(Boolean).join(" · ") };
   });

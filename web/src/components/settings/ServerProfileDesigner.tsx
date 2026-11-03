@@ -21,7 +21,7 @@ import { describeError } from "@/lib/errors";
 import { P } from "@/lib/perms";
 import { memberLook } from "@/lib/roleLook";
 import { readTypingStyle } from "@/lib/typingStyle";
-import { blankWidget, isBookWidget, isGameWidget, isMusicWidget, newWidgetId, readWidgets, type Widget, type WidgetType } from "@/lib/widgets";
+import { blankWidget, isBookWidget, isScreenWidget, isGameWidget, isMusicWidget, newWidgetId, readWidgets, type Widget, type WidgetType } from "@/lib/widgets";
 import { useAuth } from "@/stores/auth";
 import { useChannels } from "@/stores/channels";
 import { canI, useServers } from "@/stores/servers";
@@ -30,7 +30,7 @@ import { unlessUnsaved } from "@/stores/unsaved";
 import { aboutToEdit, aboutToSave } from "./AboutMeEditor";
 import { AboutField, ChatPreview, ColoursPicker, DesignerLayout, FormField, FormSection, hexOf, jumpToField, usePreviewLayout, ViewSwitch, WidgetList } from "./designerParts";
 import { TextInput } from "@/components/common/TextInput";
-import { AddWidgetDialog, BookWidgetDialog, CardDialog, CountdownDialog, GameWidgetDialog, LocalTimeDialog, MusicWidgetDialog, StickersDialog } from "./WidgetsEditor";
+import { AddWidgetDialog, BookWidgetDialog, ScreenWidgetDialog, CardDialog, CountdownDialog, GameWidgetDialog, LocalTimeDialog, MusicWidgetDialog, StickersDialog } from "./WidgetsEditor";
 import d from "./Designer.module.css";
 
 type View = "full" | "card" | "chat";
@@ -413,6 +413,7 @@ function Designer({ serverId, servers, onServer }: { serverId: string; servers: 
       {editing && editing.widget.type === "localtime" ? <LocalTimeDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
       {editing && editing.widget.type === "stickers" ? <StickersDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
       {editing && isBookWidget(editing.widget) ? <BookWidgetDialog initial={editing.widget} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
+      {editing && isScreenWidget(editing.widget) ? <ScreenWidgetDialog initial={editing.widget} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
 
       {crop ? (
         <ImageCropModal

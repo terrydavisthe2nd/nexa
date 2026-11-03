@@ -23,17 +23,18 @@ import (
 	"github.com/coder/websocket"
 
 	"evilion.xyz/chat/internal/api"
+	"evilion.xyz/chat/internal/books"
 	"evilion.xyz/chat/internal/cache"
 	"evilion.xyz/chat/internal/config"
 	"evilion.xyz/chat/internal/db"
 	"evilion.xyz/chat/internal/egress"
-	"evilion.xyz/chat/internal/books"
 	"evilion.xyz/chat/internal/games"
 	"evilion.xyz/chat/internal/gateway"
 	"evilion.xyz/chat/internal/ids"
 	"evilion.xyz/chat/internal/media"
 	"evilion.xyz/chat/internal/music"
 	"evilion.xyz/chat/internal/rpcapps"
+	"evilion.xyz/chat/internal/screen"
 	"evilion.xyz/chat/internal/store"
 	"evilion.xyz/chat/internal/unfurl"
 )
@@ -144,6 +145,12 @@ func main() {
 	srv.Games.Log = log
 	if out != nil {
 		srv.Games.HTTP.Transport = out.Transport()
+	}
+	// their shows and films, searched on TMDB and their posters kept the same way
+	srv.Screen = screen.New(cfg.TMDBAPIKey, filepath.Join(cfg.DataDir, "screen"))
+	srv.Screen.Log = log
+	if out != nil {
+		srv.Screen.HTTP.Transport = out.Transport()
 	}
 	// their books, searched on Open Library and their covers kept the same way
 	srv.Books = books.New(filepath.Join(cfg.DataDir, "books"))

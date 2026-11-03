@@ -78,6 +78,10 @@ type Config struct {
 	// them people add games by name with a picture of their own.
 	IGDBClientID     string
 	IGDBClientSecret string
+	// TMDBAPIKey (a TMDB v4 Read Access Token) turns on searching shows and
+	// films for profile widgets (internal/screen). Without it people add them
+	// by name with a poster of their own.
+	TMDBAPIKey string
 	// TelegramBotToken enables Telegram sticker pack imports. The token never
 	// leaves this server: the client only ever sends a pack URL.
 	TelegramBotToken string
@@ -207,6 +211,7 @@ func Load(getenv func(string) string) (Config, error) {
 	str("KLIPY_API_KEY", &c.KlipyAPIKey)
 	str("IGDB_CLIENT_ID", &c.IGDBClientID)
 	str("IGDB_CLIENT_SECRET", &c.IGDBClientSecret)
+	str("TMDB_API_KEY", &c.TMDBAPIKey)
 	str("TELEGRAM_BOT_TOKEN", &c.TelegramBotToken)
 	str("DISCORD_CLIENT_ID", &c.DiscordClientID)
 	str("DISCORD_CLIENT_SECRET", &c.DiscordClientSecret)

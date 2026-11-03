@@ -191,6 +191,9 @@ fun AboutPage() {
     InfoRow("Sparkles", t("whatsNew.title"), { SubText(t("settings.about.whatsNewSub")) }) {
         NxButton(t("settings.about.show"), { fish.nexa.ui.WhatsNew.openAll() }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM)
     }
+    SectionHeading(t("settings.about.sources"), Modifier.settingAnchor("sources"))
+    InfoRow("Clapperboard", "TMDB", { SubText(t("widgets.screen.tmdbNotice")) })
+    InfoRow("Library", t("settings.about.sourcesOthers"), { SubText(t("settings.about.sourcesOthersSub")) })
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-import { BookOpen, Bookmark, CalendarClock, LibraryBig, Sticker, ChartNoAxesColumn, Clock, Disc3, Palette, Gamepad2, GripVertical, Heart, ImagePlus, Library, LoaderCircle, MicVocal, Music, PanelTop, Plus, Search, Check, X, type LucideIcon } from "lucide-react";
+import { BookOpen, Bookmark, Clapperboard, Tv, CalendarClock, LibraryBig, Sticker, ChartNoAxesColumn, Clock, Disc3, Palette, Gamepad2, GripVertical, Heart, ImagePlus, Library, LoaderCircle, MicVocal, Music, PanelTop, Plus, Search, Check, X, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { users as usersApi } from "@/api/users";
 import { expressions as expressionsApi } from "@/api/expressions";
@@ -13,21 +13,22 @@ import { FormattedText } from "@/components/common/FormattedText";
 import { Select } from "@/components/common/Select";
 import { Toggle } from "@/components/common/Toggle";
 import { Field, TextArea, TextInput } from "@/components/common/TextInput";
-import { BookCover, GameCover, MusicArt, ProfileWidgets, widgetTitle } from "@/components/profile/Widgets";
+import { BookCover, ScreenPoster, GameCover, MusicArt, ProfileWidgets, widgetTitle } from "@/components/profile/Widgets";
 import { useReorder } from "@/hooks/useReorder";
 import { Tr, t } from "@/i18n";
 import { describeError } from "@/lib/errors";
-import { BOOK_TYPES, GAME_TYPES, LIMITS, MOST_BOOKS, type BookWidget, type FoundBook, type WidgetBook, MAX_CARD_LINKS, MAX_CARDS, MAX_SHOWCASE_PACKS, MOST_GAMES, MOST_MUSIC, MUSIC_TYPES, songLength, widgetImageUrl, type CardWidget, type CountdownWidget, type FoundMusic, type LocalTimeWidget, type StickersWidget, type GameWidget, type MusicWidget, type Widget, type WidgetGame, type WidgetMusic, type WidgetStat, type WidgetType } from "@/lib/widgets";
+import { BOOK_TYPES, MOST_SCREEN, SCREEN_TYPES, TMDB_LOGO, type FoundScreen, type ScreenWidget, type WidgetScreen, GAME_TYPES, LIMITS, MOST_BOOKS, type BookWidget, type FoundBook, type WidgetBook, MAX_CARD_LINKS, MAX_CARDS, MAX_SHOWCASE_PACKS, MOST_GAMES, MOST_MUSIC, MUSIC_TYPES, songLength, widgetImageUrl, type CardWidget, type CountdownWidget, type FoundMusic, type LocalTimeWidget, type StickersWidget, type GameWidget, type MusicWidget, type Widget, type WidgetGame, type WidgetMusic, type WidgetStat, type WidgetType } from "@/lib/widgets";
 import { allZones, zoneOffset, zonePlace } from "@/lib/timeWidgets";
 import { useUI } from "@/stores/ui";
 import s from "./WidgetsEditor.module.css";
 
-const KIND_ICONS: Record<WidgetType, LucideIcon> = { favorite: Heart, playing: Gamepad2, wishlist: Bookmark, played: Library, artists: MicVocal, albums: Disc3, songs: Music, custom: PanelTop, countdown: CalendarClock, localtime: Clock, stickers: Sticker, reading: BookOpen, books: LibraryBig };
+const KIND_ICONS: Record<WidgetType, LucideIcon> = { favorite: Heart, playing: Gamepad2, wishlist: Bookmark, played: Library, artists: MicVocal, albums: Disc3, songs: Music, custom: PanelTop, countdown: CalendarClock, localtime: Clock, stickers: Sticker, reading: BookOpen, books: LibraryBig, watching: Tv, screen: Clapperboard };
 /** The kinds of widget, in the groups Add a Widget lists them in. */
 const KIND_GROUPS: { title: string; types: WidgetType[] }[] = [
   { title: "widgets.group.games", types: GAME_TYPES },
   { title: "widgets.group.music", types: MUSIC_TYPES },
   { title: "widgets.group.books", types: BOOK_TYPES },
+  { title: "widgets.group.screen", types: SCREEN_TYPES },
   { title: "widgets.group.cards", types: ["custom"] },
   { title: "widgets.group.time", types: ["countdown", "localtime"] },
   { title: "widgets.group.stickers", types: ["stickers"] },
@@ -1523,6 +1524,287 @@ export function BookWidgetDialog({ initial, onDone, onClose }: { initial: BookWi
           maxSize={400}
           serverCrop
           title={t("widgets.books.cropTitle")}
+          onClose={() => setCrop(null)}
+          onDone={({ blob, crop: area }) => {
+            const key = crop.key;
+            setCrop(null);
+            void upload(key, blob, area ?? null);
+          }}
+        />
+      ) : null}
+    </Modal>
+  );
+}
+
+const screenKey = (x: WidgetScreen) => (x.id ? `${x.kind}:${x.id}` : `n:${x.title.toLowerCase()}`);
+
+/** The notice TMDB's terms ask for wherever its data is shown, with its logo. */
+export function TmdbCredit() {
+  return (
+    <p className={s.tmdb}>
+      <img src={TMDB_LOGO} alt="TMDB" className={s.tmdbLogo} draggable={false} />
+      <span>{t("widgets.screen.tmdbNotice")}</span>
+    </p>
+  );
+}
+
+/**
+ * A shows and films widget: a search of TMDB, through this server, or a title
+ * typed in by name with a poster of its own; the titles chosen, in order, with
+ * where they are in each show on Watching Now.
+ */
+export function ScreenWidgetDialog({ initial, onDone, onClose }: { initial: ScreenWidget; onDone: (w: ScreenWidget) => void; onClose: () => void }) {
+  const toast = useUI((u) => u.toast);
+  const most = MOST_SCREEN[initial.type];
+  const watching = initial.type === "watching";
+  const [items, setItems] = useState<WidgetScreen[]>(initial.screen);
+  const [q, setQ] = useState("");
+  const [found, setFound] = useState<{ q: string; titles: FoundScreen[] } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [ready, setReady] = useState<boolean | null>(null);
+  const [crop, setCrop] = useState<{ file: File; key: string } | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const seq = useRef(0);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const pictureFor = useRef<string | null>(null);
+  const searchLabel = useId();
+  const query = q.trim();
+
+  useEffect(() => {
+    let alive = true;
+    usersApi.searchScreen("").then(
+      (res) => alive && setReady(res.ready),
+      () => alive && setReady(true),
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const n = ++seq.current;
+    setFailed(false);
+    if (!query || ready === false) {
+      setFound(null);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const timer = setTimeout(() => {
+      usersApi.searchScreen(query).then(
+        (res) => {
+          if (n !== seq.current) return;
+          setReady(res.ready);
+          setFound({ q: query, titles: res.titles });
+          setSearching(false);
+        },
+        () => {
+          if (n !== seq.current) return;
+          setFailed(true);
+          setSearching(false);
+        },
+      );
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [query, ready]);
+
+  const has = (x: WidgetScreen) => items.some((y) => screenKey(y) === screenKey(x));
+  const isFull = items.length >= most;
+  const add = (x: WidgetScreen) => {
+    if (has(x)) return setItems(items.filter((y) => screenKey(y) !== screenKey(x)));
+    if (isFull) return;
+    setItems([...items, x]);
+  };
+  const addByName = () => {
+    const title = query.slice(0, 200);
+    if (!title) return;
+    add({ kind: "tv", title });
+    setQ("");
+    searchRef.current?.focus();
+  };
+  const patch = (key: string, change: Partial<WidgetScreen>) => setItems((list) => list.map((x) => (screenKey(x) === key ? { ...x, ...change } : x)));
+  const drag = useRowDrag(items, screenKey, setItems);
+  const reorder = useReorder({
+    ids: items.map(screenKey),
+    move: (key, delta) => {
+      const next = moved(items, screenKey, key, delta);
+      if (next) setItems(next);
+      return !!next;
+    },
+    name: (key) => items.find((x) => screenKey(x) === key)?.title ?? "",
+  });
+  const upload = async (key: string, file: Blob, area: { x: number; y: number; w: number; h: number } | null) => {
+    setUploading(key);
+    try {
+      const res = await usersApi.uploadWidgetImage(file, area, "cover");
+      patch(key, { image: res.id });
+    } catch (err) {
+      toast(describeError(err, t("composer.composer.uploadFailed")), "error");
+    } finally {
+      setUploading(null);
+    }
+  };
+  const asItem = (f: FoundScreen): WidgetScreen => ({ id: f.id, kind: f.kind, title: f.title, ...(f.year ? { year: f.year } : {}), ...(f.poster ? { poster: f.poster } : {}) });
+  const exact = found?.q === query && found.titles.some((x) => x.title.toLowerCase() === query.toLowerCase());
+  const byName = !!query && !exact && !items.some((x) => !x.id && x.title.toLowerCase() === query.toLowerCase());
+  const results = found && found.q === query ? found.titles : [];
+  const canSave = items.length > 0 && uploading === null;
+  const num = (v: string, max: number) => {
+    const n = Math.round(Number(v) || 0);
+    return n > 0 ? Math.min(n, max) : undefined;
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={widgetTitle(initial)}
+      width={520}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>{t("chat.editMessage.cancel")}</Button>
+          <Button onClick={() => onDone({ ...initial, screen: items })} disabled={!canSave} data-testid="widget-done">{t("pick.done")}</Button>
+        </>
+      }
+    >
+      <input
+        ref={fileRef}
+        type="file"
+        accept={IMAGE_TYPES}
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          const key = pictureFor.current;
+          if (f && key) setCrop({ file: f, key });
+          e.target.value = "";
+        }}
+      />
+      <span className={s.label} id={searchLabel}>{t("widgets.screen.search")}</span>
+      <div className={s.searchBox}>
+        <Search size={17} className={s.searchIcon} aria-hidden="true" />
+        <TextInput
+          ref={searchRef}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const first = results[0];
+              if (first && !has(asItem(first))) add(asItem(first));
+              else if (!first && byName && ready === false) addByName();
+            }
+          }}
+          maxLength={200}
+          placeholder={ready === false ? t("widgets.screen.namePlaceholder") : t("widgets.screen.searchPlaceholder")}
+          aria-labelledby={searchLabel}
+          autoComplete="off"
+          spellCheck={false}
+          data-testid="screen-search"
+          autoFocus
+        />
+      </div>
+      {ready === false ? <p className={s.note}>{t("widgets.screen.notSetUp")}</p> : null}
+      {query ? (
+        <ul className={s.results} aria-label={t("widgets.screen.results")} aria-busy={searching || undefined}>
+          {results.map((f) => {
+            const x = asItem(f);
+            const on = has(x);
+            return (
+              <li key={`${f.kind}${f.id}`}>
+                <button className={s.result} aria-pressed={on} disabled={!on && isFull} onClick={() => add(x)} data-testid="screen-result">
+                  <ScreenPoster item={x} css={30} className={s.resultCover} />
+                  <span className={s.resultText}>
+                    <span className={s.resultName} dir="auto">{f.title}</span>
+                    <span className={s.resultYear}>{[f.kind === "tv" ? t("widgets.screen.show") : t("widgets.screen.film"), f.year].filter(Boolean).join(", ")}</span>
+                  </span>
+                  <span className={s.resultMark} aria-hidden="true">{on ? <Check size={15} /> : <Plus size={15} />}</span>
+                </button>
+              </li>
+            );
+          })}
+          {searching && !results.length ? <li><p className={s.status}>{t("widgets.game.searching")}</p></li> : null}
+          {!searching && failed ? <li><p className={s.status}>{t("widgets.screen.unavailable")}</p></li> : null}
+          {!searching && !failed && ready !== false && found?.q === query && !results.length ? <li><p className={s.status}>{t("widgets.screen.noResults")}</p></li> : null}
+          {byName && !searching ? (
+            <li>
+              <button className={s.result} disabled={isFull} onClick={addByName} data-testid="screen-by-name">
+                <span className={s.byName} aria-hidden="true"><Plus size={14} /></span>
+                <span className={s.resultText}><span className={s.resultName} dir="auto">{t("widgets.game.addByName", { name: query })}</span></span>
+              </button>
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+      {ready ? <TmdbCredit /> : null}
+
+      <div className={s.labelRow}>
+        <span className={s.label}>{t("widgets.screen.yours")}</span>
+        <span className={s.count}>{t("widgets.used", { count: items.length, max: most })}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className={s.empty}>{t("widgets.screen.noneYet")}</p>
+      ) : (
+        <ul className={s.chosen} aria-label={t("widgets.screen.yours")}>
+          {items.map((x) => {
+            const key = screenKey(x);
+            return (
+              <li key={key} className={s.chosenRow} data-reorder-id={key} onKeyDown={reorder.onKeyDown(key)} {...drag.row(key)}>
+                <span className={s.grip} aria-hidden="true" {...drag.grip(key)}><GripVertical size={16} /></span>
+                <ScreenPoster item={x} css={40} className={s.chosenCover} />
+                <div className={s.chosenMain}>
+                  <span className={s.chosenName} dir="auto">{x.title}</span>
+                  {x.id ? (
+                    <span className={s.chosenBy}>{[x.kind === "tv" ? t("widgets.screen.show") : t("widgets.screen.film"), x.year].filter(Boolean).join(", ")}</span>
+                  ) : (
+                    <div className={s.progressRow}>
+                      <Select value={x.kind} onChange={(e) => patch(key, { kind: e.target.value === "movie" ? "movie" : "tv", season: undefined, episode: undefined })} aria-label={t("widgets.screen.kindOf", { title: x.title })}>
+                        <option value="tv">{t("widgets.screen.show")}</option>
+                        <option value="movie">{t("widgets.screen.film")}</option>
+                      </Select>
+                    </div>
+                  )}
+                  {!x.poster ? (
+                    <div className={s.chosenBtns}>
+                      <button className={s.chip} disabled={uploading !== null} onClick={() => { pictureFor.current = key; fileRef.current?.click(); }}>
+                        {uploading === key ? <LoaderCircle size={14} className={s.spin} aria-hidden="true" /> : <ImagePlus size={14} aria-hidden="true" />}
+                        {x.image ? t("widgets.changePicture") : t("widgets.addPicture")}
+                      </button>
+                      {x.image ? <button className={s.chip} onClick={() => patch(key, { image: undefined })}>{t("widgets.removePicture")}</button> : null}
+                    </div>
+                  ) : null}
+                  {watching && x.kind === "tv" ? (
+                    <div className={s.progressRow}>
+                      <label className={s.numLabel}>
+                        <span>{t("widgets.screen.seasonLabel")}</span>
+                        <TextInput type="number" inputMode="numeric" min={1} max={200} value={x.season ? String(x.season) : ""} onChange={(e) => patch(key, { season: num(e.target.value, 200) })} className={s.progressInput} data-testid="screen-season" />
+                      </label>
+                      <label className={s.numLabel}>
+                        <span>{t("widgets.screen.episodeLabel")}</span>
+                        <TextInput type="number" inputMode="numeric" min={1} max={10000} value={x.episode ? String(x.episode) : ""} onChange={(e) => patch(key, { episode: num(e.target.value, 10000) })} className={s.progressInput} data-testid="screen-episode" />
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+                <button className={s.iconBtn} aria-label={t("widgets.game.remove", { name: x.title })} onClick={() => setItems(items.filter((y) => screenKey(y) !== key))}>
+                  <X size={16} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {items.length > 1 ? <p className={s.small}>{reorder.hint}</p> : null}
+      {reorder.live}
+
+      {crop ? (
+        <ImageCropModal
+          file={crop.file}
+          aspect={3 / 4}
+          maxSize={400}
+          serverCrop
+          title={t("widgets.screen.cropTitle")}
           onClose={() => setCrop(null)}
           onDone={({ blob, crop: area }) => {
             const key = crop.key;

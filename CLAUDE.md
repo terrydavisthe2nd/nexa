@@ -395,7 +395,7 @@ SIGINT or SIGTERM.
 | `db` | SQLite or Postgres pools (`W` single writer, `R` readers), `Tx`, dialect helpers, embedded forward-only migrations |
 | `discordsync` | Discord activity sync (a bot in a small Discord server reads linked members' presence); `fakediscord` for tests |
 | `egress` | the SOCKS5 proxy (WARP) for every request a person can point the server at; fails closed |
-| `games`, `music`, `books` | IGDB, Deezer and Open Library for profile widgets; art kept, previews streamed through |
+| `games`, `music`, `books`, `screen` | IGDB, Deezer, Open Library and TMDB for profile widgets; art kept, previews streamed through |
 | `gateway` | the WebSocket hub: connections, presence, typing, voice signalling, fan-out |
 | `ids` | snowflakes (41 bits of milliseconds, 10 of node, 12 of sequence), decimal strings in JSON |
 | `media` | blob storage, upload validation, sized variants, metadata scrub |
@@ -1064,6 +1064,13 @@ as Discord holds it:
   seconds, so it waits 20) and `/media/book/{cover}?size=s|l` (kept under `DATA_DIR/books`), both
   through the egress proxy with a `Nexa` User-Agent. `store.WidgetImages` counts `books` and `screen`
   items' own pictures.
+- Shows and films: Watching Now (`watching`, up to 3, a show with optional `season`, `episode`) and
+  Favourite Shows & Films (`screen`, up to 12), items `screen` [{id, kind tv or movie, title, year,
+  poster (TMDB path without its slash), image}]. `GET /api/v1/screen/search` (off without
+  `TMDB_API_KEY`, a v4 Read Access Token) and `/media/screen/{poster}?size=s|l` (kept under
+  `DATA_DIR/screen`), through the egress proxy. TMDB's terms require its logo
+  (`web/public/brand/tmdb.svg`, Android loads it from the server) and the English notice
+  `widgets.screen.tmdbNotice` under the search and in Settings, About ("Where Profile Info Comes From").
 - Current apps always send `links` on a card, even empty. A card saved without it comes from an app
   before cards had several links, colours and bars, so `carryCardExtras` keeps the saved card's
   extra links, colours and bars (`TestOldAppsKeepWhatCardsGained`).
@@ -1252,7 +1259,7 @@ Every setting is documented in `chatd.env.example` and loaded by `internal/confi
 (`REALTIME_APP_ID`, `REALTIME_APP_SECRET`, `REALTIME_MONTHLY_GB`, `REALTIME_ACCOUNT_ID`,
 `REALTIME_ANALYTICS_TOKEN`, `REALTIME_TURN_DAILY_GB`, `GUEST_LINKS_P2P`, `STUN_URLS`, `TURN_URLS`,
 `TURN_USERNAME`, `TURN_CREDENTIAL`, `TURN_KEY_ID`, `TURN_API_TOKEN`), outbound (`EGRESS_PROXY`,
-`WARP_PROXY_PORT`), integrations (`KLIPY_API_KEY`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`,
+`WARP_PROXY_PORT`), integrations (`KLIPY_API_KEY`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY`,
 `TELEGRAM_BOT_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN`,
 `DISCORD_ACTIVITY_GUILD_ID`, `DISCORD_REDIRECT_URL` left empty, `DISCORD_API_URL` for the fake),
 payments (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_API_URL` for a fake), logging

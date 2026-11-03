@@ -12,10 +12,10 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"evilion.xyz/chat/internal/auth"
+	"evilion.xyz/chat/internal/books"
 	"evilion.xyz/chat/internal/config"
 	"evilion.xyz/chat/internal/discordsync"
 	"evilion.xyz/chat/internal/egress"
-	"evilion.xyz/chat/internal/books"
 	"evilion.xyz/chat/internal/games"
 	"evilion.xyz/chat/internal/gateway"
 	"evilion.xyz/chat/internal/ids"
@@ -24,6 +24,7 @@ import (
 	"evilion.xyz/chat/internal/ratelimit"
 	"evilion.xyz/chat/internal/realtime"
 	"evilion.xyz/chat/internal/rpcapps"
+	"evilion.xyz/chat/internal/screen"
 	"evilion.xyz/chat/internal/store"
 	"evilion.xyz/chat/internal/unfurl"
 	"evilion.xyz/chat/internal/voice"
@@ -185,6 +186,9 @@ type Server struct {
 	// Books searches the books people put on their profile widgets, and keeps
 	// their covers (internal/books); nil turns the search off.
 	Books *books.Client
+	// Screen searches the shows and films people put on their profile
+	// widgets, and keeps their posters (internal/screen); off without a TMDB key.
+	Screen *screen.Client
 	// activityHub resolves activity previews the way the gateway shows them.
 	activityHub *gateway.Hub
 	// Discord shows linked Discord accounts' activity (nil when not configured; see WireDiscord).

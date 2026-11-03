@@ -194,3 +194,8 @@
 .progressRow select { height: 34px; font-size: 14px; width: auto; }
 .progressInput { height: 34px; width: 96px; font-size: 14px; }
 .chosenBy { font-size: 13px; line-height: 17px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* TMDB's notice under its search, with its logo as its terms ask */
+.tmdb { display: flex; align-items: center; gap: 8px; margin: 8px 2px 0; font-size: 12px; line-height: 1.35; color: var(--text-muted); }
+.tmdbLogo { flex: none; height: 12px; width: auto; }
+.numLabel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-subtle); }
+.numLabel .progressInput { width: 76px; }

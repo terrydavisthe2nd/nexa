@@ -138,6 +138,21 @@ object Widgets {
 
     val MOST_BOOKS = mapOf("reading" to 3, "books" to 12)
 
+    /** A show or a film: found on TMDB ([id], [poster]), or added by name with a poster of the person's own. */
+    data class ScreenItem(val id: String?, val kind: String, val title: String, val year: Int?, val poster: String?, val image: String?, val season: Int? = null, val episode: Int? = null)
+    data class ScreenWidget(override val id: String, override val type: String, val items: List<ScreenItem>) : Widget
+
+    val MOST_SCREEN = mapOf("watching" to 3, "screen" to 12)
+
+    fun screenPicture(x: ScreenItem, css: Int, density: Float): String? = when {
+        x.poster != null -> "${base()}/media/screen/${x.poster}?size=${if (css > 60) "l" else "s"}"
+        x.image != null -> Media.widgetUrl(x.image, css, density)
+        else -> null
+    }
+
+    /** TMDB's logo, served by this server for the credit its terms ask for. */
+    fun tmdbLogo() = "${base()}/brand/tmdb.svg"
+
     fun bookPicture(b: Book, css: Int, density: Float): String? = when {
         b.cover != null -> "${base()}/media/book/${b.cover}?size=${if (css > 60) "l" else "s"}"
         b.image != null -> Media.widgetUrl(b.image, css, density)
@@ -207,6 +222,21 @@ object Widgets {
                     val at = (w["at"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull?.takeIf { it > 0 && it.isFinite() }?.toLong()
                     if (title.isEmpty() || (date == null && at == null)) continue
                     out += CountdownWidget(id, title, w.s("emoji", 32).trim().ifEmpty { null }, date, if (date == null) at else null)
+                }
+                "watching", "screen" -> {
+                    val items = (w["screen"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.mapNotNull { o ->
+                        val title = o.s("title", 200).trim()
+                        val kind = (o["kind"] as? JsonPrimitive)?.contentOrNull?.takeIf { it == "tv" || it == "movie" }
+                        if (title.isEmpty() || kind == null) return@mapNotNull null
+                        fun int(k: String) = (o[k] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull?.toInt()?.takeIf { it > 0 }
+                        val ep = type == "watching" && kind == "tv"
+                        ScreenItem(
+                            o.match("id", Regex("^\\d{1,10}$")), kind, title, int("year")?.takeIf { it in 1800..2300 },
+                            o.match("poster", Regex("^[A-Za-z0-9]{10,40}\\.(jpg|png)$")), o.match("image", Regex("^\\d{1,20}$")),
+                            if (ep) int("season") else null, if (ep) int("episode") else null,
+                        )
+                    }?.take(MOST_SCREEN[type]!!) ?: emptyList()
+                    if (items.isNotEmpty()) out += ScreenWidget(id, type, items)
                 }
                 "reading", "books" -> {
                     val books = (w["books"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.mapNotNull { b ->
@@ -280,6 +310,18 @@ object Widgets {
             }
             is LocalTimeWidget -> put("zone", JsonPrimitive(w.zone))
             is StickersWidget -> put("packs", JsonArray(w.packs.map { JsonPrimitive(it) }))
+            is ScreenWidget -> put("screen", JsonArray(w.items.map { x ->
+                buildJsonObject {
+                    x.id?.let { put("id", JsonPrimitive(it)) }
+                    put("kind", JsonPrimitive(x.kind))
+                    put("title", JsonPrimitive(x.title))
+                    x.year?.let { put("year", JsonPrimitive(it)) }
+                    x.poster?.let { put("poster", JsonPrimitive(it)) }
+                    x.image?.let { put("image", JsonPrimitive(it)) }
+                    x.season?.let { put("season", JsonPrimitive(it)) }
+                    x.episode?.let { put("episode", JsonPrimitive(it)) }
+                }
+            }))
             is BookWidget -> put("books", JsonArray(w.books.map { b ->
                 buildJsonObject {
                     b.id?.let { put("id", JsonPrimitive(it)) }
@@ -322,6 +364,8 @@ object Widgets {
         "countdown" -> t("widgets.type.countdown")
         "localtime" -> t("widgets.type.localtime")
         "stickers" -> t("widgets.type.stickers")
+        "watching" -> t("widgets.type.watching")
+        "screen" -> t("widgets.type.screen")
         "reading" -> t("widgets.type.reading")
         "books" -> t("widgets.type.books")
         else -> t("widgets.type.custom")
@@ -580,6 +624,7 @@ fun ProfileWidgets(widgets: List<Widgets.Widget>, onAdd: (() -> Unit)? = null, o
         is Widgets.LocalTimeWidget -> LocalTime(w)
         is Widgets.StickersWidget -> Showcase(w)
         is Widgets.BookWidget -> if (w.type == "reading") Reading(w) else BookShelf(w, onShowAll)
+        is Widgets.ScreenWidget -> if (w.type == "watching") Watching(w) else ScreenShelf(w, onShowAll)
         is Widgets.GameWidget -> when (w.type) {
             "favorite" -> Favorite(w)
             "playing" -> Playing(w)
@@ -1135,6 +1180,78 @@ fun BookCover(b: Widgets.Book, css: Int, width: Dp?, named: Boolean = false) {
     }
 }
 
+/** ScreenPoster: a show's or film's poster, or its title on a colour of its own (web ScreenPoster). */
+@Composable
+fun ScreenPoster(x: Widgets.ScreenItem, css: Int, width: Dp?, named: Boolean = false) {
+    val c = Nx.colors
+    val density = LocalDensity.current.density
+    val src = Widgets.screenPicture(x, css, density)
+    var broken by remember(src) { mutableStateOf(false) }
+    val shape = RoundedCornerShape(5.dp)
+    Box(
+        (if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
+            .aspectRatio(2f / 3f)
+            .boxShadow(shape, 6f, 14f, c.shadeAt(0.85f), spread = -8f)
+            .ring(shape, c.textStrong.copy(alpha = 0.08f))
+            .clip(shape)
+            .background(c.bgActive)
+            .then(if (named) Modifier.semantics { contentDescription = screenLabel(x) } else Modifier),
+    ) {
+        if (src != null && !broken) AsyncImage(src, null, Media.loader, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, onError = { broken = true })
+        else NameTile(x.title, small = false, size = width ?: 80.dp)
+    }
+}
+
+private fun kindWords(x: Widgets.ScreenItem) = listOfNotNull(if (x.kind == "tv") t("widgets.screen.show") else t("widgets.screen.film"), x.year?.toString()).joinToString(", ")
+
+private fun screenLabel(x: Widgets.ScreenItem) = x.title + ", " + kindWords(x)
+
+/** Where someone is in a show: "Season 2, Episode 5", or just the season or the episode. */
+fun episodeWords(x: Widgets.ScreenItem): String? = when {
+    x.season != null && x.episode != null -> t("widgets.screen.seasonEpisode", "season" to x.season, "episode" to x.episode)
+    x.season != null -> t("widgets.screen.season", "season" to x.season)
+    x.episode != null -> t("widgets.screen.episode", "episode" to x.episode)
+    else -> null
+}
+
+/** Watching Now: a row a title, what it is and when, and where they are in a show. */
+@Composable
+private fun Watching(w: Widgets.ScreenWidget) {
+    val c = Nx.colors
+    Column {
+        Heading(t("widgets.type.watching"))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            for (x in w.items) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ScreenPoster(x, 40, 40.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Txt(x.title, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(650), lineHeight = Nx.type.sp(19f)), color = c.textStrong, maxLines = 1)
+                    Txt(kindWords(x), style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(16f)), color = c.textMuted, maxLines = 1)
+                    episodeWords(x)?.let { Txt(it, style = Nx.type.hint.copy(fontSize = Nx.type.sp(12.5f), fontWeight = FontWeight(600), fontFeatureSettings = "tnum"), color = c.textSubtle) }
+                }
+            }
+        }
+    }
+}
+
+/** Favourite Shows & Films: a shelf of posters. */
+@Composable
+private fun ScreenShelf(w: Widgets.ScreenWidget, onShowAll: (() -> Unit)?) {
+    val c = Nx.colors
+    var all by rememberSaveable(w.id) { mutableStateOf(false) }
+    val most = if (onShowAll != null) 6 else 12
+    val shown = if (all) w.items else w.items.take(most)
+    Column {
+        Heading(Widgets.title(w.type), w.items.size, t("widgets.screen.count", "count" to w.items.size))
+        Grid(shown, 4, 6, 10.dp, 8.dp) { x ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                ScreenPoster(x, 80, null, named = true)
+                Txt(x.title, style = Nx.type.hint.copy(fontSize = Nx.type.sp(11.5f), fontWeight = FontWeight(600), lineHeight = Nx.type.sp(14f)), color = c.textSubtle, maxLines = 2)
+            }
+        }
+        if (w.items.size > most) MoreLink(all, onShowAll) { all = !all }
+    }
+}
+
 private fun progressWords(p: Widgets.Progress) =
     if (p.kind == "page") t("widgets.books.page", "page" to java.text.NumberFormat.getIntegerInstance(fish.nexa.ui.I18n.locale).format(p.value)) else t("widgets.books.percent", "percent" to p.value)
 
@@ -1301,6 +1418,7 @@ fun WidgetPeek(widgets: List<Widgets.Widget>, onOpen: (() -> Unit)?) {
         is Widgets.CountdownWidget -> fish.nexa.data.TimeWidgets.whenText(w.date, w.at)
         is Widgets.LocalTimeWidget -> fish.nexa.data.TimeWidgets.place(w.zone)
         is Widgets.StickersWidget -> t("widgets.stickers.packCount", "count" to w.packs.size)
+        is Widgets.ScreenWidget -> if (w.items.size == 1) w.items[0].title else t("widgets.screen.count", "count" to w.items.size)
         is Widgets.BookWidget -> if (w.books.size == 1) w.books[0].title else t("widgets.books.count", "count" to w.books.size)
     }
     Row(
@@ -1331,6 +1449,9 @@ fun WidgetPeek(widgets: List<Widgets.Widget>, onOpen: (() -> Unit)?) {
                 is Widgets.CardWidget -> w.image?.let { AsyncImage(Media.widgetUrl(it, 40, density), null, Media.loader, Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop) }
                 is Widgets.CountdownWidget -> w.emoji?.let { StatusEmojiImage(it, 22.dp) }
                 is Widgets.LocalTimeWidget, is Widgets.StickersWidget -> Unit
+                is Widgets.ScreenWidget -> w.items.take(3).forEachIndexed { i, x ->
+                    Box(Modifier.offset(x = (-10 * i).dp).zIndex((3 - i).toFloat())) { ScreenPoster(x, 30, 24.dp) }
+                }
                 is Widgets.BookWidget -> w.books.take(3).forEachIndexed { i, b ->
                     Box(Modifier.offset(x = (-10 * i).dp).zIndex((3 - i).toFloat())) { BookCover(b, 30, 24.dp) }
                 }

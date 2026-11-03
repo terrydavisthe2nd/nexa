@@ -392,3 +392,5 @@ button.track:focus-visible { outline-offset: -2px; }
 .readBar { flex: 1; max-width: 160px; height: 5px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--text-strong) 12%, transparent); }
 .readBar i { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
 .readWords { font-size: 12.5px; font-weight: 600; color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+/* a poster stands as tall as a book, with square corners rounded a little */
+.poster { aspect-ratio: 2 / 3; border-radius: 5px; }

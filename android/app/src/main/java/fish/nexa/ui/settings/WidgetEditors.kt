@@ -72,6 +72,7 @@ import fish.nexa.ui.layers.MenuItem
 import fish.nexa.ui.layers.openMenu
 import fish.nexa.ui.layers.openSheet
 import fish.nexa.ui.profile.BookCover
+import fish.nexa.ui.profile.ScreenPoster
 import fish.nexa.ui.profile.GameCover
 import fish.nexa.ui.profile.MusicArt
 import fish.nexa.ui.profile.ProfileWidgets
@@ -115,7 +116,7 @@ private object Limits {
 private val KIND_ICONS = mapOf(
     "favorite" to "Heart", "playing" to "Gamepad2", "wishlist" to "Bookmark", "played" to "Library",
     "artists" to "MicVocal", "albums" to "Disc3", "songs" to "Music", "custom" to "PanelTop",
-    "countdown" to "CalendarClock", "localtime" to "Clock", "stickers" to "Sticker", "reading" to "BookOpen", "books" to "LibraryBig",
+    "countdown" to "CalendarClock", "localtime" to "Clock", "stickers" to "Sticker", "reading" to "BookOpen", "books" to "LibraryBig", "watching" to "Tv", "screen" to "Clapperboard",
 )
 
 /** The kinds of widget, in the groups Add a Widget lists them in. */
@@ -123,6 +124,7 @@ private val KIND_GROUPS = listOf(
     "widgets.group.games" to listOf("favorite", "playing", "wishlist", "played"),
     "widgets.group.music" to listOf("artists", "albums", "songs"),
     "widgets.group.books" to listOf("reading", "books"),
+    "widgets.group.screen" to listOf("watching", "screen"),
     "widgets.group.cards" to listOf("custom"),
     "widgets.group.time" to listOf("countdown", "localtime"),
     "widgets.group.stickers" to listOf("stickers"),
@@ -137,6 +139,7 @@ private fun fresh(type: String): Widgets.Widget = when (type) {
     "countdown" -> Widgets.CountdownWidget(newWidgetId(), "", null, null, null)
     "stickers" -> Widgets.StickersWidget(newWidgetId(), emptyList())
     "reading", "books" -> Widgets.BookWidget(newWidgetId(), type, emptyList())
+    "watching", "screen" -> Widgets.ScreenWidget(newWidgetId(), type, emptyList())
     "localtime" -> Widgets.LocalTimeWidget(newWidgetId(), java.time.ZoneId.systemDefault().id)
     "artists", "albums", "songs" -> Widgets.MusicWidget(newWidgetId(), type, emptyList())
     else -> Widgets.GameWidget(newWidgetId(), type, emptyList(), null)
@@ -247,6 +250,7 @@ fun openWidgetEditor(w: Widgets.Widget, isNew: Boolean, onDone: (Widgets.Widget)
         is Widgets.LocalTimeWidget -> openLocalTimeEditor(w, isNew, onDone)
         is Widgets.StickersWidget -> openShowcaseEditor(w, isNew, onDone)
         is Widgets.BookWidget -> openBookEditor(w, onDone)
+        is Widgets.ScreenWidget -> openScreenEditor(w, onDone)
     }
 }
 
@@ -1469,6 +1473,191 @@ private fun openBookEditor(initial: Widgets.BookWidget, onDone: (Widgets.Widget)
                 }
             }
             if (books.size > 1) Txt(t("android.server.reorderGridHint"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(12.5f)), color = c.textMuted, modifier = Modifier.padding(top = 8.dp))
+        }
+    }
+}
+
+
+private data class FoundScreen(val id: String, val kind: String, val title: String, val year: Int?, val poster: String?)
+
+private fun screenKey(x: Widgets.ScreenItem) = if (x.id != null) "${x.kind}:${x.id}" else "n:${x.title.lowercase()}"
+
+/** The notice TMDB's terms ask for wherever its data is shown, with its logo (web TmdbCredit). */
+@Composable
+private fun TmdbCredit() {
+    Row(Modifier.padding(start = 2.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AsyncImage(Widgets.tmdbLogo(), "TMDB", Media.loader, Modifier.height(12.dp).width(92.dp), contentScale = ContentScale.Fit)
+        Txt(t("widgets.screen.tmdbNotice"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(12f), lineHeight = Nx.type.sp(16f)), color = Nx.colors.textMuted, modifier = Modifier.weight(1f))
+    }
+}
+
+/**
+ * A shows and films widget (web ScreenWidgetDialog): a search of TMDB through
+ * this server, or a title typed in by name with a poster of its own; the
+ * titles chosen, in order, with where they are in each show on Watching Now.
+ */
+private fun openScreenEditor(initial: Widgets.ScreenWidget, onDone: (Widgets.Widget) -> Unit) {
+    val most = Widgets.MOST_SCREEN[initial.type] ?: 3
+    val watching = initial.type == "watching"
+    var items by mutableStateOf(initial.items)
+    var uploading by mutableStateOf<String?>(null)
+    openSheet(
+        "widget-screen", title = Widgets.title(initial.type),
+        footer = { close ->
+            EditorFooter(close, enabled = items.isNotEmpty() && uploading == null) {
+                close()
+                onDone(initial.copy(items = items))
+            }
+        },
+    ) {
+        val c = Nx.colors
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        var q by remember { mutableStateOf("") }
+        var found by remember { mutableStateOf<Pair<String, List<FoundScreen>>?>(null) }
+        var searching by remember { mutableStateOf(false) }
+        var failed by remember { mutableStateOf(false) }
+        var ready by remember { mutableStateOf<Boolean?>(null) }
+        var pictureFor by remember { mutableStateOf<String?>(null) }
+        val query = q.trim()
+        suspend fun search(text: String): Pair<Boolean, List<FoundScreen>> {
+            val res = Nexa.api.get("/screen/search?q=" + java.net.URLEncoder.encode(text, "UTF-8")) as JsonObject
+            val list = (res["titles"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.mapNotNull { o ->
+                val id = (o["id"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+                val kind = (o["kind"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+                val title = (o["title"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+                FoundScreen(id, kind, title, (o["year"] as? JsonPrimitive)?.intOrNull, (o["poster"] as? JsonPrimitive)?.contentOrNull)
+            } ?: emptyList()
+            return ((res["ready"] as? JsonPrimitive)?.contentOrNull != "false") to list
+        }
+        LaunchedEffect(Unit) { ready = runCatching { search("").first }.getOrDefault(true) }
+        LaunchedEffect(query, ready) {
+            failed = false
+            if (query.isEmpty() || ready == false) {
+                found = null
+                searching = false
+                return@LaunchedEffect
+            }
+            searching = true
+            delay(280)
+            try {
+                val (r, list) = search(query)
+                ready = r
+                found = query to list
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                failed = true
+            }
+            searching = false
+        }
+        fun has(x: Widgets.ScreenItem) = items.any { screenKey(it) == screenKey(x) }
+        val isFull = items.size >= most
+        fun add(x: Widgets.ScreenItem) {
+            items = when {
+                has(x) -> items.filter { screenKey(it) != screenKey(x) }
+                isFull -> items
+                else -> items + x
+            }
+        }
+        fun addByName() {
+            val title = query.take(200)
+            if (title.isEmpty()) return
+            add(Widgets.ScreenItem(null, "tv", title, null, null, null))
+            q = ""
+        }
+        fun patch(key: String, change: (Widgets.ScreenItem) -> Widgets.ScreenItem) {
+            items = items.map { if (screenKey(it) == key) change(it) else it }
+        }
+        val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            val key = pictureFor
+            if (uri == null || key == null) return@rememberLauncherForActivityResult
+            scope.launch {
+                val f = runCatching { ServerApi.read(context, uri) }.getOrNull() ?: return@launch
+                openImageCrop(f, 3f / 4f, round = false, title = t("widgets.screen.cropTitle"), maxSize = 400, serverCrop = true) { r ->
+                    uploading = key
+                    scope.launch {
+                        try {
+                            val id = uploadWidgetImage(r, "cover")
+                            patch(key) { it.copy(image = id) }
+                        } catch (e: Exception) {
+                            Nexa.ui.toast(describeError(e, t("composer.composer.uploadFailed")), "error")
+                        } finally {
+                            uploading = null
+                        }
+                    }
+                }
+            }
+        }
+        val results = found?.takeIf { it.first == query }?.second ?: emptyList()
+        val exact = results.any { it.title.equals(query, ignoreCase = true) }
+        val byName = query.isNotEmpty() && !exact && items.none { it.id == null && it.title.equals(query, ignoreCase = true) }
+        fun asItem(f: FoundScreen) = Widgets.ScreenItem(f.id, f.kind, f.title, f.year, f.poster, null)
+        fun kindWords(kind: String, year: Int?) = listOfNotNull(if (kind == "tv") t("widgets.screen.show") else t("widgets.screen.film"), year?.toString()).joinToString(", ")
+
+        Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+            EditLabel(t("widgets.screen.search"))
+            SearchBox(q, { q = it }, if (ready == false) t("widgets.screen.namePlaceholder") else t("widgets.screen.searchPlaceholder"), t("widgets.screen.search")) {
+                val first = results.firstOrNull()
+                if (first != null && !has(asItem(first))) add(asItem(first))
+                else if (first == null && byName && ready == false) addByName()
+            }
+            if (ready == false) Txt(t("widgets.screen.notSetUp"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.2f)), color = c.textMuted, modifier = Modifier.padding(top = 8.dp))
+            if (query.isNotEmpty()) ResultsBox {
+                for (f in results) {
+                    val x = asItem(f)
+                    ResultRow(has(x), !isFull, { add(x) }, { ScreenPoster(x, 30, 24.dp) }, f.title, null, kindWords(f.kind, f.year))
+                }
+                if (searching && results.isEmpty()) ResultStatus(t("widgets.game.searching"))
+                if (!searching && failed) ResultStatus(t("widgets.screen.unavailable"))
+                if (!searching && !failed && ready != false && found?.first == query && results.isEmpty()) ResultStatus(t("widgets.screen.noResults"))
+                if (byName && !searching) ByNameRow(query, !isFull, square = false, round = false) { addByName() }
+            }
+            if (ready == true) TmdbCredit()
+
+            ChosenHeading(t("widgets.screen.yours"), t("widgets.used", "count" to items.size, "max" to most))
+            if (items.isEmpty()) ChosenEmpty(t("widgets.screen.noneYet"))
+            else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items.forEachIndexed { i, x ->
+                    val key = screenKey(x)
+                    ChosenRow(false, i, items.size, { d -> items = moved(items, i, d) }, t("widgets.game.remove", "name" to x.title), { items = items.filter { screenKey(it) != key } }) {
+                        ScreenPoster(x, 40, 36.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Txt(x.title, style = Nx.type.body.copy(fontSize = Nx.type.sp(14.5f), lineHeight = Nx.type.sp(18f), fontWeight = FontWeight(650)), color = c.textStrong)
+                            if (x.id != null) Txt(kindWords(x.kind, x.year), style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f)), color = c.textMuted, maxLines = 1)
+                            else EditChip(if (x.kind == "tv") t("widgets.screen.show") else t("widgets.screen.film"), "ChevronDown") {
+                                fish.nexa.ui.layers.openMenu(
+                                    listOf(
+                                        fish.nexa.ui.layers.MenuItem.Action(t("widgets.screen.show"), checked = x.kind == "tv") { patch(key) { it.copy(kind = "tv") } },
+                                        fish.nexa.ui.layers.MenuItem.Action(t("widgets.screen.film"), checked = x.kind == "movie") { patch(key) { it.copy(kind = "movie", season = null, episode = null) } },
+                                    ),
+                                    title = t("widgets.screen.kindOf", "title" to x.title),
+                                )
+                            }
+                            if (x.poster == null) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                EditChip(if (x.image != null) t("widgets.changePicture") else t("widgets.addPicture"), "ImagePlus", busy = uploading == key, enabled = uploading == null) {
+                                    pictureFor = key
+                                    pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                }
+                                if (x.image != null) EditChip(t("widgets.removePicture")) { patch(key) { it.copy(image = null) } }
+                            }
+                            if (watching && x.kind == "tv") Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Txt(t("widgets.screen.seasonLabel"), style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f), fontWeight = FontWeight(600)), color = c.textSubtle)
+                                NxTextField(
+                                    x.season?.toString() ?: "", { v -> val n = v.filter { it.isDigit() }.take(3).toIntOrNull()?.takeIf { it > 0 }?.coerceAtMost(200); patch(key) { it.copy(season = n) } },
+                                    Modifier.width(72.dp).semantics { contentDescription = t("widgets.screen.seasonLabel") }, keyboardType = KeyboardType.Number,
+                                )
+                                Txt(t("widgets.screen.episodeLabel"), style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f), fontWeight = FontWeight(600)), color = c.textSubtle)
+                                NxTextField(
+                                    x.episode?.toString() ?: "", { v -> val n = v.filter { it.isDigit() }.take(5).toIntOrNull()?.takeIf { it > 0 }?.coerceAtMost(10000); patch(key) { it.copy(episode = n) } },
+                                    Modifier.width(80.dp).semantics { contentDescription = t("widgets.screen.episodeLabel") }, keyboardType = KeyboardType.Number,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            if (items.size > 1) Txt(t("android.server.reorderGridHint"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(12.5f)), color = c.textMuted, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

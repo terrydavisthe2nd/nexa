@@ -578,6 +578,7 @@ fun widgetsText(widgets: List<Widgets.Widget>): List<Pair<String, String>> = wid
         is Widgets.CountdownWidget -> Widgets.title(w.type) to listOfNotNull(w.emoji, w.title, w.date ?: w.at?.let { java.time.Instant.ofEpochMilli(it).toString() }).joinToString(" ")
         is Widgets.LocalTimeWidget -> Widgets.title(w.type) to w.zone
         is Widgets.StickersWidget -> Widgets.title(w.type) to w.packs.joinToString(", ")
+        is Widgets.ScreenWidget -> Widgets.title(w.type) to w.items.joinToString(", ") { x -> if (x.year != null) "${x.title} (${x.year})" else x.title }
         is Widgets.BookWidget -> Widgets.title(w.type) to w.books.joinToString(", ") { b -> if (b.author != null) "${b.title} (${b.author})" else b.title }
     }
 }

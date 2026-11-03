@@ -40,6 +40,7 @@ export const RELEASES: Release[] = [
       { icon: Timer, title: "whatsNew.r20261102.timeWidgetsTitle", body: "whatsNew.r20261102.timeWidgetsBody" },
       { icon: Sticker, title: "whatsNew.r20261102.showcaseTitle", body: "whatsNew.r20261102.showcaseBody" },
       { icon: BookOpen, title: "whatsNew.r20261102.booksTitle", body: "whatsNew.r20261102.booksBody" },
+      { icon: Clapperboard, title: "whatsNew.r20261102.screenTitle", body: "whatsNew.r20261102.screenBody" },
       { icon: HandCoins, title: "whatsNew.r20261102.pwywTitle", body: "whatsNew.r20261102.pwywBody" },
       { icon: RotateCcw, title: "whatsNew.r20261102.refundsTitle", body: "whatsNew.r20261102.refundsBody" },
     ],
