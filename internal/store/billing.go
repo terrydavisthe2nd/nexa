@@ -200,6 +200,62 @@ func addGiftTx(ctx context.Context, tx *db.Tx, sessionID string, from, to ids.ID
 	return recomputePlanTx(ctx, tx, to)
 }
 
+// AddPaidTime gives uid the plan time one pay-what-you-want session bought,
+// once: proDays of Pro after any Pro already given, then supporterDays of
+// Supporter after all of that, so the Supporter time is not spent under Pro. It
+// is kept as gifts from the account to itself (session ids sessionID and
+// sessionID+":supporter"), which the Gift Giver badge does not count.
+func (s *Store) AddPaidTime(ctx context.Context, sessionID string, uid ids.ID, proDays, supporterDays int) (added, changed bool, unboosted []ids.ID, err error) {
+	const day = int64(24 * 60 * 60 * 1000)
+	err = s.Tx(ctx, func(tx *db.Tx) error {
+		var seen int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM plan_gifts WHERE session_id = ? OR session_id = ?`, sessionID, sessionID+":supporter").Scan(&seen); err != nil {
+			return err
+		}
+		if seen > 0 {
+			return nil
+		}
+		added = true
+		now := nowMs()
+		latest := func(plan string) (int64, error) {
+			var last sql.NullInt64
+			if err := tx.QueryRowContext(ctx, `SELECT max(ends_at) FROM plan_gifts WHERE to_id = ? AND plan = ? AND ends_at > ?`, int64(uid), plan, now).Scan(&last); err != nil {
+				return 0, err
+			}
+			return max(now, last.Int64), nil
+		}
+		insert := func(session, plan string, start int64, days int) error {
+			_, err := tx.ExecContext(ctx, `INSERT INTO plan_gifts (id, session_id, from_id, to_id, plan, starts_at, ends_at, created_at) VALUES (?,?,?,?,?,?,?,?)`,
+				int64(ids.New()), session, int64(uid), int64(uid), plan, start, start+int64(days)*day, now)
+			return err
+		}
+		proEnd, err := latest(PlanPro)
+		if err != nil {
+			return err
+		}
+		if proDays > 0 {
+			if err := insert(sessionID, PlanPro, proEnd, proDays); err != nil {
+				return err
+			}
+			proEnd += int64(proDays) * day
+		}
+		if supporterDays > 0 {
+			start, err := latest(PlanSupporter)
+			if err != nil {
+				return err
+			}
+			// after every Pro given, which would otherwise cover it
+			start = max(start, proEnd)
+			if err := insert(sessionID+":supporter", PlanSupporter, start, supporterDays); err != nil {
+				return err
+			}
+		}
+		changed, unboosted, err = recomputePlanTx(ctx, tx, uid)
+		return err
+	})
+	return added, changed, unboosted, err
+}
+
 // GiftLink is a plan bought as a link, which whoever opens it first claims.
 type GiftLink struct {
 	Code        string `json:"code"`

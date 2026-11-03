@@ -25,3 +25,8 @@
 .perks svg { flex: none; margin-top: 1px; color: var(--text-supporter); }
 .noThanks { margin-top: 2px; padding: 6px 10px; font-size: 13px; color: var(--text-muted); border-radius: var(--radius-xs); }
 .noThanks:hover { color: var(--text); text-decoration: underline; }
+.words { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.aside { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--text-muted); }
+.pwyw { margin: 0 0 2px; align-self: stretch; display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--tier-supporter) 9%, transparent); text-align: start; font-size: 14px; line-height: 1.4; color: var(--text); }
+.pwyw svg { flex: none; margin-top: 1px; color: var(--text-supporter); }
+.refund { margin: 0; font-size: 13px; color: var(--text-muted); }

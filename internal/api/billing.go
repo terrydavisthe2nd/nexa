@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -190,6 +191,7 @@ func (s *Server) billingRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/billing/checkout", s.authed(s.handleCheckout))
 	mux.Handle("POST /api/v1/billing/portal", s.authed(s.handlePortal))
 	mux.Handle("POST /api/v1/billing/gift", s.authed(s.handleGift))
+	mux.Handle("POST /api/v1/billing/pay-what-you-want", s.authed(s.handlePayWhatYouWant))
 	mux.Handle("GET /api/v1/gifts/{code}", s.authed(s.handleGiftLink))
 	mux.Handle("POST /api/v1/gifts/{code}/claim", s.authed(s.handleGiftClaim))
 	mux.Handle("POST /api/v1/billing/boosts", s.authed(s.handleBoostAdd))
@@ -353,6 +355,17 @@ func (s *Server) handleBillingWebhook(w http.ResponseWriter, r *http.Request) {
 	var hint ids.ID
 	switch ev.Type {
 	case "checkout.session.completed", "checkout.session.async_payment_succeeded":
+		if obj.Mode == "payment" && obj.Metadata["pwyw"] == "1" {
+			// an amount of the buyer's choosing, once its payment has come in
+			if obj.PaymentStatus == "paid" {
+				if err := s.applyPayWhatYouWant(r.Context(), obj.ID, obj.Metadata); err != nil {
+					s.Log.Error("billing: pay what you want", "event", ev.ID, "session", obj.ID, "err", err)
+					WriteError(w, E(http.StatusInternalServerError, "sync_failed", "Could not apply that yet."))
+					return
+				}
+			}
+			break
+		}
 		if obj.Mode == "payment" {
 			// a plan bought for someone else, once its payment has come in
 			if obj.PaymentStatus == "paid" {
@@ -714,4 +727,118 @@ func (s *Server) StartBilling(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+// Pay what you want: one payment of any amount from a dollar up, never
+// renewed. Every full month price of Pro buys a month (30 days) of Pro, and
+// what is left buys months of Supporter at its month price; less than a month
+// of Supporter buys no plan time and is a thank-you. The apps work out the
+// same split from the same prices (web lib/plans.ts payWhatYouWant, Android
+// Plans.payWhatYouWant) and show it before Stripe's page opens.
+const (
+	pwywMin = int64(100)
+	// pwywMax is the most one Checkout payment in US dollars may be.
+	pwywMax = int64(99_999_999)
+	// pwywTaxCode is the plans' own: software as a service, for personal use.
+	pwywTaxCode = "txcd_10103000"
+)
+
+// pwywSplit is how many months of Pro and then Supporter an amount buys at
+// these month prices (in cents).
+func pwywSplit(amount, supporterMonth, proMonth int64) (pro, supporter int64) {
+	if supporterMonth <= 0 || proMonth <= 0 {
+		return 0, 0
+	}
+	pro = amount / proMonth
+	supporter = (amount - pro*proMonth) / supporterMonth
+	return pro, supporter
+}
+
+// monthPrices are what a month of each plan costs once, in cents: the gift
+// prices, or the list prices when Stripe has not said.
+func (s *Server) monthPrices(ctx context.Context) (supporter, pro int64, err error) {
+	supporter, pro = 500, 1000
+	got, err := s.prices(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	if p, ok := got[giftPrices[store.PlanSupporter]["month"]]; ok && p.Currency == "usd" && p.UnitAmount > 0 {
+		supporter = p.UnitAmount
+	}
+	if p, ok := got[giftPrices[store.PlanPro]["month"]]; ok && p.Currency == "usd" && p.UnitAmount > 0 {
+		pro = p.UnitAmount
+	}
+	return supporter, pro, nil
+}
+
+// handlePayWhatYouWant starts a payment of the amount the account chose, in
+// cents, and answers Stripe's page for it with what it buys.
+func (s *Server) handlePayWhatYouWant(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserFrom(r.Context())
+	if !s.billingEnabled() {
+		WriteError(w, E(http.StatusServiceUnavailable, "billing_off", "Payments aren't open yet."))
+		return
+	}
+	var req struct {
+		Amount int64 `json:"amount"`
+	}
+	if err := ReadJSON(w, r, &req, 1<<10); err != nil {
+		WriteError(w, err)
+		return
+	}
+	if req.Amount < pwywMin || req.Amount > pwywMax {
+		WriteError(w, E(http.StatusBadRequest, "invalid_amount", "Pick an amount from $1 to $999,999.99."))
+		return
+	}
+	sup, pro, err := s.monthPrices(r.Context())
+	if err != nil {
+		s.Log.Error("billing: prices", "err", err)
+		WriteError(w, E(http.StatusBadGateway, "billing_unavailable", "Payments can't be reached right now. Try again in a minute."))
+		return
+	}
+	proMonths, supMonths := pwywSplit(req.Amount, sup, pro)
+	url, err := s.stripeClient().CreateAmountCheckout(r.Context(), stripe.AmountParams{
+		Amount: req.Amount, Currency: "usd", Name: "Nexa, pay what you want", TaxCode: pwywTaxCode, UserID: me.ID.String(),
+		Metadata: map[string]string{
+			"pwyw": "1", "user_id": me.ID.String(), "amount": strconv.FormatInt(req.Amount, 10),
+			"pro_days": strconv.FormatInt(proMonths*30, 10), "supporter_days": strconv.FormatInt(supMonths*30, 10),
+		},
+		SuccessURL: s.billingReturnURL(r) + "?paid=done", CancelURL: s.billingReturnURL(r),
+	})
+	if err != nil {
+		s.Log.Error("billing: pay what you want checkout", "err", err)
+		WriteError(w, E(http.StatusBadGateway, "billing_unavailable", "Payments can't be reached right now. Try again in a minute."))
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"url": url, "pro_months": proMonths, "supporter_months": supMonths})
+}
+
+// applyPayWhatYouWant puts the plan time a paid session bought on the account
+// that paid, once. The days are what this server wrote on the session when it
+// made it, under the secret key, so they are taken as they stand.
+func (s *Server) applyPayWhatYouWant(ctx context.Context, sessionID string, meta map[string]string) error {
+	uid, err := ids.Parse(meta["user_id"])
+	if err != nil {
+		s.Log.Warn("billing: pay what you want for nobody", "session", sessionID)
+		return nil
+	}
+	proDays, _ := strconv.Atoi(meta["pro_days"])
+	supDays, _ := strconv.Atoi(meta["supporter_days"])
+	if proDays <= 0 && supDays <= 0 {
+		return nil // a thank-you, with no plan time
+	}
+	u, err := s.Store.UserByID(ctx, uid)
+	if errors.Is(err, store.ErrNotFound) || (err == nil && !giftable(u)) {
+		s.Log.Warn("billing: pay what you want for a closed account", "session", sessionID, "user", uid.String())
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	added, changed, unboosted, err := s.Store.AddPaidTime(ctx, sessionID, uid, proDays, supDays)
+	if err != nil || !added {
+		return err
+	}
+	s.afterPlanChange(ctx, uid, changed, unboosted)
+	return nil
 }

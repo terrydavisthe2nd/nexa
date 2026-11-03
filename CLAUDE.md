@@ -1064,6 +1064,19 @@ as Discord holds it:
   longer Pro; `StartBilling` ends gifts as they run out; changes emit `user_update`, `server_update` for
   servers that lost a boost, and `billing_update` to the account. Deleting an account cancels its
   subscription (`endSubscription`) and deletes its plan records.
+- Pay what you want (`POST /billing/pay-what-you-want` with `amount` in US cents, `pwywMin` 100 to
+  `pwywMax` 99,999,999): one Checkout payment, never renewed, its product made inline (`price_data`
+  with the plans' tax code, `stripe.CreateAmountCheckout`, accepted by Managed Payments as checked on
+  2026-11-02). `pwywSplit` gives a month (30 days) of Pro per Pro month price, then a month of
+  Supporter per Supporter month price in what is left (the gift month prices; under one Supporter month
+  is a thank-you with no time), written on the session's metadata (`pwyw`, `pro_days`,
+  `supporter_days`) and applied once by the webhook through `Store.AddPaidTime`: `plan_gifts` rows from
+  the account to itself (sessions `<id>` and `<id>:supporter`), Pro after any Pro already given and
+  Supporter after all of it, alongside a subscription rather than after it. The apps show the same
+  split before Stripe's page opens (web `payWhatYouWant` in `lib/plans.ts`, Android
+  `Plans.payWhatYouWant`), list self-paid rows as "{plan} you paid for", and both offers (`pwywLine`)
+  mention it. The Support page always shows a Refunds section (14 days, in full, the contact line) and
+  every pay button carries `support.refunds.line`; keep them in step with the Terms' section 8.
 - Without `STRIPE_SECRET_KEY` plans cannot be bought (`billing_off`), but the limits hold. Web
   `lib/plans.ts`, `stores/billing.ts`, `stores/upsell.ts` (`offerPlan`, shown when a limit stops
   something), `components/support/` (`/channels/@me/support`, Settings, Subscription, `Upsell.tsx` with

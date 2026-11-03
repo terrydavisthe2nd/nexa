@@ -275,10 +275,14 @@ k) Plans (only if you buy one or are given one; not end-to-end
    plan, for how long, the ID of its Stripe checkout, the link's code,
    and who claimed it and when. The person who gets a gift sees the
    name of the person who gave it, and the buyer of a gift link sees
-   the name of whoever claimed it. Also the servers your boosts are on. What you
+   the name of whoever claimed it. For a payment of an amount you
+   chose (pay what you want): the plan time it bought, the ID of its
+   Stripe checkout, and when that time starts and ends; the amount
+   itself stays with Stripe. Also the servers your boosts are on. What you
    uploaded in the last 30 days is added up from your files (3c), not
    kept separately. When you pay, Nexa sends Stripe your account ID
-   (for a gift, both accounts' IDs and the plan), and Stripe tells
+   (for a gift, both accounts' IDs and the plan; for pay what you
+   want, the amount and the plan time it buys), and Stripe tells
    Nexa when a payment or subscription changes. Your card, name, email
    address and billing address go to Stripe and never reach Nexa.
 

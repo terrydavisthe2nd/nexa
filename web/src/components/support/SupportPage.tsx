@@ -3,7 +3,7 @@ import { PersonName } from "@/components/common/PersonName";
 import { useMediaAnimation } from "@/lib/mediaAnimation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Check, Copy, Gift, Heart, Link2, Rocket, X } from "lucide-react";
+import { Check, Copy, Gift, HandCoins, Heart, Link2, RotateCcw, Rocket, X } from "lucide-react";
 import { ApiError, iconUrl } from "@/api";
 import { billing as billingApi } from "@/api/billing";
 import type { Plan, PlanLimits } from "@/api/types";
@@ -16,7 +16,8 @@ import { PageHeaderButtons } from "@/components/shell/PageHeader";
 import { shareOrigin } from "@/lib/appLinks";
 import { isBot } from "@/lib/botCopies";
 import { copyText } from "@/lib/clipboard";
-import { limitsOf, PAID_PLANS, plansInfo } from "@/lib/plans";
+import { centsOf, limitsOf, PAID_PLANS, payWhatYouWant, plansInfo, PWYW_MAX, PWYW_MIN } from "@/lib/plans";
+import { CONTACT_EMAIL, OWNER_USERNAME } from "@/lib/legal";
 import { formatBytes, formatShortDate } from "@/lib/time";
 import { fold } from "@/search/text";
 import { useAuth } from "@/stores/auth";
@@ -72,7 +73,6 @@ export function SupportPanel({ inSettings = false }: { inSettings?: boolean }) {
   const toast = useUI((u) => u.toast);
   const mobile = useIsMobile();
   const loc = useLocation();
-  const nav = useNavigate();
   const [period, setPeriod] = useState<Period>("month");
   const [busy, setBusy] = useState<string | null>(null);
   // on a phone one plan is shown at a time; it starts on the next one up
@@ -248,6 +248,9 @@ export function SupportPanel({ inSettings = false }: { inSettings?: boolean }) {
       </div>
       <p className={s.free}>{t("support.everythingElse")}</p>
 
+      {enabled ? <PayWhatYouWant /> : null}
+      <Refunds inSettings={inSettings} />
+
       <section className={s.mine} aria-label={t("support.yourStorage")}>
         <div className={s.meterHead}>
           <h2 className={s.h2}>{t("support.yourStorage")}</h2>
@@ -263,11 +266,6 @@ export function SupportPanel({ inSettings = false }: { inSettings?: boolean }) {
       {billing?.gifts?.length ? <GiftsGot /> : null}
       {enabled ? <GiveAPlan /> : null}
       {billing?.gift_links?.length ? <GiftLinksMade /> : null}
-      {inSettings ? null : (
-        <p className={s.hint}>
-          <button className={s.linkish} onClick={() => nav("/terms")}>{t("support.termsLink")}</button>
-        </p>
-      )}
     </div>
   );
 }
@@ -336,14 +334,17 @@ function Boosts() {
 /** Plans other people gave this account, while they last. */
 function GiftsGot() {
   const gifts = useBilling((b) => b.billing?.gifts) ?? [];
+  const meId = useAuth((a) => a.me?.id);
+  // time this account paid for itself (pay what you want) is kept as a gift from itself
+  const own = gifts.some((g) => g.from_id === meId);
   return (
     <section className={s.mine} aria-labelledby="support-gifts-got">
-      <h2 className={s.h2} id="support-gifts-got">{t("support.gift.got")}</h2>
+      <h2 className={s.h2} id="support-gifts-got">{own ? t("support.gift.timeTitle") : t("support.gift.got")}</h2>
       <ul className={s.boosts}>
         {gifts.map((g) => (
           <li key={`${g.from_id}-${g.starts_at}`} className={s.boost} data-plan={g.plan}>
-            <span className={s.giftIcon} aria-hidden="true"><Gift size={16} /></span>
-            <span className={s.boostName}>{personText("support.gift.from", g.from_id, g.from_name, { plan: planName(g.plan) })}</span>
+            <span className={s.giftIcon} aria-hidden="true">{g.from_id === meId ? <HandCoins size={16} /> : <Gift size={16} />}</span>
+            <span className={s.boostName}>{g.from_id === meId ? t("support.gift.yours", { plan: planName(g.plan) }) : personText("support.gift.from", g.from_id, g.from_name, { plan: planName(g.plan) })}</span>
             <span className={s.meterText}>{t("support.gift.until", { date: formatShortDate(g.ends_at) })}</span>
           </li>
         ))}
@@ -500,6 +501,146 @@ function GiveAPlan() {
       <Button className={s.buy} data-plan={plan} onClick={() => void give()} disabled={!to && !asLink} loading={busy} data-testid="gift-buy">
         <Gift size={16} aria-hidden="true" /> {t("support.gift.buy", { price: cost })}
       </Button>
+      <p className={s.hint}>{t("support.refunds.line")}</p>
+    </section>
+  );
+}
+
+/** The month prices pay what you want divides by, in cents: the one-time gift prices, else the list prices. */
+function useMonthPrices(): { supporter: number; pro: number } {
+  const prices = useBilling((b) => b.billing?.gift_prices);
+  const usd = (p: Paid) => {
+    const got = prices?.[p]?.month;
+    return got && got.currency.toLowerCase() === "usd" && got.amount > 0 ? got.amount : LIST_PRICES[p].month;
+  };
+  return { supporter: usd("supporter"), pro: usd("pro") };
+}
+
+/** How long an amount buys, in words ("2 months of Pro, then 1 month of Supporter"). */
+function timeBought(pro: number, supporter: number): string {
+  const p = pro ? t("support.pwyw.monthsPro", { count: pro }) : "";
+  const sup = supporter ? t("support.pwyw.monthsSupporter", { count: supporter }) : "";
+  return p && sup ? t("support.pwyw.then", { first: p, second: sup }) : p || sup;
+}
+
+const QUICK = [300, 500, 1000, 2500, 5000];
+/** The most month tiles drawn before the rest are counted. */
+const TILES = 24;
+
+/**
+ * Pay What You Want: one payment of any amount from a dollar, never renewed.
+ * What it buys (payWhatYouWant, the server's own split) is shown as it is
+ * typed, month by month, before Stripe's page opens.
+ */
+function PayWhatYouWant() {
+  const loc = useLocation();
+  const plan = useAuth((a) => a.me?.plan ?? "");
+  const billing = useBilling((b) => b.billing);
+  const toast = useUI((u) => u.toast);
+  const month = useMonthPrices();
+  const [text, setText] = useState("10");
+  const [busy, setBusy] = useState(false);
+  const cents = centsOf(text);
+  const valid = cents !== null && cents >= PWYW_MIN && cents <= PWYW_MAX;
+  const { pro, supporter } = payWhatYouWant(valid ? cents : 0, month.supporter, month.pro);
+  const months = pro + supporter;
+  const subscribed = plan !== "" && !!billing && ["active", "trialing", "past_due"].includes(billing.status);
+  const done = new URLSearchParams(loc.search).get("paid") === "done";
+  const usd = (c: number) => money(c, "usd");
+
+  const pay = async () => {
+    if (!valid) return;
+    setBusy(true);
+    try {
+      const { url } = await billingApi.payWhatYouWant(cents);
+      window.location.assign(url);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t("support.error"), "error");
+      setBusy(false);
+    }
+  };
+
+  const tiles = Array.from({ length: Math.min(months, TILES) }, (_, i) => (i < pro ? "pro" : "supporter"));
+  if (months > TILES) tiles.length = TILES - 1;
+
+  let outcome: string;
+  if (cents === null || cents < PWYW_MIN) outcome = t("support.pwyw.tooLow", { min: usd(PWYW_MIN) });
+  else if (cents > PWYW_MAX) outcome = t("support.pwyw.tooHigh", { max: usd(PWYW_MAX) });
+  else if (months === 0) outcome = t("support.pwyw.thanksOnly", { price: usd(month.supporter) });
+  else outcome = t("support.pwyw.gets", { time: timeBought(pro, supporter) });
+
+  return (
+    <section className={`${s.mine} ${s.pwyw}`} aria-labelledby="support-pwyw" data-testid="pay-what-you-want">
+      <div className={s.giftHead}>
+        <span className={s.giftIcon} aria-hidden="true"><HandCoins size={18} /></span>
+        <div>
+          <h2 className={s.h2} id="support-pwyw">{t("support.pwyw.title")}</h2>
+          <p className={s.hint}>{t("support.pwyw.about", { min: usd(PWYW_MIN) })}</p>
+        </div>
+      </div>
+      {done ? <p className={s.notice} role="status">{t("support.pwyw.done")}</p> : null}
+      <div className={s.amountRow}>
+        <label className={s.amount}>
+          <span className={s.dollar} aria-hidden="true">$</span>
+          <input
+            className={s.amountInput}
+            inputMode="decimal"
+            autoComplete="off"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void pay(); }}
+            aria-label={t("support.pwyw.amount")}
+            aria-invalid={!valid || undefined}
+            data-testid="pwyw-amount"
+          />
+        </label>
+        <div className={s.quick} role="group" aria-label={t("support.pwyw.quick")}>
+          {QUICK.map((c) => (
+            <button key={c} type="button" className={s.quickBtn} aria-pressed={cents === c} onClick={() => setText(String(c / 100))}>{usd(c)}</button>
+          ))}
+        </div>
+      </div>
+      <div className={s.receipt} data-plan={pro ? "pro" : supporter ? "supporter" : "free"}>
+        {months ? (
+          <div className={s.months} aria-hidden="true">
+            {tiles.map((p, i) => <i key={i} data-plan={p} />)}
+            {months > TILES ? <span className={s.moreMonths}>+{months - tiles.length}</span> : null}
+          </div>
+        ) : null}
+        <p className={s.outcome} role="status" aria-live="polite" data-testid="pwyw-outcome">{outcome}</p>
+        <p className={s.hint}>{t("support.pwyw.rule", { pro: usd(month.pro), supporter: usd(month.supporter) })}</p>
+        {subscribed && months ? <p className={s.hint}>{t("support.pwyw.alongside", { plan: planName(plan) })}</p> : null}
+        <p className={s.hint}>{t("support.pwyw.once")}</p>
+      </div>
+      <div className={s.payRow}>
+        <Button className={s.buy} data-plan={pro ? "pro" : "supporter"} onClick={() => void pay()} disabled={!valid} loading={busy} data-testid="pwyw-pay">
+          <HandCoins size={16} aria-hidden="true" /> {valid ? t("support.pwyw.pay", { price: usd(cents) }) : t("support.pwyw.title")}
+        </Button>
+        <span className={s.hint}>{t("support.refunds.line")}</span>
+      </div>
+    </section>
+  );
+}
+
+/** How refunds and cancelling work, said on the page itself rather than only in the Terms. */
+function Refunds({ inSettings }: { inSettings: boolean }) {
+  const nav = useNavigate();
+  return (
+    <section className={`${s.mine} ${s.refunds}`} aria-labelledby="support-refunds" data-testid="support-refunds">
+      <div className={s.giftHead}>
+        <span className={s.refundIcon} aria-hidden="true"><RotateCcw size={18} /></span>
+        <div className={s.refundText}>
+          <h2 className={s.h2} id="support-refunds">{t("support.refunds.title")}</h2>
+          <p className={s.refundBody}>{t("support.refunds.body")}</p>
+          <p className={s.hint}>{t("support.refunds.cancel")}</p>
+          <p className={s.hint}>{t("support.refunds.contact", { email: CONTACT_EMAIL, username: OWNER_USERNAME })}</p>
+          {inSettings ? null : (
+            <p className={s.hint}>
+              <button className={s.linkish} onClick={() => nav("/terms")}>{t("support.termsLink")}</button>
+            </p>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

@@ -75,3 +75,26 @@ export function shareAllowance(): ShareAllowance {
   const l = myLimits();
   return { quality: l.share_quality, maxBps: l.share_max_bps };
 }
+
+/** Pay what you want, in cents: from a dollar to the most one payment may be (api/billing.go pwywMin, pwywMax). */
+export const PWYW_MIN = 100;
+export const PWYW_MAX = 99_999_999;
+
+/**
+ * What a pay-what-you-want amount buys, as api/billing.go pwywSplit works it
+ * out: a month (30 days) of Pro for every month price of Pro, then a month of
+ * Supporter for every month price of Supporter in what is left. Prices are the
+ * one-time month prices in cents.
+ */
+export function payWhatYouWant(amount: number, supporterMonth = 500, proMonth = 1000): { pro: number; supporter: number } {
+  if (supporterMonth <= 0 || proMonth <= 0 || amount < PWYW_MIN) return { pro: 0, supporter: 0 };
+  const pro = Math.floor(amount / proMonth);
+  return { pro, supporter: Math.floor((amount - pro * proMonth) / supporterMonth) };
+}
+
+/** Cents from what someone typed as dollars ("12", "12.5", "12,50"), or null when it isn't an amount. */
+export function centsOf(text: string): number | null {
+  const m = /^\s*\$?\s*(\d{1,9})(?:[.,](\d{0,2}))?\s*$/.exec(text);
+  if (!m) return null;
+  return Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
+}

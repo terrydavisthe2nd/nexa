@@ -248,8 +248,9 @@ when you pay is the one you pay.
   you cancel it. You can cancel any time from Manage Subscription on
   the Support Nexa page, and the plan stays until the time you paid
   for ends. Deleting your account cancels it at once.
-- Refunds. If you change your mind, ask within 14 days of a payment
-  (see Contact below) and it is refunded in full.
+- Refunds. If you change your mind, ask within 14 days of any
+  payment (a plan, a gift or pay what you want; see Contact below)
+  and it is refunded in full. The Support Nexa page says the same.
 - When a plan ends. Nothing you sent is deleted: files over the free
   limits stay where they are. New uploads follow the free limits
   again, your boosts come off their servers, and a name effect that
@@ -260,6 +261,15 @@ when you pay is the one you pay.
   gift to someone who has blocked you or whom you have blocked. A
   gift bought as a link goes to whoever claims it first, once; keep
   it to the person it is for, as anyone with the link can claim it.
+- Pay what you want. You can also pay once, any amount from $1, on
+  the Support Nexa page. It is not a subscription and never renews.
+  Each full month price of Pro ($10) buys a month (30 days) of Pro,
+  and each month price of Supporter ($5) left over buys a month of
+  Supporter, which starts after any Pro time you have been given or
+  bought this way. Less than $5 buys no plan time and is simply a
+  thank-you. The app shows what an amount buys before you pay. This
+  time runs at the same time as a subscription you already have, not
+  after it.
 - The rules still apply. A plan does not change these Terms or how
   moderation works.
 

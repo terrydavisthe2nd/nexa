@@ -198,6 +198,48 @@ func (c *Client) CreateGiftCheckout(ctx context.Context, p GiftParams) (string, 
 	return out.URL, nil
 }
 
+// AmountParams describe a Checkout session for one payment of an amount the
+// buyer chose (pay what you want), with what it buys kept on the session.
+type AmountParams struct {
+	Amount     int64 // in cents
+	Currency   string
+	Name       string // what Stripe's page and receipt call it
+	TaxCode    string
+	UserID     string
+	Metadata   map[string]string
+	SuccessURL string
+	CancelURL  string
+}
+
+// CreateAmountCheckout makes a Checkout session for one payment of a chosen
+// amount through Managed Payments, the product made inline with its tax code
+// as Managed Payments needs, and returns the address to send the buyer to.
+func (c *Client) CreateAmountCheckout(ctx context.Context, p AmountParams) (string, error) {
+	f := url.Values{
+		"mode":                                              {"payment"},
+		"line_items[0][price_data][currency]":               {p.Currency},
+		"line_items[0][price_data][unit_amount]":            {strconv.FormatInt(p.Amount, 10)},
+		"line_items[0][price_data][tax_behavior]":           {"exclusive"},
+		"line_items[0][price_data][product_data][name]":     {p.Name},
+		"line_items[0][price_data][product_data][tax_code]": {p.TaxCode},
+		"line_items[0][quantity]":                           {"1"},
+		"managed_payments[enabled]":                         {"true"},
+		"client_reference_id":                               {p.UserID},
+		"success_url":                                       {p.SuccessURL},
+		"cancel_url":                                        {p.CancelURL},
+	}
+	for k, v := range p.Metadata {
+		f.Set("metadata["+k+"]", v)
+	}
+	var out struct {
+		URL string `json:"url"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/v1/checkout/sessions", f, &out); err != nil {
+		return "", err
+	}
+	return out.URL, nil
+}
+
 // CreatePortal makes a Billing Portal session for a customer and returns its address.
 func (c *Client) CreatePortal(ctx context.Context, customerID, returnURL string) (string, error) {
 	var out struct {

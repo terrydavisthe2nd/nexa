@@ -92,4 +92,33 @@ object Plans {
     fun dismissOffer() {
         _offer.value = null
     }
+
+    /** Pay what you want, in cents: from a dollar to the most one payment may be (api/billing.go pwywMin, pwywMax). */
+    const val PWYW_MIN = 100L
+    const val PWYW_MAX = 99_999_999L
+
+    /** What a pay-what-you-want amount buys: months of Pro, then of Supporter (the web's payWhatYouWant, the server's pwywSplit). */
+    data class Bought(val pro: Long, val supporter: Long) {
+        val months get() = pro + supporter
+    }
+
+    fun payWhatYouWant(amount: Long, supporterMonth: Long = 500, proMonth: Long = 1000): Bought {
+        if (supporterMonth <= 0 || proMonth <= 0 || amount < PWYW_MIN) return Bought(0, 0)
+        val pro = amount / proMonth
+        return Bought(pro, (amount - pro * proMonth) / supporterMonth)
+    }
+
+    /** The one-time month prices pay what you want divides by, in cents: the gift prices once read, else the list prices. */
+    fun monthPrices(b: Billing? = billing.value): Pair<Long, Long> {
+        fun usd(plan: String, list: Long) = b?.giftPrices?.get(plan)?.get("month")?.takeIf { it.currency.equals("usd", true) && it.amount > 0 }?.amount ?: list
+        return usd("supporter", 500) to usd("pro", 1000)
+    }
+
+    private val AMOUNT = Regex("""^\s*\$?\s*(\d{1,9})(?:[.,](\d{0,2}))?\s*$""")
+
+    /** Cents from what someone typed as dollars ("12", "12.5", "12,50"), or null when it isn't an amount. */
+    fun centsOf(text: String): Long? {
+        val m = AMOUNT.find(text) ?: return null
+        return m.groupValues[1].toLong() * 100 + m.groupValues[2].padEnd(2, '0').toLong()
+    }
 }

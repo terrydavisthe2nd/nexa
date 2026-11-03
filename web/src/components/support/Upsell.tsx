@@ -1,15 +1,16 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router-dom";
-import { Gem, Heart, HardDrive, MonitorUp, Sparkles, Upload } from "lucide-react";
+import { Gem, HandCoins, Heart, HardDrive, MonitorUp, Sparkles, Upload } from "lucide-react";
 import { Button } from "@/components/common/Button";
 import { Modal } from "@/components/common/Modal";
 import { idTime } from "@/lib/ids";
 import { useInterrupt } from "@/lib/interrupt";
 import { onTermsAccepted, termsAccepted } from "@/lib/legal";
-import { limitsOf, plansInfo } from "@/lib/plans";
+import { limitsOf, plansInfo, PWYW_MIN } from "@/lib/plans";
 import { formatBytes } from "@/lib/time";
 import { RELEASES, releaseStart, unseenReleases } from "@/lib/whatsNew";
 import { useAuth } from "@/stores/auth";
+import { useBilling } from "@/stores/billing";
 import { useSettings } from "@/stores/settings";
 import { useUI } from "@/stores/ui";
 import { useUpsell, type UpsellReason } from "@/stores/upsell";
@@ -45,6 +46,17 @@ function texts(r: UpsellReason): { title: string; body: string } {
   }
 }
 
+/** The line both offers give pay what you want, at Stripe's month prices once the page has them, else the list prices. */
+export function pwywLine(): string {
+  const usd = (c: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: c % 100 ? 2 : 0 }).format(c / 100);
+  const prices = useBilling.getState().billing?.gift_prices;
+  const month = (p: "supporter" | "pro", list: number) => {
+    const got = prices?.[p]?.month;
+    return got && got.currency.toLowerCase() === "usd" && got.amount > 0 ? got.amount : list;
+  };
+  return t("support.pwywShort", { min: usd(PWYW_MIN), supporter: usd(month("supporter", 500)), pro: usd(month("pro", 1000)) });
+}
+
 const ICONS = { file: Upload, storage: HardDrive, share: MonitorUp, effect: Sparkles } as const;
 
 /** Draws the offer while there is one. Mounted once, in the app shell. */
@@ -71,7 +83,10 @@ export function UpsellHost() {
     >
       <div className={s.offer} data-testid="upsell" data-reason={reason.kind}>
         <span className={s.glyph} aria-hidden="true"><Icon size={22} /></span>
-        <p className={s.body}>{body}</p>
+        <div className={s.words}>
+          <p className={s.body}>{body}</p>
+          <p className={s.aside}>{pwywLine()}</p>
+        </div>
       </div>
     </Modal>
   );
@@ -128,7 +143,9 @@ export function SupportPrompt() {
             </li>
           ))}
         </ul>
+        <p className={s.pwyw}><HandCoins size={18} aria-hidden="true" /><span>{pwywLine()}</span></p>
         <Button block className={s.cta} onClick={() => { close(); seePlans(); }} data-testid="support-prompt-plans">{t("support.prompt.cta")}</Button>
+        <p className={s.refund}>{t("support.refunds.line")}</p>
         <button className={s.noThanks} onClick={close} data-testid="support-prompt-no">{t("support.prompt.noThanks")}</button>
       </div>
     </Modal>

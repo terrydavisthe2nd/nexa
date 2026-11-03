@@ -379,3 +379,46 @@ func TestPlansKeepTheirOwnFileSizes(t *testing.T) {
 		t.Errorf("max_upload_bytes %v, want the free plan's", got)
 	}
 }
+
+// Pay what you want: the split, the bounds, the session Stripe is asked for,
+// and the time going on once, Pro first and Supporter after it.
+func TestPayWhatYouWant(t *testing.T) {
+	for _, c := range []struct{ amount, pro, sup int64 }{{100, 0, 0}, {499, 0, 0}, {500, 0, 1}, {999, 0, 1}, {1000, 1, 0}, {1500, 1, 1}, {2499, 2, 0}, {9600, 9, 1}} {
+		if pro, sup := pwywSplit(c.amount, 500, 1000); pro != c.pro || sup != c.sup {
+			t.Errorf("%d cents: %d Pro, %d Supporter", c.amount, pro, sup)
+		}
+	}
+	srv, ts, f := billingServer(t)
+	tok, id := register(t, ts, "tipper")
+	for _, amount := range []int{99, 100_000_000} {
+		if res, body := do(t, ts, "POST", "/api/v1/billing/pay-what-you-want", tok, map[string]any{"amount": amount}); res.StatusCode != 400 || errCode(body) != "invalid_amount" {
+			t.Fatalf("%d: %d %v", amount, res.StatusCode, body)
+		}
+	}
+	if res, body := do(t, ts, "POST", "/api/v1/billing/pay-what-you-want", tok, map[string]any{"amount": 2550}); res.StatusCode != 200 {
+		t.Fatalf("checkout: %d %v", res.StatusCode, body)
+	}
+	got := f.checkouts[len(f.checkouts)-1]
+	if got["mode"] != "payment" || got["line_items[0][price_data][unit_amount]"] != "2550" || got["metadata[pro_days]"] != "60" || got["metadata[supporter_days]"] != "30" || got["line_items[0][price_data][product_data][tax_code]"] == "" {
+		t.Fatalf("checkout form: %v", got)
+	}
+	meta := map[string]string{}
+	for k, v := range got {
+		if strings.HasPrefix(k, "metadata[") {
+			meta[strings.TrimSuffix(strings.TrimPrefix(k, "metadata["), "]")] = v
+		}
+	}
+	obj := map[string]any{"id": "cs_pwyw", "mode": "payment", "payment_status": "paid", "metadata": meta}
+	for range 2 { // Stripe sending it twice gives it once
+		if code := sendWebhook(t, ts, "checkout.session.completed", obj, testWebhookSecret); code != 200 {
+			t.Fatalf("webhook: %d", code)
+		}
+	}
+	if u, _ := srv.Store.UserByID(t.Context(), modID(id)); u.Plan != "pro" {
+		t.Fatalf("plan: %q", u.Plan)
+	}
+	gifts, _ := srv.Store.GiftsFor(t.Context(), modID(id))
+	if len(gifts) != 2 || gifts[0].Plan != "pro" || gifts[1].Plan != "supporter" || gifts[1].StartsAt != gifts[0].EndsAt || gifts[0].EndsAt-gifts[0].StartsAt != 60*24*3600*1000 {
+		t.Fatalf("gifts: %+v", gifts)
+	}
+}

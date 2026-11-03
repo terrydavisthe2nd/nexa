@@ -1,6 +1,15 @@
 package fish.nexa.ui.support
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -312,6 +321,9 @@ fun SupportPanel(inSettings: Boolean = false) {
         PlanCard(shown, plan, period, enabled, busy, billing?.manageable == true, ::price, { buy(it) }, manage)
         Txt(t("support.everythingElse"), style = Nx.type.bodySmall, color = c.textMuted, align = TextAlign.Center, modifier = Modifier.fillMaxWidth())
 
+        if (enabled) PayWhatYouWant()
+        Refunds(inSettings)
+
         // this account's 30 days
         val used = billing?.monthUsed ?: 0L
         val room = (billing?.limits ?: Plans.limitsOf(plan)).monthUploadMax
@@ -325,7 +337,6 @@ fun SupportPanel(inSettings: Boolean = false) {
         if (!billing?.gifts.isNullOrEmpty()) GiftsGot()
         if (enabled) GiveAPlan()
         if (!billing?.giftLinks.isNullOrEmpty()) GiftLinksMade()
-        if (!inSettings) NxButton(t("support.termsLink"), { fish.nexa.ui.legal.Legal.openDocument("terms") }, kind = ButtonKind.LINK, inline = true)
     }
 }
 
@@ -574,8 +585,14 @@ private fun Boosts() {
 private fun GiftsGot() {
     val c = Nx.colors
     val gifts = Plans.billing.collectAsState().value?.gifts.orEmpty()
-    Section(t("support.gift.got")) {
-        for (g in gifts) ListRow({ Glyph("Gift", c.tierSupporter, c.textSupporter) }, t("support.gift.from", "plan" to planName(g.plan), "name" to g.fromName)) {
+    val meId = Nexa.users.me.collectAsState().value?.id
+    // time this account paid for itself (pay what you want) is kept as a gift from itself
+    val own = gifts.any { it.fromId == meId }
+    Section(if (own) t("support.gift.timeTitle") else t("support.gift.got")) {
+        for (g in gifts) ListRow(
+            { if (g.fromId == meId) Glyph("HandCoins", c.tierSupporter, c.textSupporter) else Glyph("Gift", c.tierSupporter, c.textSupporter) },
+            if (g.fromId == meId) t("support.gift.yours", "plan" to planName(g.plan)) else t("support.gift.from", "plan" to planName(g.plan), "name" to g.fromName),
+        ) {
             Txt(t("support.gift.until", "date" to Time.shortDate(g.endsAt)), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f)), color = c.textMuted)
         }
     }
@@ -773,7 +790,168 @@ private fun GiveAPlan() {
                 busy = false
             }
         }, enabled = to != null || asLink, loading = busy, icon = "Gift")
+        Hint(t("support.refunds.line"))
     }
+}
+
+/** How long an amount buys, in words ("2 months of Pro, then 1 month of Supporter"). */
+private fun timeBought(pro: Long, supporter: Long): String {
+    val p = if (pro > 0) t("support.pwyw.monthsPro", "count" to pro) else ""
+    val sup = if (supporter > 0) t("support.pwyw.monthsSupporter", "count" to supporter) else ""
+    return if (p.isNotEmpty() && sup.isNotEmpty()) t("support.pwyw.then", "first" to p, "second" to sup) else p.ifEmpty { sup }
+}
+
+private val QUICK = listOf(300L, 500L, 1000L, 2500L, 5000L)
+
+/** The most month tiles drawn before the rest are counted. */
+private const val TILES = 24
+
+/**
+ * Pay What You Want (the web's PayWhatYouWant): one payment of any amount
+ * from a dollar, never renewed, with what it buys shown month by month as it
+ * is typed, before Stripe's page opens.
+ */
+@Composable
+private fun PayWhatYouWant() {
+    val c = Nx.colors
+    val billing by Plans.billing.collectAsState()
+    val plan = Nexa.users.me.collectAsState().value?.plan ?: ""
+    val scope = rememberCoroutineScope()
+    var text by remember { mutableStateOf("10") }
+    var busy by remember { mutableStateOf(false) }
+    val (supMonth, proMonth) = Plans.monthPrices(billing)
+    val cents = Plans.centsOf(text)
+    val valid = cents != null && cents in Plans.PWYW_MIN..Plans.PWYW_MAX
+    val bought = Plans.payWhatYouWant(if (valid) cents!! else 0, supMonth, proMonth)
+    val subscribed = plan != "" && billing?.status in setOf("active", "trialing", "past_due")
+    fun usd(v: Long) = money(v, "usd")
+    val tone = when {
+        bought.pro > 0 -> c.tierPro
+        bought.supporter > 0 -> c.tierSupporter
+        else -> c.textMuted
+    }
+    val outcome = when {
+        cents == null || cents < Plans.PWYW_MIN -> t("support.pwyw.tooLow", "min" to usd(Plans.PWYW_MIN))
+        cents > Plans.PWYW_MAX -> t("support.pwyw.tooHigh", "max" to usd(Plans.PWYW_MAX))
+        bought.months == 0L -> t("support.pwyw.thanksOnly", "price" to usd(supMonth))
+        else -> t("support.pwyw.gets", "time" to timeBought(bought.pro, bought.supporter))
+    }
+    fun pay() {
+        if (!valid || busy) return
+        busy = true
+        scope.launch {
+            try {
+                val res = Nexa.api.request("POST", "/billing/pay-what-you-want", buildJsonObject { put("amount", cents!!) }) as JsonObject
+                openExternal(res["url"]!!.jsonPrimitive.content)
+            } catch (e: Exception) {
+                Nexa.ui.toast(errorText(e), "error")
+            }
+            busy = false
+        }
+    }
+
+    Column(
+        Modifier.fillMaxWidth().background(c.bgRaised, Radii.Md).ring(Radii.Md, c.panelEdge).padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Glyph("HandCoins", c.tierSupporter, c.textSupporter)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                H2(t("support.pwyw.title"))
+                Hint(t("support.pwyw.about", "min" to usd(Plans.PWYW_MIN)))
+            }
+        }
+        // the amount, large, as the web draws it
+        val field = Radii.Md
+        val label = t("support.pwyw.amount")
+        Row(
+            Modifier
+                .background(c.bgInput, field)
+                .ring(field, if (valid) c.borderSubtle else c.danger)
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 6.dp),
+        ) {
+            val big = Nx.type.title.copy(fontSize = Nx.type.sp(34f), lineHeight = Nx.type.sp(39f), color = if (valid) c.textStrong else c.danger)
+            Txt("$", style = Nx.type.title.copy(fontSize = Nx.type.sp(22f), lineHeight = Nx.type.sp(36f)), color = c.textMuted, modifier = Modifier.alignByBaseline().padding(end = 2.dp))
+            BasicTextField(
+                text,
+                { text = it.take(14) },
+                textStyle = big,
+                singleLine = true,
+                cursorBrush = SolidColor(c.textStrong),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { pay() }),
+                modifier = Modifier.alignByBaseline().width(IntrinsicSize.Min).widthIn(min = 40.dp, max = 260.dp).semantics { contentDescription = label },
+            )
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.semantics { contentDescription = t("support.pwyw.quick") }) {
+            for (q in QUICK) {
+                val pill = RoundedCornerShape(999.dp)
+                val on = cents == q
+                Box(
+                    Modifier
+                        .height(36.dp)
+                        .background(c.bgSurface, pill)
+                        .ring(pill, if (on) c.textMuted else c.borderSubtle)
+                        .clip(pill)
+                        .pressable(remember { MutableInteractionSource() }) { text = (q / 100).toString() }
+                        .semantics { role = Role.Button; selected = on }
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Txt(usd(q), style = Nx.type.bodySmall.copy(fontWeight = FontWeight(600)), color = if (on) c.textStrong else c.textMuted, maxLines = 1) }
+            }
+        }
+        // what it buys: one tile a month, Pro then Supporter
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).background(c.bgSurface, Radii.Sm).clip(Radii.Sm)) {
+            Box(Modifier.width(3.dp).fillMaxHeight().background(tone))
+            Column(Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (bought.months > 0) {
+                    val drawn = if (bought.months > TILES) TILES - 1 else bought.months.toInt()
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+                        for (i in 0 until drawn) Box(Modifier.size(12.dp, 22.dp).background(if (i < bought.pro) c.tierPro else c.tierSupporter, RoundedCornerShape(4.dp)).topEdge(RoundedCornerShape(4.dp), Color.White.copy(alpha = 0.22f)))
+                        if (bought.months > TILES) Txt("+${bought.months - drawn}", style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), fontWeight = FontWeight(650)), color = c.textSubtle, modifier = Modifier.padding(start = 4.dp))
+                    }
+                }
+                Txt(outcome, style = Nx.type.body.copy(fontSize = Nx.type.sp(15f), lineHeight = Nx.type.sp(21.5f), fontWeight = FontWeight(600)), color = c.textStrong, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                Hint(t("support.pwyw.rule", "pro" to usd(proMonth), "supporter" to usd(supMonth)))
+                if (subscribed && bought.months > 0) Hint(t("support.pwyw.alongside", "plan" to planName(plan)))
+                Hint(t("support.pwyw.once"))
+            }
+        }
+        TierButton(if (valid) t("support.pwyw.pay", "price" to usd(cents!!)) else t("support.pwyw.title"), if (bought.pro > 0) "pro" else "supporter", { pay() }, enabled = valid, loading = busy, icon = "HandCoins")
+        Hint(t("support.refunds.line"))
+    }
+}
+
+/** How refunds and cancelling work, said on the page itself rather than only in the Terms. */
+@Composable
+private fun Refunds(inSettings: Boolean) {
+    val c = Nx.colors
+    Column(
+        Modifier.fillMaxWidth().background(c.bgRaised, Radii.Md).ring(Radii.Md, c.panelEdge).padding(horizontal = 18.dp, vertical = 16.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Glyph("RotateCcw", c.textStrong, c.textSubtle)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                H2(t("support.refunds.title"))
+                Txt(t("support.refunds.body"), style = Nx.type.body.copy(fontSize = Nx.type.sp(14.5f), lineHeight = Nx.type.sp(21.7f)), color = c.text)
+                Hint(t("support.refunds.cancel"))
+                Hint(t("support.refunds.contact", "email" to fish.nexa.ui.legal.Legal.contactEmail, "username" to fish.nexa.ui.legal.Legal.ownerUsername))
+                // words that wrap in the narrow column, where a link button would cut them short
+                if (!inSettings) Txt(
+                    t("support.termsLink"),
+                    style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.8f)),
+                    color = c.link,
+                    modifier = Modifier.clip(Radii.Sm).pressable(remember { MutableInteractionSource() }) { fish.nexa.ui.legal.Legal.openDocument("terms") }.semantics { role = Role.Button },
+                )
+            }
+        }
+    }
+}
+
+/** The line both offers give pay what you want (the web's pwywLine). */
+fun pwywLine(): String {
+    val (sup, pro) = Plans.monthPrices()
+    return t("support.pwywShort", "min" to money(Plans.PWYW_MIN, "usd"), "supporter" to money(sup, "usd"), "pro" to money(pro, "usd"))
 }
 
 // --- offers -----------------------------------------------------------------
@@ -811,7 +989,10 @@ fun UpsellHost() {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
                 val shape = RoundedCornerShape(14.dp)
                 Box(Modifier.size(44.dp).background(c.tierSupporter.copy(alpha = 0.16f), shape), contentAlignment = Alignment.Center) { Icon(icon, c.textSupporter, size = 22.dp) }
-                Txt(body, style = Nx.type.body.copy(fontSize = Nx.type.sp(15f), lineHeight = Nx.type.sp(22f)), color = c.textSubtle, modifier = Modifier.weight(1f))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Txt(body, style = Nx.type.body.copy(fontSize = Nx.type.sp(15f), lineHeight = Nx.type.sp(22f)), color = c.textSubtle)
+                    Txt(pwywLine(), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13.5f), lineHeight = Nx.type.sp(19.5f)), color = c.textMuted)
+                }
             }
         }
     }
@@ -866,7 +1047,16 @@ suspend fun maybePrompt() {
                     Txt(text, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14.5f)), color = c.text, modifier = Modifier.weight(1f))
                 }
             }
+            Row(
+                Modifier.fillMaxWidth().background(c.tierSupporter.copy(alpha = 0.09f), Radii.Sm).padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Icon("HandCoins", c.textSupporter, size = 18.dp)
+                Txt(pwywLine(), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f)), color = c.text, modifier = Modifier.weight(1f))
+            }
             TierButton(t("support.prompt.cta"), "supporter", { close(); seePlans() })
+            Txt(t("support.refunds.line"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f)), color = c.textMuted, align = TextAlign.Center)
             NxButton(t("support.prompt.noThanks"), close, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH)
         }
     }

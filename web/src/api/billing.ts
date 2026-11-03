@@ -22,6 +22,10 @@ export const billing = {
   giftLink(plan: "supporter" | "pro", period: "month" | "year"): Promise<{ url: string }> {
     return api.request("POST", "/billing/gift", { link: true, plan, period });
   },
+  /** The address of a Checkout page for one payment of an amount in US cents (pay what you want), with the plan time it buys. */
+  payWhatYouWant(amount: number): Promise<{ url: string; pro_months: number; supporter_months: number }> {
+    return api.request("POST", "/billing/pay-what-you-want", { amount });
+  },
   /** A gift link as someone who opened it sees it. */
   giftLinkInfo(code: string): Promise<GiftLinkView> {
     return api.request<GiftLinkView>("GET", `/gifts/${encodeURIComponent(code)}`);
