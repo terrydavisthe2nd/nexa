@@ -281,6 +281,8 @@ fun InvitesPage(serverId: String) {
                 }
             }
         }
+        VanityLinkSection(serverId)
+        H5(t("server.invites.inviteLinks"))
         Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             NxButton(t("server.invites.createInvite"), { openInvite(serverId, null) }, size = ButtonSize.SM)
             if (!invites.isNullOrEmpty()) NxButton(t("server.invites.revokeAll"), ::revokeAll, kind = ButtonKind.GHOST, size = ButtonSize.SM)

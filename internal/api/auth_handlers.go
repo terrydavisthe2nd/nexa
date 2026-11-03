@@ -137,6 +137,10 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		}
 		if inviteOK {
 			signupInvite = req.InviteCode
+			// a vanity code may be typed in any case; its row has it lowercase
+			if in, err := s.Store.InviteByCode(ctx, req.InviteCode); err == nil {
+				signupInvite = in.Code
+			}
 		}
 	}
 	req.Username = strings.ToLower(strings.TrimSpace(req.Username))

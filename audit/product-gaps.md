@@ -166,7 +166,7 @@ is the web cell. Rows where the shell genuinely changes things say so.
 | List and revoke server invites | full | full | full | `web/.../server/pages/InvitesPage.tsx` |
 | List and revoke **group DM** invites | missing | missing | missing | `GroupInviteModal.tsx` creates a link with age and uses but never lists one; `channels.groupInvites` (`api/channels.ts:65`) wraps `GET /channels/{id}/invites` and has no caller. Once made, a link into a private group conversation can never be seen again or revoked |
 | Invite carries the conversation key in the URL fragment | full | full | full | |
-| Vanity / custom invite URL | missing | missing | missing | no code |
+| Vanity / custom invite URL | full | full | full | `api/vanity.go`, Server Settings, Invites (2026-11-02) |
 | Guest links for a voice call | full | full | missing | `web/.../voice/GuestLinkModal.tsx`; the whole Android `GuestsApi` (`Endpoints.kt:403-425`) has no callers, **and** `/guest/<code>` is registered in the manifest but routed to a screen that ignores the guest flag (`InviteScreen.kt:49,57`), so the link dead-ends |
 | Guest call page | full | full | n-a | `web/src/pages/GuestCallPage.tsx` |
 

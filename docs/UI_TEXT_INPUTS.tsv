@@ -40,18 +40,18 @@ web/src/components/forum/NewPostDialog.tsx:111	TextInput	{title}	conversation
 web/src/components/forum/NewPostDialog.tsx:129	FormattedText	{text}	conversation
 web/src/components/forum/NewPostDialog.tsx:151	input	"file"	nontext
 web/src/components/legal/TermsGate.tsx:90	input	"checkbox"	nontext
-web/src/components/modals/AddAccountModal.tsx:88	TextInput	{code}	credential
 web/src/components/modals/AddAccountModal.tsx:108	TextInput	{username}	credential
 web/src/components/modals/AddAccountModal.tsx:111	TextInput	{password}	credential
+web/src/components/modals/AddAccountModal.tsx:88	TextInput	{code}	credential
 web/src/components/modals/ConfirmModal.tsx:40	input	"checkbox"	nontext
 web/src/components/modals/CreateCategoryModal.tsx:33	TextInput	{name}	server
 web/src/components/modals/CreateChannelModal.tsx:117	input	"radio"	nontext
 web/src/components/modals/CreateChannelModal.tsx:125	TextInput	{name}	server
-web/src/components/modals/CreateDMModal.tsx:91	TextInput	{q}	local
 web/src/components/modals/CreateDMModal.tsx:115	TextInput	{name}	conversation
 web/src/components/modals/CreateDMModal.tsx:145	input	"checkbox"	nontext
-web/src/components/modals/CreatePackModal.tsx:99	TextInput	{url}	expression
+web/src/components/modals/CreateDMModal.tsx:91	TextInput	{q}	local
 web/src/components/modals/CreatePackModal.tsx:136	TextInput	{name}	expression
+web/src/components/modals/CreatePackModal.tsx:99	TextInput	{url}	expression
 web/src/components/modals/CreatePollModal.tsx:113	TextInput	{question}	poll
 web/src/components/modals/CreatePollModal.tsx:155	TextInput	{r.text}	poll
 web/src/components/modals/CreateServerModal.tsx:173	TextInput	{code}	local
@@ -60,17 +60,17 @@ web/src/components/modals/CreateServerModal.tsx:285	TextInput	{templateName}	ser
 web/src/components/modals/CreateServerModal.tsx:311	TextInput	{name}	server
 web/src/components/modals/CustomStatusModal.tsx:86	TextInput	{text}	profile
 web/src/components/modals/EditGroupModal.tsx:90	TextInput	{name}	conversation
-web/src/components/modals/ForwardModal.tsx:88	TextArea	{comment}	message
 web/src/components/modals/ForwardModal.tsx:108	input	"radio"	nontext
+web/src/components/modals/ForwardModal.tsx:88	TextArea	{comment}	message
 web/src/components/modals/GroupFriendAdder.tsx:66	TextInput	{q}	local
 web/src/components/modals/GroupInviteModal.tsx:118	TextInput	{link}	readonly
 web/src/components/modals/InviteModal.tsx:135	TextInput	{link}	readonly
 web/src/components/modals/PromptModal.tsx:74	TextInput	{values[f.key] ?? ""}	primitive
 web/src/components/modals/ServerNotificationsModal.tsx:35	input	"radio"	nontext
 web/src/components/modals/ServerProfileModal.tsx:74	TextInput	{nick}	identity
-web/src/components/modals/SubchatModal.tsx:88	TextInput	{name}	conversation
 web/src/components/modals/SubchatModal.tsx:103	TextInput	{password}	credential
 web/src/components/modals/SubchatModal.tsx:114	TextInput	{confirm}	credential
+web/src/components/modals/SubchatModal.tsx:88	TextInput	{name}	conversation
 web/src/components/moderation/AnnouncementsTab.tsx:118	TextInput	{title}	staff
 web/src/components/moderation/AnnouncementsTab.tsx:126	TextArea	{body}	staff
 web/src/components/moderation/BotsTab.tsx:93	input	{q}	local
@@ -109,6 +109,13 @@ web/src/components/profile/Widgets.tsx:252	input	{muted ? 0 : volume}	nontext
 web/src/components/rail/FolderSettingsModal.tsx:65	TextInput	{name}	local
 web/src/components/rail/FolderSettingsModal.tsx:71	input	{t("organize.rail.accentColour")}	nontext
 web/src/components/rail/FolderSettingsModal.tsx:75	input	{t("server.roles.colourIndexOfCount", { index: i + 1, count: FOLDER_COLORS.length })}	nontext
+web/src/components/reports/ReportModal.tsx:275	TextArea	description (4000; Something Else also sends its first 120 as the custom part), selected evidence (16000)	staff
+web/src/components/reports/ReportModal.tsx:304	input	"file" (Something Else screenshots)	nontext
+web/src/components/reports/ReportModal.tsx:428	TextInput	link to report (500, parsed, never stored)	nontext
+web/src/components/reports/ReportModal.tsx:452	TextInput	content ID (20 digits)	nontext
+web/src/components/reports/ReportsTab.tsx:1258	TextArea	message to the reporter (1000, shown to the reporter)	staff
+web/src/components/reports/ReportsTab.tsx:889	TextArea	public removal reason (1000)	staff
+web/src/components/reports/ReportsTab.tsx:974	TextArea	internal note (2000)	staff
 web/src/components/search/SearchSuggestions.tsx:212	input	{t("search.suggest.pickDate")}	local
 web/src/components/server/ChannelIconPicker.tsx:125	input	"file"	nontext
 web/src/components/server/ChannelSettingsModal.tsx:203	TextInput	{name}	server
@@ -151,7 +158,7 @@ web/src/components/server/pages/ServerTagPage.tsx:130	TextInput	{draft.text}	ser
 web/src/components/server/pages/ServerTagPage.tsx:158	input	"file"	nontext
 web/src/components/server/pages/ServerTagPage.tsx:182	input	"radio"	nontext
 web/src/components/server/pages/ServerTagPage.tsx:186	input	"radio"	nontext
-web/src/components/server/pages/automod/RuleEditor.tsx:82	input	"checkbox"	nontext
+web/src/components/server/pages/VanityLink.tsx:123	input	{draft}	server
 web/src/components/server/pages/automod/RuleEditor.tsx:193	TextInput	{d.name}	server
 web/src/components/server/pages/automod/RuleEditor.tsx:210	TextArea	{d.wordsText}	server
 web/src/components/server/pages/automod/RuleEditor.tsx:213	TextArea	{d.regexText}	server
@@ -168,6 +175,7 @@ web/src/components/server/pages/automod/RuleEditor.tsx:294	TextInput	{d.config.s
 web/src/components/server/pages/automod/RuleEditor.tsx:300	TextArea	{d.extText}	server
 web/src/components/server/pages/automod/RuleEditor.tsx:310	TextArea	{sample}	local
 web/src/components/server/pages/automod/RuleEditor.tsx:336	TextInput	{action("block")?.message ?? ""}	server
+web/src/components/server/pages/automod/RuleEditor.tsx:82	input	"checkbox"	nontext
 web/src/components/server/pages/members/ModMembers.tsx:338	input	{t("members.pick", { name: nameOf(m) })}	nontext
 web/src/components/server/pages/members/ModMembers.tsx:375	input	{t("members.pick", { name: nameOf(m) })}	nontext
 web/src/components/server/pages/members/ModMembers.tsx:488	TextInput	{reason}	staff
@@ -177,9 +185,9 @@ web/src/components/settings/AccountPage.tsx:146	TextInput	{value}	credential
 web/src/components/settings/AccountPage.tsx:147	TextInput	{pw}	credential
 web/src/components/settings/AccountPage.tsx:148	TextInput	{pw2}	credential
 web/src/components/settings/AccountPage.tsx:174	TextInput	{value}	credential
-web/src/components/settings/AdminPage.tsx:89	input	"radio"	nontext
 web/src/components/settings/AdminPage.tsx:108	TextInput	{key}	credential
 web/src/components/settings/AdminPage.tsx:199	TextInput	{who}	local
+web/src/components/settings/AdminPage.tsx:89	input	"radio"	nontext
 web/src/components/settings/AppearancePage.tsx:137	input	{px}	nontext
 web/src/components/settings/ChatPage.tsx:24	input	"radio"	nontext
 web/src/components/settings/CustomCssPage.tsx:129	CodeEditor	{text ?? ""}	local
@@ -231,9 +239,9 @@ web/src/components/settings/WidgetsEditor.tsx:900	TextInput	{st.label}	profile
 web/src/components/settings/WidgetsEditor.tsx:901	TextInput	{st.value}	profile
 web/src/components/settings/WidgetsEditor.tsx:917	TextInput	{url}	profile
 web/src/components/settings/WidgetsEditor.tsx:918	TextInput	{linkLabel}	profile
+web/src/components/settings/designerParts.tsx:108	input	{shown}	primitive
 web/src/components/settings/designerParts.tsx:44	input	{value}	primitive
 web/src/components/settings/designerParts.tsx:83	AboutMeEditor	{value}	primitive
-web/src/components/settings/designerParts.tsx:108	input	{shown}	primitive
 web/src/components/settings/look/AddCssLinkDialog.tsx:56	TextInput	{url}	local
 web/src/components/settings/look/AddCssLinkDialog.tsx:76	input	"checkbox"	nontext
 web/src/components/settings/look/AddPluginDialog.tsx:188	input	"checkbox"	nontext
@@ -241,8 +249,8 @@ web/src/components/settings/look/AddPluginDialog.tsx:198	input	"radio"	nontext
 web/src/components/settings/look/AddPluginDialog.tsx:206	TextInput	{url}	local
 web/src/components/settings/look/AddPluginDialog.tsx:210	CodeEditor	{code}	credential
 web/src/components/settings/look/CodeEditor.tsx:18	textarea	{value}	primitive
-web/src/components/settings/look/ColourField.tsx:83	input	{text}	nontext
 web/src/components/settings/look/ColourField.tsx:118	input	{opacity}	nontext
+web/src/components/settings/look/ColourField.tsx:83	input	{text}	nontext
 web/src/components/settings/look/ImportThemeDialog.tsx:62	TextArea	{text}	theme
 web/src/components/settings/look/ImportThemeDialog.tsx:76	input	"file"	nontext
 web/src/components/settings/look/PluginSettingsForm.tsx:18	TextInput	{text}	local
@@ -286,20 +294,13 @@ web/src/pages/LoginPage.tsx:161	TextInput	{code}	credential
 web/src/pages/LoginPage.tsx:192	TextInput	{username}	credential
 web/src/pages/LoginPage.tsx:198	TextInput	{password}	credential
 web/src/pages/PasscodePage.tsx:97	TextInput	{passcode}	credential
-web/src/pages/RecoverPage.tsx:96	TextInput	{username}	credential
-web/src/pages/RecoverPage.tsx:99	TextInput	{key}	credential
 web/src/pages/RecoverPage.tsx:102	TextInput	{password}	credential
 web/src/pages/RecoverPage.tsx:105	TextInput	{confirm}	credential
+web/src/pages/RecoverPage.tsx:96	TextInput	{username}	credential
+web/src/pages/RecoverPage.tsx:99	TextInput	{key}	credential
 web/src/pages/RegisterPage.tsx:137	TextInput	{username}	identity
 web/src/pages/RegisterPage.tsx:140	TextInput	{displayName}	identity
 web/src/pages/RegisterPage.tsx:147	TextInput	{password}	credential
 web/src/pages/RegisterPage.tsx:155	TextInput	{confirm}	credential
 web/src/pages/RegisterPage.tsx:160	TextInput	{inviteKey}	credential
 web/src/pages/RegisterPage.tsx:166	TextInput	{inviteKey}	credential
-web/src/components/reports/ReportModal.tsx:275	TextArea	description (4000; Something Else also sends its first 120 as the custom part), selected evidence (16000)	staff
-web/src/components/reports/ReportModal.tsx:304	input	"file" (Something Else screenshots)	nontext
-web/src/components/reports/ReportModal.tsx:428	TextInput	link to report (500, parsed, never stored)	nontext
-web/src/components/reports/ReportModal.tsx:452	TextInput	content ID (20 digits)	nontext
-web/src/components/reports/ReportsTab.tsx:889	TextArea	public removal reason (1000)	staff
-web/src/components/reports/ReportsTab.tsx:1258	TextArea	message to the reporter (1000, shown to the reporter)	staff
-web/src/components/reports/ReportsTab.tsx:974	TextArea	internal note (2000)	staff

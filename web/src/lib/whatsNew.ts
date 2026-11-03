@@ -33,6 +33,7 @@ export const RELEASES: Release[] = [
       { icon: Eye, title: "whatsNew.r20261102.visionTitle", body: "whatsNew.r20261102.visionBody" },
       { icon: Flag, title: "whatsNew.r20261102.reportsTitle", body: "whatsNew.r20261102.reportsBody" },
       { icon: MessageSquareText, title: "whatsNew.r20261102.reportFeedbackTitle", body: "whatsNew.r20261102.reportFeedbackBody" },
+      { icon: Link2, title: "whatsNew.r20261102.vanityTitle", body: "whatsNew.r20261102.vanityBody" },
     ],
   },
   {

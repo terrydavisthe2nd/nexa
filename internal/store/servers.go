@@ -538,11 +538,17 @@ func (s *Store) JoinByInvite(ctx context.Context, serverID, uid ids.ID, code str
 	var m *Member
 	err := s.Tx(ctx, func(tx *db.Tx) error {
 		var inviter sql.NullInt64
-		if err := tx.QueryRowContext(ctx, `SELECT inviter_id FROM invites WHERE code = ?`, code).Scan(&inviter); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		var vanity int
+		if err := tx.QueryRowContext(ctx, `SELECT inviter_id, vanity FROM invites WHERE code = ?`, code).Scan(&inviter, &vanity); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
+		how := JoinInfo{Method: "invite", Code: code, InvitedBy: idPtr(inviter)}
+		if vanity == 1 {
+			// nobody invited them: the server's own link did
+			how = JoinInfo{Method: "vanity", Code: code}
+		}
 		var err error
-		if m, err = addMember(ctx, tx, serverID, uid, JoinInfo{Method: "invite", Code: code, InvitedBy: idPtr(inviter)}); err != nil {
+		if m, err = addMember(ctx, tx, serverID, uid, how); err != nil {
 			return err
 		}
 		_, err = spendInvite(ctx, tx, uid, code)

@@ -499,6 +499,16 @@ SIGINT or SIGTERM.
 - `static.go` serves `web/dist` (hashed assets immutable, `index.html` for any other path), its own page
   heads for link previews at `/invite/{code}`, `/call/{code}`, `/note/{token}`, `/@{username}` and `/`,
   and the CSP (plugins load from `blob:`, Turnstile from `challenges.cloudflare.com`).
+- Vanity links (`vanity.go`; `GET` and `PATCH /servers/{id}/vanity-url` with `code`, null clearing it;
+  Manage Server, `stepBuild`) are invite rows with `invites.vanity` = 1, at most one per server (a
+  partial unique index), whose code the server's managers chose: 3 to 32 of a-z, 0-9 and hyphens with a
+  letter or number at each end, minus `reservedVanity`. One never expires or runs out, lands people in
+  `landingChannel` (the system channel, else the first text channel, as the tag's invite does), and is
+  found in any case by `InviteByCodeAny` after an exact match (sign-up stores the lowercase code). It
+  stays out of the invite list, Revoke All and account purges, previews with `vanity: true` and no
+  inviter, and joins through it are join method `vanity` with no inviter. Changes audit
+  `vanity_url_update` (`from`, `to`). Web `server/pages/VanityLink.tsx`, Android
+  `ui/server/VanityLink.kt`, both at the top of the Invites page; the bot API's `vanity-url` answers it.
 - Group chat activity is posted as `system_member_add`, `system_member_remove`, `system_owner_change`,
   `system_name_change` and `system_icon_change` messages (none for a rename to the same name or removing
   an absent icon). Leaving through DELETE channel or DELETE recipient takes `?silent=true` to omit the
@@ -550,7 +560,8 @@ SIGINT or SIGTERM.
   Ids are snowflakes, times Unix milliseconds, booleans 0 and 1, JSON kept as text.
 - SQLite is live and Postgres must keep working: a new migration goes in both `internal/db/migrations`
   and `internal/db/migrations-postgres` with the same number (Postgres starts at `0013_init.sql`).
-  Migrations are embedded, forward only, one transaction each; `tools/gen_pg_schema.sh` prints the
+  Migrations are embedded, forward only, one transaction each; each also adds its undo to the top of
+  `undoCommunities` in `internal/db/undo_test.go`, which tests use to rewind the schema; `tools/gen_pg_schema.sh` prints the
   Postgres schema the SQLite migrations add up to, to diff against. chatd refuses to start on a database
   a newer build migrated, so a release with a migration cannot roll back to `bin/chatd.prev`.
 - Tables by area: accounts (`users`, `sessions`, `user_ips`, `user_settings`, `user_mfa`,
@@ -559,7 +570,7 @@ SIGINT or SIGTERM.
   `thread_members`, `channel_follows`, `crossposts`), messages (`messages` with `ciphertext`, and
   `plain` for webhook and system text; `attachments`, `reactions`, `pins`, `read_states`, `polls`,
   `poll_votes`), keys (`key_epochs`, `key_grants`, `key_flags`), servers (`servers`, `server_members`,
-  `roles`, `member_roles`, `invites`, `bans`, `audit_log`, `automod_rules`, `automod_events`), plans
+  `roles`, `member_roles`, `invites` (`vanity` for vanity links), `bans`, `audit_log`, `automod_rules`, `automod_events`), plans
   (`billing`, `server_boosts`, `plan_gifts`, `gift_links`, `users.plan`, `servers.boosts`), expressions
   (`emojis`, `sticker_packs`, `stickers`, `sticker_installs`, `recent_stickers`, `blocked_images`),
   files (`blobs`, `uploads`), calls (`guest_links`, `guests`, `realtime_usage`, `realtime_measurements`,

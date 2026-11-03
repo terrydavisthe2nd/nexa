@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"evilion.xyz/chat/internal/db"
 	"evilion.xyz/chat/internal/ids"
@@ -33,18 +34,20 @@ func randomCode(n int) string {
 	return string(out)
 }
 
-const inviteCols = `code, server_id, channel_id, inviter_id, max_uses, uses, expires_at, created_at`
+const inviteCols = `code, server_id, channel_id, inviter_id, max_uses, uses, expires_at, created_at, vanity`
 
 func scanInvite(r rowScanner) (*Invite, error) {
 	var in Invite
 	var srv, ch, exp sql.NullInt64
-	if err := r.Scan(&in.Code, &srv, &ch, &in.InviterID, &in.MaxUses, &in.Uses, &exp, &in.CreatedAt); err != nil {
+	var vanity int
+	if err := r.Scan(&in.Code, &srv, &ch, &in.InviterID, &in.MaxUses, &in.Uses, &exp, &in.CreatedAt, &vanity); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
 	in.ServerID, in.ChannelID, in.ExpiresAt = idPtr(srv), idPtr(ch), int64Ptr(exp)
+	in.Vanity = vanity == 1
 	return &in, nil
 }
 
@@ -60,7 +63,7 @@ func (s *Store) CreateInvite(ctx context.Context, serverID *ids.ID, channelID *i
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {
 		in.Code = newInviteCode()
-		_, err = s.db.W.ExecContext(ctx, `INSERT INTO invites (`+inviteCols+`) VALUES (?,?,?,?,?,?,?,?)`, in.Code, nullID(serverID), nullID(channelID), int64(inviter), in.MaxUses, 0, nullInt64(in.ExpiresAt), in.CreatedAt)
+		_, err = s.db.W.ExecContext(ctx, `INSERT INTO invites (`+inviteCols+`) VALUES (?,?,?,?,?,?,?,?,0)`, in.Code, nullID(serverID), nullID(channelID), int64(inviter), in.MaxUses, 0, nullInt64(in.ExpiresAt), in.CreatedAt)
 		if !db.IsUniqueViolation(err) {
 			break
 		}
@@ -72,8 +75,9 @@ func (s *Store) CreateInvite(ctx context.Context, serverID *ids.ID, channelID *i
 }
 
 // InviteByCode loads a live invite; expired or exhausted ones are ErrNotFound.
+// A vanity code is found whatever its case.
 func (s *Store) InviteByCode(ctx context.Context, code string) (*Invite, error) {
-	in, err := scanInvite(s.db.R.QueryRowContext(ctx, `SELECT `+inviteCols+` FROM invites WHERE code = ?`, code))
+	in, err := s.InviteByCodeAny(ctx, code)
 	if err != nil {
 		return nil, err
 	}
@@ -83,9 +87,81 @@ func (s *Store) InviteByCode(ctx context.Context, code string) (*Invite, error) 
 	return in, nil
 }
 
-// InviteByCodeAny loads an invite whether or not it is still live.
+// InviteByCodeAny loads an invite whether or not it is still live. Random
+// codes match exactly; vanity codes are kept lowercase and match in any case,
+// after an exact match had its chance.
 func (s *Store) InviteByCodeAny(ctx context.Context, code string) (*Invite, error) {
-	return scanInvite(s.db.R.QueryRowContext(ctx, `SELECT `+inviteCols+` FROM invites WHERE code = ?`, code))
+	in, err := scanInvite(s.db.R.QueryRowContext(ctx, `SELECT `+inviteCols+` FROM invites WHERE code = ?`, code))
+	if errors.Is(err, ErrNotFound) {
+		if lower := strings.ToLower(code); lower != code {
+			return scanInvite(s.db.R.QueryRowContext(ctx, `SELECT `+inviteCols+` FROM invites WHERE code = ? AND vanity = 1`, lower))
+		}
+	}
+	return in, err
+}
+
+// ErrVanityTaken is a vanity code another invite already has.
+var ErrVanityTaken = errors.New("vanity code taken")
+
+// VanityInvite is a server's vanity link, or ErrNotFound.
+func (s *Store) VanityInvite(ctx context.Context, serverID ids.ID) (*Invite, error) {
+	return scanInvite(s.db.R.QueryRowContext(ctx, `SELECT `+inviteCols+` FROM invites WHERE server_id = ? AND vanity = 1`, int64(serverID)))
+}
+
+// SetVanityInvite gives a server the vanity code (already checked and
+// lowercase) leading to channelID, replacing the one it had, whose code it
+// returns (or ""). Keeping the same code changes nothing and returns it as old. ErrVanityTaken when
+// any invite has the code already.
+func (s *Store) SetVanityInvite(ctx context.Context, serverID, channelID, by ids.ID, code string) (in *Invite, old string, err error) {
+	err = s.Tx(ctx, func(tx *db.Tx) error {
+		cur, err := scanInvite(tx.QueryRowContext(ctx, `SELECT `+inviteCols+` FROM invites WHERE server_id = ? AND vanity = 1`, int64(serverID)))
+		switch {
+		case err == nil && cur.Code == code:
+			in, old = cur, cur.Code
+			return nil
+		case err == nil:
+			old = cur.Code
+			if _, err := tx.ExecContext(ctx, `DELETE FROM invites WHERE code = ?`, cur.Code); err != nil {
+				return err
+			}
+		case !errors.Is(err, ErrNotFound):
+			return err
+		}
+		var taken int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM invites WHERE code = ?`, code).Scan(&taken); err != nil {
+			return err
+		}
+		if taken > 0 {
+			return ErrVanityTaken
+		}
+		in = &Invite{Code: code, ServerID: &serverID, ChannelID: &channelID, InviterID: by, CreatedAt: nowMs(), Vanity: true}
+		_, err = tx.ExecContext(ctx, `INSERT INTO invites (`+inviteCols+`) VALUES (?,?,?,?,0,0,NULL,?,1)`, code, int64(serverID), int64(channelID), int64(by), in.CreatedAt)
+		if db.IsUniqueViolation(err) {
+			return ErrVanityTaken
+		}
+		return err
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	return in, old, nil
+}
+
+// ClearVanityInvite takes a server's vanity link away, saying which code it
+// was ("" when it had none).
+func (s *Store) ClearVanityInvite(ctx context.Context, serverID ids.ID) (string, error) {
+	var code string
+	err := s.Tx(ctx, func(tx *db.Tx) error {
+		if err := tx.QueryRowContext(ctx, `SELECT code FROM invites WHERE server_id = ? AND vanity = 1`, int64(serverID)).Scan(&code); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil
+			}
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `DELETE FROM invites WHERE code = ?`, code)
+		return err
+	})
+	return code, err
 }
 
 // SetSignupInvite records the invite an account signed up with, whose use
@@ -162,9 +238,9 @@ func (s *Store) UnuseInvite(ctx context.Context, code string) error {
 	return err
 }
 
-// InvitesForServer lists live invites.
+// InvitesForServer lists live invites, leaving out the vanity link.
 func (s *Store) InvitesForServer(ctx context.Context, serverID ids.ID) ([]*Invite, error) {
-	rows, err := s.db.R.QueryContext(ctx, `SELECT `+inviteCols+` FROM invites WHERE server_id = ? AND (expires_at IS NULL OR expires_at > ?) AND (max_uses = 0 OR uses < max_uses) ORDER BY created_at DESC`, int64(serverID), nowMs())
+	rows, err := s.db.R.QueryContext(ctx, `SELECT `+inviteCols+` FROM invites WHERE server_id = ? AND vanity = 0 AND (expires_at IS NULL OR expires_at > ?) AND (max_uses = 0 OR uses < max_uses) ORDER BY created_at DESC`, int64(serverID), nowMs())
 	if err != nil {
 		return nil, err
 	}

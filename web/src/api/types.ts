@@ -441,6 +441,8 @@ export interface InvitePreview {
   group?: { id: Snowflake; name: string; icon_id: Snowflake | null; member_count: number };
   channel?: { id: Snowflake; name: string; type: Channel["type"] };
   inviter?: PublicUser;
+  /** The server's vanity link, which nobody in particular gave out (no inviter then). */
+  vanity?: boolean;
   /** Omitted while the invite preview is age-gated. */
   expires_at?: number | null;
   /** The server takes nobody new right now. */

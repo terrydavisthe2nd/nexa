@@ -68,6 +68,8 @@ android/app/src/main/java/fish/nexa/ui/moderation/Moderate.kt:236	NxTextField	d.
 android/app/src/main/java/fish/nexa/ui/moderation/Moderate.kt:521	NxTextField	s.confirm	local
 android/app/src/main/java/fish/nexa/ui/moderation/Parts.kt:173	NxTextField	value	primitive
 android/app/src/main/java/fish/nexa/ui/moderation/Parts.kt:733	NxTextField	reason	primitive
+android/app/src/main/java/fish/nexa/ui/moderation/Reports.kt:159	NxTextField	queue search (200)	nontext
+android/app/src/main/java/fish/nexa/ui/moderation/Reports.kt:559	NxTextField	public removal reason (1000), message to the reporter (1000, shown to the reporter), internal note (2000)	staff
 android/app/src/main/java/fish/nexa/ui/nexa/ThreadChat.kt:749	BasicTextField	value	staff
 android/app/src/main/java/fish/nexa/ui/notes/NoteScreen.kt:753	BasicTextField	value = title	note
 android/app/src/main/java/fish/nexa/ui/notes/ShareNote.kt:292	NxTextField	q	local
@@ -80,6 +82,8 @@ android/app/src/main/java/fish/nexa/ui/pickers/ExpressionPicker.kt:543	NxTextFie
 android/app/src/main/java/fish/nexa/ui/pickers/Gifs.kt:121	NxTextField	query	local
 android/app/src/main/java/fish/nexa/ui/profile/ProfileCard.kt:658	BasicTextField	text	local
 android/app/src/main/java/fish/nexa/ui/profile/ProfileCard.kt:931	BasicTextField	text	message
+android/app/src/main/java/fish/nexa/ui/reports/ReportForm.kt:236	NxTextField	description (4000; Something Else also sends its first 120 as the custom part), evidence (16000)	staff
+android/app/src/main/java/fish/nexa/ui/reports/ReportForm.kt:383	NxTextField	link to report (500, parsed, never stored), content ID (20 digits)	nontext
 android/app/src/main/java/fish/nexa/ui/server/ChannelSettings.kt:265	NxTextField	name	server
 android/app/src/main/java/fish/nexa/ui/server/ChannelSettings.kt:381	NxTextField	tg.emoji	server
 android/app/src/main/java/fish/nexa/ui/server/ChannelSettings.kt:389	NxTextField	tg.name	server
@@ -98,6 +102,7 @@ android/app/src/main/java/fish/nexa/ui/server/StickersPage.kt:382	NxTextField	na
 android/app/src/main/java/fish/nexa/ui/server/StickersPage.kt:383	NxTextField	description	expression
 android/app/src/main/java/fish/nexa/ui/server/StickersPage.kt:415	NxTextField	s.name	expression
 android/app/src/main/java/fish/nexa/ui/server/StickersPage.kt:418	NxTextField	s.tags	expression
+android/app/src/main/java/fish/nexa/ui/server/VanityLink.kt:194	BasicTextField	draft	server
 android/app/src/main/java/fish/nexa/ui/settings/AboutMe.kt:107	BasicTextField	state	profile
 android/app/src/main/java/fish/nexa/ui/settings/AccountPages.kt:212	NxTextField	value	identity
 android/app/src/main/java/fish/nexa/ui/settings/AccountPages.kt:263	NxTextField	current	credential
@@ -161,7 +166,3 @@ android/app/src/main/java/fish/nexa/ui/shell/Accounts.kt:201	NxTextField	usernam
 android/app/src/main/java/fish/nexa/ui/shell/Accounts.kt:202	NxTextField	password	credential
 android/app/src/main/java/fish/nexa/ui/threads/Threads.kt:367	NxTextField	name	conversation
 android/app/src/main/java/fish/nexa/ui/voice/CallMenus.kt:614	NxTextField	ui.url	readonly
-android/app/src/main/java/fish/nexa/ui/reports/ReportForm.kt:236	NxTextField	description (4000; Something Else also sends its first 120 as the custom part), evidence (16000)	staff
-android/app/src/main/java/fish/nexa/ui/reports/ReportForm.kt:383	NxTextField	link to report (500, parsed, never stored), content ID (20 digits)	nontext
-android/app/src/main/java/fish/nexa/ui/moderation/Reports.kt:159	NxTextField	queue search (200)	nontext
-android/app/src/main/java/fish/nexa/ui/moderation/Reports.kt:559	NxTextField	public removal reason (1000), message to the reporter (1000, shown to the reporter), internal note (2000)	staff

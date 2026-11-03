@@ -555,6 +555,9 @@ type Invite struct {
 	Uses      int     `json:"uses"`
 	ExpiresAt *int64  `json:"expires_at"`
 	CreatedAt int64   `json:"created_at"`
+	// Vanity marks a server's vanity link: a code its managers chose, which
+	// never expires or runs out and stays out of the invite list.
+	Vanity bool `json:"vanity,omitempty"`
 }
 
 // Ban is a server ban.

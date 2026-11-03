@@ -78,7 +78,7 @@ const memberJoinFilterMenu = defineMenu<{ method: string; code: string; codes: s
   [
     button("memberJoinMethodFilter", ({ method, code, pick }) => [
       { id: "any", label: t("members.filter.any"), checked: !method && !code, onSelect: () => pick("", "") },
-      ...["invite", "discovery", "tag"].map((m) => ({ id: m, label: joinMethodLabel(m), checked: method === m && !code, onSelect: () => pick(m, "") })),
+      ...["invite", "vanity", "discovery", "tag"].map((m) => ({ id: m, label: joinMethodLabel(m), checked: method === m && !code, onSelect: () => pick(m, "") })),
     ]),
     button("memberInviteFilter", ({ code, codes, pick }) => codes.length > 0 && [{ id: "codes", label: t("members.filter.byInvite"), heading: true }, ...codes.slice(0, 20).map((c) => ({ id: `code${c}`, label: c, checked: code === c, onSelect: () => pick("invite", c) }))]),
   ],

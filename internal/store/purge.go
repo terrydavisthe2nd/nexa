@@ -94,7 +94,7 @@ func (s *Store) DeletedAccountsWithLeftovers(ctx context.Context) ([]ids.ID, err
 		EXISTS (SELECT 1 FROM sticker_installs WHERE user_id = u.id) OR
 		EXISTS (SELECT 1 FROM recent_stickers WHERE user_id = u.id) OR
 		EXISTS (SELECT 1 FROM read_states WHERE user_id = u.id) OR
-		EXISTS (SELECT 1 FROM invites WHERE inviter_id = u.id) OR
+		EXISTS (SELECT 1 FROM invites WHERE inviter_id = u.id AND vanity = 0) OR
 		EXISTS (SELECT 1 FROM guest_links WHERE creator_id = u.id) OR
 		EXISTS (SELECT 1 FROM uploads WHERE user_id = u.id) OR
 		EXISTS (SELECT 1 FROM poll_votes WHERE user_id = u.id) OR
@@ -327,7 +327,8 @@ func (s *Store) PurgeUserLeftovers(ctx context.Context, uid ids.ID) error {
 			`UPDATE server_members SET avatar_id = NULL, banner_id = NULL, bio = '', pronouns = '', accent_color = NULL, accent_color_2 = NULL, widgets = NULL WHERE user_id = ?`,
 			`DELETE FROM thread_members WHERE user_id = ?`,
 			`DELETE FROM poll_votes WHERE user_id = ?`,
-			`DELETE FROM invites WHERE inviter_id = ?`,
+			// a vanity link is the server's, whoever set it
+			`DELETE FROM invites WHERE inviter_id = ? AND vanity = 0`,
 			`DELETE FROM guest_links WHERE creator_id = ?`,
 			`DELETE FROM uploads WHERE user_id = ?`,
 			`DELETE FROM read_states WHERE user_id = ?`,

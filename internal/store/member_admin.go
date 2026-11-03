@@ -332,9 +332,10 @@ func (s *Store) JoinCodes(ctx context.Context, serverID ids.ID) ([]string, error
 	return out, rows.Err()
 }
 
-// DeleteServerInvites revokes every invite of a server, saying which went.
+// DeleteServerInvites revokes every invite of a server but its vanity link,
+// saying which went.
 func (s *Store) DeleteServerInvites(ctx context.Context, serverID ids.ID) ([]string, error) {
-	rows, err := s.db.R.QueryContext(ctx, `SELECT code FROM invites WHERE server_id = ?`, int64(serverID))
+	rows, err := s.db.R.QueryContext(ctx, `SELECT code FROM invites WHERE server_id = ? AND vanity = 0`, int64(serverID))
 	if err != nil {
 		return nil, err
 	}
@@ -351,7 +352,7 @@ func (s *Store) DeleteServerInvites(ctx context.Context, serverID ids.ID) ([]str
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if _, err := s.db.W.ExecContext(ctx, `DELETE FROM invites WHERE server_id = ?`, int64(serverID)); err != nil {
+	if _, err := s.db.W.ExecContext(ctx, `DELETE FROM invites WHERE server_id = ? AND vanity = 0`, int64(serverID)); err != nil {
 		return nil, err
 	}
 	if codes == nil {

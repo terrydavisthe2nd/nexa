@@ -61,6 +61,7 @@ function verbs(): Record<string, string> {
     server_tag_update: t("server.auditLog.verb.server_tag_update"),
     server_tag_delete: t("server.auditLog.verb.server_tag_delete"),
     invite_delete_all: t("server.auditLog.verb.invite_delete_all"),
+    vanity_url_update: t("server.auditLog.verb.vanity_url_update"),
     invites_pause: t("server.auditLog.verb.invites_pause"),
     invites_resume: t("server.auditLog.verb.invites_resume"),
     member_prune: t("server.auditLog.verb.member_prune"),

@@ -8,6 +8,14 @@ import type { AuditEntry, Ban, Channel, ForumSettings, Invite, InvitePreview, Me
  * view; a group invite answers with the group's channel instead, and the two
  * were told apart by casting one to the other through `unknown`.
  */
+/** A server's own chosen invite code: never expiring or running out, found in any case. */
+export interface VanityLink {
+  code: string | null;
+  /** How many people joined through it. */
+  uses: number;
+  channel_id: Snowflake | null;
+}
+
 export type JoinedInvite = { server: ServerView; users: PublicUser[] } | { channel: Channel; users?: PublicUser[] };
 
 type Progress = (loaded: number, total: number) => void;
@@ -313,7 +321,15 @@ export const servers = {
     if (query.target_id) q["target_id"] = query.target_id;
     return api.request("GET", `/servers/${id}/audit-log`, undefined, { query: q });
   },
-  /** Revokes every invite the server has. */
+  /** The server's vanity link (Manage Server). */
+  vanity(id: Snowflake): Promise<VanityLink> {
+    return api.request("GET", `/servers/${id}/vanity-url`);
+  },
+  /** Sets the vanity link's code, or takes the link away with null. */
+  setVanity(id: Snowflake, code: string | null): Promise<VanityLink> {
+    return api.request("PATCH", `/servers/${id}/vanity-url`, { code });
+  },
+  /** Revokes every invite the server has but its vanity link. */
   revokeAllInvites(id: Snowflake): Promise<{ revoked: number }> {
     return api.request("DELETE", `/servers/${id}/invites`);
   },

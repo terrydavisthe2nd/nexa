@@ -185,6 +185,31 @@ func (s *Server) takeOffLeaver(ctx context.Context, serverID, uid ids.ID) {
 	}
 }
 
+// landingChannel is where a server's own links (its tag's invite, its vanity
+// link) put people who join: its system channel when that is a text channel,
+// else its first text channel, else nil.
+func (s *Server) landingChannel(ctx context.Context, srv *store.Server) (*ids.ID, error) {
+	chans, err := s.Store.ServerChannels(ctx, srv.ID)
+	if err != nil {
+		return nil, err
+	}
+	var target *ids.ID
+	for _, c := range chans {
+		if c.Type != "text" {
+			continue
+		}
+		if srv.SystemChannelID != nil && c.ID == *srv.SystemChannelID {
+			id := c.ID
+			return &id, nil
+		}
+		if target == nil {
+			id := c.ID
+			target = &id
+		}
+	}
+	return target, nil
+}
+
 // tagInvite is the invite kept for joining from srv's tag: the one it has
 // when that is still good, or a new one that never runs out, to its system
 // channel or else its first text channel.
@@ -194,24 +219,9 @@ func (s *Server) tagInvite(ctx context.Context, srv *store.Server, by ids.ID) (s
 			return in.Code, nil
 		}
 	}
-	chans, err := s.Store.ServerChannels(ctx, srv.ID)
+	target, err := s.landingChannel(ctx, srv)
 	if err != nil {
 		return "", err
-	}
-	var target *ids.ID
-	for _, c := range chans {
-		if c.Type != "text" {
-			continue
-		}
-		if srv.SystemChannelID != nil && c.ID == *srv.SystemChannelID {
-			id := c.ID
-			target = &id
-			break
-		}
-		if target == nil {
-			id := c.ID
-			target = &id
-		}
 	}
 	if target == nil {
 		return "", E(http.StatusBadRequest, "no_channel", "Add a text channel first: people who join from the tag land in one.")

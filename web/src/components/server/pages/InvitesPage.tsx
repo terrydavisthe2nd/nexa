@@ -20,6 +20,7 @@ import { useUI } from "@/stores/ui";
 import { displayName, useUsers } from "@/stores/users";
 import st from "@/components/settings/Settings.module.css";
 import s from "../ServerSettings.module.css";
+import { VanityLink } from "./VanityLink";
 
 import { t } from "@/i18n";
 import { button, defineMenu } from "@/lib/contextMenus/registry";
@@ -155,6 +156,8 @@ export default function InvitesPage({ serverId }: { serverId: string }) {
           </div>
         </div>
       </section>
+      <VanityLink serverId={serverId} />
+      <h3 className={st.h5}>{t("server.invites.inviteLinks")}</h3>
       <div className={s.inviteTools}>
         <Button size="sm" onClick={() => openModal("invite", { serverId })}>{t("server.invites.createInvite")}</Button>
         {invites && invites.length > 0 ? (

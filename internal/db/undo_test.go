@@ -3,6 +3,8 @@ package db
 // undoCommunities takes away what migration 0032 adds, for the tests that
 // take the schema back to an older version and run the migrations again.
 const undoCommunities = `
+DROP INDEX invites_vanity;
+ALTER TABLE invites DROP COLUMN vanity;
 DROP INDEX safety_reports_outcomes;
 ALTER TABLE safety_reports DROP COLUMN outcome;
 ALTER TABLE safety_reports DROP COLUMN outcome_at;

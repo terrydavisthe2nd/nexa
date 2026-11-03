@@ -168,6 +168,7 @@ fun joinMethodLabel(method: String?): String = when (method) {
     "invite" -> t("members.method.invite")
     "discovery" -> t("members.method.discovery")
     "tag" -> t("members.method.tag")
+    "vanity" -> t("members.method.vanity")
     "owner" -> t("members.method.owner")
     else -> t("members.method.unknown")
 }
@@ -367,7 +368,7 @@ internal fun ModMembers(serverId: String) {
             ) {
                 val items = buildList<MenuItem> {
                     add(MenuItem.Action(t("members.filter.any"), checked = method.isEmpty() && code.isEmpty()) { method = ""; code = "" })
-                    for (m in listOf("invite", "discovery", "tag")) add(MenuItem.Action(joinMethodLabel(m), checked = method == m && code.isEmpty()) { method = m; code = "" })
+                    for (m in listOf("invite", "vanity", "discovery", "tag")) add(MenuItem.Action(joinMethodLabel(m), checked = method == m && code.isEmpty()) { method = m; code = "" })
                     if (codes.isNotEmpty()) add(MenuItem.Heading(t("members.filter.byInvite")))
                     for (cd in codes.take(20)) add(MenuItem.Action(cd, checked = code == cd) { method = "invite"; code = cd })
                 }

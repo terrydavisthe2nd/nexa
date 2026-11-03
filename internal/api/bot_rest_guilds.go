@@ -70,7 +70,12 @@ func (s *Server) botGuildRoutes(mux *http.ServeMux) {
 	s.botHandle(mux, "PUT", g+"/incident-actions", authBot, s.botIncidentActions)
 	s.botHandle(mux, "GET", g+"/vanity-url", authBot, func(w http.ResponseWriter, r *http.Request) {
 		if srv := s.botGuild(w, r, perms.ManageServer); srv != nil {
-			WriteJSON(w, http.StatusOK, map[string]any{"code": nil, "uses": 0})
+			in, err := s.Store.VanityInvite(r.Context(), srv.ID)
+			if err != nil {
+				WriteJSON(w, http.StatusOK, map[string]any{"code": nil, "uses": 0})
+				return
+			}
+			WriteJSON(w, http.StatusOK, map[string]any{"code": in.Code, "uses": in.Uses})
 		}
 	})
 	// what this server has none of: a widget, a welcome screen, onboarding,

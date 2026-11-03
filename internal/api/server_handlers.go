@@ -2695,7 +2695,10 @@ func (s *Server) handleInvitePreview(w http.ResponseWriter, r *http.Request) {
 			resp["channel"] = map[string]any{"id": ch.ID, "name": ch.Name, "type": ch.Type}
 		}
 	}
-	if u, err := s.Store.UserByID(r.Context(), in.InviterID); err == nil {
+	if in.Vanity {
+		// the server's own link: nobody in particular invited them
+		resp["vanity"] = true
+	} else if u, err := s.Store.UserByID(r.Context(), in.InviterID); err == nil {
 		resp["inviter"] = u.Public()
 	}
 	WriteJSON(w, http.StatusOK, resp)

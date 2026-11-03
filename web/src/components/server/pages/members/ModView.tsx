@@ -33,6 +33,8 @@ export function joinMethodLabel(method: string | undefined): string {
       return t("members.method.discovery");
     case "tag":
       return t("members.method.tag");
+    case "vanity":
+      return t("members.method.vanity");
     case "owner":
       return t("members.method.owner");
     default:

@@ -4,11 +4,11 @@ This is the source inventory for the October 28, 2026 layout audit. It supplemen
 [the display audit](UI_TEXT_AUDIT.md). It records discovered input sites, including
 exclusions, rather than treating a list of rendering components as an input audit.
 
-[Web source catalog](UI_TEXT_INPUTS.tsv) contains 297 JSX entry points from
+[Web source catalog](UI_TEXT_INPUTS.tsv) contains 298 JSX entry points from
 non-test `web/src` TSX: native inputs/textareas, `TextInput`, `TextArea`,
 `FormattedText`, `InlineText`, `InlineAbout`, `AboutMeEditor`, `CodeEditor` and
 editable elements. [Android source catalog](UI_TEXT_INPUTS_ANDROID.tsv) contains
-162 `BasicTextField`/`NxTextField` call sites, excluding declarations and imports.
+163 `BasicTextField`/`NxTextField` call sites, excluding declarations and imports.
 Counts include shared primitives, non-text controls and private fields; they are
 not counts of public text fields. Source lines are a snapshot, not stable IDs.
 
@@ -30,7 +30,7 @@ and markdown boundaries constrain ink inside Compose constraints.
 | --- | --- | --- |
 | `identity` | Registration/account username and display name; profile display name/pronouns; server nickname/pronouns; guest-call name (`web/src/pages/GuestCallPage.tsx`). | `common/PersonName`, profile identity rows, author/member/friend/search rows, mentions, call tiles/participants, account dock and translated person text. Pronouns use existing clipped identity rows. Guest participants use the same identity/voice boundaries. |
 | `profile` | About Me/global and server bio; custom status; widget game/music/custom titles, notes, tags, statistic labels/values, link labels/URLs; custom game/music names selected or entered in widget search. | `profile/ProfileCard`, `profile/Widgets`, `activity/StatusLine`, activity cards, status bubbles, `ScrollingText`; profile previews reuse the same renderers. Markdown bodies preserve prose; titles/tags/links/stats have compact bounds. |
-| `server` | Server/template names and description; categories/channels/voice names and topic/guidelines; role names; forum tag name/emoji; Discovery tags; server-tag text; Automod rule name, word/regex/allow/domain/extension lists and custom block message. | Server rail/sidebar/header/search/mentions, `invite/InviteView`, Discovery cards/details; `server/RoleChips`, role previews and pickers; forum tags and thread starts; imported template preview; Automod rule list/editor, notices, alerts and audit logs. Rules/configuration remain editable text; shared labels and metadata are bounded. |
+| `server` | Server/template names and description; categories/channels/voice names and topic/guidelines; role names; forum tag name/emoji; Discovery tags; server-tag text; the vanity link code (a-z, 0-9 and hyphens, at most 32); Automod rule name, word/regex/allow/domain/extension lists and custom block message. | Server rail/sidebar/header/search/mentions, `invite/InviteView`, Discovery cards/details; `server/RoleChips`, role previews and pickers; forum tags and thread starts; imported template preview; Automod rule list/editor, notices, alerts and audit logs. Rules/configuration remain editable text; shared labels and metadata are bounded. |
 | `conversation` | Group names; subchat names; thread names; forum post titles and formatted post body. | DM/sidebar lists, chat header/start, parent/thread links, search, member panels, invite card/dialog/page and forum cards. Titles clamp; post body uses markdown. |
 | `expression` | Emoji rename; sticker/pack name, description and tags; imported public/Discord pack metadata; emoji/glyph selection. | Expression picker headers/tiles, emoji detail popout, sticker labels/search, pack cards/dialog/page/editor and moderation sheets. Pack names/headers clamp or ellipsize. Descriptions wrap; initials clip; unsupported Twemoji fallback is icon-sized even for multi-pictograph sequences. |
 | `message` | Composer/edit/forward text; formatted links, labels and code language; profile quick-message box; friend-request note. | `chat/MessageItem`, markdown nodes, reply/forward/pin/search previews and transcriptions. `friends/RequestNote` clamps the incoming note (two lines, three on narrow containers); native incoming-request note is similarly bounded. Code/table overflow stays local. |
