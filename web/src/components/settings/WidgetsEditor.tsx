@@ -1,26 +1,30 @@
-import { Bookmark, ChartNoAxesColumn, Disc3, Palette, Gamepad2, GripVertical, Heart, ImagePlus, Library, LoaderCircle, MicVocal, Music, PanelTop, Plus, Search, Check, X, type LucideIcon } from "lucide-react";
-import { useEffect, useId, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { Bookmark, CalendarClock, ChartNoAxesColumn, Clock, Disc3, Palette, Gamepad2, GripVertical, Heart, ImagePlus, Library, LoaderCircle, MicVocal, Music, PanelTop, Plus, Search, Check, X, type LucideIcon } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { users as usersApi } from "@/api/users";
 import { Button } from "@/components/common/Button";
 import { ImageCropModal } from "@/components/common/ImageCropModal";
 import { Modal } from "@/components/common/Modal";
 import { ColourInput } from "@/components/common/ColourInput";
 import { FormattedText } from "@/components/common/FormattedText";
+import { Select } from "@/components/common/Select";
+import { Toggle } from "@/components/common/Toggle";
 import { Field, TextArea, TextInput } from "@/components/common/TextInput";
 import { GameCover, MusicArt, ProfileWidgets, widgetTitle } from "@/components/profile/Widgets";
 import { useReorder } from "@/hooks/useReorder";
 import { Tr, t } from "@/i18n";
 import { describeError } from "@/lib/errors";
-import { GAME_TYPES, LIMITS, MAX_CARD_LINKS, MAX_CARDS, MOST_GAMES, MOST_MUSIC, MUSIC_TYPES, songLength, widgetImageUrl, type CardWidget, type FoundMusic, type GameWidget, type MusicWidget, type Widget, type WidgetGame, type WidgetMusic, type WidgetStat, type WidgetType } from "@/lib/widgets";
+import { GAME_TYPES, LIMITS, MAX_CARD_LINKS, MAX_CARDS, MOST_GAMES, MOST_MUSIC, MUSIC_TYPES, songLength, widgetImageUrl, type CardWidget, type CountdownWidget, type FoundMusic, type LocalTimeWidget, type GameWidget, type MusicWidget, type Widget, type WidgetGame, type WidgetMusic, type WidgetStat, type WidgetType } from "@/lib/widgets";
+import { allZones, zoneOffset, zonePlace } from "@/lib/timeWidgets";
 import { useUI } from "@/stores/ui";
 import s from "./WidgetsEditor.module.css";
 
-const KIND_ICONS: Record<WidgetType, LucideIcon> = { favorite: Heart, playing: Gamepad2, wishlist: Bookmark, played: Library, artists: MicVocal, albums: Disc3, songs: Music, custom: PanelTop };
+const KIND_ICONS: Record<WidgetType, LucideIcon> = { favorite: Heart, playing: Gamepad2, wishlist: Bookmark, played: Library, artists: MicVocal, albums: Disc3, songs: Music, custom: PanelTop, countdown: CalendarClock, localtime: Clock };
 /** The kinds of widget, in the groups Add a Widget lists them in. */
 const KIND_GROUPS: { title: string; types: WidgetType[] }[] = [
   { title: "widgets.group.games", types: GAME_TYPES },
   { title: "widgets.group.music", types: MUSIC_TYPES },
   { title: "widgets.group.cards", types: ["custom"] },
+  { title: "widgets.group.time", types: ["countdown", "localtime"] },
 ];
 const IMAGE_TYPES = "image/png,image/jpeg,image/gif,image/webp";
 /** What a dragged row carries, so a drop from anywhere else is ignored. */
@@ -1024,6 +1028,140 @@ export function CardDialog({ initial, isNew, onDone, onClose }: { initial: CardW
           }}
         />
       ) : null}
+    </Modal>
+  );
+}
+
+/** A moment's date and time of day in this device's calendar, for the inputs ("2026-12-24", "18:30"). */
+function localParts(ms: number): { date: string; time: string } {
+  const d = new Date(ms);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return { date: `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`, time: `${two(d.getHours())}:${two(d.getMinutes())}` };
+}
+
+/**
+ * A countdown: what to, an emoji, the day, and a time of day if it counts to
+ * a moment rather than a whole day; with the widget as the profile will show it.
+ */
+export function CountdownDialog({ initial, isNew, onDone, onClose }: { initial: CountdownWidget; isNew: boolean; onDone: (w: CountdownWidget) => void; onClose: () => void }) {
+  const start = initial.at ? localParts(initial.at) : { date: initial.date ?? "", time: "" };
+  const [title, setTitle] = useState(initial.title);
+  const [emoji, setEmoji] = useState(initial.emoji ?? "");
+  const [date, setDate] = useState(start.date);
+  const [timed, setTimed] = useState(!!initial.at);
+  const [time, setTime] = useState(start.time || "12:00");
+  const [tried, setTried] = useState(false);
+  const at = timed && date && time ? new Date(`${date}T${time}`).getTime() : NaN;
+  const w: CountdownWidget = {
+    id: initial.id,
+    type: "countdown",
+    title: title.trim(),
+    ...(emoji.trim() ? { emoji: emoji.trim() } : {}),
+    ...(timed ? (Number.isFinite(at) ? { at } : {}) : date ? { date } : {}),
+  };
+  const problem = !w.title ? t("widgets.countdown.needsTitle") : !w.date && !w.at ? t("widgets.countdown.needsDate") : null;
+  const finish = () => {
+    setTried(true);
+    if (!problem) onDone(w);
+  };
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      onSubmit={finish}
+      title={isNew ? t("widgets.countdown.titleNew") : t("widgets.countdown.titleEdit")}
+      width={480}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>{t("chat.editMessage.cancel")}</Button>
+          <Button onClick={finish} disabled={tried && !!problem} data-testid="widget-done">{t("pick.done")}</Button>
+        </>
+      }
+    >
+      <div className={s.stack}>
+        <div className={s.momentRow}>
+          <Field label={t("widgets.countdown.emoji")}>
+            <TextInput value={emoji} onChange={(e) => setEmoji([...e.target.value].slice(0, 8).join(""))} placeholder="🎂" aria-label={t("widgets.countdown.emoji")} className={s.emojiInput} data-testid="countdown-emoji" />
+          </Field>
+          <Field label={t("widgets.countdown.what")} error={tried && !w.title ? t("widgets.countdown.needsTitle") : null}>
+            <TextInput value={title} onChange={(e) => setTitle(e.target.value)} maxLength={LIMITS.title} placeholder={t("widgets.countdown.whatPlaceholder")} autoFocus data-testid="countdown-title" />
+          </Field>
+        </div>
+        <div className={s.momentRow}>
+          <Field label={t("widgets.countdown.date")} error={tried && !w.date && !w.at ? t("widgets.countdown.needsDate") : null}>
+            <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} data-testid="countdown-date" />
+          </Field>
+          {timed ? (
+            <Field label={t("widgets.countdown.time")}>
+              <TextInput type="time" value={time} onChange={(e) => setTime(e.target.value)} data-testid="countdown-time" />
+            </Field>
+          ) : null}
+        </div>
+        <Toggle checked={timed} onChange={setTimed} label={t("widgets.countdown.timed")} description={t("widgets.countdown.timedHint")} />
+        <div>
+          <span className={s.label}>{t("settings.profile.preview")}</span>
+          <div className={s.previewSheet}>
+            {w.date || w.at ? <ProfileWidgets widgets={[{ ...w, title: w.title || t("widgets.countdown.whatPlaceholder") }]} variant="modal" /> : <p className={s.note}>{t("widgets.countdown.pickDate")}</p>}
+          </div>
+        </div>
+        {tried && problem ? <p className={s.error} role="alert">{problem}</p> : null}
+      </div>
+    </Modal>
+  );
+}
+
+/** A zone as the picker lists it: its place and its offset now ("Anchorage, UTC−9"). */
+function zoneLabel(zone: string, now: number): string {
+  const off = zoneOffset(zone, now);
+  const sign = off < 0 ? "−" : "+";
+  const h = Math.floor(Math.abs(off) / 60);
+  const m = Math.abs(off) % 60;
+  const utc = off === 0 ? "UTC" : `UTC${sign}${h}${m ? `:${String(m).padStart(2, "0")}` : ""}`;
+  return `${zonePlace(zone)}, ${utc}`;
+}
+
+/** Local Time: which time zone, starting at this device's, said plainly to be shown to everyone. */
+export function LocalTimeDialog({ initial, isNew, onDone, onClose }: { initial: LocalTimeWidget; isNew: boolean; onDone: (w: LocalTimeWidget) => void; onClose: () => void }) {
+  const [zone, setZone] = useState(initial.zone);
+  const now = Date.now();
+  const zones = useMemo(() => {
+    const list = allZones();
+    if (!list.includes(zone)) list.unshift(zone);
+    return list.map((z) => ({ z, label: zoneLabel(z, now), off: zoneOffset(z, now) })).sort((a, b) => a.off - b.off || a.label.localeCompare(b.label));
+    // the list is made once; offsets do not change while the dialog is open
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const own = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const w: LocalTimeWidget = { id: initial.id, type: "localtime", zone };
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={isNew ? t("widgets.localtime.titleNew") : t("widgets.localtime.titleEdit")}
+      width={480}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>{t("chat.editMessage.cancel")}</Button>
+          <Button onClick={() => onDone(w)} data-testid="widget-done">{t("pick.done")}</Button>
+        </>
+      }
+    >
+      <div className={s.stack}>
+        <Field label={t("widgets.localtime.zone")}>
+          <Select value={zone} onChange={(e) => setZone(e.target.value)} data-testid="localtime-zone">
+            {zones.map(({ z, label }) => (
+              <option key={z} value={z}>{z === own ? t("widgets.localtime.yours", { zone: label }) : label}</option>
+            ))}
+          </Select>
+        </Field>
+        <p className={s.note} style={{ margin: 0 }}>{t("widgets.localtime.privacy")}</p>
+        <div>
+          <span className={s.label}>{t("settings.profile.preview")}</span>
+          <div className={s.previewSheet}>
+            <ProfileWidgets widgets={[w]} variant="modal" />
+          </div>
+        </div>
+      </div>
     </Modal>
   );
 }

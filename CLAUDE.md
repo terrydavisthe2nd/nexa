@@ -1050,6 +1050,12 @@ as Discord holds it:
   up to 6 stats (a stat with `bar` 0 to 100 is a progress bar whose `value` is the percentage), up to
   3 `links` (the first repeated as `link` for older apps) and `color`/`color2` (0xRRGGBB tint and
   gradient). Card links confirm the full address before opening.
+- Countdown (`countdown`: a title, an emoji, and `date` YYYY-MM-DD counted in each viewer's own
+  calendar, or `at` in Unix ms) shows how long is left, Today! on the day, and hides itself from others
+  the day after (the owner still sees it in the designer). Local Time (`localtime`: an IANA `zone`
+  the server checks with its embedded tzdata) shows that zone's time and its gap from the viewer's.
+  Both count against the server clock; web `lib/timeWidgets.ts`, Android `data/TimeWidgets.kt`. The
+  Android editor uses the system date and time pickers, as the web uses the browser's.
 - Current apps always send `links` on a card, even empty. A card saved without it comes from an app
   before cards had several links, colours and bars, so `carryCardExtras` keeps the saved card's
   extra links, colours and bars (`TestOldAppsKeepWhatCardsGained`).

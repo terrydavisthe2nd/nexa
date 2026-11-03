@@ -112,6 +112,7 @@ private object Limits {
 private val KIND_ICONS = mapOf(
     "favorite" to "Heart", "playing" to "Gamepad2", "wishlist" to "Bookmark", "played" to "Library",
     "artists" to "MicVocal", "albums" to "Disc3", "songs" to "Music", "custom" to "PanelTop",
+    "countdown" to "CalendarClock", "localtime" to "Clock",
 )
 
 /** The kinds of widget, in the groups Add a Widget lists them in. */
@@ -119,6 +120,7 @@ private val KIND_GROUPS = listOf(
     "widgets.group.games" to listOf("favorite", "playing", "wishlist", "played"),
     "widgets.group.music" to listOf("artists", "albums", "songs"),
     "widgets.group.cards" to listOf("custom"),
+    "widgets.group.time" to listOf("countdown", "localtime"),
 )
 
 private val TAG_SUGGESTIONS = listOf("casual", "competitive", "coop", "solo", "ranked", "withFriends")
@@ -127,6 +129,8 @@ private fun newWidgetId(): String = "w" + (1..8).map { "0123456789abcdefghijklmn
 
 private fun fresh(type: String): Widgets.Widget = when (type) {
     "custom" -> Widgets.CardWidget(newWidgetId(), "", null, null, null, emptyList(), emptyList())
+    "countdown" -> Widgets.CountdownWidget(newWidgetId(), "", null, null, null)
+    "localtime" -> Widgets.LocalTimeWidget(newWidgetId(), java.time.ZoneId.systemDefault().id)
     "artists", "albums", "songs" -> Widgets.MusicWidget(newWidgetId(), type, emptyList())
     else -> Widgets.GameWidget(newWidgetId(), type, emptyList(), null)
 }
@@ -232,6 +236,8 @@ fun openWidgetEditor(w: Widgets.Widget, isNew: Boolean, onDone: (Widgets.Widget)
         is Widgets.GameWidget -> openGameEditor(w, onDone)
         is Widgets.MusicWidget -> openMusicEditor(w, onDone)
         is Widgets.CardWidget -> openCardEditor(w, isNew, onDone)
+        is Widgets.CountdownWidget -> openCountdownEditor(w, isNew, onDone)
+        is Widgets.LocalTimeWidget -> openLocalTimeEditor(w, isNew, onDone)
     }
 }
 
@@ -1072,5 +1078,150 @@ private fun PickTile(text: String, busy: Boolean, enabled: Boolean, modifier: Mo
     ) {
         if (busy) Spinner(c.textMuted, size = 20.dp) else Icon("ImagePlus", if (pressed) c.textStrong else c.textMuted, size = 20.dp)
         Txt(text, style = Nx.type.label.copy(fontSize = Nx.type.sp(13f), fontWeight = FontWeight(600)), color = if (pressed) c.textStrong else c.textMuted, maxLines = 1)
+    }
+}
+
+
+/** A box that shows a value and opens a picker when pressed: the date and time of a countdown. */
+@Composable
+private fun PickerField(text: String?, placeholder: String, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val c = Nx.colors
+    Box(
+        modifier.heightIn(min = 48.dp).clip(Radii.Sm).background(c.bgInput).ring(Radii.Sm, c.borderSubtle)
+            .pressable(remember { MutableInteractionSource() }, onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp)
+            .semantics { contentDescription = label + ", " + (text ?: placeholder) },
+        contentAlignment = Alignment.CenterStart,
+    ) { Txt(text ?: placeholder, style = Nx.type.body, color = if (text != null) c.text else c.textPlaceholder, maxLines = 2) }
+}
+
+/**
+ * A countdown (web CountdownDialog): what to, an emoji, the day, and a time
+ * of day if it counts to a moment. The date and time come from the system's
+ * pickers, as the web's come from the browser's.
+ */
+private fun openCountdownEditor(initial: Widgets.CountdownWidget, isNew: Boolean, onDone: (Widgets.Widget) -> Unit) {
+    val zone = java.time.ZoneId.systemDefault()
+    val startAt = initial.at?.let { java.time.Instant.ofEpochMilli(it).atZone(zone) }
+    var title by mutableStateOf(initial.title)
+    var emoji by mutableStateOf(initial.emoji ?: "")
+    var date by mutableStateOf(startAt?.toLocalDate() ?: initial.date?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() })
+    var timed by mutableStateOf(initial.at != null)
+    var time by mutableStateOf(startAt?.toLocalTime()?.withSecond(0)?.withNano(0) ?: java.time.LocalTime.NOON)
+    var tried by mutableStateOf(false)
+    fun widget(): Widgets.CountdownWidget {
+        val d = date
+        val at = if (timed && d != null) d.atTime(time).atZone(zone).toInstant().toEpochMilli() else null
+        return Widgets.CountdownWidget(initial.id, title.trim(), emoji.trim().ifEmpty { null }, if (!timed) d?.toString() else null, at)
+    }
+    fun problem(): String? = when {
+        title.isBlank() -> t("widgets.countdown.needsTitle")
+        date == null -> t("widgets.countdown.needsDate")
+        else -> null
+    }
+    openSheet(
+        "widget-countdown", title = if (isNew) t("widgets.countdown.titleNew") else t("widgets.countdown.titleEdit"),
+        footer = { close ->
+            EditorFooter(close, enabled = !(tried && problem() != null)) {
+                tried = true
+                if (problem() != null) return@EditorFooter
+                close()
+                onDone(widget())
+            }
+        },
+    ) {
+        val c = Nx.colors
+        val context = LocalContext.current
+        Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                NxTextField(emoji, { v -> emoji = v.codePoints().toArray().take(8).joinToString("") { String(Character.toChars(it)) } }, Modifier.width(76.dp), label = t("widgets.countdown.emoji"), placeholder = "🎂")
+                NxTextField(
+                    title, { title = it.take(Limits.TITLE) }, Modifier.weight(1f),
+                    label = t("widgets.countdown.what"), placeholder = t("widgets.countdown.whatPlaceholder"),
+                    error = if (tried && title.isBlank()) t("widgets.countdown.needsTitle") else null, capitalize = true,
+                )
+            }
+            Column {
+                EditLabel(t("widgets.countdown.date"))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val d = date
+                    PickerField(d?.let { fish.nexa.data.TimeWidgets.whenText(it.toString(), null) }, t("widgets.countdown.needsDate"), t("widgets.countdown.date"), Modifier.weight(1f)) {
+                        val start = d ?: java.time.LocalDate.now()
+                        android.app.DatePickerDialog(context, { _, y, m, day -> date = java.time.LocalDate.of(y, m + 1, day) }, start.year, start.monthValue - 1, start.dayOfMonth).show()
+                    }
+                    if (timed) PickerField(
+                        android.icu.text.DateFormat.getTimeInstance(android.icu.text.DateFormat.SHORT, fish.nexa.ui.I18n.locale).format(java.util.Date(java.time.LocalDate.now().atTime(time).atZone(zone).toInstant().toEpochMilli())),
+                        "", t("widgets.countdown.time"), Modifier.width(120.dp),
+                    ) {
+                        android.app.TimePickerDialog(context, { _, h, m -> time = java.time.LocalTime.of(h, m) }, time.hour, time.minute, android.text.format.DateFormat.is24HourFormat(context)).show()
+                    }
+                }
+                if (tried && date == null) Txt(t("widgets.countdown.needsDate"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f)), color = c.textDanger, modifier = Modifier.padding(top = 6.dp))
+            }
+            fish.nexa.ui.components.ToggleRow(timed, { timed = it }, t("widgets.countdown.timed"), t("widgets.countdown.timedHint"))
+            Column {
+                EditLabel(t("settings.profile.preview"))
+                Box(
+                    Modifier.fillMaxWidth().background(mixOklab(c.bgFloating, c.bgBase, 0.45f), Radii.Md).ring(Radii.Md, c.borderSubtle).topEdge(Radii.Md, c.edgeLight).padding(14.dp),
+                ) {
+                    val w = widget()
+                    if (w.date != null || w.at != null) ProfileWidgets(listOf(w.copy(title = w.title.ifEmpty { t("widgets.countdown.whatPlaceholder") })))
+                    else Txt(t("widgets.countdown.pickDate"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f)), color = c.textMuted)
+                }
+            }
+        }
+    }
+}
+
+/** Local Time (web LocalTimeDialog): which zone, starting at this device's, said plainly to be shown to everyone. */
+private fun openLocalTimeEditor(initial: Widgets.LocalTimeWidget, isNew: Boolean, onDone: (Widgets.Widget) -> Unit) {
+    var zone by mutableStateOf(initial.zone)
+    openSheet(
+        "widget-localtime", title = if (isNew) t("widgets.localtime.titleNew") else t("widgets.localtime.titleEdit"),
+        footer = { close -> EditorFooter(close, enabled = true) { close(); onDone(Widgets.LocalTimeWidget(initial.id, zone)) } },
+    ) {
+        val c = Nx.colors
+        val now = remember { System.currentTimeMillis() }
+        Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Column {
+                EditLabel(t("widgets.localtime.zone"))
+                val own = remember { java.time.ZoneId.systemDefault().id }
+                PickerField(
+                    fish.nexa.data.TimeWidgets.label(zone, now).let { if (zone == own) t("widgets.localtime.yours", "zone" to it) else it },
+                    "", t("widgets.localtime.zone"), Modifier.fillMaxWidth(),
+                ) { openZonePicker(zone) { zone = it } }
+                Txt(t("widgets.localtime.privacy"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.2f)), color = c.textMuted, modifier = Modifier.padding(top = 8.dp))
+            }
+            Column {
+                EditLabel(t("settings.profile.preview"))
+                Box(
+                    Modifier.fillMaxWidth().background(mixOklab(c.bgFloating, c.bgBase, 0.45f), Radii.Md).ring(Radii.Md, c.borderSubtle).topEdge(Radii.Md, c.edgeLight).padding(14.dp),
+                ) { ProfileWidgets(listOf(Widgets.LocalTimeWidget(initial.id, zone))) }
+            }
+        }
+    }
+}
+
+/** Every zone, by its offset then its place, with a search over the places; the device's own is marked. */
+private fun openZonePicker(current: String, onPick: (String) -> Unit) {
+    val now = System.currentTimeMillis()
+    val own = java.time.ZoneId.systemDefault().id
+    val all = fish.nexa.data.TimeWidgets.zones()
+        .map { Triple(it, fish.nexa.data.TimeWidgets.label(it, now), fish.nexa.data.TimeWidgets.offset(it, now)) }
+        .sortedWith(compareBy({ it.third }, { it.second }))
+    var q by mutableStateOf("")
+    openSheet("zone-picker", title = t("widgets.localtime.zone")) { close ->
+        val c = Nx.colors
+        NxTextField(q, { q = it }, Modifier.fillMaxWidth().padding(bottom = 10.dp), placeholder = t("apps.select.search"))
+        val shown = all.filter { q.isBlank() || it.second.contains(q.trim(), ignoreCase = true) || it.first.contains(q.trim(), ignoreCase = true) }
+        Column {
+            for ((z, label, _) in shown) Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(Radii.Sm).background(if (z == current) c.bgActive else Color.Transparent)
+                    .pressable(remember(z) { MutableInteractionSource() }) { onPick(z); close() }.padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Txt(if (z == own) t("widgets.localtime.yours", "zone" to label) else label, style = Nx.type.body, color = if (z == current) c.textStrong else c.text, modifier = Modifier.weight(1f), maxLines = 1)
+                if (z == current) Icon("Check", c.textBrand, size = 18.dp)
+            }
+        }
     }
 }

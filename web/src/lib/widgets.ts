@@ -67,7 +67,7 @@ export interface WidgetLink {
 
 export type GameWidgetType = "favorite" | "playing" | "wishlist" | "played";
 export type MusicWidgetType = "artists" | "albums" | "songs";
-export type WidgetType = GameWidgetType | MusicWidgetType | "custom";
+export type WidgetType = GameWidgetType | MusicWidgetType | "custom" | "countdown" | "localtime";
 
 export interface GameWidget {
   id: string;
@@ -102,11 +102,31 @@ export interface CardWidget {
   color2?: number;
 }
 
-export type Widget = GameWidget | MusicWidget | CardWidget;
+/**
+ * A countdown to a whole day (`date`, YYYY-MM-DD, counted in each viewer's
+ * own calendar) or to a moment (`at`, Unix milliseconds).
+ */
+export interface CountdownWidget {
+  id: string;
+  type: "countdown";
+  title: string;
+  emoji?: string;
+  date?: string;
+  at?: number;
+}
+
+/** The time where someone is: an IANA time zone, shown only because they added it. */
+export interface LocalTimeWidget {
+  id: string;
+  type: "localtime";
+  zone: string;
+}
+
+export type Widget = GameWidget | MusicWidget | CardWidget | CountdownWidget | LocalTimeWidget;
 
 export const GAME_TYPES: GameWidgetType[] = ["favorite", "playing", "wishlist", "played"];
 export const MUSIC_TYPES: MusicWidgetType[] = ["artists", "albums", "songs"];
-export const WIDGET_TYPES: WidgetType[] = [...GAME_TYPES, ...MUSIC_TYPES, "custom"];
+export const WIDGET_TYPES: WidgetType[] = [...GAME_TYPES, ...MUSIC_TYPES, "custom", "countdown", "localtime"];
 export const MAX_WIDGETS = 12;
 export const MAX_CARD_LINKS = 3;
 export const MAX_CARDS = 4;
@@ -122,6 +142,25 @@ export function isGameWidget(w: Widget): w is GameWidget {
 
 export function isMusicWidget(w: Widget): w is MusicWidget {
   return (MUSIC_TYPES as string[]).includes(w.type);
+}
+
+/** Whether this browser knows a time zone by that name. */
+export function validZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A new, empty widget of a kind, for its editor to fill. */
+export function blankWidget(type: WidgetType, id: string): Widget {
+  if (type === "custom") return { id, type, title: "", links: [] };
+  if (type === "countdown") return { id, type, title: "", date: "" };
+  if (type === "localtime") return { id, type, zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" };
+  if (isMusicType(type)) return { id, type, music: [] };
+  return { id, type, games: [] };
 }
 
 export function isMusicType(type: WidgetType): type is MusicWidgetType {
@@ -168,6 +207,21 @@ export function readWidgets(x: unknown): Widget[] {
     const w = raw as Record<string, unknown>;
     const id = typeof w["id"] === "string" ? w["id"] : `w${out.length}`;
     const type = w["type"];
+    if (type === "countdown") {
+      const title = str(w["title"], LIMITS.title).trim();
+      const date = typeof w["date"] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(w["date"]) ? w["date"] : undefined;
+      const at = typeof w["at"] === "number" && Number.isFinite(w["at"]) && w["at"] > 0 ? w["at"] : undefined;
+      if (!title || (!date && !at)) continue;
+      const emoji = str(w["emoji"], 32).trim();
+      out.push({ id, type, title, ...(emoji ? { emoji } : {}), ...(date ? { date } : { at: at! }) });
+      continue;
+    }
+    if (type === "localtime") {
+      const zone = str(w["zone"], 64).trim();
+      if (!zone || !validZone(zone)) continue;
+      out.push({ id, type, zone });
+      continue;
+    }
     if (type === "custom") {
       const title = str(w["title"], LIMITS.title).trim();
       if (!title) continue;
@@ -291,6 +345,8 @@ export function widgetsText(widgets: Widget[], title: (w: Widget) => string): { 
   return widgets.map((w) => {
     if (isGameWidget(w)) return { title: title(w), text: [w.games.map((g) => g.name).join(", "), w.note].filter(Boolean).join(" · ") };
     if (isMusicWidget(w)) return { title: title(w), text: w.music.map((m) => (m.by ? `${m.name} (${m.by})` : m.name)).join(", ") };
+    if (w.type === "countdown") return { title: title(w), text: [w.emoji, w.title, w.date ?? (w.at ? new Date(w.at).toISOString() : "")].filter(Boolean).join(" ") };
+    if (w.type === "localtime") return { title: title(w), text: w.zone };
     return { title: title(w), text: [w.title, w.text, ...(w.stats ?? []).map((st) => `${st.label}: ${st.value}`), ...(w.links ?? []).map((l) => l.url)].filter(Boolean).join(" · ") };
   });
 }

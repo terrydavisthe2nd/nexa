@@ -21,7 +21,7 @@ import { describeError } from "@/lib/errors";
 import { P } from "@/lib/perms";
 import { memberLook } from "@/lib/roleLook";
 import { readTypingStyle } from "@/lib/typingStyle";
-import { isGameWidget, isMusicType, isMusicWidget, newWidgetId, readWidgets, type Widget, type WidgetType } from "@/lib/widgets";
+import { blankWidget, isGameWidget, isMusicWidget, newWidgetId, readWidgets, type Widget, type WidgetType } from "@/lib/widgets";
 import { useAuth } from "@/stores/auth";
 import { useChannels } from "@/stores/channels";
 import { canI, useServers } from "@/stores/servers";
@@ -30,7 +30,7 @@ import { unlessUnsaved } from "@/stores/unsaved";
 import { aboutToEdit, aboutToSave } from "./AboutMeEditor";
 import { AboutField, ChatPreview, ColoursPicker, DesignerLayout, FormField, FormSection, hexOf, jumpToField, usePreviewLayout, ViewSwitch, WidgetList } from "./designerParts";
 import { TextInput } from "@/components/common/TextInput";
-import { AddWidgetDialog, CardDialog, GameWidgetDialog, MusicWidgetDialog } from "./WidgetsEditor";
+import { AddWidgetDialog, CardDialog, CountdownDialog, GameWidgetDialog, LocalTimeDialog, MusicWidgetDialog } from "./WidgetsEditor";
 import d from "./Designer.module.css";
 
 type View = "full" | "card" | "chat";
@@ -278,7 +278,7 @@ function Designer({ serverId, servers, onServer }: { serverId: string; servers: 
   const startWidget = (type: WidgetType) => {
     setAdding(false);
     const id = newWidgetId();
-    setEditing({ widget: type === "custom" ? { id, type, title: "" } : isMusicType(type) ? { id, type, music: [] } : { id, type, games: [] }, isNew: true });
+    setEditing({ widget: blankWidget(type, id), isNew: true });
   };
   const doneWidget = (w: Widget) => {
     if (!editing) return;
@@ -409,6 +409,8 @@ function Designer({ serverId, servers, onServer }: { serverId: string; servers: 
       {editing && isGameWidget(editing.widget) ? <GameWidgetDialog initial={editing.widget} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
       {editing && isMusicWidget(editing.widget) ? <MusicWidgetDialog initial={editing.widget} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
       {editing && editing.widget.type === "custom" ? <CardDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
+      {editing && editing.widget.type === "countdown" ? <CountdownDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
+      {editing && editing.widget.type === "localtime" ? <LocalTimeDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
 
       {crop ? (
         <ImageCropModal

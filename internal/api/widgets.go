@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	_ "time/tzdata" // local time widgets need every zone, whatever the host has
 
 	"evilion.xyz/chat/internal/auth"
 	"evilion.xyz/chat/internal/games"
@@ -32,25 +33,27 @@ import (
 // sees the profile, in the order they are put in.
 
 const (
-	maxWidgets      = 12
-	maxCustomCards  = 4
-	maxWidgetNote   = 200
-	maxPlaying      = 5
-	maxGameList     = 20
-	maxGameTags     = 3
-	maxGameTag      = 20
-	maxGameName     = 100
-	maxWidgetTitle  = 40
-	maxWidgetText   = 1000
-	maxCardLinks    = 3
-	maxWidgetStats  = 6
-	maxStatLabel    = 24
-	maxStatValue    = 40
-	maxLinkLabel    = 32
-	maxLinkURL      = 512
-	maxMusicName    = 100
-	maxSongLength   = 24 * 60 * 60
-	maxWidgetsBytes = 64 << 10
+	maxWidgets     = 12
+	maxCustomCards = 4
+	maxWidgetNote  = 200
+	maxPlaying     = 5
+	maxGameList    = 20
+	maxGameTags    = 3
+	maxGameTag     = 20
+	maxGameName    = 100
+	maxWidgetTitle = 40
+	maxWidgetText  = 1000
+	maxCardLinks   = 3
+	// a countdown's emoji: one emoji, which with skin tones and joins can be long
+	maxCountdownEmoji = 32
+	maxWidgetStats    = 6
+	maxStatLabel      = 24
+	maxStatValue      = 40
+	maxLinkLabel      = 32
+	maxLinkURL        = 512
+	maxMusicName      = 100
+	maxSongLength     = 24 * 60 * 60
+	maxWidgetsBytes   = 64 << 10
 	// how many of the artists, albums and songs saved at once Deezer is asked
 	// about, when no search brought them: a few, so a save cannot spend
 	// everyone's share of what Deezer allows
@@ -123,6 +126,13 @@ type widget struct {
 	// Color, and Color2 for a gradient, tint a card (0xRRGGBB)
 	Color  *int `json:"color,omitempty"`
 	Color2 *int `json:"color2,omitempty"`
+	// a countdown: its emoji, and either a whole day (Date, YYYY-MM-DD, counted
+	// in each viewer's own calendar) or a moment (At, Unix milliseconds)
+	Emoji string `json:"emoji,omitempty"`
+	Date  string `json:"date,omitempty"`
+	At    int64  `json:"at,omitempty"`
+	// Zone is a local time widget's IANA time zone ("America/Anchorage")
+	Zone string `json:"zone,omitempty"`
 }
 
 var widgetID = regexp.MustCompile(`^[a-z0-9]{4,16}$`)
@@ -426,6 +436,49 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 				seen[key] = true
 				next.Music = append(next.Music, clean)
 			}
+		case "countdown":
+			if seenType[w.Type] {
+				return "", "A profile has one countdown."
+			}
+			seenType[w.Type] = true
+			title, ok := line(w.Title, maxWidgetTitle)
+			if !ok || title == "" {
+				return "", "A countdown needs a title of at most 40 characters."
+			}
+			next.Title = title
+			emoji, ok := line(w.Emoji, maxCountdownEmoji)
+			if !ok || strings.ContainsAny(emoji, "<>:") {
+				return "", "A countdown's emoji is one emoji."
+			}
+			next.Emoji = emoji
+			switch {
+			case w.Date != "" && w.At == 0:
+				day, err := time.Parse("2006-01-02", w.Date)
+				if err != nil || day.Year() < 1970 || day.Year() > 2200 {
+					return "", "A countdown needs a date."
+				}
+				next.Date = day.Format("2006-01-02")
+			case w.Date == "" && w.At != 0:
+				if w.At < 0 || w.At > time.Date(2200, 1, 1, 0, 0, 0, 0, time.UTC).UnixMilli() {
+					return "", "A countdown needs a date."
+				}
+				next.At = w.At
+			default:
+				return "", "A countdown needs a date."
+			}
+		case "localtime":
+			if seenType[w.Type] {
+				return "", "A profile has one local time."
+			}
+			seenType[w.Type] = true
+			zone := strings.TrimSpace(w.Zone)
+			if zone == "" || len(zone) > 64 || zone == "Local" {
+				return "", "That isn't a time zone."
+			}
+			if _, err := time.LoadLocation(zone); err != nil {
+				return "", "That isn't a time zone."
+			}
+			next.Zone = zone
 		case "custom":
 			if w.Links == nil {
 				w = carryCardExtras(w, savedCards[w.ID])
@@ -945,6 +998,10 @@ func widgetsText(raw string) string {
 				}
 				parts = append(parts, name)
 			}
+		} else if w.Type == "countdown" {
+			parts = append(parts, strings.TrimSpace(w.Emoji+" "+w.Title))
+		} else if w.Type == "localtime" {
+			parts = append(parts, w.Zone)
 		} else if w.Type == "custom" {
 			parts = append(parts, w.Title)
 			if w.Text != "" {

@@ -1,11 +1,14 @@
-import { ArrowDown, ArrowUp, ArrowUpRight, ExternalLink, LayoutGrid, LoaderCircle, Pause, Pencil, Pin, Play, Plus, Trash2 } from "lucide-react";
-import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, ArrowUpRight, CalendarClock, Clock, ExternalLink, LayoutGrid, LoaderCircle, Pause, Pencil, Pin, Play, Plus, Trash2 } from "lucide-react";
+import { createContext, useContext, useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
 import { Tooltip } from "@/components/common/Tooltip";
 import { avatarColor, initials } from "@/lib/avatarColor";
-import { gamePicture, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type CardWidget, type GameWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetGame, type WidgetLink, type WidgetMusic } from "@/lib/widgets";
+import { gamePicture, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type CardWidget, type CountdownWidget, type GameWidget, type LocalTimeWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetGame, type WidgetLink, type WidgetMusic } from "@/lib/widgets";
 import { t } from "@/i18n";
 import { canOpenGames, openGame } from "@/lib/games";
 import { useRenderCtx } from "@/lib/markdownCtx";
+import { serverNow } from "@/lib/serverClock";
+import { countdownState, countdownWhen, zoneGap, zonePlace, zoneTime } from "@/lib/timeWidgets";
+import { useNow } from "@/hooks/useNow";
 import { Markdown } from "@/markdown";
 import { useUI } from "@/stores/ui";
 import { stopPreview, togglePreview, usePreview } from "./previews";
@@ -27,6 +30,10 @@ export interface WidgetDesign {
   feature: (id: string) => void;
   add: () => void;
 }
+
+/** Whether widgets are being drawn in the designer, where a countdown that is over still shows. */
+const DesigningCtx = createContext(false);
+const useDesigning = () => useContext(DesigningCtx);
 
 /** One widget in the designer: pressing it changes it, and its tools sit along its top. */
 function Designed({ w, index, count, design, children }: { w: Widget; index: number; count: number; design: WidgetDesign; children: ReactNode }) {
@@ -69,6 +76,10 @@ export function widgetTitle(w: Pick<Widget, "type">): string {
       return t("widgets.type.albums");
     case "songs":
       return t("widgets.type.songs");
+    case "countdown":
+      return t("widgets.type.countdown");
+    case "localtime":
+      return t("widgets.type.localtime");
     default:
       return t("widgets.type.custom");
   }
@@ -76,7 +87,7 @@ export function widgetTitle(w: Pick<Widget, "type">): string {
 
 /** A widget's name where it is listed: a card's own title, else what its kind is called. */
 export function widgetName(w: Widget): string {
-  return w.type === "custom" ? w.title : widgetTitle(w);
+  return w.type === "custom" || w.type === "countdown" ? w.title : widgetTitle(w);
 }
 
 /** How many a music widget holds, in the words for its kind. */
@@ -391,6 +402,45 @@ function Songs({ w, variant, onShowAll }: { w: MusicWidget; variant: Variant; on
   );
 }
 
+/**
+ * A countdown: its emoji large, its title, how long is left (or Today!) and
+ * the date. Gone from the profile a day after; the owner still sees it in
+ * the designer, marked as over.
+ */
+function Countdown({ w }: { w: CountdownWidget }) {
+  const now = serverNow(useNow());
+  const state = countdownState(w, now);
+  const design = useDesigning();
+  if (state.kind === "gone" && !design) return null;
+  return (
+    <section className={[s.widget, s.moment].join(" ")} data-testid="widget-countdown">
+      <span className={s.momentMark} aria-hidden="true">{w.emoji || <CalendarClock size={26} />}</span>
+      <div className={s.momentText}>
+        <h3>{w.title}</h3>
+        <span className={s.momentBig} data-today={state.kind === "today" || undefined}>
+          {state.kind === "coming" ? state.left : state.kind === "today" ? t("widgets.countdown.today") : t("widgets.countdown.over")}
+        </span>
+        <span className={s.momentSub}>{countdownWhen(w)}</span>
+      </div>
+    </section>
+  );
+}
+
+/** Someone's local time, ticking, with where it is and how far it is from yours. */
+function LocalTime({ w, variant }: { w: LocalTimeWidget; variant: Variant }) {
+  const now = serverNow(useNow());
+  return (
+    <section className={[s.widget, s.moment].join(" ")} data-variant={variant} data-testid="widget-localtime">
+      <span className={s.momentMark} aria-hidden="true"><Clock size={26} /></span>
+      <div className={s.momentText}>
+        <h3>{t("widgets.type.localtime")}</h3>
+        <span className={s.momentBig} dir="ltr">{zoneTime(w.zone, now)}</span>
+        <span className={s.momentSub}>{t("widgets.localtime.where", { place: zonePlace(w.zone), gap: zoneGap(w.zone, now) })}</span>
+      </div>
+    </section>
+  );
+}
+
 /** A card's colour as CSS, from 0xRRGGBB. */
 const hex = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
 
@@ -479,6 +529,11 @@ export function WidgetPeek({ widgets, onOpen }: { widgets: Widget[]; onOpen?: ((
   } else if (isMusicWidget(w)) {
     sub = w.music.length === 1 ? w.music[0]!.name : musicCount(w.type, w.music.length);
     art = w.music.slice(0, 3).map((m, i) => <MusicArt key={i} type={w.type} item={m} css={30} className={s.peekMusic} />);
+  } else if (w.type === "countdown") {
+    sub = countdownWhen(w);
+    art = w.emoji ? <span className={s.peekEmoji}>{w.emoji}</span> : null;
+  } else if (w.type === "localtime") {
+    sub = zonePlace(w.zone);
   } else {
     sub = w.text ?? "";
     art = w.image ? <img className={s.peekImage} src={widgetImageUrl(w.image, 40)} alt="" draggable={false} /> : null;
@@ -527,12 +582,15 @@ export function ProfileWidgets({ widgets, variant, onAdd, onShowAll, design }: {
       if (w.type === "albums") return <Albums key={w.id} w={w} variant={variant} onShowAll={onShowAll} />;
       return <Songs key={w.id} w={w} variant={variant} onShowAll={onShowAll} />;
     }
+    if (w.type === "countdown") return <Countdown key={w.id} w={w} />;
+    if (w.type === "localtime") return <LocalTime key={w.id} w={w} variant={variant} />;
     if (!isGameWidget(w)) return <Card key={w.id} w={w} variant={variant} />;
     if (w.type === "favorite") return <Favorite key={w.id} w={w} variant={variant} />;
     if (w.type === "playing") return <Playing key={w.id} w={w} />;
     return <Shelf key={w.id} w={w} variant={variant} onShowAll={onShowAll} />;
   };
   return (
+    <DesigningCtx.Provider value={!!design}>
     <div className={s.board} data-variant={variant} data-testid="profile-widgets">
       {design
         ? widgets.map((w, i) => (
@@ -547,5 +605,6 @@ export function ProfileWidgets({ widgets, variant, onAdd, onShowAll, design }: {
         </button>
       ) : null}
     </div>
+    </DesigningCtx.Provider>
   );
 }

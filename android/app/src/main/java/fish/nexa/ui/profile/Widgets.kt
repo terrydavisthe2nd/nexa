@@ -124,6 +124,16 @@ object Widgets {
         override val type get() = "custom"
     }
 
+    /** A countdown to a whole day ([date], YYYY-MM-DD, in each viewer's calendar) or a moment ([at], Unix ms). */
+    data class CountdownWidget(override val id: String, val title: String, val emoji: String?, val date: String?, val at: Long?) : Widget {
+        override val type get() = "countdown"
+    }
+
+    /** The time where someone is: an IANA time zone, shown only because they added it. */
+    data class LocalTimeWidget(override val id: String, val zone: String) : Widget {
+        override val type get() = "localtime"
+    }
+
     private val MOST_GAMES = mapOf("favorite" to 1, "playing" to 5, "wishlist" to 20, "played" to 20)
     private val MOST_MUSIC = mapOf("artists" to 12, "albums" to 12, "songs" to 10)
 
@@ -169,6 +179,18 @@ object Widgets {
                     val color = colour("color")
                     out += CardWidget(id, title, image, shape, w.s("text", 1000).ifEmpty { null }, stats, links, color, if (color != null) colour("color2") else null)
                 }
+                "countdown" -> {
+                    val title = w.s("title", 40).trim()
+                    val date = w.match("date", Regex("^\\d{4}-\\d{2}-\\d{2}$"))
+                    val at = (w["at"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull?.takeIf { it > 0 && it.isFinite() }?.toLong()
+                    if (title.isEmpty() || (date == null && at == null)) continue
+                    out += CountdownWidget(id, title, w.s("emoji", 32).trim().ifEmpty { null }, date, if (date == null) at else null)
+                }
+                "localtime" -> {
+                    val zone = w.s("zone", 64).trim()
+                    if (zone.isEmpty() || !fish.nexa.data.TimeWidgets.valid(zone)) continue
+                    out += LocalTimeWidget(id, zone)
+                }
                 "artists", "albums", "songs" -> {
                     val music = (w["music"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.let { m -> readMusic(m, type) } }?.take(MOST_MUSIC[type]!!) ?: emptyList()
                     if (music.isNotEmpty()) out += MusicWidget(id, type, music)
@@ -210,6 +232,12 @@ object Widgets {
                     m.duration?.let { put("duration", JsonPrimitive(it)) }
                 }
             }))
+            is CountdownWidget -> {
+                put("title", JsonPrimitive(w.title))
+                w.emoji?.let { put("emoji", JsonPrimitive(it)) }
+                if (w.date != null) put("date", JsonPrimitive(w.date)) else w.at?.let { put("at", JsonPrimitive(it)) }
+            }
+            is LocalTimeWidget -> put("zone", JsonPrimitive(w.zone))
             is CardWidget -> {
                 put("title", JsonPrimitive(w.title))
                 w.image?.let { put("image", JsonPrimitive(it)); put("shape", JsonPrimitive(w.shape ?: "wide")) }
@@ -239,10 +267,16 @@ object Widgets {
         "artists" -> t("widgets.type.artists")
         "albums" -> t("widgets.type.albums")
         "songs" -> t("widgets.type.songs")
+        "countdown" -> t("widgets.type.countdown")
+        "localtime" -> t("widgets.type.localtime")
         else -> t("widgets.type.custom")
     }
 
-    fun name(w: Widget) = if (w is CardWidget) w.title else title(w.type)
+    fun name(w: Widget) = when (w) {
+        is CardWidget -> w.title
+        is CountdownWidget -> w.title
+        else -> title(w.type)
+    }
 
     fun musicCount(type: String, count: Int) = when (type) {
         "artists" -> t("widgets.artistCount", "count" to count)
@@ -487,6 +521,8 @@ fun ProfileWidgets(widgets: List<Widgets.Widget>, onAdd: (() -> Unit)? = null, o
             else -> Songs(w, onShowAll)
         }
         is Widgets.CardWidget -> CardWidget(w)
+        is Widgets.CountdownWidget -> Countdown(w, designing = design != null)
+        is Widgets.LocalTimeWidget -> LocalTime(w)
         is Widgets.GameWidget -> when (w.type) {
             "favorite" -> Favorite(w)
             "playing" -> Playing(w)
@@ -970,6 +1006,67 @@ internal fun Equalizer(color: Color = Nx.colors.textBrand) {
     }
 }
 
+/** The current time on the server's clock, ticking once a minute (on the minute) while shown. */
+@Composable
+private fun minuteClock(): Long {
+    var now by remember { mutableStateOf(fish.nexa.data.ServerClock.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000 - now % 60_000 + 50)
+            now = fish.nexa.data.ServerClock.now()
+        }
+    }
+    return now
+}
+
+/** A tile like the favourite's: a mark (an emoji or an icon) beside a heading, a large figure and a line under it. */
+@Composable
+private fun MomentTile(heading: String, big: String, sub: String, today: Boolean, mark: @Composable () -> Unit, testTag: String) {
+    val c = Nx.colors
+    val p = LocalProfile.current
+    Row(
+        Modifier.fillMaxWidth().ring(Radii.Sm, c.borderSubtle).clip(Radii.Sm).background(p.chip.copy(alpha = p.chip.alpha * 0.7f)).topEdge(Radii.Sm, c.edgeLight).padding(horizontal = 14.dp, vertical = 12.dp)
+            .semantics { contentDescription = "$heading, $big, $sub" },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(p.chip).topEdge(RoundedCornerShape(14.dp), c.edgeLight), contentAlignment = Alignment.Center) { mark() }
+        Column(Modifier.weight(1f)) {
+            Txt(heading, style = Nx.type.label.copy(fontSize = Nx.type.sp(12.5f), fontWeight = FontWeight(700)), color = c.textMuted, modifier = Modifier.padding(bottom = 2.dp))
+            Txt(big, style = Nx.type.name.copy(fontSize = Nx.type.sp(21f), fontWeight = FontWeight(750), lineHeight = Nx.type.sp(25f), fontFeatureSettings = "tnum"), color = if (today) c.textBrand else c.textStrong)
+            Txt(sub, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(17.5f)), color = c.textMuted, modifier = Modifier.padding(top = 2.dp))
+        }
+    }
+}
+
+/** A countdown: gone from the profile a day after; the owner still sees it in the designer, marked as over. */
+@Composable
+private fun Countdown(w: Widgets.CountdownWidget, designing: Boolean) {
+    val now = minuteClock()
+    val state = fish.nexa.data.TimeWidgets.state(w.date, w.at, now)
+    if (state is fish.nexa.data.TimeWidgets.State.Gone && !designing) return
+    val big = when (state) {
+        is fish.nexa.data.TimeWidgets.State.Coming -> state.left
+        fish.nexa.data.TimeWidgets.State.Today -> t("widgets.countdown.today")
+        else -> t("widgets.countdown.over")
+    }
+    MomentTile(w.title, big, fish.nexa.data.TimeWidgets.whenText(w.date, w.at), state == fish.nexa.data.TimeWidgets.State.Today, {
+        if (w.emoji != null) StatusEmojiImage(w.emoji, 30.dp) else Icon("CalendarClock", Nx.colors.textSubtle, size = 26.dp)
+    }, "widget-countdown")
+}
+
+/** Someone's local time, ticking, with where it is and how far it is from yours. */
+@Composable
+private fun LocalTime(w: Widgets.LocalTimeWidget) {
+    val now = minuteClock()
+    MomentTile(
+        t("widgets.type.localtime"),
+        fish.nexa.data.TimeWidgets.time(w.zone, now),
+        t("widgets.localtime.where", "place" to fish.nexa.data.TimeWidgets.place(w.zone), "gap" to fish.nexa.data.TimeWidgets.gap(w.zone, now)),
+        false, { Icon("Clock", Nx.colors.textSubtle, size = 26.dp) }, "widget-localtime",
+    )
+}
+
 /** Opens a card's link once its full address has been seen, as activity links do. */
 private fun openCardLink(url: String) {
     fish.nexa.ui.shell.confirm(t("textMenu.openLink"), url, t("textMenu.openLink"), danger = false) { openLink(url) }
@@ -1053,6 +1150,8 @@ fun WidgetPeek(widgets: List<Widgets.Widget>, onOpen: (() -> Unit)?) {
         is Widgets.GameWidget -> if (w.games.size == 1) w.games[0].name else t("widgets.gameCount", "count" to w.games.size)
         is Widgets.MusicWidget -> if (w.music.size == 1) w.music[0].name else Widgets.musicCount(w.type, w.music.size)
         is Widgets.CardWidget -> w.text ?: ""
+        is Widgets.CountdownWidget -> fish.nexa.data.TimeWidgets.whenText(w.date, w.at)
+        is Widgets.LocalTimeWidget -> fish.nexa.data.TimeWidgets.place(w.zone)
     }
     Row(
         Modifier
@@ -1080,6 +1179,8 @@ fun WidgetPeek(widgets: List<Widgets.Widget>, onOpen: (() -> Unit)?) {
                     Box(Modifier.offset(x = (-10 * i).dp).zIndex((3 - i).toFloat())) { MusicArt(w.type, m, 30, 26.dp) }
                 }
                 is Widgets.CardWidget -> w.image?.let { AsyncImage(Media.widgetUrl(it, 40, density), null, Media.loader, Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop) }
+                is Widgets.CountdownWidget -> w.emoji?.let { StatusEmojiImage(it, 22.dp) }
+                is Widgets.LocalTimeWidget -> Unit
             }
         }
         if (widgets.size > 1) Txt("+${widgets.size - 1}", style = Nx.type.hint.copy(fontWeight = FontWeight(700), fontFeatureSettings = "tnum"), color = c.textMuted)

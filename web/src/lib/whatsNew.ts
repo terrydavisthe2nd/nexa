@@ -37,6 +37,7 @@ export const RELEASES: Release[] = [
       { icon: Award, title: "whatsNew.r20261102.badgesTitle", body: "whatsNew.r20261102.badgesBody" },
       { icon: Gamepad2, title: "whatsNew.r20261102.gamePageTitle", body: "whatsNew.r20261102.gamePageBody" },
       { icon: LayoutGrid, title: "whatsNew.r20261102.cardsTitle", body: "whatsNew.r20261102.cardsBody" },
+      { icon: Timer, title: "whatsNew.r20261102.timeWidgetsTitle", body: "whatsNew.r20261102.timeWidgetsBody" },
       { icon: HandCoins, title: "whatsNew.r20261102.pwywTitle", body: "whatsNew.r20261102.pwywBody" },
       { icon: RotateCcw, title: "whatsNew.r20261102.refundsTitle", body: "whatsNew.r20261102.refundsBody" },
     ],
