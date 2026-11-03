@@ -82,8 +82,10 @@ form.
 a) Profile information (public by design, typed by you): username,
    display name, profile picture and banner, about me, pronouns,
    accent colors, custom status and expiry, how your typing indicator
-   looks, the server tag you wear, your profile widgets (the games and
-   music you show, and the cards you make), presence preference, DM
+   looks, the server tag you wear, your profile widgets (the games,
+   music, books, shows and films you show, your countdown, the time
+   zone you choose to show, the sticker packs you show, and the cards
+   you make), presence preference, DM
    privacy setting, whether friends can add you to group chats, per
    server nicknames and pictures, account ID, creation and last change
    times, admin and disabled flags, and your plan (Supporter or Pro,
@@ -412,21 +414,34 @@ calls.
   or see them. Why: so calls work between any two networks.
 - Cloudflare WARP, for fetching things from other sites. Link
   previews, pictures and videos linked from elsewhere, GIFs, YouTube
-  videos, and game and music searches go out through it, so
-  Cloudflare sees which sites are contacted, and those sites see a
-  Cloudflare address instead of the server's. Why: so the sites
-  people link never learn where the server is.
+  videos, and game, music, book, show and film searches go out
+  through it, so Cloudflare sees which sites are contacted, and those
+  sites see a Cloudflare address instead of the server's. Why: so the
+  sites people link never learn where the server is.
 - Klipy, for GIF search. The server sends it the words you search for
   (or asks for trending GIFs) and nothing about you: Klipy sees the
   server's address, not yours. The GIFs themselves load through the
   server and WARP, never from Klipy to your device.
-- IGDB, for the games on profile widgets. The server sends it the
-  words you search for and asks it about the games people show,
-  through WARP, and keeps the game covers it shows.
+- IGDB, for the games on profile widgets and game pages. The server
+  sends it the words you search for, asks it about the games people
+  show and the game pages people open (matching a game you are
+  playing by its name), through WARP, and keeps the game covers and
+  screenshots it shows. Trailers on a game page play through the
+  server like other YouTube videos.
 - Deezer, for the music on profile widgets. The server sends it the
   words you search for and asks it about the songs, albums, and
   artists people show, through WARP. It keeps their pictures, and
-  streams song previews through itself without keeping them.
+  streams song previews through itself without keeping them. When you
+  fill a music widget from a link, the server reads that link from
+  its service as it reads a link preview, then searches Deezer for
+  what it lists.
+- Open Library, for the books on profile widgets. The server sends it
+  the words you search for, through WARP, and keeps the book covers it
+  shows. Open Library learns nothing about you.
+- TMDB, for the shows and films on profile widgets. The server sends
+  it the words you search for, through WARP, and keeps the posters it
+  shows. TMDB learns nothing about you. This product uses the TMDB API
+  but is not endorsed or certified by TMDB.
 - Telegram, for importing a Telegram sticker set. The server asks
   Telegram's Bot API for the set by its name and downloads its
   stickers. Telegram learns the set's name and nothing about you.
