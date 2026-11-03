@@ -120,6 +120,9 @@ func (s *Server) widgetRoutes(mux *http.ServeMux) {
 	mux.Handle("PUT /api/v1/users/@me/widgets", s.authed(s.handleWidgetsPut))
 	mux.Handle("POST /api/v1/users/@me/widgets/image", s.userLimited(s.limUpload, s.handleWidgetImage))
 	mux.Handle("GET /api/v1/games/search", s.userLimited(s.limSearch, s.handleGameSearch))
+	// a game's page, from a profile's games or an activity naming the game (match)
+	mux.Handle("GET /api/v1/games/match", s.userLimited(s.limSearch, s.handleGameMatch))
+	mux.Handle("GET /api/v1/games/{id}", s.userLimited(s.limSearch, s.handleGameDetails))
 	// kept pictures are served like avatars; only fetching one counts against a limit (fetchLimited)
 	mux.HandleFunc("GET /media/game/{cover}", s.handleGameCover)
 	mux.Handle("GET /api/v1/music/search", s.userLimited(s.limMusic, s.handleMusicSearch))
@@ -590,7 +593,7 @@ func (s *Server) handleGameSearch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGameCover(w http.ResponseWriter, r *http.Request) {
 	cover := r.PathValue("cover")
 	size := r.URL.Query().Get("size")
-	if size != "s" {
+	if _, shot := games.PictureSizes[size]; !shot && size != "s" {
 		size = "l"
 	}
 	if s.Games == nil || !games.CoverPattern.MatchString(cover) {
@@ -614,6 +617,70 @@ func (s *Server) handleGameCover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	serveKept(w, r, path)
+}
+
+// handleGameDetails is a game's page: what IGDB says about it, its pictures,
+// trailers, similar games and stores.
+func (s *Server) handleGameDetails(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !games.IDPattern.MatchString(id) {
+		WriteError(w, E(http.StatusNotFound, "unknown_game", "That game isn't known."))
+		return
+	}
+	if !s.Games.On() {
+		WriteError(w, E(http.StatusServiceUnavailable, "games_off", "Game details aren't available here."))
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	d, err := s.Games.Details(ctx, id)
+	cancel()
+	if errors.Is(err, games.ErrUnknown) {
+		WriteError(w, E(http.StatusNotFound, "unknown_game", "That game isn't known."))
+		return
+	}
+	if err != nil {
+		s.Log.Warn("igdb details", "err", err)
+		WriteError(w, E(http.StatusBadGateway, "games_unavailable", "Game details aren't loading right now. Try again in a moment."))
+		return
+	}
+	// trailers' pictures come through the media proxy, as a chat's YouTube links' do
+	type video struct {
+		games.Video
+		// Thumb is YouTube's 16:9 picture for the strip; Poster its larger
+		// one, a 4:3 frame with the 16:9 picture across its middle
+		Thumb  string `json:"thumb,omitempty"`
+		Poster string `json:"poster,omitempty"`
+	}
+	videos := make([]video, 0, len(d.Videos))
+	for _, v := range d.Videos {
+		base := "https://i.ytimg.com/vi/" + v.ID + "/"
+		videos = append(videos, video{Video: v, Thumb: s.ProxyURL(base + "mqdefault.jpg"), Poster: s.ProxyURL(base + "hqdefault.jpg")})
+	}
+	WriteJSON(w, http.StatusOK, struct {
+		*games.Details
+		Videos []video `json:"videos"`
+	}{d, videos})
+}
+
+// handleGameMatch is IGDB's id for the game an activity names, if one has
+// exactly that name: {"id": "..."} or {"id": null}.
+func (s *Server) handleGameMatch(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimSpace(r.URL.Query().Get("name"))
+	var id any
+	if s.Games.On() && name != "" && len(name) <= 120 {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		found, err := s.Games.Match(ctx, name)
+		cancel()
+		if err != nil {
+			s.Log.Warn("igdb match", "err", err)
+			WriteError(w, E(http.StatusBadGateway, "games_unavailable", "Game details aren't loading right now. Try again in a moment."))
+			return
+		}
+		if found != "" {
+			id = found
+		}
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"id": id})
 }
 
 // handleMusicSearch finds artists, albums or songs on Deezer, from a name,

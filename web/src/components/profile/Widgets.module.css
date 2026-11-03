@@ -32,6 +32,15 @@
 .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* the shine along a box's top edge, over the picture */
 .cover::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 28%); pointer-events: none; }
+/* a game with a page opens it; the box lifts a little under the pointer */
+.gameOpen { display: block; flex: none; padding: 0; border-radius: 7px; cursor: pointer; }
+.gameOpen .cover { transition: transform var(--transition); }
+.gameOpen:hover .cover { transform: translateY(-2px); }
+.gameOpen:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.shelfOpen { width: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  .gameOpen .cover { transition: none; }
+}
 .coverName {
   position: absolute;
   inset: 0;

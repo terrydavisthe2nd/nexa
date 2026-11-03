@@ -1,0 +1,103 @@
+/*
+ * A game's page. It opens like the box it is drawn as on a profile: the
+ * game's artwork across the top, fading into the dialog, with the box itself
+ * standing on that edge as a profile's picture stands on its banner. The one
+ * large thing below is the stage, a trailer or screenshot at full width with
+ * a strip of the rest; the words and facts under it stay quiet.
+ */
+.page { position: relative; container-type: inline-size; background: var(--bg-floating); }
+
+/* round buttons over the artwork: Back on the left, Close on the right */
+.bar { position: sticky; top: 0; z-index: 3; display: flex; gap: 8px; padding: 0 12px; height: 0; overflow: visible; pointer-events: none; }
+.bar > * { margin-top: 12px; }
+.barBtn { pointer-events: auto; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); transition: background var(--transition); }
+.barBtn:hover { background: rgba(0, 0, 0, 0.65); }
+.barBtn[data-end] { margin-inline-start: auto; }
+
+.hero { position: relative; isolation: isolate; overflow: hidden; height: clamp(150px, 34cqi, 290px); background: linear-gradient(160deg, color-mix(in oklab, var(--cover-tint) 55%, var(--bg-floating)), var(--bg-floating)); }
+.backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.glow { position: absolute; inset: -30%; background-size: cover; background-position: center; filter: blur(40px) saturate(1.5); opacity: 0.55; }
+/* the artwork fades into the dialog, so the box can stand on its edge */
+.hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, transparent 30%, transparent 45%, var(--bg-floating) 100%); }
+
+.head { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: 18px; margin-top: -84px; padding: 0 24px; }
+.head .box { width: 120px; border-radius: 9px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 0 1px color-mix(in srgb, var(--text-strong) 10%, transparent), 0 18px 32px -14px color-mix(in srgb, var(--shade) 95%, transparent); }
+.titles { min-width: 0; display: flex; flex-direction: column; gap: 4px; padding-bottom: 4px; }
+.name { margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 750; line-height: 1.12; letter-spacing: -0.015em; color: var(--text-strong); overflow-wrap: anywhere; }
+.byline { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; font-size: 14px; font-weight: 600; color: var(--text-subtle); }
+.byline span { min-width: 0; overflow-wrap: anywhere; }
+.score { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; margin: 4px 0 0; height: 26px; padding: 0 10px; border-radius: var(--radius-pill); background: var(--bg-active); color: var(--text-strong); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; box-shadow: inset 0 1px 0 var(--edge-light); }
+.score svg { color: var(--warning, #f0b232); }
+
+.body { display: flex; flex-direction: column; gap: 22px; padding: 20px 24px 24px; }
+.heading { margin: 0 0 8px; font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: 0.01em; color: var(--text-muted); }
+
+/* the stage, and the strip of everything it can show */
+.media { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.stage { position: relative; aspect-ratio: 16 / 9; border-radius: var(--radius-sm); overflow: hidden; background: #000; box-shadow: 0 0 0 1px var(--border-subtle); }
+.stage > div { width: 100%; height: 100%; max-width: none; border-radius: 0; }
+/* YouTube's larger picture is 4:3 with black bands above and below a 16:9 frame: scaled by 4/3 the bands fall outside */
+.stage[data-letterboxed] button img { scale: 1.334; }
+.shot { display: block; width: 100%; height: 100%; padding: 0; cursor: zoom-in; }
+.shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.strip { display: flex; gap: 8px; margin: 0; padding: 2px 2px 6px; list-style: none; overflow-x: auto; scrollbar-width: thin; scroll-snap-type: x proximity; }
+.strip li { flex: none; scroll-snap-align: start; }
+.thumb { position: relative; display: block; width: 112px; aspect-ratio: 16 / 9; padding: 0; border-radius: 7px; overflow: hidden; background: var(--bg-active); opacity: 0.62; box-shadow: 0 0 0 1px var(--border-subtle); transition: opacity var(--transition), box-shadow var(--transition); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb:hover { opacity: 0.9; }
+.thumb[data-on] { opacity: 1; box-shadow: 0 0 0 2px var(--brand); }
+.thumb:focus-visible { outline: 2px solid var(--focus-ring, var(--brand)); outline-offset: 2px; }
+.thumbPlay { position: absolute; inset: 0; margin: auto; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0, 0, 0, 0.55); }
+
+/* what it is about beside the facts; one column on a phone */
+.columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
+@container (min-width: 620px) {
+  .columns { grid-template-columns: minmax(0, 1fr) 240px; gap: 28px; }
+}
+.main { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.folded { display: flex; flex-direction: column; align-items: flex-start; }
+.prose { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 68ch; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
+.prose[data-open] { display: block; -webkit-line-clamp: none; }
+.more { margin-top: 6px; font-size: 13.5px; font-weight: 650; color: var(--text-brand); }
+.more:hover { text-decoration: underline; }
+
+.facts { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+.fact dt { font-size: 12px; font-weight: 600; line-height: 15px; color: var(--text-muted); }
+.fact dd { margin: 2px 0 0; font-size: 14px; font-weight: 600; line-height: 1.4; color: var(--text-strong); overflow-wrap: anywhere; }
+
+.links { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.links li { min-width: 0; max-width: 100%; }
+.link { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; height: 34px; padding: 0 13px; border-radius: var(--radius-pill); background: var(--bg-active); color: var(--text-strong); font-size: 13.5px; font-weight: 650; box-shadow: inset 0 1px 0 var(--edge-light); transition: background var(--transition); }
+.link:hover { background: var(--bg-hover); text-decoration: none; }
+.link svg { flex: none; color: var(--text-muted); }
+.linkName { flex: none; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linkHost { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-weight: 600; }
+
+/* games like it: a shelf of boxes, as on a profile */
+.similar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 10px; margin: 0; padding: 0; list-style: none; }
+@container (min-width: 480px) {
+  .similar { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+.similarBtn { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 0; text-align: start; border-radius: 8px; }
+.similarBtn > span:first-child { width: 100%; transition: transform var(--transition); }
+.similarBtn:hover > span:first-child { transform: translateY(-2px); }
+.similarBtn:focus-visible { outline: 2px solid var(--focus-ring, var(--brand)); outline-offset: 3px; }
+.similarName { font-size: 12px; font-weight: 600; line-height: 15px; color: var(--text-subtle); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+
+.credit { margin: 0; font-size: 12px; color: var(--text-muted); }
+.credit a { color: inherit; text-decoration: underline; }
+
+.state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 320px; padding: 60px 24px; color: var(--text-subtle); font-size: 14.5px; text-align: center; }
+.state p { margin: 0; }
+.retry { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: var(--radius-pill); background: var(--bg-active); color: var(--text-strong); font-weight: 650; font-size: 13.5px; }
+
+@media (max-width: 767px) {
+  .head { gap: 14px; margin-top: -64px; padding: 0 16px; }
+  .head .box { width: 92px; }
+  .name { font-size: 22px; }
+  .body { padding: 18px 16px 20px; }
+  .thumb { width: 96px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .similarBtn > span:first-child { transition: none; }
+}

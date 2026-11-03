@@ -117,6 +117,12 @@ private fun ActivityCardBody(a: Activity) {
     }
     val green = Activities.green(c.isLight)
     val shape = Radii.Md
+    // IGDB's id for the game being played, once the server has found one with exactly its name
+    val game = if (a.type == 0 || a.type == 5) a.name.trim() else ""
+    var gameId by remember(game) { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    LaunchedEffect(game) {
+        if (game.isNotEmpty()) gameId = try { fish.nexa.data.Games.match(game) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Throwable) { null }
+    }
     Box(
         Modifier
             .fillMaxWidth()
@@ -194,7 +200,8 @@ private fun ActivityCardBody(a: Activity) {
                     Txt(Activities.clock(clock.total), style = style, color = c.textMuted)
                 }
             }
-            a.buttons?.takeIf { it.isNotEmpty() }?.let { buttons ->
+            val buttons = a.buttons.orEmpty()
+            if (buttons.isNotEmpty() || gameId != null) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (b in buttons) Box(
                         Modifier
@@ -210,6 +217,23 @@ private fun ActivityCardBody(a: Activity) {
                         Txt(b.label, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f), fontWeight = FontWeight(600)), color = c.text, maxLines = 1)
                         activityHost(b.url)?.let { Txt(it, style = Nx.type.hint.copy(fontSize = Nx.type.sp(11f)), color = c.textMuted) }
                     } }
+                    gameId?.let { id ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(c.bgSurface)
+                                .border(1.dp, c.border, RoundedCornerShape(999.dp))
+                                .pressable(remember { MutableInteractionSource() }) { openGamePage(id) }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterHorizontally),
+                        ) {
+                            Icon("Info", c.textMuted, size = 15.dp)
+                            Txt(t("games.page.viewGame"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f), fontWeight = FontWeight(600)), color = c.text, maxLines = 1)
+                        }
+                    }
                 }
             }
         }

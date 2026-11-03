@@ -4,6 +4,7 @@ import { Tooltip } from "@/components/common/Tooltip";
 import { avatarColor, initials } from "@/lib/avatarColor";
 import { gamePicture, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type CardWidget, type GameWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetGame, type WidgetMusic } from "@/lib/widgets";
 import { t } from "@/i18n";
+import { canOpenGames, openGame } from "@/lib/games";
 import { stopPreview, togglePreview, usePreview } from "./previews";
 import { SongVolume } from "./SongVolume";
 import s from "./Widgets.module.css";
@@ -103,6 +104,20 @@ export function GameCover({ game, css, named, className }: { game: WidgetGame; c
   );
 }
 
+/**
+ * A game that opens its page when pressed: one found on IGDB, for someone
+ * signed in. A game added by name has no page, so it stays only a picture.
+ */
+function GameOpen({ game, className, children }: { game: WidgetGame; className?: string | undefined; children: ReactNode }) {
+  if (!game.id || !canOpenGames()) return <>{children}</>;
+  const id = game.id;
+  return (
+    <button type="button" className={[s.gameOpen, className ?? ""].join(" ")} onClick={() => openGame(id)} aria-label={t("games.page.openNamed", { name: game.name })} data-testid="game-open">
+      {children}
+    </button>
+  );
+}
+
 function Favorite({ w, variant }: { w: GameWidget; variant: Variant }) {
   const game = w.games[0];
   if (!game) return null;
@@ -110,7 +125,9 @@ function Favorite({ w, variant }: { w: GameWidget; variant: Variant }) {
   return (
     <section className={[s.widget, s.favorite].join(" ")} data-testid="widget-favorite">
       {glow ? <span className={s.glow} style={{ backgroundImage: `url("${glow}")` }} aria-hidden="true" /> : null}
-      <GameCover game={game} css={variant === "panel" ? 56 : 76} />
+      <GameOpen game={game}>
+        <GameCover game={game} css={variant === "panel" ? 56 : 76} />
+      </GameOpen>
       <div className={s.favText}>
         <h3>{t("widgets.type.favorite")}</h3>
         <span className={s.favName} dir="auto">{game.name}</span>
@@ -127,7 +144,9 @@ function Playing({ w }: { w: GameWidget }) {
       <ul className={s.rows}>
         {w.games.map((g, i) => (
           <li key={`${g.id ?? g.name}-${i}`} className={s.row}>
-            <GameCover game={g} css={36} />
+            <GameOpen game={g}>
+              <GameCover game={g} css={36} />
+            </GameOpen>
             <div className={s.rowText}>
               <span className={s.rowName} dir="auto">{g.name}</span>
               {g.tags?.length ? (
@@ -159,7 +178,9 @@ function Shelf({ w, variant, onShowAll }: { w: GameWidget; variant: Variant; onS
         {shown.map((g, i) => (
           <li key={`${g.id ?? g.name}-${i}`}>
             <Tooltip text={g.name} className={s.tip}>
-              <GameCover game={g} css={80} named />
+              <GameOpen game={g} className={s.shelfOpen}>
+                <GameCover game={g} css={80} named={!(g.id && canOpenGames())} />
+              </GameOpen>
             </Tooltip>
             <span className={s.caption} aria-hidden="true" dir="auto">{g.name}</span>
           </li>

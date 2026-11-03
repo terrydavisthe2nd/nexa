@@ -1,5 +1,6 @@
-import { Gamepad2, Music, Radio, Trophy, Tv } from "lucide-react";
-import type { CSSProperties } from "react";
+import { Gamepad2, Info, Music, Radio, Trophy, Tv } from "lucide-react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { canOpenGames, matchGame, openGame } from "@/lib/games";
 import type { Activity } from "@/api/types";
 import { useNow } from "@/hooks/useNow";
 import { activityHeading, activityProgress, formatClock, isSpotify } from "@/lib/activity";
@@ -29,6 +30,27 @@ function Linked({ href, className, title, children }: { href?: string | undefine
   ) : (
     <span className={className} title={title}>{children}</span>
   );
+}
+
+/**
+ * IGDB's id for the game an activity is playing, once the server has found
+ * one with exactly its name; null until then, and for anything else.
+ */
+function useGameMatch(a: Activity): string | null {
+  const game = (a.type === 0 || a.type === 5) && canOpenGames() ? a.name.trim() : "";
+  const [id, setId] = useState<string | null>(null);
+  useEffect(() => {
+    setId(null);
+    if (!game) return;
+    let alive = true;
+    matchGame(game)
+      .then((found) => alive && setId(found))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [game]);
+  return id;
 }
 
 /** The picture for a kind of activity: a song, a stream, a video, a match, or a game. */
@@ -62,6 +84,7 @@ export function ActivityCard({ activity: a }: { activity: Activity }) {
     if (a.state || party) lines.push({ text: [a.state ?? "", party].filter(Boolean).join(" ") });
   }
   const KindIcon = kindIcon(a.type);
+  const gameId = useGameMatch(a);
   // the art, blurred far out behind the card, tints it with whatever is playing
   const ambient = large ? ({ "--art": `url(${JSON.stringify(large)})` } as CSSProperties) : undefined;
   return (
@@ -111,11 +134,16 @@ export function ActivityCard({ activity: a }: { activity: Activity }) {
           <span>{formatClock(clock.total)}</span>
         </div>
       ) : null}
-      {a.buttons?.length ? (
+      {a.buttons?.length || gameId ? (
         <div className={s.buttons}>
-          {a.buttons.map((b) => (
+          {a.buttons?.map((b) => (
             <Linked key={b.url + b.label} className={s.button} href={b.url}>{b.label}</Linked>
           ))}
+          {gameId ? (
+            <button type="button" className={[s.button, s.gameButton].join(" ")} onClick={() => openGame(gameId)} data-testid="activity-game">
+              <Info size={15} aria-hidden="true" /> {t("games.page.viewGame")}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -50,12 +50,29 @@ var (
 const (
 	searchTTL    = 24 * time.Hour
 	maxCached    = 2000
-	maxCoverSize = 4 << 20
+	maxCoverSize = 8 << 20
 )
 
 // CoverSizes are the sizes a cover is kept at: IGDB's small and big covers,
 // at twice their size for sharp screens.
 var CoverSizes = map[string]string{"s": "t_cover_small_2x", "l": "t_cover_big_2x"}
+
+// PictureSizes are the sizes a game page's screenshots and artwork are kept
+// at: a thumbnail for the strip and the full picture for the stage and the
+// viewer. Only pictures a game page named (Details) are fetched at these.
+var PictureSizes = map[string]string{"t": "t_screenshot_med_2x", "b": "t_1080p"}
+
+// sizeKind is IGDB's name for one of the sizes kept, and whether it is a
+// game page's picture size.
+func sizeKind(size string) (kind string, picture bool, ok bool) {
+	if k, ok := CoverSizes[size]; ok {
+		return k, false, true
+	}
+	if k, ok := PictureSizes[size]; ok {
+		return k, true, true
+	}
+	return "", false, false
+}
 
 // Client searches IGDB and keeps covers.
 type Client struct {
@@ -78,6 +95,13 @@ type Client struct {
 
 	coverMu  sync.Mutex
 	inFlight map[string]chan struct{}
+
+	detailMu sync.Mutex
+	details  map[string]detailHit
+	// pictures are the screenshots and artwork game pages named, which alone
+	// are fetched at PictureSizes
+	pictures map[string]bool
+	matches  map[string]matchHit
 }
 
 type searchHit struct {
@@ -102,6 +126,9 @@ func New(clientID, clientSecret, dir string) *Client {
 		searches: map[string]searchHit{},
 		known:    map[string]Game{},
 		inFlight: map[string]chan struct{}{},
+		details:  map[string]detailHit{},
+		pictures: map[string]bool{},
+		matches:  map[string]matchHit{},
 	}
 }
 
@@ -145,9 +172,9 @@ func (c *Client) accessToken(ctx context.Context, fresh bool) (string, error) {
 	return tok.AccessToken, nil
 }
 
-// query asks IGDB's games endpoint, once more with a fresh token if the one
-// kept was refused.
-func (c *Client) query(ctx context.Context, body string) ([]Game, error) {
+// post asks one of IGDB's endpoints, once more with a fresh token if the
+// one kept was refused, and answers the raw JSON.
+func (c *Client) post(ctx context.Context, endpoint, body string) ([]byte, error) {
 	if !c.On() {
 		return nil, ErrOff
 	}
@@ -159,7 +186,7 @@ func (c *Client) query(ctx context.Context, body string) ([]Game, error) {
 		if err != nil {
 			return nil, err
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.API+"/games", strings.NewReader(body))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.API+"/"+endpoint, strings.NewReader(body))
 		if err != nil {
 			return nil, err
 		}
@@ -181,6 +208,18 @@ func (c *Client) query(ctx context.Context, body string) ([]Game, error) {
 		if res.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("games: IGDB answered %d", res.StatusCode)
 		}
+		return raw, nil
+	}
+	return nil, errors.New("games: IGDB refused the token twice")
+}
+
+// query asks IGDB's games endpoint for games in the shape searches use.
+func (c *Client) query(ctx context.Context, body string) ([]Game, error) {
+	raw, err := c.post(ctx, "games", body)
+	if err != nil {
+		return nil, err
+	}
+	{
 		var in []struct {
 			ID    int64  `json:"id"`
 			Name  string `json:"name"`
@@ -210,7 +249,6 @@ func (c *Client) query(ctx context.Context, body string) ([]Game, error) {
 		c.remember(out)
 		return out, nil
 	}
-	return nil, errors.New("games: IGDB refused the token twice")
 }
 
 func (c *Client) remember(list []Game) {
@@ -295,7 +333,7 @@ func (c *Client) Lookup(ctx context.Context, ids []string) (map[string]Game, err
 
 // Kept is where a cover is kept at a size, if it has been fetched already.
 func (c *Client) Kept(imageID, size string) (string, bool) {
-	if _, ok := CoverSizes[size]; !ok || !CoverPattern.MatchString(imageID) {
+	if _, _, ok := sizeKind(size); !ok || !CoverPattern.MatchString(imageID) {
 		return "", false
 	}
 	path := filepath.Join(c.Dir, "covers", imageID+"-"+size+".jpg")
@@ -305,12 +343,20 @@ func (c *Client) Kept(imageID, size string) (string, bool) {
 	return "", false
 }
 
-// CoverFile is a game's cover kept at a size ("s" or "l"), fetched the first
-// time it is asked for. Only IGDB's own picture addresses are ever fetched.
+// CoverFile is a game's cover kept at a size ("s" or "l"), or a game page's
+// screenshot or artwork ("t" or "b"), fetched the first time it is asked for. Only IGDB's own picture addresses are ever fetched.
 func (c *Client) CoverFile(ctx context.Context, imageID, size string) (string, error) {
-	kind, ok := CoverSizes[size]
+	kind, picture, ok := sizeKind(size)
 	if !ok || !CoverPattern.MatchString(imageID) {
 		return "", ErrUnknown
+	}
+	if picture {
+		c.detailMu.Lock()
+		named := c.pictures[imageID]
+		c.detailMu.Unlock()
+		if !named {
+			return "", ErrUnknown
+		}
 	}
 	path := filepath.Join(c.Dir, "covers", imageID+"-"+size+".jpg")
 	if fi, err := os.Stat(path); err == nil && fi.Size() > 0 {

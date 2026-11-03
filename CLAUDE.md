@@ -1042,6 +1042,22 @@ as Discord holds it:
   `ui/moderation/BadgeTab.kt` (also `openGiveBadgesSheet`), and `badges` in `Route.Admin.TABS`. The
   event icon list must name icons both lucide-react and Android's `lucide.json` have.
 
+### Game pages (`internal/games/details.go`, `api/widgets.go`)
+
+- `GET /api/v1/games/{id}` is a game's page from IGDB (summary, storyline, release, genres, themes,
+  modes, platforms, developers, publishers, rating from 3 or more votes, age ratings, screenshots,
+  artwork, YouTube trailers, similar games, store and official links by IGDB website type), kept a
+  day in memory; trailers carry `thumb` (16:9) and `poster` (4:3 with the frame across its middle)
+  signed through the media proxy. `GET /api/v1/games/match?name=` is the IGDB id of the game whose
+  name matches exactly (case, trademark signs and punctuation aside), for activities, which carry no
+  id; misses are kept too. Both under `limSearch`. `/media/game/{id}` serves covers at `s`/`l` and
+  pictures at `t` (strip) and `b` (stage, viewer), the latter only for image ids a fetched page named.
+- Web `lib/games.ts` and `components/games/GamePage.tsx` (modal kind `game`, one at a time); Android
+  `data/Games.kt` and `ui/profile/GamePage.kt` (`openGamePage`). A game with an IGDB id opens it from
+  any game widget (`GameOpen`, Android `opensGame`), and a Playing or Competing activity whose name
+  matches gets View Game. Similar games open in place with Back. Trailers play through `/yt/` on the
+  web and open the YouTube app or browser on Android, as chat links do; store links confirm first.
+
 ### Plans and payments (`api/billing.go`, `internal/stripe`)
 
 - Supporter ($5 a month, $48 a year) and Pro ($10, $96) raise only what costs money (`planLimitsFor`):
@@ -1341,6 +1357,9 @@ the next one's file is here.
   `server.*`, `chat.*`, `whatsNew.*`, `android.*`, ...).
 - Tests sit beside the code (`*.test.ts[x]`); Vitest runs in node with `fake-indexeddb`, component tests
   start with `// @vitest-environment jsdom`.
+- An effect that calls `scrollTo`, `scrollBy` or `scrollIntoView` keeps the call in braces: Chromium's
+  scroll methods now answer a promise, which an arrow effect returns and React then calls as its
+  cleanup ("c is not a function" on unmount).
 - Write `:hover` plainly: `hoverOnlyWithAMouse` (a PostCSS step in `vite.config.ts`) moves every
   `:hover` rule into `@media (hover: hover)`, since phones keep the last tap's hover; what only hover
   reveals needs its own `@media (hover: none)` rule.

@@ -700,6 +700,14 @@ fun MusicArt(type: String, m: Widgets.Music, css: Int, size: Dp?) {
     }
 }
 
+/** A game found on IGDB opens its page when pressed (web GameOpen); one added by name stays only a picture. */
+@Composable
+private fun Modifier.opensGame(g: Widgets.Game, shape: Shape = RoundedCornerShape(7.dp)): Modifier {
+    val id = g.id ?: return this
+    return this.clip(shape).pressable(remember { MutableInteractionSource() }) { openGamePage(id) }
+        .semantics { contentDescription = t("games.page.openNamed", "name" to g.name) }
+}
+
 @Composable
 private fun Favorite(w: Widgets.GameWidget) {
     val c = Nx.colors
@@ -710,7 +718,7 @@ private fun Favorite(w: Widgets.GameWidget) {
     Box(Modifier.fillMaxWidth().ring(Radii.Sm, c.borderSubtle).clip(Radii.Sm).background(p.chip.copy(alpha = p.chip.alpha * 0.7f)).topEdge(Radii.Sm, c.edgeLight)) {
         if (glow != null) AsyncImage(glow, null, Media.loader, Modifier.matchParentSize().graphicsLayer { alpha = if (c.isLight) 0.28f else 0.4f; scaleX = 1.8f; scaleY = 1.8f }.blur(32.dp), contentScale = ContentScale.Crop)
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            GameCover(g, 76, 76.dp)
+            Box(Modifier.opensGame(g)) { GameCover(g, 76, 76.dp) }
             Column(Modifier.weight(1f)) {
                 Txt(t("widgets.type.favorite"), style = Nx.type.label.copy(fontSize = Nx.type.sp(12.5f), fontWeight = FontWeight(700)), color = c.textMuted, modifier = Modifier.padding(bottom = 2.dp))
                 Txt(g.name, style = Nx.type.name.copy(fontSize = Nx.type.sp(19f), fontWeight = FontWeight(700), lineHeight = Nx.type.sp(22.8f)), color = c.textStrong, maxLines = 2)
@@ -728,7 +736,7 @@ private fun Playing(w: Widgets.GameWidget) {
         Heading(t("widgets.type.playing"))
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             for (g in w.games) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GameCover(g, 36, 36.dp, RoundedCornerShape(5.dp))
+                Box(Modifier.opensGame(g, RoundedCornerShape(5.dp))) { GameCover(g, 36, 36.dp, RoundedCornerShape(5.dp)) }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Txt(g.name, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(650), lineHeight = Nx.type.sp(19f)), color = c.textStrong, maxLines = 1)
                     if (g.tags.isNotEmpty()) FlowRow(Modifier.semantics { contentDescription = t("widgets.howTheyPlay") }, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -777,7 +785,7 @@ private fun Shelf(w: Widgets.GameWidget, onShowAll: (() -> Unit)?) {
         Heading(Widgets.title(w.type), w.games.size, t("widgets.gameCount", "count" to w.games.size))
         Grid(shown, 4, 6, 10.dp, 8.dp) { g ->
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                GameCover(g, 80, null, named = true)
+                Box(Modifier.opensGame(g)) { GameCover(g, 80, null, named = g.id == null) }
                 Txt(g.name, style = Nx.type.hint.copy(fontSize = Nx.type.sp(11.5f), fontWeight = FontWeight(600), lineHeight = Nx.type.sp(14f)), color = c.textSubtle, maxLines = 2)
             }
         }
