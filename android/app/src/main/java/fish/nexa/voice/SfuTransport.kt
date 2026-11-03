@@ -80,6 +80,8 @@ class SfuTransport(
     private val noneShown = Shown(null, null, null, null, false, false)
     private val crypto = FrameKeys()
     private var pc: PeerConnection
+    /** The header extension ids this connection gave each mid (ExtmapHistory). */
+    private var extmaps = ExtmapHistory()
     @Volatile private var generation = 0
     @Volatile private var closed = false
     private var sessionId: String? = null
@@ -253,6 +255,19 @@ class SfuTransport(
     }
 
     /** Stops a step that waited while its connection was replaced or closed. */
+    /** Applies this device's own description, noting the extension ids it gives each mid. */
+    private suspend fun setLocal(of: PeerConnection, desc: SessionDescription) {
+        WebRtc.setLocal(of, desc)
+        if (of === pc) extmaps.note(runCatching { of.localDescription }.getOrNull()?.description ?: desc.description)
+    }
+
+    /** Applies the SFU's description, without extension ids that would mean something else on a mid than before. */
+    private suspend fun setRemote(of: PeerConnection, desc: SessionDescription) {
+        val fitted = extmaps.fit(desc)
+        WebRtc.setRemote(of, fitted)
+        if (of === pc) extmaps.note(fitted.description)
+    }
+
     private fun live(of: PeerConnection) {
         if (closed || of !== pc) throw Stale()
     }
@@ -412,6 +427,7 @@ class SfuTransport(
         senders.clear()
         published.clear()
         pc = newConnection()
+        extmaps = ExtmapHistory()
         runCatching { old.dispose() }
         sessionId = null
         connecting = false
@@ -508,13 +524,13 @@ class SfuTransport(
                         of.restartIce()
                         val offer = WebRtc.createOffer(of, iceRestart = true)
                         live(of)
-                        WebRtc.setLocal(of, offer)
+                        setLocal(of, offer)
                         live(of)
                         pendingUfrag = Regex("a=ice-ufrag:(\\S+)").find(offer.description)?.groupValues?.get(1)
                         val res = VoiceApi.sfuRestart(session, offer, mid, anchor.wire)
                         live(of)
                         val answer = res.answer?.toWebRtc() ?: throw IllegalStateException("no answer to the ICE restart")
-                        WebRtc.setRemote(of, Sdp.tunedRemote(answer))
+                        setRemote(of, Sdp.tunedRemote(answer))
                         iceRestarts++
                     } catch (e: Stale) {
                         throw e
@@ -600,13 +616,13 @@ class SfuTransport(
         try {
             val offer = WebRtc.createOffer(of)
             live(of)
-            WebRtc.setLocal(of, offer)
+            setLocal(of, offer)
             live(of)
             val local = of.localDescription ?: offer
             val res = VoiceApi.sfuPublish(session, local, fresh.map { Triple(senders[it]!!.mid, it.wire, if (it == PubKind.SCREEN) screenBitrate else 0) })
             live(of)
             val answer = res.answer?.toWebRtc() ?: throw IllegalStateException("no answer to the offer")
-            WebRtc.setRemote(of, Sdp.tunedRemote(answer))
+            setRemote(of, Sdp.tunedRemote(answer))
             live(of)
             failed = res.failed
         } catch (e: Throwable) {
@@ -661,12 +677,12 @@ class SfuTransport(
         val of = pc
         val offer = WebRtc.createOffer(of)
         live(of)
-        WebRtc.setLocal(of, offer)
+        setLocal(of, offer)
         live(of)
         val res = VoiceApi.sfuClose(session, listOf(mid), of.localDescription ?: offer)
         live(of)
         val answer = res.answer?.toWebRtc() ?: throw IllegalStateException("no answer to closing a track")
-        WebRtc.setRemote(of, Sdp.tunedRemote(answer))
+        setRemote(of, Sdp.tunedRemote(answer))
         live(of)
     }
 
@@ -857,11 +873,11 @@ class SfuTransport(
         }
         val offer = res.offer?.toWebRtc()
         if (offer != null) {
-            WebRtc.setRemote(of, Sdp.tunedRemote(offer))
+            setRemote(of, Sdp.tunedRemote(offer))
             live(of)
             val answer = WebRtc.createAnswer(of)
             live(of)
-            WebRtc.setLocal(of, answer)
+            setLocal(of, answer)
             live(of)
             VoiceApi.sfuRenegotiate(session, of.localDescription ?: answer)
             live(of)
@@ -890,12 +906,12 @@ class SfuTransport(
         present()
         val offer = WebRtc.createOffer(of)
         live(of)
-        WebRtc.setLocal(of, offer)
+        setLocal(of, offer)
         live(of)
         val res = VoiceApi.sfuClose(session, list.map { it.mid }, of.localDescription ?: offer)
         live(of)
         val answer = res.answer?.toWebRtc() ?: throw IllegalStateException("no answer to closing tracks")
-        WebRtc.setRemote(of, Sdp.tunedRemote(answer))
+        setRemote(of, Sdp.tunedRemote(answer))
         live(of)
     }
 

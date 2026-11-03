@@ -745,6 +745,11 @@ as Discord holds it:
   existing provider sessions and are rechecked after upstream negotiations and permission changes; voice
   states carry `sfu_generation` so clients rebuild permitted media (older clients may need to rejoin).
   Camera or share off closes the publication.
+- Every description the SFU hands a client goes through an `ExtmapHistory` (web `voice/extmaps.ts`,
+  Android `voice/ExtmapHistory.kt`, one per connection): Cloudflare reuses a stopped mid for a new pull
+  with its header extension ids renumbered, which WebRTC refuses, so lines giving a mid's id a new
+  meaning are dropped. Without it, watching a share a second time rebuilt the whole connection
+  (everyone on Reconnecting, voices cut).
 - Charging (`internal/realtime/meter.go`) follows actual pulled tracks and confirmed provider closures,
   per account and UTC day into `call_usage` (received by the viewer, sent by the publisher, time from
   `SetParticipants`). Shares are estimated at the sharer's plan limit (`shareMaxBps`), never the

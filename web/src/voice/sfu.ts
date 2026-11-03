@@ -12,6 +12,7 @@ import type { VoiceState } from "@/api/types";
 import { FrameCrypto, voiceKeysFor, voiceKeysVersion, type VoiceKeys } from "./e2ee";
 import { CopyPlanner, LOSS_ONE_COPY } from "./copyPlanner";
 import { tunedLocal, tunedRemote } from "./opus";
+import { ExtmapHistory } from "./extmaps";
 import { Playback } from "./playback";
 import { MAX_SHARE_BPS, MIN_SHARE_BPS } from "./shareQuality";
 import type { SignalPayload, TransportEvents, VoiceTransport } from "./transport";
@@ -199,6 +200,8 @@ export class SfuTransport implements VoiceTransport {
   /** Loss is measured between readings, not over the whole call. */
   private recentLoss = new RecentLoss();
   private pc: RTCPeerConnection;
+  /** The header extension ids this connection gave each mid. */
+  private extmaps = new ExtmapHistory();
   private readonly crypto = new FrameCrypto();
   private readonly playback: Playback;
   private sessionId: string | null = null;
@@ -310,6 +313,18 @@ export class SfuTransport implements VoiceTransport {
     pc.ontrack = (e) => this.onTrack(e);
     pc.onconnectionstatechange = () => this.onConnectionState(pc);
     return pc;
+  }
+
+  /** Applies this device's own description, noting the extension ids it gives each mid. */
+  private async setLocal(pc: RTCPeerConnection, desc: RTCSessionDescriptionInit): Promise<void> {
+    await pc.setLocalDescription(desc);
+    if (pc === this.pc) this.extmaps.note(pc.localDescription?.sdp);
+  }
+
+  /** Applies the SFU's description, without extension ids that would mean something else on a mid than before (extmaps.ts). */
+  private async setRemote(pc: RTCPeerConnection, desc: RTCSessionDescriptionInit): Promise<void> {
+    await pc.setRemoteDescription(this.extmaps.fit(desc));
+    if (pc === this.pc) this.extmaps.note(pc.remoteDescription?.sdp);
   }
 
   /** Runs a step after the ones before it. Steps of a connection since thrown away are skipped, and what they throw is ignored. */
@@ -497,6 +512,7 @@ export class SfuTransport implements VoiceTransport {
     old.onconnectionstatechange = null;
     old.close();
     this.pc = this.newConnection();
+    this.extmaps = new ExtmapHistory();
     this.sessionId = null;
     this.connecting = false;
     this.senders = {};
@@ -583,12 +599,12 @@ export class SfuTransport implements VoiceTransport {
         pc.restartIce();
         const offer = await pc.createOffer({ iceRestart: true });
         this.live(pc);
-        await pc.setLocalDescription(tunedLocal(offer, this.streamMids()));
+        await this.setLocal(pc, tunedLocal(offer, this.streamMids()));
         this.live(pc);
         const res = await voiceApi.sfuRestart({ session_id: session, offer: description(pc.localDescription), mid, kind: anchor }, timeout());
         this.live(pc);
         if (!res.answer) throw new Error("no answer to the ICE restart");
-        await pc.setRemoteDescription(tunedRemote(res.answer, this.streamMids()));
+        await this.setRemote(pc, tunedRemote(res.answer, this.streamMids()));
         this.iceRestarts++;
       } catch (err) {
         if (err instanceof Stale) throw err;
@@ -674,7 +690,7 @@ export class SfuTransport implements VoiceTransport {
     try {
       const offer = await pc.createOffer();
       this.live(pc);
-      await pc.setLocalDescription(tunedLocal(offer, this.streamMids()));
+      await this.setLocal(pc, tunedLocal(offer, this.streamMids()));
       this.live(pc);
       const res = await voiceApi.sfuPublish(
         {
@@ -686,7 +702,7 @@ export class SfuTransport implements VoiceTransport {
       );
       this.live(pc);
       if (!res.answer) throw new Error("no answer to the offer");
-      await pc.setRemoteDescription(tunedRemote(res.answer, this.streamMids()));
+      await this.setRemote(pc, tunedRemote(res.answer, this.streamMids()));
       this.live(pc);
       failed = res.failed;
     } catch (err) {
@@ -766,12 +782,12 @@ export class SfuTransport implements VoiceTransport {
     if (!mid) return;
     const offer = await pc.createOffer();
     this.live(pc);
-    await pc.setLocalDescription(tunedLocal(offer, this.streamMids()));
+    await this.setLocal(pc, tunedLocal(offer, this.streamMids()));
     this.live(pc);
     const res = await voiceApi.sfuClose({ session_id: session, mids: [mid], offer: description(pc.localDescription) }, timeout());
     this.live(pc);
     if (!res.answer) throw new Error("no answer to closing a track");
-    await pc.setRemoteDescription(tunedRemote(res.answer, this.streamMids()));
+    await this.setRemote(pc, tunedRemote(res.answer, this.streamMids()));
     this.live(pc);
   }
 
@@ -1047,11 +1063,11 @@ export class SfuTransport implements VoiceTransport {
       this.byMid.set(p.mid, p);
     }
     if (res.offer) {
-      await pc.setRemoteDescription(tunedRemote(res.offer, this.streamMids()));
+      await this.setRemote(pc, tunedRemote(res.offer, this.streamMids()));
       this.live(pc);
       const answer = await pc.createAnswer();
       this.live(pc);
-      await pc.setLocalDescription(tunedLocal(answer, this.streamMids()));
+      await this.setLocal(pc, tunedLocal(answer, this.streamMids()));
       this.live(pc);
       await voiceApi.sfuRenegotiate({ session_id: session, description: description(pc.localDescription) }, timeout());
       this.live(pc);
@@ -1075,12 +1091,12 @@ export class SfuTransport implements VoiceTransport {
     this.present();
     const offer = await pc.createOffer();
     this.live(pc);
-    await pc.setLocalDescription(tunedLocal(offer, this.streamMids()));
+    await this.setLocal(pc, tunedLocal(offer, this.streamMids()));
     this.live(pc);
     const res = await voiceApi.sfuClose({ session_id: session, mids: list.map((p) => p.mid), offer: description(pc.localDescription) }, timeout());
     this.live(pc);
     if (!res.answer) throw new Error("no answer to closing tracks");
-    await pc.setRemoteDescription(tunedRemote(res.answer, this.streamMids()));
+    await this.setRemote(pc, tunedRemote(res.answer, this.streamMids()));
     this.live(pc);
   }
 
