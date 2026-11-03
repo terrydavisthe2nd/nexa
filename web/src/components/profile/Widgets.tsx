@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUp, ArrowUpRight, CalendarClock, Clock, ExternalLink, L
 import { createContext, useContext, useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
 import { Tooltip } from "@/components/common/Tooltip";
 import { avatarColor, initials } from "@/lib/avatarColor";
-import { gamePicture, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type CardWidget, type CountdownWidget, type GameWidget, type LocalTimeWidget, type StickersWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetGame, type WidgetLink, type WidgetMusic } from "@/lib/widgets";
+import { bookPicture, gamePicture, isBookWidget, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type BookWidget, type CardWidget, type CountdownWidget, type GameWidget, type LocalTimeWidget, type StickersWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetBook, type WidgetGame, type WidgetLink, type WidgetMusic } from "@/lib/widgets";
 import { t } from "@/i18n";
 import { canOpenGames, openGame } from "@/lib/games";
 import { useRenderCtx } from "@/lib/markdownCtx";
@@ -84,6 +84,10 @@ export function widgetTitle(w: Pick<Widget, "type">): string {
       return t("widgets.type.localtime");
     case "stickers":
       return t("widgets.type.stickers");
+    case "reading":
+      return t("widgets.type.reading");
+    case "books":
+      return t("widgets.type.books");
     default:
       return t("widgets.type.custom");
   }
@@ -431,6 +435,94 @@ function Countdown({ w }: { w: CountdownWidget }) {
 }
 
 /**
+ * A book's cover, in a book's shape: Open Library's, the picture its owner put
+ * up, or its title on a colour of its own. `named` carries the title for one
+ * that stands alone on a shelf.
+ */
+export function BookCover({ book, css, named, className }: { book: WidgetBook; css: number; named?: boolean; className?: string }) {
+  const src = bookPicture(book, css);
+  const [broken, setBroken] = useState<string | null>(null);
+  const shown = src && broken !== src ? src : null;
+  return (
+    <span
+      className={[s.cover, s.bookCover, className ?? ""].join(" ")}
+      style={{ "--cover-tint": avatarColor(book.title) } as CSSProperties}
+      {...(named ? { role: "img", "aria-label": book.author ? t("widgets.books.byAuthor", { title: book.title, author: book.author }) : book.title } : { "aria-hidden": true })}
+    >
+      {shown ? <img src={shown} alt="" loading="lazy" draggable={false} onError={() => setBroken(shown)} /> : <span className={s.coverName} dir="auto">{book.title}</span>}
+    </span>
+  );
+}
+
+/** How far into a book someone is, in words: "Page 120" or "40%". */
+function progressWords(p: NonNullable<WidgetBook["progress"]>): string {
+  return p.kind === "page" ? t("widgets.books.page", { page: p.value.toLocaleString() }) : t("widgets.books.percent", { percent: p.value });
+}
+
+/** Reading Now: a row a book, its author, and how far in they are (a bar for a percentage). */
+function Reading({ w }: { w: BookWidget }) {
+  return (
+    <section className={s.widget} data-testid="widget-reading">
+      <h3>{t("widgets.type.reading")}</h3>
+      <ul className={s.rows}>
+        {w.books.map((b, i) => (
+          <li key={`${b.id ?? b.title}-${i}`} className={s.row}>
+            <BookCover book={b} css={40} className={s.rowBook} />
+            <div className={s.rowText}>
+              <span className={s.rowName} dir="auto">{b.title}</span>
+              {b.author ? <span className={s.rowBy} dir="auto">{b.author}</span> : null}
+              {b.progress ? (
+                <span className={s.readProgress}>
+                  {b.progress.kind === "percent" ? (
+                    <span className={s.readBar} role="progressbar" aria-label={b.title} aria-valuemin={0} aria-valuemax={100} aria-valuenow={b.progress.value}><i style={{ width: `${b.progress.value}%` }} /></span>
+                  ) : null}
+                  <span className={s.readWords}>{progressWords(b.progress)}</span>
+                </span>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Favourite Books: a shelf of covers, as the games' shelves are. */
+function BookShelf({ w, variant, onShowAll }: { w: BookWidget; variant: Variant; onShowAll?: (() => void) | undefined }) {
+  const [all, setAll] = useState(false);
+  const most = variant === "panel" ? 4 : onShowAll ? 6 : 12;
+  const shown = all ? w.books : w.books.slice(0, most);
+  const title = widgetTitle(w);
+  return (
+    <section className={[s.widget, s.shelfWrap].join(" ")} data-testid="widget-books">
+      <div className={s.head}>
+        <h3>{title}</h3>
+        <span className={s.count} aria-label={t("widgets.books.count", { count: w.books.length })}>{w.books.length.toLocaleString()}</span>
+      </div>
+      <ul className={s.shelf} aria-label={title}>
+        {shown.map((b, i) => (
+          <li key={`${b.id ?? b.title}-${i}`}>
+            <Tooltip text={b.author ? t("widgets.books.byAuthor", { title: b.title, author: b.author }) : b.title} className={s.tip}>
+              <BookCover book={b} css={80} named />
+            </Tooltip>
+            <span className={s.caption} aria-hidden="true" dir="auto">{b.title}</span>
+          </li>
+        ))}
+      </ul>
+      {w.books.length > most ? (
+        onShowAll ? (
+          <button className={s.more} onClick={onShowAll}>{t("widgets.showAll")}</button>
+        ) : (
+          <button className={s.more} onClick={() => setAll((v) => !v)} aria-expanded={all}>
+            {all ? t("widgets.showFewer") : t("widgets.showAll")}
+          </button>
+        )
+      ) : null}
+    </section>
+  );
+}
+
+/**
  * A showcase of someone's own packs, each as the card a pack link makes in
  * a chat (its stickers and Add Pack). A pack that has gone or turned private
  * drops out; with none left the widget is not shown.
@@ -560,6 +652,9 @@ export function WidgetPeek({ widgets, onOpen }: { widgets: Widget[]; onOpen?: ((
     art = w.emoji ? <span className={s.peekEmoji}>{w.emoji}</span> : null;
   } else if (w.type === "localtime") {
     sub = zonePlace(w.zone);
+  } else if (isBookWidget(w)) {
+    sub = w.books.length === 1 ? w.books[0]!.title : t("widgets.books.count", { count: w.books.length });
+    art = w.books.slice(0, 3).map((b, i) => <BookCover key={i} book={b} css={30} className={s.peekCover} />);
   } else if (w.type === "stickers") {
     sub = t("widgets.stickers.packCount", { count: w.packs.length });
   } else {
@@ -613,6 +708,7 @@ export function ProfileWidgets({ widgets, variant, onAdd, onShowAll, design }: {
     if (w.type === "countdown") return <Countdown key={w.id} w={w} />;
     if (w.type === "localtime") return <LocalTime key={w.id} w={w} variant={variant} />;
     if (w.type === "stickers") return <Showcase key={w.id} w={w} />;
+    if (isBookWidget(w)) return w.type === "reading" ? <Reading key={w.id} w={w} /> : <BookShelf key={w.id} w={w} variant={variant} onShowAll={onShowAll} />;
     if (!isGameWidget(w)) return <Card key={w.id} w={w} variant={variant} />;
     if (w.type === "favorite") return <Favorite key={w.id} w={w} variant={variant} />;
     if (w.type === "playing") return <Playing key={w.id} w={w} />;

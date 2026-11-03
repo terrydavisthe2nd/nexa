@@ -158,6 +158,12 @@ func WidgetImages(raw string) map[ids.ID]bool {
 		Music []struct {
 			Image string `json:"image"`
 		} `json:"music"`
+		Books []struct {
+			Image string `json:"image"`
+		} `json:"books"`
+		Screen []struct {
+			Image string `json:"image"`
+		} `json:"screen"`
 	}
 	if json.Unmarshal([]byte(raw), &list) != nil {
 		return out
@@ -174,6 +180,12 @@ func WidgetImages(raw string) map[ids.ID]bool {
 		}
 		for _, m := range w.Music {
 			add(m.Image)
+		}
+		for _, b := range w.Books {
+			add(b.Image)
+		}
+		for _, t := range w.Screen {
+			add(t.Image)
 		}
 	}
 	return out

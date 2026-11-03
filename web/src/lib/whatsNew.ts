@@ -9,7 +9,7 @@
  * one that day. Its keys are whatsNew.r20260926.<name>Title and ...Body: the
  * id without its dashes and dots.
  */
-import { AtSign, Award, AudioLines, BadgeCheck, BellRing, Bot, Bug, CircleX, Clapperboard, ClipboardCopy, CloudUpload, CodeXml, Compass, CornerUpRight, Eye, EyeOff, Feather, Flag, FolderPlus, Gamepad2, Gavel, Gift, Globe, HandCoins, Headphones, Heart, House, IdCard, ImagePlay, ImagePlus, Images, KeyRound, Keyboard, LayoutGrid, Leaf, Link, Link2, MapPinOff, Megaphone, MessageCircle, MessageCircleMore, MessageSquareDashed, MessageSquarePlus, MessageSquareText, MessagesSquare, Mic, MonitorUp, MousePointerClick, Move, Music, Newspaper, NotebookPen, Paintbrush, Palette, PanelBottom, PanelsTopLeft, Pause, Pin, Play, Puzzle, QrCode, RefreshCw, RemoveFormatting, Reply, RotateCcw, ScanEye, ScrollText, Search, SendHorizontal, ServerCog, Shapes, ShieldCheck, SlidersHorizontal, Smartphone, Smile, Snowflake, Sparkles, SpellCheck, Sticker, StickyNote, Tag, Timer, Trash2, TvMinimalPlay, Type, UserCheck, UserCog, UserPen, Users, UsersRound, Volume2, Vote, Webhook, ZoomIn, type LucideIcon } from "lucide-react";
+import { AtSign, BookOpen, Award, AudioLines, BadgeCheck, BellRing, Bot, Bug, CircleX, Clapperboard, ClipboardCopy, CloudUpload, CodeXml, Compass, CornerUpRight, Eye, EyeOff, Feather, Flag, FolderPlus, Gamepad2, Gavel, Gift, Globe, HandCoins, Headphones, Heart, House, IdCard, ImagePlay, ImagePlus, Images, KeyRound, Keyboard, LayoutGrid, Leaf, Link, Link2, MapPinOff, Megaphone, MessageCircle, MessageCircleMore, MessageSquareDashed, MessageSquarePlus, MessageSquareText, MessagesSquare, Mic, MonitorUp, MousePointerClick, Move, Music, Newspaper, NotebookPen, Paintbrush, Palette, PanelBottom, PanelsTopLeft, Pause, Pin, Play, Puzzle, QrCode, RefreshCw, RemoveFormatting, Reply, RotateCcw, ScanEye, ScrollText, Search, SendHorizontal, ServerCog, Shapes, ShieldCheck, SlidersHorizontal, Smartphone, Smile, Snowflake, Sparkles, SpellCheck, Sticker, StickyNote, Tag, Timer, Trash2, TvMinimalPlay, Type, UserCheck, UserCog, UserPen, Users, UsersRound, Volume2, Vote, Webhook, ZoomIn, type LucideIcon } from "lucide-react";
 
 export interface WhatsNewItem {
   icon: LucideIcon;
@@ -39,6 +39,7 @@ export const RELEASES: Release[] = [
       { icon: LayoutGrid, title: "whatsNew.r20261102.cardsTitle", body: "whatsNew.r20261102.cardsBody" },
       { icon: Timer, title: "whatsNew.r20261102.timeWidgetsTitle", body: "whatsNew.r20261102.timeWidgetsBody" },
       { icon: Sticker, title: "whatsNew.r20261102.showcaseTitle", body: "whatsNew.r20261102.showcaseBody" },
+      { icon: BookOpen, title: "whatsNew.r20261102.booksTitle", body: "whatsNew.r20261102.booksBody" },
       { icon: HandCoins, title: "whatsNew.r20261102.pwywTitle", body: "whatsNew.r20261102.pwywBody" },
       { icon: RotateCcw, title: "whatsNew.r20261102.refundsTitle", body: "whatsNew.r20261102.refundsBody" },
     ],

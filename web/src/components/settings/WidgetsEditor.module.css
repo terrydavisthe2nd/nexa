@@ -188,3 +188,9 @@
 .packName { font-size: 15px; font-weight: 650; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .packAbout { font-size: 12.5px; color: var(--text-muted); }
 .packTick { flex: none; color: var(--text-brand); }
+/* a book added by name takes its author here, and Reading Now how far in */
+.authorInput { height: 34px; font-size: 14px; margin-top: 4px; max-width: 260px; }
+.progressRow { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+.progressRow select { height: 34px; font-size: 14px; width: auto; }
+.progressInput { height: 34px; width: 96px; font-size: 14px; }
+.chosenBy { font-size: 13px; line-height: 17px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

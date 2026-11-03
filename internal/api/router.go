@@ -15,6 +15,7 @@ import (
 	"evilion.xyz/chat/internal/config"
 	"evilion.xyz/chat/internal/discordsync"
 	"evilion.xyz/chat/internal/egress"
+	"evilion.xyz/chat/internal/books"
 	"evilion.xyz/chat/internal/games"
 	"evilion.xyz/chat/internal/gateway"
 	"evilion.xyz/chat/internal/ids"
@@ -181,6 +182,9 @@ type Server struct {
 	// profile widgets, and keeps their pictures (internal/music); nil turns
 	// the search off.
 	Music *music.Client
+	// Books searches the books people put on their profile widgets, and keeps
+	// their covers (internal/books); nil turns the search off.
+	Books *books.Client
 	// activityHub resolves activity previews the way the gateway shows them.
 	activityHub *gateway.Hub
 	// Discord shows linked Discord accounts' activity (nil when not configured; see WireDiscord).

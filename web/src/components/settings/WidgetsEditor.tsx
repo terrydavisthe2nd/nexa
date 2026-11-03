@@ -1,4 +1,4 @@
-import { Bookmark, CalendarClock, Sticker, ChartNoAxesColumn, Clock, Disc3, Palette, Gamepad2, GripVertical, Heart, ImagePlus, Library, LoaderCircle, MicVocal, Music, PanelTop, Plus, Search, Check, X, type LucideIcon } from "lucide-react";
+import { BookOpen, Bookmark, CalendarClock, LibraryBig, Sticker, ChartNoAxesColumn, Clock, Disc3, Palette, Gamepad2, GripVertical, Heart, ImagePlus, Library, LoaderCircle, MicVocal, Music, PanelTop, Plus, Search, Check, X, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { users as usersApi } from "@/api/users";
 import { expressions as expressionsApi } from "@/api/expressions";
@@ -13,20 +13,21 @@ import { FormattedText } from "@/components/common/FormattedText";
 import { Select } from "@/components/common/Select";
 import { Toggle } from "@/components/common/Toggle";
 import { Field, TextArea, TextInput } from "@/components/common/TextInput";
-import { GameCover, MusicArt, ProfileWidgets, widgetTitle } from "@/components/profile/Widgets";
+import { BookCover, GameCover, MusicArt, ProfileWidgets, widgetTitle } from "@/components/profile/Widgets";
 import { useReorder } from "@/hooks/useReorder";
 import { Tr, t } from "@/i18n";
 import { describeError } from "@/lib/errors";
-import { GAME_TYPES, LIMITS, MAX_CARD_LINKS, MAX_CARDS, MAX_SHOWCASE_PACKS, MOST_GAMES, MOST_MUSIC, MUSIC_TYPES, songLength, widgetImageUrl, type CardWidget, type CountdownWidget, type FoundMusic, type LocalTimeWidget, type StickersWidget, type GameWidget, type MusicWidget, type Widget, type WidgetGame, type WidgetMusic, type WidgetStat, type WidgetType } from "@/lib/widgets";
+import { BOOK_TYPES, GAME_TYPES, LIMITS, MOST_BOOKS, type BookWidget, type FoundBook, type WidgetBook, MAX_CARD_LINKS, MAX_CARDS, MAX_SHOWCASE_PACKS, MOST_GAMES, MOST_MUSIC, MUSIC_TYPES, songLength, widgetImageUrl, type CardWidget, type CountdownWidget, type FoundMusic, type LocalTimeWidget, type StickersWidget, type GameWidget, type MusicWidget, type Widget, type WidgetGame, type WidgetMusic, type WidgetStat, type WidgetType } from "@/lib/widgets";
 import { allZones, zoneOffset, zonePlace } from "@/lib/timeWidgets";
 import { useUI } from "@/stores/ui";
 import s from "./WidgetsEditor.module.css";
 
-const KIND_ICONS: Record<WidgetType, LucideIcon> = { favorite: Heart, playing: Gamepad2, wishlist: Bookmark, played: Library, artists: MicVocal, albums: Disc3, songs: Music, custom: PanelTop, countdown: CalendarClock, localtime: Clock, stickers: Sticker };
+const KIND_ICONS: Record<WidgetType, LucideIcon> = { favorite: Heart, playing: Gamepad2, wishlist: Bookmark, played: Library, artists: MicVocal, albums: Disc3, songs: Music, custom: PanelTop, countdown: CalendarClock, localtime: Clock, stickers: Sticker, reading: BookOpen, books: LibraryBig };
 /** The kinds of widget, in the groups Add a Widget lists them in. */
 const KIND_GROUPS: { title: string; types: WidgetType[] }[] = [
   { title: "widgets.group.games", types: GAME_TYPES },
   { title: "widgets.group.music", types: MUSIC_TYPES },
+  { title: "widgets.group.books", types: BOOK_TYPES },
   { title: "widgets.group.cards", types: ["custom"] },
   { title: "widgets.group.time", types: ["countdown", "localtime"] },
   { title: "widgets.group.stickers", types: ["stickers"] },
@@ -1240,6 +1241,296 @@ export function StickersDialog({ initial, isNew, onDone, onClose }: { initial: S
         )}
         {tried && problem ? <p className={s.error} role="alert">{problem}</p> : null}
       </div>
+    </Modal>
+  );
+}
+
+const bookKey = (b: WidgetBook) => (b.id ? `b:${b.id}` : `n:${b.title.toLowerCase()}\u0000${(b.author ?? "").toLowerCase()}`);
+
+/**
+ * A books widget: a search of Open Library, through this server, that adds
+ * what it finds, or a book typed in by name with a picture of its own; and the
+ * books chosen, in order, with how far in each is (Reading Now).
+ */
+export function BookWidgetDialog({ initial, onDone, onClose }: { initial: BookWidget; onDone: (w: BookWidget) => void; onClose: () => void }) {
+  const toast = useUI((u) => u.toast);
+  const most = MOST_BOOKS[initial.type];
+  const reading = initial.type === "reading";
+  const [books, setBooks] = useState<WidgetBook[]>(initial.books);
+  const [q, setQ] = useState("");
+  const [found, setFound] = useState<{ q: string; books: FoundBook[] } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [ready, setReady] = useState<boolean | null>(null);
+  const [crop, setCrop] = useState<{ file: File; key: string } | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const seq = useRef(0);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const pictureFor = useRef<string | null>(null);
+  const searchLabel = useId();
+  const query = q.trim();
+
+  useEffect(() => {
+    let alive = true;
+    usersApi.searchBooks("").then(
+      (res) => alive && setReady(res.ready),
+      () => alive && setReady(true),
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const n = ++seq.current;
+    setFailed(false);
+    if (!query || ready === false) {
+      setFound(null);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const timer = setTimeout(() => {
+      usersApi.searchBooks(query).then(
+        (res) => {
+          if (n !== seq.current) return;
+          setReady(res.ready);
+          setFound({ q: query, books: res.books });
+          setSearching(false);
+        },
+        () => {
+          if (n !== seq.current) return;
+          setFailed(true);
+          setSearching(false);
+        },
+      );
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [query, ready]);
+
+  const has = (b: WidgetBook) => books.some((x) => bookKey(x) === bookKey(b));
+  const isFull = books.length >= most;
+  const add = (b: WidgetBook) => {
+    if (has(b)) return setBooks(books.filter((x) => bookKey(x) !== bookKey(b)));
+    if (isFull) return;
+    setBooks([...books, b]);
+  };
+  const addByName = () => {
+    const title = query.slice(0, 200);
+    if (!title) return;
+    add({ title });
+    setQ("");
+    searchRef.current?.focus();
+  };
+  const patch = (key: string, change: Partial<WidgetBook>) => setBooks((list) => list.map((b) => (bookKey(b) === key ? { ...b, ...change } : b)));
+  const drag = useRowDrag(books, bookKey, setBooks);
+  const reorder = useReorder({
+    ids: books.map(bookKey),
+    move: (key, delta) => {
+      const next = moved(books, bookKey, key, delta);
+      if (next) setBooks(next);
+      return !!next;
+    },
+    name: (key) => books.find((b) => bookKey(b) === key)?.title ?? "",
+  });
+  const upload = async (key: string, file: Blob, area: { x: number; y: number; w: number; h: number } | null) => {
+    setUploading(key);
+    try {
+      const res = await usersApi.uploadWidgetImage(file, area, "cover");
+      patch(key, { image: res.id });
+    } catch (err) {
+      toast(describeError(err, t("composer.composer.uploadFailed")), "error");
+    } finally {
+      setUploading(null);
+    }
+  };
+  const choosePicture = (key: string) => {
+    pictureFor.current = key;
+    fileRef.current?.click();
+  };
+
+  const exact = found?.q === query && found.books.some((b) => b.title.toLowerCase() === query.toLowerCase());
+  const byName = !!query && !exact && !books.some((b) => !b.id && b.title.toLowerCase() === query.toLowerCase());
+  const results = found && found.q === query ? found.books : [];
+  const canSave = books.length > 0 && uploading === null;
+  const asBook = (f: FoundBook): WidgetBook => ({ id: f.id, title: f.title, ...(f.author ? { author: f.author } : {}), ...(f.cover ? { cover: f.cover } : {}) });
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={widgetTitle(initial)}
+      width={520}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>{t("chat.editMessage.cancel")}</Button>
+          <Button onClick={() => onDone({ ...initial, books })} disabled={!canSave} data-testid="widget-done">{t("pick.done")}</Button>
+        </>
+      }
+    >
+      <input
+        ref={fileRef}
+        type="file"
+        accept={IMAGE_TYPES}
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          const key = pictureFor.current;
+          if (f && key) setCrop({ file: f, key });
+          e.target.value = "";
+        }}
+      />
+      <span className={s.label} id={searchLabel}>{t("widgets.books.search")}</span>
+      <div className={s.searchBox}>
+        <Search size={17} className={s.searchIcon} aria-hidden="true" />
+        <TextInput
+          ref={searchRef}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const first = results[0];
+              if (first && !has(asBook(first))) add(asBook(first));
+              else if (!first && byName && ready === false) addByName();
+            }
+          }}
+          maxLength={200}
+          placeholder={ready === false ? t("widgets.books.namePlaceholder") : t("widgets.books.searchPlaceholder")}
+          aria-labelledby={searchLabel}
+          autoComplete="off"
+          spellCheck={false}
+          data-testid="book-search"
+          autoFocus
+        />
+      </div>
+      {ready === false ? <p className={s.note}>{t("widgets.books.notSetUp")}</p> : null}
+      {query ? (
+        <ul className={s.results} aria-label={t("widgets.books.results")} aria-busy={searching || undefined}>
+          {results.map((f) => {
+            const b = asBook(f);
+            const on = has(b);
+            return (
+              <li key={f.id}>
+                <button className={s.result} aria-pressed={on} disabled={!on && isFull} onClick={() => add(b)} data-testid="book-result">
+                  <BookCover book={b} css={30} className={s.resultCover} />
+                  <span className={s.resultText}>
+                    <span className={s.resultName} dir="auto">{f.title}</span>
+                    {f.author || f.year ? <span className={s.resultYear} dir="auto">{[f.author, f.year].filter(Boolean).join(", ")}</span> : null}
+                  </span>
+                  <span className={s.resultMark} aria-hidden="true">{on ? <Check size={15} /> : <Plus size={15} />}</span>
+                </button>
+              </li>
+            );
+          })}
+          {searching && !results.length ? <li><p className={s.status}>{t("widgets.game.searching")}</p></li> : null}
+          {!searching && failed ? <li><p className={s.status}>{t("widgets.books.unavailable")}</p></li> : null}
+          {!searching && !failed && ready !== false && found?.q === query && !results.length ? <li><p className={s.status}>{t("widgets.books.noResults")}</p></li> : null}
+          {byName && !searching ? (
+            <li>
+              <button className={s.result} disabled={isFull} onClick={addByName} data-testid="book-by-name">
+                <span className={s.byName} aria-hidden="true"><Plus size={14} /></span>
+                <span className={s.resultText}><span className={s.resultName} dir="auto">{t("widgets.game.addByName", { name: query })}</span></span>
+              </button>
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+      {ready ? (
+        <p className={s.credit}>
+          <Tr id="widgets.books.credit" values={{ site: <a href="https://openlibrary.org" target="_blank" rel="noopener noreferrer">Open Library</a> }} />
+        </p>
+      ) : null}
+
+      <div className={s.labelRow}>
+        <span className={s.label}>{t("widgets.books.yours")}</span>
+        <span className={s.count}>{t("widgets.used", { count: books.length, max: most })}</span>
+      </div>
+      {books.length === 0 ? (
+        <p className={s.empty}>{t("widgets.books.noneYet")}</p>
+      ) : (
+        <ul className={s.chosen} aria-label={t("widgets.books.yours")}>
+          {books.map((b) => {
+            const key = bookKey(b);
+            return (
+              <li key={key} className={s.chosenRow} data-reorder-id={key} onKeyDown={reorder.onKeyDown(key)} {...drag.row(key)}>
+                <span className={s.grip} aria-hidden="true" {...drag.grip(key)}><GripVertical size={16} /></span>
+                <BookCover book={b} css={40} className={s.chosenCover} />
+                <div className={s.chosenMain}>
+                  <span className={s.chosenName} dir="auto">{b.title}</span>
+                  {b.id ? (b.author ? <span className={s.chosenBy} dir="auto">{b.author}</span> : null) : (
+                    <TextInput value={b.author ?? ""} onChange={(e) => patch(key, { author: e.target.value.slice(0, 100) || undefined })} placeholder={t("widgets.books.authorPlaceholder")} aria-label={t("widgets.books.authorOf", { title: b.title })} className={s.authorInput} />
+                  )}
+                  {!b.cover ? (
+                    <div className={s.chosenBtns}>
+                      <button className={s.chip} disabled={uploading !== null} onClick={() => choosePicture(key)}>
+                        {uploading === key ? <LoaderCircle size={14} className={s.spin} aria-hidden="true" /> : <ImagePlus size={14} aria-hidden="true" />}
+                        {b.image ? t("widgets.changePicture") : t("widgets.addPicture")}
+                      </button>
+                      {b.image ? <button className={s.chip} onClick={() => patch(key, { image: undefined })}>{t("widgets.removePicture")}</button> : null}
+                    </div>
+                  ) : null}
+                  {reading ? (
+                    <div className={s.progressRow}>
+                      <Select
+                        value={b.progress?.kind ?? ""}
+                        onChange={(e) => {
+                          const kind = e.target.value;
+                          patch(key, { progress: kind === "page" || kind === "percent" ? { kind, value: kind === "percent" ? Math.min(b.progress?.value ?? 0, 100) : Math.max(1, b.progress?.value ?? 1) } : undefined });
+                        }}
+                        aria-label={t("widgets.books.progressOf", { title: b.title })}
+                      >
+                        <option value="">{t("widgets.books.noProgress")}</option>
+                        <option value="page">{t("widgets.books.byPage")}</option>
+                        <option value="percent">{t("widgets.books.byPercent")}</option>
+                      </Select>
+                      {b.progress ? (
+                        <TextInput
+                          type="number"
+                          inputMode="numeric"
+                          min={b.progress.kind === "page" ? 1 : 0}
+                          max={b.progress.kind === "page" ? 100000 : 100}
+                          value={String(b.progress.value)}
+                          onChange={(e) => {
+                            const kind = b.progress!.kind;
+                            const n = Math.round(Number(e.target.value) || 0);
+                            patch(key, { progress: { kind, value: kind === "percent" ? Math.max(0, Math.min(100, n)) : Math.max(1, Math.min(100000, n)) } });
+                          }}
+                          aria-label={b.progress.kind === "page" ? t("widgets.books.byPage") : t("widgets.books.byPercent")}
+                          className={s.progressInput}
+                          data-testid="book-progress"
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+                <button className={s.iconBtn} aria-label={t("widgets.game.remove", { name: b.title })} onClick={() => setBooks(books.filter((x) => bookKey(x) !== key))}>
+                  <X size={16} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {books.length > 1 ? <p className={s.small}>{reorder.hint}</p> : null}
+      {reorder.live}
+
+      {crop ? (
+        <ImageCropModal
+          file={crop.file}
+          aspect={3 / 4}
+          maxSize={400}
+          serverCrop
+          title={t("widgets.books.cropTitle")}
+          onClose={() => setCrop(null)}
+          onDone={({ blob, crop: area }) => {
+            const key = crop.key;
+            setCrop(null);
+            void upload(key, blob, area ?? null);
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }

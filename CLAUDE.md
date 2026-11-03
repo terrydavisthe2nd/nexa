@@ -395,7 +395,7 @@ SIGINT or SIGTERM.
 | `db` | SQLite or Postgres pools (`W` single writer, `R` readers), `Tx`, dialect helpers, embedded forward-only migrations |
 | `discordsync` | Discord activity sync (a bot in a small Discord server reads linked members' presence); `fakediscord` for tests |
 | `egress` | the SOCKS5 proxy (WARP) for every request a person can point the server at; fails closed |
-| `games`, `music` | IGDB and Deezer for profile widgets; art kept, previews streamed through |
+| `games`, `music`, `books` | IGDB, Deezer and Open Library for profile widgets; art kept, previews streamed through |
 | `gateway` | the WebSocket hub: connections, presence, typing, voice signalling, fan-out |
 | `ids` | snowflakes (41 bits of milliseconds, 10 of node, 12 of sequence), decimal strings in JSON |
 | `media` | blob storage, upload validation, sized variants, metadata scrub |
@@ -1058,6 +1058,12 @@ as Discord holds it:
   `PackLinkCard(quiet = true)` in `ui/chat/LinkCards.kt`), with Install Pack. The server checks owner
   and public on save (`cleanWidgets` takes the profile's owner); a pack later deleted or made private
   drops out for viewers.
+- Books: Reading Now (`reading`, up to 3, each with optional `progress` {kind page or percent,
+  value}) and Favourite Books (`books`, up to 12), items `books` [{id (Open Library work key), title,
+  author, cover, image}]. `GET /api/v1/books/search` (`limSearch`; Open Library can take over ten
+  seconds, so it waits 20) and `/media/book/{cover}?size=s|l` (kept under `DATA_DIR/books`), both
+  through the egress proxy with a `Nexa` User-Agent. `store.WidgetImages` counts `books` and `screen`
+  items' own pictures.
 - Current apps always send `links` on a card, even empty. A card saved without it comes from an app
   before cards had several links, colours and bars, so `carryCardExtras` keeps the saved card's
   extra links, colours and bars (`TestOldAppsKeepWhatCardsGained`).

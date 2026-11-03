@@ -384,3 +384,11 @@ button.track:focus-visible { outline-offset: -2px; }
 /* a sticker showcase: its packs' cards, one under the other */
 .showcase { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .showcase > * { max-width: none; }
+/* a book stands taller than a game's box */
+.bookCover { aspect-ratio: 2 / 3; border-radius: 3px 6px 6px 3px; }
+.row .rowBook { width: 40px; }
+.rowBy { font-size: 13px; line-height: 16px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.readProgress { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.readBar { flex: 1; max-width: 160px; height: 5px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--text-strong) 12%, transparent); }
+.readBar i { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
+.readWords { font-size: 12.5px; font-weight: 600; color: var(--text-subtle); font-variant-numeric: tabular-nums; }

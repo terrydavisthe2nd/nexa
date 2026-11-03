@@ -67,7 +67,37 @@ export interface WidgetLink {
 
 export type GameWidgetType = "favorite" | "playing" | "wishlist" | "played";
 export type MusicWidgetType = "artists" | "albums" | "songs";
-export type WidgetType = GameWidgetType | MusicWidgetType | "custom" | "countdown" | "localtime" | "stickers";
+export type BookWidgetType = "reading" | "books";
+export type WidgetType = GameWidgetType | MusicWidgetType | BookWidgetType | "custom" | "countdown" | "localtime" | "stickers";
+
+/** A book: found on Open Library (`id`, `cover`), or added by name with a picture of the person's own. */
+export interface WidgetBook {
+  id?: string;
+  title: string;
+  author?: string;
+  cover?: string;
+  image?: string;
+  /** Only on Reading Now: a page reached, or a percentage read. */
+  progress?: { kind: "page" | "percent"; value: number };
+}
+
+/** A book the books search found. */
+export interface FoundBook {
+  id: string;
+  title: string;
+  author?: string;
+  cover?: string;
+  year?: number;
+}
+
+export interface BookWidget {
+  id: string;
+  type: BookWidgetType;
+  books: WidgetBook[];
+}
+
+export const BOOK_TYPES: BookWidgetType[] = ["reading", "books"];
+export const MOST_BOOKS: Record<BookWidgetType, number> = { reading: 3, books: 12 };
 
 export interface GameWidget {
   id: string;
@@ -131,11 +161,11 @@ export interface StickersWidget {
 
 export const MAX_SHOWCASE_PACKS = 2;
 
-export type Widget = GameWidget | MusicWidget | CardWidget | CountdownWidget | LocalTimeWidget | StickersWidget;
+export type Widget = GameWidget | MusicWidget | BookWidget | CardWidget | CountdownWidget | LocalTimeWidget | StickersWidget;
 
 export const GAME_TYPES: GameWidgetType[] = ["favorite", "playing", "wishlist", "played"];
 export const MUSIC_TYPES: MusicWidgetType[] = ["artists", "albums", "songs"];
-export const WIDGET_TYPES: WidgetType[] = [...GAME_TYPES, ...MUSIC_TYPES, "custom", "countdown", "localtime", "stickers"];
+export const WIDGET_TYPES: WidgetType[] = [...GAME_TYPES, ...MUSIC_TYPES, ...BOOK_TYPES, "custom", "countdown", "localtime", "stickers"];
 export const MAX_WIDGETS = 12;
 export const MAX_CARD_LINKS = 3;
 export const MAX_CARDS = 4;
@@ -168,6 +198,7 @@ export function blankWidget(type: WidgetType, id: string): Widget {
   if (type === "custom") return { id, type, title: "", links: [] };
   if (type === "countdown") return { id, type, title: "", date: "" };
   if (type === "stickers") return { id, type, packs: [] };
+  if (type === "reading" || type === "books") return { id, type, books: [] };
   if (type === "localtime") return { id, type, zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" };
   if (isMusicType(type)) return { id, type, music: [] };
   return { id, type, games: [] };
@@ -208,6 +239,38 @@ function readMusic(x: unknown, type: MusicWidgetType): WidgetMusic | null {
   return out;
 }
 
+function readBook(x: unknown, progress: boolean): WidgetBook | null {
+  if (!x || typeof x !== "object") return null;
+  const b = x as Record<string, unknown>;
+  const title = str(b["title"], 200).trim();
+  if (!title) return null;
+  const out: WidgetBook = { title };
+  const author = str(b["author"], 100).trim();
+  if (author) out.author = author;
+  if (typeof b["id"] === "string" && /^OL\d{1,12}W$/.test(b["id"])) out.id = b["id"];
+  if (typeof b["cover"] === "string" && /^\d{1,12}$/.test(b["cover"])) out.cover = b["cover"];
+  if (typeof b["image"] === "string" && /^\d{1,20}$/.test(b["image"])) out.image = b["image"];
+  const p = b["progress"] as Record<string, unknown> | undefined;
+  if (progress && p && (p["kind"] === "page" || p["kind"] === "percent") && typeof p["value"] === "number") out.progress = { kind: p["kind"], value: Math.round(p["value"]) };
+  return out;
+}
+
+export function isBookWidget(w: Widget): w is BookWidget {
+  return w.type === "reading" || w.type === "books";
+}
+
+/** A book's cover from Open Library, kept by this server: "s" for rows, "l" for shelves. */
+export function bookCoverUrl(cover: string, size: "s" | "l"): string {
+  return `${api.baseUrl}/media/book/${cover}?size=${size}`;
+}
+
+/** A book's picture drawn `css` pixels across: its cover, the one its owner put up, or none. */
+export function bookPicture(b: WidgetBook, css: number): string | null {
+  if (b.cover) return bookCoverUrl(b.cover, css > 60 ? "l" : "s");
+  if (b.image) return widgetImageUrl(b.image, css);
+  return null;
+}
+
 /** Widgets as the server sent them, read defensively: anything malformed is left out. */
 export function readWidgets(x: unknown): Widget[] {
   if (!Array.isArray(x)) return [];
@@ -224,6 +287,11 @@ export function readWidgets(x: unknown): Widget[] {
       if (!title || (!date && !at)) continue;
       const emoji = str(w["emoji"], 32).trim();
       out.push({ id, type, title, ...(emoji ? { emoji } : {}), ...(date ? { date } : { at: at! }) });
+      continue;
+    }
+    if (type === "reading" || type === "books") {
+      const books = Array.isArray(w["books"]) ? w["books"].map((b) => readBook(b, type === "reading")).filter((b): b is WidgetBook => !!b).slice(0, MOST_BOOKS[type]) : [];
+      if (books.length) out.push({ id, type, books });
       continue;
     }
     if (type === "stickers") {
@@ -363,6 +431,7 @@ export function widgetsText(widgets: Widget[], title: (w: Widget) => string): { 
     if (w.type === "countdown") return { title: title(w), text: [w.emoji, w.title, w.date ?? (w.at ? new Date(w.at).toISOString() : "")].filter(Boolean).join(" ") };
     if (w.type === "localtime") return { title: title(w), text: w.zone };
     if (w.type === "stickers") return { title: title(w), text: w.packs.join(", ") };
+    if (isBookWidget(w)) return { title: title(w), text: w.books.map((b) => (b.author ? `${b.title} (${b.author})` : b.title)).join(", ") };
     return { title: title(w), text: [w.title, w.text, ...(w.stats ?? []).map((st) => `${st.label}: ${st.value}`), ...(w.links ?? []).map((l) => l.url)].filter(Boolean).join(" · ") };
   });
 }

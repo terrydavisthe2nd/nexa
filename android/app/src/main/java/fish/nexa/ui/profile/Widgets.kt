@@ -129,6 +129,21 @@ object Widgets {
         override val type get() = "countdown"
     }
 
+    /** A book: found on Open Library ([id], [cover]), or added by name with a picture of the person's own. */
+    data class Book(val id: String?, val title: String, val author: String?, val cover: String?, val image: String?, val progress: Progress? = null)
+    /** How far into a book: [kind] "page" or "percent". */
+    data class Progress(val kind: String, val value: Int)
+
+    data class BookWidget(override val id: String, override val type: String, val books: List<Book>) : Widget
+
+    val MOST_BOOKS = mapOf("reading" to 3, "books" to 12)
+
+    fun bookPicture(b: Book, css: Int, density: Float): String? = when {
+        b.cover != null -> "${base()}/media/book/${b.cover}?size=${if (css > 60) "l" else "s"}"
+        b.image != null -> Media.widgetUrl(b.image, css, density)
+        else -> null
+    }
+
     /** A showcase of one or two of the person's own public sticker or emoji packs. */
     data class StickersWidget(override val id: String, val packs: List<String>) : Widget {
         override val type get() = "stickers"
@@ -193,6 +208,21 @@ object Widgets {
                     if (title.isEmpty() || (date == null && at == null)) continue
                     out += CountdownWidget(id, title, w.s("emoji", 32).trim().ifEmpty { null }, date, if (date == null) at else null)
                 }
+                "reading", "books" -> {
+                    val books = (w["books"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.mapNotNull { b ->
+                        val title = b.s("title", 200).trim()
+                        if (title.isEmpty()) return@mapNotNull null
+                        val pr = b["progress"] as? JsonObject
+                        val kind = (pr?.get("kind") as? JsonPrimitive)?.contentOrNull
+                        val value = (pr?.get("value") as? JsonPrimitive)?.doubleOrNull?.toInt()
+                        Book(
+                            b.match("id", Regex("^OL\\d{1,12}W$")), title, b.s("author", 100).trim().ifEmpty { null },
+                            b.match("cover", Regex("^\\d{1,12}$")), b.match("image", Regex("^\\d{1,20}$")),
+                            if (type == "reading" && (kind == "page" || kind == "percent") && value != null) Progress(kind, value) else null,
+                        )
+                    }?.take(MOST_BOOKS[type]!!) ?: emptyList()
+                    if (books.isNotEmpty()) out += BookWidget(id, type, books)
+                }
                 "stickers" -> {
                     val packs = (w["packs"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content?.takeIf { s -> Regex("^\\d{1,20}$").matches(s) } }?.take(MAX_SHOWCASE_PACKS) ?: emptyList()
                     if (packs.isNotEmpty()) out += StickersWidget(id, packs)
@@ -250,6 +280,16 @@ object Widgets {
             }
             is LocalTimeWidget -> put("zone", JsonPrimitive(w.zone))
             is StickersWidget -> put("packs", JsonArray(w.packs.map { JsonPrimitive(it) }))
+            is BookWidget -> put("books", JsonArray(w.books.map { b ->
+                buildJsonObject {
+                    b.id?.let { put("id", JsonPrimitive(it)) }
+                    put("title", JsonPrimitive(b.title))
+                    b.author?.let { put("author", JsonPrimitive(it)) }
+                    b.cover?.let { put("cover", JsonPrimitive(it)) }
+                    b.image?.let { put("image", JsonPrimitive(it)) }
+                    b.progress?.let { p -> put("progress", buildJsonObject { put("kind", JsonPrimitive(p.kind)); put("value", JsonPrimitive(p.value)) }) }
+                }
+            }))
             is CardWidget -> {
                 put("title", JsonPrimitive(w.title))
                 w.image?.let { put("image", JsonPrimitive(it)); put("shape", JsonPrimitive(w.shape ?: "wide")) }
@@ -282,6 +322,8 @@ object Widgets {
         "countdown" -> t("widgets.type.countdown")
         "localtime" -> t("widgets.type.localtime")
         "stickers" -> t("widgets.type.stickers")
+        "reading" -> t("widgets.type.reading")
+        "books" -> t("widgets.type.books")
         else -> t("widgets.type.custom")
     }
 
@@ -537,6 +579,7 @@ fun ProfileWidgets(widgets: List<Widgets.Widget>, onAdd: (() -> Unit)? = null, o
         is Widgets.CountdownWidget -> Countdown(w, designing = design != null)
         is Widgets.LocalTimeWidget -> LocalTime(w)
         is Widgets.StickersWidget -> Showcase(w)
+        is Widgets.BookWidget -> if (w.type == "reading") Reading(w) else BookShelf(w, onShowAll)
         is Widgets.GameWidget -> when (w.type) {
             "favorite" -> Favorite(w)
             "playing" -> Playing(w)
@@ -1069,6 +1112,78 @@ private fun Countdown(w: Widgets.CountdownWidget, designing: Boolean) {
     }, "widget-countdown")
 }
 
+/** BookCover: a book's cover in a book's shape, or its title on a colour of its own (web BookCover). */
+@Composable
+fun BookCover(b: Widgets.Book, css: Int, width: Dp?, named: Boolean = false) {
+    val c = Nx.colors
+    val density = LocalDensity.current.density
+    val src = Widgets.bookPicture(b, css, density)
+    var broken by remember(src) { mutableStateOf(false) }
+    val shape = RoundedCornerShape(topStart = 3.dp, bottomStart = 3.dp, topEnd = 6.dp, bottomEnd = 6.dp)
+    Box(
+        (if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
+            .aspectRatio(2f / 3f)
+            .boxShadow(shape, 6f, 14f, c.shadeAt(0.85f), spread = -8f)
+            .ring(shape, c.textStrong.copy(alpha = 0.08f))
+            .clip(shape)
+            .background(c.bgActive)
+            .then(if (named) Modifier.semantics { contentDescription = if (b.author != null) t("widgets.books.byAuthor", "title" to b.title, "author" to b.author) else b.title } else Modifier),
+    ) {
+        if (src != null && !broken) AsyncImage(src, null, Media.loader, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, onError = { broken = true })
+        else NameTile(b.title, small = false, size = width ?: 80.dp)
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.White.copy(alpha = 0.12f), 0.28f to Color.Transparent)))
+    }
+}
+
+private fun progressWords(p: Widgets.Progress) =
+    if (p.kind == "page") t("widgets.books.page", "page" to java.text.NumberFormat.getIntegerInstance(fish.nexa.ui.I18n.locale).format(p.value)) else t("widgets.books.percent", "percent" to p.value)
+
+/** Reading Now: a row a book, its author, and how far in they are (a bar for a percentage). */
+@Composable
+private fun Reading(w: Widgets.BookWidget) {
+    val c = Nx.colors
+    Column {
+        Heading(t("widgets.type.reading"))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            for (b in w.books) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                BookCover(b, 40, 40.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Txt(b.title, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(650), lineHeight = Nx.type.sp(19f)), color = c.textStrong, maxLines = 1)
+                    b.author?.let { Txt(it, style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(16f)), color = c.textMuted, maxLines = 1) }
+                    b.progress?.let { p ->
+                        Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (p.kind == "percent") Box(
+                                Modifier.weight(1f, fill = false).widthIn(max = 160.dp).fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(c.textStrong.copy(alpha = 0.12f))
+                                    .semantics { contentDescription = b.title; stateDescription = "${p.value}%" },
+                            ) { Box(Modifier.fillMaxWidth(p.value.coerceIn(0, 100) / 100f).fillMaxHeight().background(c.brand, RoundedCornerShape(3.dp))) }
+                            Txt(progressWords(p), style = Nx.type.hint.copy(fontSize = Nx.type.sp(12.5f), fontWeight = FontWeight(600), fontFeatureSettings = "tnum"), color = c.textSubtle)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Favourite Books: a shelf of covers, as the games' shelves are. */
+@Composable
+private fun BookShelf(w: Widgets.BookWidget, onShowAll: (() -> Unit)?) {
+    val c = Nx.colors
+    var all by rememberSaveable(w.id) { mutableStateOf(false) }
+    val most = if (onShowAll != null) 6 else 12
+    val shown = if (all) w.books else w.books.take(most)
+    Column {
+        Heading(Widgets.title(w.type), w.books.size, t("widgets.books.count", "count" to w.books.size))
+        Grid(shown, 4, 6, 10.dp, 8.dp) { b ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                BookCover(b, 80, null, named = true)
+                Txt(b.title, style = Nx.type.hint.copy(fontSize = Nx.type.sp(11.5f), fontWeight = FontWeight(600), lineHeight = Nx.type.sp(14f)), color = c.textSubtle, maxLines = 2)
+            }
+        }
+        if (w.books.size > most) MoreLink(all, onShowAll) { all = !all }
+    }
+}
+
 /**
  * A showcase of someone's own packs, each as the card a pack link makes in a
  * chat (its stickers and Install Pack). A pack that has gone or turned private
@@ -1186,6 +1301,7 @@ fun WidgetPeek(widgets: List<Widgets.Widget>, onOpen: (() -> Unit)?) {
         is Widgets.CountdownWidget -> fish.nexa.data.TimeWidgets.whenText(w.date, w.at)
         is Widgets.LocalTimeWidget -> fish.nexa.data.TimeWidgets.place(w.zone)
         is Widgets.StickersWidget -> t("widgets.stickers.packCount", "count" to w.packs.size)
+        is Widgets.BookWidget -> if (w.books.size == 1) w.books[0].title else t("widgets.books.count", "count" to w.books.size)
     }
     Row(
         Modifier
@@ -1215,6 +1331,9 @@ fun WidgetPeek(widgets: List<Widgets.Widget>, onOpen: (() -> Unit)?) {
                 is Widgets.CardWidget -> w.image?.let { AsyncImage(Media.widgetUrl(it, 40, density), null, Media.loader, Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop) }
                 is Widgets.CountdownWidget -> w.emoji?.let { StatusEmojiImage(it, 22.dp) }
                 is Widgets.LocalTimeWidget, is Widgets.StickersWidget -> Unit
+                is Widgets.BookWidget -> w.books.take(3).forEachIndexed { i, b ->
+                    Box(Modifier.offset(x = (-10 * i).dp).zIndex((3 - i).toFloat())) { BookCover(b, 30, 24.dp) }
+                }
             }
         }
         if (widgets.size > 1) Txt("+${widgets.size - 1}", style = Nx.type.hint.copy(fontWeight = FontWeight(700), fontFeatureSettings = "tnum"), color = c.textMuted)

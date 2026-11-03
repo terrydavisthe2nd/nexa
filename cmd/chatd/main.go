@@ -27,6 +27,7 @@ import (
 	"evilion.xyz/chat/internal/config"
 	"evilion.xyz/chat/internal/db"
 	"evilion.xyz/chat/internal/egress"
+	"evilion.xyz/chat/internal/books"
 	"evilion.xyz/chat/internal/games"
 	"evilion.xyz/chat/internal/gateway"
 	"evilion.xyz/chat/internal/ids"
@@ -143,6 +144,12 @@ func main() {
 	srv.Games.Log = log
 	if out != nil {
 		srv.Games.HTTP.Transport = out.Transport()
+	}
+	// their books, searched on Open Library and their covers kept the same way
+	srv.Books = books.New(filepath.Join(cfg.DataDir, "books"))
+	srv.Books.Log = log
+	if out != nil {
+		srv.Books.HTTP.Transport = out.Transport()
 	}
 	// and their music, searched on Deezer and its pictures kept the same way
 	srv.Music = music.New(filepath.Join(cfg.DataDir, "music"))

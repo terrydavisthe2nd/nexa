@@ -71,6 +71,7 @@ import fish.nexa.ui.describeError
 import fish.nexa.ui.layers.MenuItem
 import fish.nexa.ui.layers.openMenu
 import fish.nexa.ui.layers.openSheet
+import fish.nexa.ui.profile.BookCover
 import fish.nexa.ui.profile.GameCover
 import fish.nexa.ui.profile.MusicArt
 import fish.nexa.ui.profile.ProfileWidgets
@@ -114,13 +115,14 @@ private object Limits {
 private val KIND_ICONS = mapOf(
     "favorite" to "Heart", "playing" to "Gamepad2", "wishlist" to "Bookmark", "played" to "Library",
     "artists" to "MicVocal", "albums" to "Disc3", "songs" to "Music", "custom" to "PanelTop",
-    "countdown" to "CalendarClock", "localtime" to "Clock", "stickers" to "Sticker",
+    "countdown" to "CalendarClock", "localtime" to "Clock", "stickers" to "Sticker", "reading" to "BookOpen", "books" to "LibraryBig",
 )
 
 /** The kinds of widget, in the groups Add a Widget lists them in. */
 private val KIND_GROUPS = listOf(
     "widgets.group.games" to listOf("favorite", "playing", "wishlist", "played"),
     "widgets.group.music" to listOf("artists", "albums", "songs"),
+    "widgets.group.books" to listOf("reading", "books"),
     "widgets.group.cards" to listOf("custom"),
     "widgets.group.time" to listOf("countdown", "localtime"),
     "widgets.group.stickers" to listOf("stickers"),
@@ -134,6 +136,7 @@ private fun fresh(type: String): Widgets.Widget = when (type) {
     "custom" -> Widgets.CardWidget(newWidgetId(), "", null, null, null, emptyList(), emptyList())
     "countdown" -> Widgets.CountdownWidget(newWidgetId(), "", null, null, null)
     "stickers" -> Widgets.StickersWidget(newWidgetId(), emptyList())
+    "reading", "books" -> Widgets.BookWidget(newWidgetId(), type, emptyList())
     "localtime" -> Widgets.LocalTimeWidget(newWidgetId(), java.time.ZoneId.systemDefault().id)
     "artists", "albums", "songs" -> Widgets.MusicWidget(newWidgetId(), type, emptyList())
     else -> Widgets.GameWidget(newWidgetId(), type, emptyList(), null)
@@ -243,6 +246,7 @@ fun openWidgetEditor(w: Widgets.Widget, isNew: Boolean, onDone: (Widgets.Widget)
         is Widgets.CountdownWidget -> openCountdownEditor(w, isNew, onDone)
         is Widgets.LocalTimeWidget -> openLocalTimeEditor(w, isNew, onDone)
         is Widgets.StickersWidget -> openShowcaseEditor(w, isNew, onDone)
+        is Widgets.BookWidget -> openBookEditor(w, onDone)
     }
 }
 
@@ -1286,6 +1290,185 @@ private fun openShowcaseEditor(initial: Widgets.StickersWidget, isNew: Boolean, 
                 }
             }
             if (tried && picked.isEmpty()) Txt(t("widgets.stickers.needsPack"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f)), color = c.textDanger)
+        }
+    }
+}
+
+
+private data class FoundBook(val id: String, val title: String, val author: String?, val cover: String?, val year: Int?)
+
+private fun bookKey(b: Widgets.Book) = if (b.id != null) "b:${b.id}" else "n:${b.title.lowercase()}\u0000${(b.author ?: "").lowercase()}"
+
+/**
+ * A books widget (web BookWidgetDialog): a search of Open Library through this
+ * server, or a book typed in by its title with a picture of its own; the books
+ * chosen, in order, with how far in each is on Reading Now.
+ */
+private fun openBookEditor(initial: Widgets.BookWidget, onDone: (Widgets.Widget) -> Unit) {
+    val most = Widgets.MOST_BOOKS[initial.type] ?: 3
+    val reading = initial.type == "reading"
+    var books by mutableStateOf(initial.books)
+    var uploading by mutableStateOf<String?>(null)
+    openSheet(
+        "widget-books", title = Widgets.title(initial.type),
+        footer = { close ->
+            EditorFooter(close, enabled = books.isNotEmpty() && uploading == null) {
+                close()
+                onDone(initial.copy(books = books))
+            }
+        },
+    ) {
+        val c = Nx.colors
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        var q by remember { mutableStateOf("") }
+        var found by remember { mutableStateOf<Pair<String, List<FoundBook>>?>(null) }
+        var searching by remember { mutableStateOf(false) }
+        var failed by remember { mutableStateOf(false) }
+        var ready by remember { mutableStateOf<Boolean?>(null) }
+        var pictureFor by remember { mutableStateOf<String?>(null) }
+        val query = q.trim()
+        suspend fun search(text: String): Pair<Boolean, List<FoundBook>> {
+            val res = Nexa.api.get("/books/search?q=" + java.net.URLEncoder.encode(text, "UTF-8")) as JsonObject
+            val list = (res["books"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.mapNotNull { o ->
+                val id = (o["id"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+                val title = (o["title"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+                FoundBook(id, title, (o["author"] as? JsonPrimitive)?.contentOrNull, (o["cover"] as? JsonPrimitive)?.contentOrNull, (o["year"] as? JsonPrimitive)?.intOrNull)
+            } ?: emptyList()
+            return ((res["ready"] as? JsonPrimitive)?.contentOrNull != "false") to list
+        }
+        LaunchedEffect(Unit) { ready = runCatching { search("").first }.getOrDefault(true) }
+        LaunchedEffect(query, ready) {
+            failed = false
+            if (query.isEmpty() || ready == false) {
+                found = null
+                searching = false
+                return@LaunchedEffect
+            }
+            searching = true
+            delay(320)
+            try {
+                val (r, list) = search(query)
+                ready = r
+                found = query to list
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                failed = true
+            }
+            searching = false
+        }
+        fun has(b: Widgets.Book) = books.any { bookKey(it) == bookKey(b) }
+        val isFull = books.size >= most
+        fun add(b: Widgets.Book) {
+            books = when {
+                has(b) -> books.filter { bookKey(it) != bookKey(b) }
+                isFull -> books
+                else -> books + b
+            }
+        }
+        fun addByName() {
+            val title = query.take(200)
+            if (title.isEmpty()) return
+            add(Widgets.Book(null, title, null, null, null))
+            q = ""
+        }
+        fun patch(key: String, change: (Widgets.Book) -> Widgets.Book) {
+            books = books.map { if (bookKey(it) == key) change(it) else it }
+        }
+        val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            val key = pictureFor
+            if (uri == null || key == null) return@rememberLauncherForActivityResult
+            scope.launch {
+                val f = runCatching { ServerApi.read(context, uri) }.getOrNull() ?: return@launch
+                openImageCrop(f, 3f / 4f, round = false, title = t("widgets.books.cropTitle"), maxSize = 400, serverCrop = true) { r ->
+                    uploading = key
+                    scope.launch {
+                        try {
+                            val id = uploadWidgetImage(r, "cover")
+                            patch(key) { it.copy(image = id) }
+                        } catch (e: Exception) {
+                            Nexa.ui.toast(describeError(e, t("composer.composer.uploadFailed")), "error")
+                        } finally {
+                            uploading = null
+                        }
+                    }
+                }
+            }
+        }
+        val results = found?.takeIf { it.first == query }?.second ?: emptyList()
+        val exact = results.any { it.title.equals(query, ignoreCase = true) }
+        val byName = query.isNotEmpty() && !exact && books.none { it.id == null && it.title.equals(query, ignoreCase = true) }
+        fun asBook(f: FoundBook) = Widgets.Book(f.id, f.title, f.author, f.cover, null)
+
+        Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+            EditLabel(t("widgets.books.search"))
+            SearchBox(q, { q = it }, if (ready == false) t("widgets.books.namePlaceholder") else t("widgets.books.searchPlaceholder"), t("widgets.books.search")) {
+                val first = results.firstOrNull()
+                if (first != null && !has(asBook(first))) add(asBook(first))
+                else if (first == null && byName && ready == false) addByName()
+            }
+            if (ready == false) Txt(t("widgets.books.notSetUp"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.2f)), color = c.textMuted, modifier = Modifier.padding(top = 8.dp))
+            if (query.isNotEmpty()) ResultsBox {
+                for (f in results) {
+                    val b = asBook(f)
+                    ResultRow(has(b), !isFull, { add(b) }, { BookCover(b, 30, 24.dp) }, f.title, null, listOfNotNull(f.author, f.year?.toString()).joinToString(", ").ifEmpty { null })
+                }
+                if (searching && results.isEmpty()) ResultStatus(t("widgets.game.searching"))
+                if (!searching && failed) ResultStatus(t("widgets.books.unavailable"))
+                if (!searching && !failed && ready != false && found?.first == query && results.isEmpty()) ResultStatus(t("widgets.books.noResults"))
+                if (byName && !searching) ByNameRow(query, !isFull, square = false, round = false) { addByName() }
+            }
+            if (ready == true) Txt(t("widgets.books.credit", "site" to "Open Library"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(12f)), color = c.textMuted, modifier = Modifier.padding(start = 2.dp, top = 6.dp))
+
+            ChosenHeading(t("widgets.books.yours"), t("widgets.used", "count" to books.size, "max" to most))
+            if (books.isEmpty()) ChosenEmpty(t("widgets.books.noneYet"))
+            else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                books.forEachIndexed { i, b ->
+                    val key = bookKey(b)
+                    ChosenRow(false, i, books.size, { d -> books = moved(books, i, d) }, t("widgets.game.remove", "name" to b.title), { books = books.filter { bookKey(it) != key } }) {
+                        BookCover(b, 40, 36.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Txt(b.title, style = Nx.type.body.copy(fontSize = Nx.type.sp(14.5f), lineHeight = Nx.type.sp(18f), fontWeight = FontWeight(650)), color = c.textStrong)
+                            if (b.id != null) b.author?.let { Txt(it, style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f)), color = c.textMuted, maxLines = 1) }
+                            else NxTextField(
+                                b.author ?: "", { v -> patch(key) { it.copy(author = v.take(100).ifEmpty { null }) } },
+                                Modifier.semantics { contentDescription = t("widgets.books.authorOf", "title" to b.title) },
+                                placeholder = t("widgets.books.authorPlaceholder"), capitalize = true,
+                            )
+                            if (b.cover == null) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                EditChip(if (b.image != null) t("widgets.changePicture") else t("widgets.addPicture"), "ImagePlus", busy = uploading == key, enabled = uploading == null) {
+                                    pictureFor = key
+                                    pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                }
+                                if (b.image != null) EditChip(t("widgets.removePicture")) { patch(key) { it.copy(image = null) } }
+                            }
+                            if (reading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                val p = b.progress
+                                EditChip(if (p == null) t("widgets.books.noProgress") else if (p.kind == "page") t("widgets.books.byPage") else t("widgets.books.byPercent"), "ChevronDown") {
+                                    fish.nexa.ui.layers.openMenu(
+                                        listOf(
+                                            fish.nexa.ui.layers.MenuItem.Action(t("widgets.books.noProgress"), checked = p == null) { patch(key) { it.copy(progress = null) } },
+                                            fish.nexa.ui.layers.MenuItem.Action(t("widgets.books.byPage"), checked = p?.kind == "page") { patch(key) { it.copy(progress = Widgets.Progress("page", maxOf(1, p?.value ?: 1))) } },
+                                            fish.nexa.ui.layers.MenuItem.Action(t("widgets.books.byPercent"), checked = p?.kind == "percent") { patch(key) { it.copy(progress = Widgets.Progress("percent", minOf(100, p?.value ?: 0))) } },
+                                        ),
+                                        title = t("widgets.books.progressOf", "title" to b.title),
+                                    )
+                                }
+                                if (p != null) NxTextField(
+                                    p.value.toString(), { v ->
+                                        val n = v.filter { it.isDigit() }.take(6).toIntOrNull() ?: 0
+                                        patch(key) { it.copy(progress = Widgets.Progress(p.kind, if (p.kind == "percent") n.coerceIn(0, 100) else n.coerceIn(1, 100000))) }
+                                    },
+                                    Modifier.width(96.dp).semantics { contentDescription = if (p.kind == "page") t("widgets.books.byPage") else t("widgets.books.byPercent") },
+                                    keyboardType = KeyboardType.Number,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            if (books.size > 1) Txt(t("android.server.reorderGridHint"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(12.5f)), color = c.textMuted, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

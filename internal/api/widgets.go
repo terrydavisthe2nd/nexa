@@ -18,6 +18,7 @@ import (
 	_ "time/tzdata" // local time widgets need every zone, whatever the host has
 
 	"evilion.xyz/chat/internal/auth"
+	"evilion.xyz/chat/internal/books"
 	"evilion.xyz/chat/internal/games"
 	"evilion.xyz/chat/internal/ids"
 	"evilion.xyz/chat/internal/media"
@@ -45,6 +46,8 @@ const (
 	maxWidgetTitle = 40
 	maxWidgetText  = 1000
 	maxCardLinks   = 3
+	maxBookTitle   = 200
+	maxBookAuthor  = 100
 	// the packs a sticker showcase shows
 	maxShowcasePacks = 2
 	// a countdown's emoji: one emoji, which with skin tones and joins can be long
@@ -93,6 +96,27 @@ type widgetMusic struct {
 	Duration int `json:"duration,omitempty"`
 }
 
+// widgetBook is a book on a books widget: found on Open Library (ID, Cover)
+// or added by name with a picture of the person's own (Image).
+type widgetBook struct {
+	ID     string `json:"id,omitempty"`
+	Title  string `json:"title"`
+	Author string `json:"author,omitempty"`
+	Cover  string `json:"cover,omitempty"`
+	Image  string `json:"image,omitempty"`
+	// Progress, only on Reading Now: a page reached or a percentage read
+	Progress *widgetProgress `json:"progress,omitempty"`
+}
+
+type widgetProgress struct {
+	// Kind is "page" or "percent"
+	Kind  string `json:"kind"`
+	Value int    `json:"value"`
+}
+
+// mostBooks is how many each books widget holds.
+var mostBooks = map[string]int{"reading": 3, "books": 12}
+
 // musicKinds are the music widgets and what each holds, with how many.
 var musicKinds = map[string]music.Kind{"artists": music.Artists, "albums": music.Albums, "songs": music.Songs}
 var mostMusic = map[string]int{"artists": 12, "albums": 12, "songs": 10}
@@ -116,6 +140,7 @@ type widget struct {
 	Type  string        `json:"type"`
 	Games []widgetGame  `json:"games,omitempty"`
 	Music []widgetMusic `json:"music,omitempty"`
+	Books []widgetBook  `json:"books,omitempty"`
 	Note  string        `json:"note,omitempty"`
 	Title string        `json:"title,omitempty"`
 	Image string        `json:"image,omitempty"`
@@ -151,6 +176,8 @@ func (s *Server) widgetRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/games/{id}", s.userLimited(s.limSearch, s.handleGameDetails))
 	// kept pictures are served like avatars; only fetching one counts against a limit (fetchLimited)
 	mux.HandleFunc("GET /media/game/{cover}", s.handleGameCover)
+	mux.Handle("GET /api/v1/books/search", s.userLimited(s.limSearch, s.handleBookSearch))
+	mux.HandleFunc("GET /media/book/{cover}", s.handleBookCover)
 	mux.Handle("GET /api/v1/music/search", s.userLimited(s.limMusic, s.handleMusicSearch))
 	mux.HandleFunc("GET /media/music/{kind}/{art}", s.handleMusicArt)
 	// a song's thirty seconds, played on a profile; a play asks for a few ranges of it
@@ -441,6 +468,30 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 				seen[key] = true
 				next.Music = append(next.Music, clean)
 			}
+		case "reading", "books":
+			if seenType[w.Type] {
+				return "", "A profile has one of each kind of books widget."
+			}
+			seenType[w.Type] = true
+			if len(w.Books) == 0 || len(w.Books) > mostBooks[w.Type] {
+				return "", "A books widget holds between one book and its most."
+			}
+			seenBook := map[string]bool{}
+			for _, b := range w.Books {
+				clean, problem := cleanBook(b, w.Type == "reading")
+				if problem != "" {
+					return "", problem
+				}
+				key := "id:" + clean.ID
+				if clean.ID == "" {
+					key = "title:" + strings.ToLower(clean.Title) + "\x00" + strings.ToLower(clean.Author)
+				}
+				if seenBook[key] {
+					continue
+				}
+				seenBook[key] = true
+				next.Books = append(next.Books, clean)
+			}
 		case "countdown":
 			if seenType[w.Type] {
 				return "", "A profile has one countdown."
@@ -627,6 +678,50 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 	return text, ""
 }
 
+// cleanBook checks one book of a widget, with how far into it they are when
+// it is on Reading Now.
+func cleanBook(in widgetBook, progress bool) (widgetBook, string) {
+	out := widgetBook{}
+	title, ok := line(in.Title, maxBookTitle)
+	if !ok || title == "" {
+		return out, "Each book needs a title of at most 200 characters."
+	}
+	out.Title = title
+	author, ok := line(in.Author, maxBookAuthor)
+	if !ok {
+		return out, "A book's author is at most 100 characters."
+	}
+	out.Author = author
+	if in.ID != "" {
+		if !books.IDPattern.MatchString(in.ID) {
+			return out, "That book isn't one from the books search."
+		}
+		out.ID = in.ID
+		if in.Cover != "" {
+			if !books.CoverPattern.MatchString(in.Cover) {
+				return out, "That book isn't one from the books search."
+			}
+			out.Cover = in.Cover
+		}
+	} else if in.Image != "" {
+		if _, err := ids.Parse(in.Image); err != nil {
+			return out, "That book's picture has gone. Put it up again."
+		}
+		out.Image = in.Image
+	}
+	if progress && in.Progress != nil {
+		p := *in.Progress
+		switch {
+		case p.Kind == "percent" && p.Value >= 0 && p.Value <= 100:
+		case p.Kind == "page" && p.Value >= 1 && p.Value <= 100000:
+		default:
+			return out, "How far you are is a page or a percentage."
+		}
+		out.Progress = &p
+	}
+	return out, ""
+}
+
 // carryCardExtras keeps what an app from before could not show or send of a
 // saved card it sent back: the links after the first (while the first is
 // still the same), the colours, and the bars of stats it left as they were.
@@ -781,6 +876,56 @@ func (s *Server) handleGameCover(w http.ResponseWriter, r *http.Request) {
 	path, err := s.Games.CoverFile(r.Context(), cover, size)
 	if err != nil {
 		if errors.Is(err, games.ErrUnknown) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "could not fetch the cover", http.StatusBadGateway)
+		return
+	}
+	serveKept(w, r, path)
+}
+
+// handleBookSearch finds books on Open Library by title or author.
+func (s *Server) handleBookSearch(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	list := []books.Book{}
+	on := s.Books != nil
+	if on && q != "" && len(q) <= 200 {
+		// Open Library can take a while over a search it has not seen lately
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		found, err := s.Books.Search(ctx, q, 24)
+		cancel()
+		if err != nil {
+			s.Log.Warn("open library search", "err", err)
+			WriteError(w, E(http.StatusBadGateway, "books_unavailable", "Book search isn't answering right now. Try again in a moment, or add the book by name."))
+			return
+		}
+		list = found
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"books": list, "ready": on})
+}
+
+// handleBookCover serves a book's cover, fetched from Open Library once and kept.
+func (s *Server) handleBookCover(w http.ResponseWriter, r *http.Request) {
+	cover := r.PathValue("cover")
+	size := r.URL.Query().Get("size")
+	if size != "s" {
+		size = "l"
+	}
+	if s.Books == nil || !books.CoverPattern.MatchString(cover) {
+		http.NotFound(w, r)
+		return
+	}
+	if path, ok := s.Books.Kept(cover, size); ok {
+		serveKept(w, r, path)
+		return
+	}
+	if !s.fetchLimited(w, r) {
+		return
+	}
+	path, err := s.Books.CoverFile(r.Context(), cover, size)
+	if err != nil {
+		if errors.Is(err, books.ErrUnknown) {
 			http.NotFound(w, r)
 			return
 		}
@@ -1031,6 +1176,14 @@ func widgetsText(raw string) string {
 			parts = append(parts, strings.TrimSpace(w.Emoji+" "+w.Title))
 		} else if w.Type == "localtime" {
 			parts = append(parts, w.Zone)
+		} else if w.Type == "reading" || w.Type == "books" {
+			for _, b := range w.Books {
+				name := b.Title
+				if b.Author != "" {
+					name += " (" + b.Author + ")"
+				}
+				parts = append(parts, name)
+			}
 		} else if w.Type == "stickers" {
 			parts = append(parts, strings.Join(w.Packs, ", "))
 		} else if w.Type == "custom" {

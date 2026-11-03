@@ -4,7 +4,7 @@ import type { PurgeCounts } from "./moderation";
 import type { Badge, KdfParamsJson, MeUser, PublicUser, SettingsBlob, Snowflake } from "./types";
 import type { TypingStyle } from "@/lib/typingStyle";
 import type { NameStyle } from "@/lib/nameStyle";
-import type { FoundMusic, MusicWidgetType } from "@/lib/widgets";
+import type { FoundBook, FoundMusic, MusicWidgetType } from "@/lib/widgets";
 
 export type MePatch = Partial<{
   username: string;
@@ -80,6 +80,10 @@ export const users = {
   uploadWidgetImage(file: Blob, crop: { x: number; y: number; w: number; h: number } | null, shape: "wide" | "square" | "cover"): Promise<{ id: Snowflake; shape: string }> {
     const q = new URLSearchParams({ shape, ...(crop ? { x: String(crop.x), y: String(crop.y), w: String(crop.w), h: String(crop.h) } : {}) });
     return api.upload(`/users/@me/widgets/image?${q.toString()}`, file, { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" } });
+  },
+  /** Books on Open Library by title or author, found by this server; `ready` is false where book search is off. */
+  searchBooks(q: string): Promise<{ books: FoundBook[]; ready: boolean }> {
+    return api.request("GET", `/books/search?q=${encodeURIComponent(q)}`);
   },
   /** Games on IGDB by name, found by this server; `ready` is false where game search is not set up. */
   searchGames(q: string): Promise<{ games: { id: string; name: string; cover?: string; year?: number }[]; ready: boolean }> {
