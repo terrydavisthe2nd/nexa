@@ -1,15 +1,17 @@
-import { Bookmark, Disc3, Gamepad2, GripVertical, Heart, ImagePlus, Library, LoaderCircle, MicVocal, Music, PanelTop, Plus, Search, Check, X, type LucideIcon } from "lucide-react";
+import { Bookmark, ChartNoAxesColumn, Disc3, Palette, Gamepad2, GripVertical, Heart, ImagePlus, Library, LoaderCircle, MicVocal, Music, PanelTop, Plus, Search, Check, X, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { users as usersApi } from "@/api/users";
 import { Button } from "@/components/common/Button";
 import { ImageCropModal } from "@/components/common/ImageCropModal";
 import { Modal } from "@/components/common/Modal";
+import { ColourInput } from "@/components/common/ColourInput";
+import { FormattedText } from "@/components/common/FormattedText";
 import { Field, TextArea, TextInput } from "@/components/common/TextInput";
 import { GameCover, MusicArt, ProfileWidgets, widgetTitle } from "@/components/profile/Widgets";
 import { useReorder } from "@/hooks/useReorder";
 import { Tr, t } from "@/i18n";
 import { describeError } from "@/lib/errors";
-import { GAME_TYPES, LIMITS, MAX_CARDS, MOST_GAMES, MOST_MUSIC, MUSIC_TYPES, songLength, widgetImageUrl, type CardWidget, type FoundMusic, type GameWidget, type MusicWidget, type Widget, type WidgetGame, type WidgetMusic, type WidgetStat, type WidgetType } from "@/lib/widgets";
+import { GAME_TYPES, LIMITS, MAX_CARD_LINKS, MAX_CARDS, MOST_GAMES, MOST_MUSIC, MUSIC_TYPES, songLength, widgetImageUrl, type CardWidget, type FoundMusic, type GameWidget, type MusicWidget, type Widget, type WidgetGame, type WidgetMusic, type WidgetStat, type WidgetType } from "@/lib/widgets";
 import { useUI } from "@/stores/ui";
 import s from "./WidgetsEditor.module.css";
 
@@ -755,6 +757,9 @@ export function MusicWidgetDialog({ initial, onDone, onClose }: { initial: Music
   );
 }
 
+/** A card's colour as the colour picker takes it. */
+const hexColour = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
+
 /** A link as it was typed, with the https:// it was most likely meant to have. */
 function withScheme(raw: string): string {
   const v = raw.trim();
@@ -784,8 +789,9 @@ export function CardDialog({ initial, isNew, onDone, onClose }: { initial: CardW
   const [text, setText] = useState(initial.text ?? "");
   const [image, setImage] = useState<{ id: string; shape: "wide" | "square" } | null>(initial.image ? { id: initial.image, shape: initial.shape ?? "wide" } : null);
   const [stats, setStats] = useState<WidgetStat[]>(initial.stats ?? []);
-  const [url, setUrl] = useState(initial.link?.url ?? "");
-  const [linkLabel, setLinkLabel] = useState(initial.link?.label ?? "");
+  const [links, setLinks] = useState<{ url: string; label: string }[]>(() => (initial.links ?? []).map((l) => ({ url: l.url, label: l.label ?? "" })));
+  const [color, setColor] = useState<number | undefined>(initial.color);
+  const [color2, setColor2] = useState<number | undefined>(initial.color2);
   const [crop, setCrop] = useState<{ file: File; shape: "wide" | "square" } | null>(null);
   const [uploading, setUploading] = useState<"wide" | "square" | null>(null);
   const [tried, setTried] = useState(false);
@@ -793,11 +799,13 @@ export function CardDialog({ initial, isNew, onDone, onClose }: { initial: CardW
   const shapeRef = useRef<"wide" | "square">("wide");
   const ids = useId();
 
-  const link = withScheme(url);
-  const badLink = linkProblem(link);
-  const filled = stats.map((st) => ({ label: st.label.trim(), value: st.value.trim() })).filter((st) => st.label || st.value);
+  const typed = links.map((l) => ({ url: withScheme(l.url), label: l.label.trim() })).filter((l) => l.url);
+  const badLink = typed.map((l) => linkProblem(l.url)).find((p) => p) ?? null;
+  const filled = stats
+    .map((st): WidgetStat => (st.bar !== undefined ? { label: st.label.trim(), value: `${st.bar}%`, bar: st.bar } : { label: st.label.trim(), value: st.value.trim() }))
+    .filter((st) => st.label || (st.bar === undefined && st.value));
   const halfStat = filled.some((st) => !st.label || !st.value);
-  const something = !!text.trim() || !!image || filled.length > 0 || !!link;
+  const something = !!text.trim() || !!image || filled.length > 0 || typed.length > 0;
   const card: CardWidget = {
     id: initial.id,
     type: "custom",
@@ -805,7 +813,8 @@ export function CardDialog({ initial, isNew, onDone, onClose }: { initial: CardW
     ...(image ? { image: image.id, shape: image.shape } : {}),
     ...(text.trim() ? { text: text.trim() } : {}),
     ...(filled.length ? { stats: filled } : {}),
-    ...(link ? { link: { url: link, ...(linkLabel.trim() ? { label: linkLabel.trim() } : {}) } } : {}),
+    links: typed.map((l) => ({ url: l.url, ...(l.label ? { label: l.label } : {}) })),
+    ...(color !== undefined ? { color, ...(color2 !== undefined ? { color2 } : {}) } : {}),
   };
   const problem = !card.title ? t("widgets.card.needsTitle") : !something ? t("widgets.card.needsMore") : halfStat ? t("widgets.card.halfStat") : badLink;
   const finish = () => {
@@ -886,9 +895,10 @@ export function CardDialog({ initial, isNew, onDone, onClose }: { initial: CardW
           )}
         </div>
 
-        <Field label={t("widgets.card.text")} hint={t("composer.limit.left", { count: LIMITS.text - text.length })}>
-          <TextArea value={text} onChange={(e) => setText(e.target.value)} maxLength={LIMITS.text} rows={3} placeholder={t("widgets.card.textPlaceholder")} data-testid="card-text" />
-        </Field>
+        <div role="group" aria-labelledby={`${ids}-text`}>
+          <span className={s.label} id={`${ids}-text`}>{t("widgets.card.text")}</span>
+          <FormattedText value={text} onChange={setText} max={LIMITS.text} rows={3} placeholder={t("widgets.card.textPlaceholder")} title={t("widgets.card.text")} testId="card-text" />
+        </div>
 
         <div role="group" aria-labelledby={`${ids}-stats`}>
           <span className={s.label} id={`${ids}-stats`}>{t("widgets.card.stats")}</span>
@@ -898,7 +908,31 @@ export function CardDialog({ initial, isNew, onDone, onClose }: { initial: CardW
               {stats.map((st, i) => (
                 <div key={i} className={s.statRow}>
                   <TextInput value={st.label} onChange={(e) => setStat(i, { label: e.target.value })} maxLength={LIMITS.label} placeholder={t("widgets.card.statLabel")} aria-label={t("widgets.card.statLabelN", { n: i + 1 })} />
-                  <TextInput value={st.value} onChange={(e) => setStat(i, { value: e.target.value })} maxLength={LIMITS.value} placeholder={t("widgets.card.statValue")} aria-label={t("widgets.card.statValueN", { n: i + 1 })} />
+                  {st.bar !== undefined ? (
+                    <TextInput
+                      type="number"
+                      min={0}
+                      max={100}
+                      inputMode="numeric"
+                      value={String(st.bar)}
+                      onChange={(e) => setStat(i, { bar: Math.max(0, Math.min(100, Math.round(Number(e.target.value) || 0))) })}
+                      placeholder={t("widgets.card.statPercent")}
+                      aria-label={t("widgets.card.statPercentN", { n: i + 1 })}
+                      data-testid="card-stat-percent"
+                    />
+                  ) : (
+                    <TextInput value={st.value} onChange={(e) => setStat(i, { value: e.target.value })} maxLength={LIMITS.value} placeholder={t("widgets.card.statValue")} aria-label={t("widgets.card.statValueN", { n: i + 1 })} />
+                  )}
+                  <button
+                    className={s.iconBtn}
+                    aria-pressed={st.bar !== undefined}
+                    aria-label={t("widgets.card.statBarN", { n: i + 1 })}
+                    title={t("widgets.card.statBar")}
+                    onClick={() => setStats((list) => list.map((x, j) => (j !== i ? x : x.bar !== undefined ? { label: x.label, value: "" } : { label: x.label, value: "", bar: Math.max(0, Math.min(100, parseInt(x.value, 10) || 50)) })))}
+                    data-testid="card-stat-bar"
+                  >
+                    <ChartNoAxesColumn size={16} />
+                  </button>
                   <button className={s.iconBtn} aria-label={t("widgets.card.removeStat", { n: i + 1 })} onClick={() => setStats(stats.filter((_, j) => j !== i))}><X size={16} /></button>
                 </div>
               ))}
@@ -912,12 +946,58 @@ export function CardDialog({ initial, isNew, onDone, onClose }: { initial: CardW
         </div>
 
         <div role="group" aria-labelledby={`${ids}-link`}>
-          <span className={s.label} id={`${ids}-link`}>{t("widgets.card.link")}</span>
-          <div className={s.linkRow}>
-            <TextInput value={url} onChange={(e) => setUrl(e.target.value)} onBlur={() => setUrl((v) => withScheme(v))} maxLength={512} placeholder="https://" aria-label={t("widgets.card.linkUrl")} inputMode="url" autoComplete="off" spellCheck={false} invalid={!!url.trim() && !!badLink} data-testid="card-link" />
-            <TextInput value={linkLabel} onChange={(e) => setLinkLabel(e.target.value)} maxLength={LIMITS.linkLabel} placeholder={t("widgets.card.linkLabel")} aria-label={t("widgets.card.linkLabel")} disabled={!url.trim()} />
+          <span className={s.label} id={`${ids}-link`}>{t("widgets.card.links")}</span>
+          {links.length ? (
+            <div className={s.linkRows}>
+              {links.map((l, i) => {
+                const bad = l.url.trim() ? linkProblem(withScheme(l.url)) : null;
+                const setLink = (change: Partial<{ url: string; label: string }>) => setLinks((list) => list.map((x, j) => (j === i ? { ...x, ...change } : x)));
+                return (
+                  <div key={i}>
+                    <div className={s.linkRow}>
+                      <TextInput value={l.url} onChange={(e) => setLink({ url: e.target.value })} onBlur={() => setLink({ url: withScheme(l.url) })} maxLength={512} placeholder="https://" aria-label={t("widgets.card.linkUrlN", { n: i + 1 })} inputMode="url" autoComplete="off" spellCheck={false} invalid={!!bad} data-testid="card-link" />
+                      <TextInput value={l.label} onChange={(e) => setLink({ label: e.target.value })} maxLength={LIMITS.linkLabel} placeholder={t("widgets.card.linkLabel")} aria-label={t("widgets.card.linkLabelN", { n: i + 1 })} disabled={!l.url.trim()} />
+                      <button className={s.iconBtn} aria-label={t("widgets.card.removeLink", { n: i + 1 })} onClick={() => setLinks(links.filter((_, j) => j !== i))}><X size={16} /></button>
+                    </div>
+                    {bad ? <p className={s.error}>{bad}</p> : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+          {links.length < MAX_CARD_LINKS ? (
+            <button className={s.chip} style={{ marginTop: links.length ? 8 : 0 }} onClick={() => setLinks([...links, { url: "", label: "" }])} data-testid="card-add-link">
+              <Plus size={14} aria-hidden="true" /> {t("widgets.card.addLink")}
+            </button>
+          ) : null}
+        </div>
+
+        <div role="group" aria-labelledby={`${ids}-colour`}>
+          <span className={s.label} id={`${ids}-colour`}>{t("widgets.card.colour")}</span>
+          <p className={s.note} style={{ margin: "-4px 0 8px" }}>{t("widgets.card.colourHint")}</p>
+          <div className={s.colourRow}>
+            {color === undefined ? (
+              <button className={s.chip} onClick={() => setColor(0x8000ff)} data-testid="card-add-colour">
+                <Palette size={14} aria-hidden="true" /> {t("widgets.card.addColour")}
+              </button>
+            ) : (
+              <>
+                <span className={s.colourSwatch} style={{ background: hexColour(color) }}>
+                  <ColourInput value={hexColour(color)} label={t("widgets.card.firstColour")} onChange={(v) => setColor(parseInt(v.slice(1, 7), 16))} testId="card-colour" />
+                </span>
+                {color2 !== undefined ? (
+                  <span className={s.colourSwatch} style={{ background: hexColour(color2) }}>
+                    <ColourInput value={hexColour(color2)} label={t("widgets.card.secondColour")} onChange={(v) => setColor2(parseInt(v.slice(1, 7), 16))} testId="card-colour-2" />
+                  </span>
+                ) : (
+                  <button className={s.chip} onClick={() => setColor2(0x00b0f4)} data-testid="card-add-colour-2">
+                    <Plus size={14} aria-hidden="true" /> {t("widgets.card.addSecondColour")}
+                  </button>
+                )}
+                <button className={s.chip} onClick={() => { setColor(undefined); setColor2(undefined); }}>{t("widgets.card.noColour")}</button>
+              </>
+            )}
           </div>
-          {url.trim() && badLink ? <p className={s.error}>{badLink}</p> : null}
         </div>
 
         <div>

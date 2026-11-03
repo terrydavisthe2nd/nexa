@@ -353,3 +353,37 @@ func TestSongPreviewsComeThroughNexa(t *testing.T) {
 		}
 	}
 }
+
+// An app from before cards had several links, a colour and bars sends a card
+// back with only its first link; saving from it must not drop the rest. A
+// current app always sends "links", so taking them off sticks.
+func TestOldAppsKeepWhatCardsGained(t *testing.T) {
+	_, ts := newTestServer(t)
+	alice, _ := register(t, ts, "alice")
+	put := func(card map[string]any) map[string]any {
+		res, body := do(t, ts, "PUT", "/api/v1/users/@me/widgets", alice, map[string]any{"widgets": []any{card}})
+		if res.StatusCode != 200 {
+			t.Fatalf("save: %d %v", res.StatusCode, body)
+		}
+		return body["widgets"].([]any)[0].(map[string]any)
+	}
+	put(map[string]any{"id": "card1", "type": "custom", "title": "Japanese",
+		"stats": []any{map[string]any{"label": "Kanji", "value": "", "bar": 60}},
+		"links": []any{map[string]any{"url": "https://a.example"}, map[string]any{"url": "https://b.example"}},
+		"color": 0xE0457B, "color2": 0x7B61FF})
+	// as an old app saves it: the first link, the bar's words, no colour
+	got := put(map[string]any{"id": "card1", "type": "custom", "title": "Japanese",
+		"stats": []any{map[string]any{"label": "Kanji", "value": "60%"}},
+		"link":  map[string]any{"url": "https://a.example"}})
+	if links := got["links"].([]any); len(links) != 2 || got["color"] == nil || got["color2"] == nil {
+		t.Fatalf("an old app's save dropped what it could not show: %v", got)
+	}
+	if bar := got["stats"].([]any)[0].(map[string]any)["bar"]; bar != float64(60) {
+		t.Fatalf("bar dropped: %v", got["stats"])
+	}
+	// a current app taking them off
+	got = put(map[string]any{"id": "card1", "type": "custom", "title": "Japanese", "text": "words", "links": []any{}})
+	if got["links"] != nil || got["link"] != nil || got["color"] != nil {
+		t.Fatalf("a current app's removal did not stick: %v", got)
+	}
+}

@@ -574,7 +574,7 @@ fun widgetsText(widgets: List<Widgets.Widget>): List<Pair<String, String>> = wid
     when (w) {
         is Widgets.GameWidget -> Widgets.title(w.type) to listOfNotNull(w.games.joinToString(", ") { it.name }, w.note).filter { it.isNotEmpty() }.joinToString(" · ")
         is Widgets.MusicWidget -> Widgets.title(w.type) to w.music.joinToString(", ") { m -> if (m.by != null) "${m.name} (${m.by})" else m.name }
-        is Widgets.CardWidget -> Widgets.title(w.type) to (listOfNotNull(w.title, w.text) + w.stats.map { "${it.label}: ${it.value}" } + listOfNotNull(w.link)).filter { it.isNotEmpty() }.joinToString(" · ")
+        is Widgets.CardWidget -> Widgets.title(w.type) to (listOfNotNull(w.title, w.text) + w.stats.map { "${it.label}: ${it.value}" } + w.links.map { it.url }).filter { it.isNotEmpty() }.joinToString(" · ")
     }
 }
 

@@ -56,6 +56,13 @@ export interface FoundMusic {
 export interface WidgetStat {
   label: string;
   value: string;
+  /** From 0 to 100: the stat is drawn as a progress bar (its value is then the percentage in words). */
+  bar?: number;
+}
+
+export interface WidgetLink {
+  url: string;
+  label?: string;
 }
 
 export type GameWidgetType = "favorite" | "playing" | "wishlist" | "played";
@@ -84,7 +91,15 @@ export interface CardWidget {
   shape?: "wide" | "square";
   text?: string;
   stats?: WidgetStat[];
-  link?: { url: string; label?: string };
+  /**
+   * Up to three buttons. Always sent, even empty: a card without it is taken
+   * for one from an app before cards had several links, and keeps what it had.
+   * The server also keeps the first as `link`, for those apps.
+   */
+  links?: WidgetLink[];
+  /** 0xRRGGBB tinting the card, and a second for a gradient. */
+  color?: number;
+  color2?: number;
 }
 
 export type Widget = GameWidget | MusicWidget | CardWidget;
@@ -92,13 +107,14 @@ export type Widget = GameWidget | MusicWidget | CardWidget;
 export const GAME_TYPES: GameWidgetType[] = ["favorite", "playing", "wishlist", "played"];
 export const MUSIC_TYPES: MusicWidgetType[] = ["artists", "albums", "songs"];
 export const WIDGET_TYPES: WidgetType[] = [...GAME_TYPES, ...MUSIC_TYPES, "custom"];
-export const MAX_WIDGETS = 8;
+export const MAX_WIDGETS = 12;
+export const MAX_CARD_LINKS = 3;
 export const MAX_CARDS = 4;
 /** The most games each kind of games widget holds. */
 export const MOST_GAMES: Record<GameWidgetType, number> = { favorite: 1, playing: 5, wishlist: 20, played: 20 };
 /** The most each kind of music widget holds. */
 export const MOST_MUSIC: Record<MusicWidgetType, number> = { artists: 12, albums: 12, songs: 10 };
-export const LIMITS = { note: 200, tags: 3, tag: 20, game: 100, music: 100, title: 40, text: 300, stats: 6, label: 24, value: 40, linkLabel: 32 };
+export const LIMITS = { note: 200, tags: 3, tag: 20, game: 100, music: 100, title: 40, text: 1000, stats: 6, label: 24, value: 40, linkLabel: 32 };
 
 export function isGameWidget(w: Widget): w is GameWidget {
   return (GAME_TYPES as string[]).includes(w.type);
@@ -165,12 +181,34 @@ export function readWidgets(x: unknown): Widget[] {
       if (Array.isArray(w["stats"])) {
         card.stats = w["stats"]
           .filter((s): s is Record<string, unknown> => !!s && typeof s === "object")
-          .map((s) => ({ label: str(s["label"], LIMITS.label), value: str(s["value"], LIMITS.value) }))
+          .map((s): WidgetStat => {
+            const bar = s["bar"];
+            const st: WidgetStat = { label: str(s["label"], LIMITS.label), value: str(s["value"], LIMITS.value) };
+            if (typeof bar === "number" && bar >= 0 && bar <= 100) st.bar = Math.round(bar);
+            return st;
+          })
           .filter((s) => s.label && s.value)
           .slice(0, LIMITS.stats);
       }
-      const link = w["link"] as Record<string, unknown> | undefined;
-      if (link && typeof link["url"] === "string" && /^https?:\/\//i.test(link["url"])) card.link = { url: link["url"], ...(typeof link["label"] === "string" && link["label"] ? { label: link["label"].slice(0, LIMITS.linkLabel) } : {}) };
+      const rawLinks = Array.isArray(w["links"]) ? (w["links"] as unknown[]) : w["link"] ? [w["link"]] : [];
+      const links = rawLinks
+        .map((l): WidgetLink | null => {
+          if (!l || typeof l !== "object") return null;
+          const o = l as Record<string, unknown>;
+          if (typeof o["url"] !== "string" || !/^https?:\/\//i.test(o["url"])) return null;
+          return { url: o["url"], ...(typeof o["label"] === "string" && o["label"] ? { label: o["label"].slice(0, LIMITS.linkLabel) } : {}) };
+        })
+        .filter((l): l is WidgetLink => !!l)
+        .slice(0, MAX_CARD_LINKS);
+      // always there, even empty: the server tells an app from before by a card sent without it
+      card.links = links;
+      const colour = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : undefined);
+      const c1 = colour(w["color"]);
+      if (c1 !== undefined) {
+        card.color = c1;
+        const c2 = colour(w["color2"]);
+        if (c2 !== undefined) card.color2 = c2;
+      }
       out.push(card);
       continue;
     }
@@ -186,7 +224,7 @@ export function readWidgets(x: unknown): Widget[] {
     if (type === "favorite" && typeof w["note"] === "string" && w["note"]) game.note = w["note"].slice(0, LIMITS.note);
     out.push(game);
   }
-  return out.slice(0, 8);
+  return out.slice(0, MAX_WIDGETS);
 }
 
 /** A game's cover from IGDB, kept by this server: "s" for small, "l" for large. */
@@ -253,6 +291,6 @@ export function widgetsText(widgets: Widget[], title: (w: Widget) => string): { 
   return widgets.map((w) => {
     if (isGameWidget(w)) return { title: title(w), text: [w.games.map((g) => g.name).join(", "), w.note].filter(Boolean).join(" · ") };
     if (isMusicWidget(w)) return { title: title(w), text: w.music.map((m) => (m.by ? `${m.name} (${m.by})` : m.name)).join(", ") };
-    return { title: title(w), text: [w.title, w.text, ...(w.stats ?? []).map((st) => `${st.label}: ${st.value}`), w.link?.url].filter(Boolean).join(" · ") };
+    return { title: title(w), text: [w.title, w.text, ...(w.stats ?? []).map((st) => `${st.label}: ${st.value}`), ...(w.links ?? []).map((l) => l.url)].filter(Boolean).join(" · ") };
   });
 }

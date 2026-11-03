@@ -32,7 +32,7 @@ import (
 // sees the profile, in the order they are put in.
 
 const (
-	maxWidgets      = 8
+	maxWidgets      = 12
 	maxCustomCards  = 4
 	maxWidgetNote   = 200
 	maxPlaying      = 5
@@ -41,7 +41,8 @@ const (
 	maxGameTag      = 20
 	maxGameName     = 100
 	maxWidgetTitle  = 40
-	maxWidgetText   = 300
+	maxWidgetText   = 1000
+	maxCardLinks    = 3
 	maxWidgetStats  = 6
 	maxStatLabel    = 24
 	maxStatValue    = 40
@@ -49,7 +50,7 @@ const (
 	maxLinkURL      = 512
 	maxMusicName    = 100
 	maxSongLength   = 24 * 60 * 60
-	maxWidgetsBytes = 32 << 10
+	maxWidgetsBytes = 64 << 10
 	// how many of the artists, albums and songs saved at once Deezer is asked
 	// about, when no search brought them: a few, so a save cannot spend
 	// everyone's share of what Deezer allows
@@ -92,7 +93,11 @@ var mostMusic = map[string]int{"artists": 12, "albums": 12, "songs": 10}
 
 type widgetStat struct {
 	Label string `json:"label"`
+	// Value is what the stat says; for a bar, its percentage as words too,
+	// which is all an app from before bars shows
 	Value string `json:"value"`
+	// Bar, from 0 to 100, draws the stat as a progress bar
+	Bar *int `json:"bar,omitempty"`
 }
 
 type widgetLink struct {
@@ -111,7 +116,13 @@ type widget struct {
 	Shape string        `json:"shape,omitempty"`
 	Text  string        `json:"text,omitempty"`
 	Stats []widgetStat  `json:"stats,omitempty"`
-	Link  *widgetLink   `json:"link,omitempty"`
+	// Links are a card's buttons, up to three; Link repeats the first for
+	// apps from before there could be more than one
+	Links []widgetLink `json:"links,omitempty"`
+	Link  *widgetLink  `json:"link,omitempty"`
+	// Color, and Color2 for a gradient, tint a card (0xRRGGBB)
+	Color  *int `json:"color,omitempty"`
+	Color2 *int `json:"color2,omitempty"`
 }
 
 var widgetID = regexp.MustCompile(`^[a-z0-9]{4,16}$`)
@@ -320,7 +331,7 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 		return "", "widgets must be a list."
 	}
 	if len(in) > maxWidgets {
-		return "", "A profile has at most eight widgets."
+		return "", "A profile has at most twelve widgets."
 	}
 	// every IGDB game named, looked up in one go (most are known from the search that found them)
 	var gameIDs []string
@@ -342,6 +353,19 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 		known = found
 	}
 	knownMusic := s.musicKnown(ctx, in, before)
+	// cards as they were, for apps from before cards had several links, a
+	// colour and bars, which send a card without "links" and would drop them
+	savedCards := map[string]widget{}
+	if before != "" {
+		var saved []widget
+		if json.Unmarshal([]byte(before), &saved) == nil {
+			for _, sw := range saved {
+				if sw.Type == "custom" {
+					savedCards[sw.ID] = sw
+				}
+			}
+		}
+	}
 	out := make([]widget, 0, len(in))
 	seenType := map[string]bool{}
 	seenID := map[string]bool{}
@@ -403,6 +427,9 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 				next.Music = append(next.Music, clean)
 			}
 		case "custom":
+			if w.Links == nil {
+				w = carryCardExtras(w, savedCards[w.ID])
+			}
 			cards++
 			if cards > maxCustomCards {
 				return "", "A profile has at most four cards of your own."
@@ -414,7 +441,7 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 			next.Title = title
 			text, ok := CleanText(w.Text, maxWidgetText)
 			if !ok {
-				return "", "A card's words are at most 300 characters."
+				return "", "A card's words are at most 1,000 characters."
 			}
 			next.Text = text
 			if w.Image != "" {
@@ -436,25 +463,63 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 				if !ok1 || !ok2 {
 					return "", "A card's labels are at most 24 characters, and their values at most 40."
 				}
+				var bar *int
+				if st.Bar != nil {
+					if *st.Bar < 0 || *st.Bar > 100 {
+						return "", "A bar on a card goes from 0 to 100."
+					}
+					b := *st.Bar
+					bar = &b
+					if label != "" {
+						value = strconv.Itoa(b) + "%"
+					}
+				}
 				if label == "" && value == "" {
 					continue
 				}
 				if label == "" || value == "" {
 					return "", "Each stat on a card needs a label and a value."
 				}
-				next.Stats = append(next.Stats, widgetStat{Label: label, Value: value})
+				next.Stats = append(next.Stats, widgetStat{Label: label, Value: value, Bar: bar})
 			}
-			if w.Link != nil && strings.TrimSpace(w.Link.URL) != "" {
-				raw := strings.TrimSpace(w.Link.URL)
+			links := w.Links
+			if links == nil && w.Link != nil {
+				links = []widgetLink{*w.Link}
+			}
+			for _, l := range links {
+				raw := strings.TrimSpace(l.URL)
+				if raw == "" {
+					continue
+				}
+				if len(next.Links) == maxCardLinks {
+					return "", "A card has at most three links."
+				}
 				u, err := url.Parse(raw)
 				if err != nil || len(raw) > maxLinkURL || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil {
 					return "", "A card's link must be a web address starting with https://."
 				}
-				label, ok := line(w.Link.Label, maxLinkLabel)
+				label, ok := line(l.Label, maxLinkLabel)
 				if !ok {
 					return "", "A link's words are at most 32 characters."
 				}
-				next.Link = &widgetLink{URL: u.String(), Label: label}
+				next.Links = append(next.Links, widgetLink{URL: u.String(), Label: label})
+			}
+			if len(next.Links) > 0 {
+				first := next.Links[0]
+				next.Link = &first
+			}
+			for _, c := range []*int{w.Color, w.Color2} {
+				if c != nil && (*c < 0 || *c > 0xFFFFFF) {
+					return "", "A card's colour must be a colour."
+				}
+			}
+			if w.Color != nil {
+				c := *w.Color
+				next.Color = &c
+				if w.Color2 != nil {
+					c2 := *w.Color2
+					next.Color2 = &c2
+				}
 			}
 			if next.Text == "" && next.Image == "" && len(next.Stats) == 0 && next.Link == nil {
 				return "", "A card needs something on it besides its title."
@@ -478,6 +543,30 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 		return "", "That's more than a profile can hold. Take a few things out."
 	}
 	return text, ""
+}
+
+// carryCardExtras keeps what an app from before could not show or send of a
+// saved card it sent back: the links after the first (while the first is
+// still the same), the colours, and the bars of stats it left as they were.
+// Current apps always send "links", even empty, so their changes stand.
+func carryCardExtras(w, saved widget) widget {
+	if saved.ID == "" {
+		return w
+	}
+	if w.Link != nil && len(saved.Links) > 0 && strings.TrimSpace(w.Link.URL) == saved.Links[0].URL {
+		w.Links = append([]widgetLink{*w.Link}, saved.Links[1:]...)
+	}
+	if w.Color == nil {
+		w.Color, w.Color2 = saved.Color, saved.Color2
+	}
+	for i, st := range w.Stats {
+		for _, old := range saved.Stats {
+			if old.Bar != nil && st.Bar == nil && old.Label == st.Label && old.Value == st.Value {
+				w.Stats[i].Bar = old.Bar
+			}
+		}
+	}
+	return w
 }
 
 // widgetsJSON is widgets as they go out: a list, empty for none.
@@ -864,8 +953,12 @@ func widgetsText(raw string) string {
 			for _, st := range w.Stats {
 				parts = append(parts, st.Label+": "+st.Value)
 			}
-			if w.Link != nil {
-				parts = append(parts, strings.TrimSpace(w.Link.Label+" "+w.Link.URL))
+			links := w.Links
+			if links == nil && w.Link != nil {
+				links = []widgetLink{*w.Link}
+			}
+			for _, l := range links {
+				parts = append(parts, strings.TrimSpace(l.Label+" "+l.URL))
 			}
 		} else {
 			for _, g := range w.Games {

@@ -55,6 +55,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -96,10 +97,15 @@ import kotlinx.serialization.json.doubleOrNull
 /** lib/widgets.ts: what people put on their profiles, read as safely as the web reads it. */
 object Widgets {
     /** The most widgets a profile holds (lib/widgets.ts MAX_WIDGETS). */
-    const val MAX = 8
+    const val MAX = 12
+
+    /** The most links a card holds (lib/widgets.ts MAX_CARD_LINKS). */
+    const val MAX_LINKS = 3
     data class Game(val id: String?, val name: String, val cover: String?, val image: String?, val tags: List<String>)
     data class Music(val id: String?, val name: String, val by: String?, val art: String?, val image: String?, val duration: Int?)
-    data class Stat(val label: String, val value: String)
+    /** [bar], from 0 to 100, draws the stat as a progress bar; [value] is then its percentage in words. */
+    data class Stat(val label: String, val value: String, val bar: Int? = null)
+    data class Link(val url: String, val label: String?)
 
     sealed interface Widget {
         val id: String
@@ -108,7 +114,13 @@ object Widgets {
 
     data class GameWidget(override val id: String, override val type: String, val games: List<Game>, val note: String?) : Widget
     data class MusicWidget(override val id: String, override val type: String, val music: List<Music>) : Widget
-    data class CardWidget(override val id: String, val title: String, val image: String?, val shape: String?, val text: String?, val stats: List<Stat>, val link: String?, val linkLabel: String?) : Widget {
+    /**
+     * A card of the person's own. [links] is always sent, even empty: the server
+     * takes a card without it for one from an app before cards had several
+     * links, colours and bars, and keeps what it had. [color] and [color2]
+     * (0xRRGGBB) tint it, the second making a gradient.
+     */
+    data class CardWidget(override val id: String, val title: String, val image: String?, val shape: String?, val text: String?, val stats: List<Stat>, val links: List<Link>, val color: Int? = null, val color2: Int? = null) : Widget {
         override val type get() = "custom"
     }
 
@@ -144,10 +156,18 @@ object Widgets {
                     if (title.isEmpty()) continue
                     val image = w.match("image", Regex("^\\d{1,20}$"))
                     val shape = if (image != null) (if ((w["shape"] as? JsonPrimitive)?.contentOrNull == "square") "square" else "wide") else null
-                    val stats = (w["stats"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.map { Stat(it.s("label", 24), it.s("value", 40)) }?.filter { it.label.isNotEmpty() && it.value.isNotEmpty() }?.take(6) ?: emptyList()
-                    val link = w["link"] as? JsonObject
-                    val url = link?.let { (it["url"] as? JsonPrimitive)?.contentOrNull }?.takeIf { Regex("^https?://", RegexOption.IGNORE_CASE).containsMatchIn(it) }
-                    out += CardWidget(id, title, image, shape, w.s("text", 300).ifEmpty { null }, stats, url, if (url != null) link.s("label", 32).ifEmpty { null } else null)
+                    val stats = (w["stats"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.map {
+                        val bar = (it["bar"] as? JsonPrimitive)?.takeIf { p -> !p.isString }?.doubleOrNull?.takeIf { b -> b in 0.0..100.0 }?.let { b -> Math.round(b).toInt() }
+                        Stat(it.s("label", 24), it.s("value", 40), bar)
+                    }?.filter { it.label.isNotEmpty() && it.value.isNotEmpty() }?.take(6) ?: emptyList()
+                    val rawLinks = (w["links"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: listOfNotNull(w["link"] as? JsonObject)
+                    val links = rawLinks.mapNotNull { l ->
+                        val url = (l["url"] as? JsonPrimitive)?.contentOrNull?.takeIf { Regex("^https?://", RegexOption.IGNORE_CASE).containsMatchIn(it) } ?: return@mapNotNull null
+                        Link(url, l.s("label", 32).ifEmpty { null })
+                    }.take(MAX_LINKS)
+                    fun colour(k: String) = (w[k] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull?.takeIf { it >= 0 && it <= 0xFFFFFF && it % 1.0 == 0.0 }?.toInt()
+                    val color = colour("color")
+                    out += CardWidget(id, title, image, shape, w.s("text", 1000).ifEmpty { null }, stats, links, color, if (color != null) colour("color2") else null)
                 }
                 "artists", "albums", "songs" -> {
                     val music = (w["music"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.let { m -> readMusic(m, type) } }?.take(MOST_MUSIC[type]!!) ?: emptyList()
@@ -195,14 +215,18 @@ object Widgets {
                 w.image?.let { put("image", JsonPrimitive(it)); put("shape", JsonPrimitive(w.shape ?: "wide")) }
                 w.text?.takeIf { it.isNotBlank() }?.let { put("text", JsonPrimitive(it)) }
                 if (w.stats.isNotEmpty()) put("stats", JsonArray(w.stats.map { st ->
-                    buildJsonObject { put("label", JsonPrimitive(st.label)); put("value", JsonPrimitive(st.value)) }
+                    buildJsonObject {
+                        put("label", JsonPrimitive(st.label)); put("value", JsonPrimitive(st.value))
+                        st.bar?.let { put("bar", JsonPrimitive(it)) }
+                    }
                 }))
-                w.link?.let { url ->
-                    put("link", buildJsonObject {
-                        put("url", JsonPrimitive(url))
-                        w.linkLabel?.let { put("label", JsonPrimitive(it)) }
-                    })
-                }
+                put("links", JsonArray(w.links.map { l ->
+                    buildJsonObject {
+                        put("url", JsonPrimitive(l.url))
+                        l.label?.let { put("label", JsonPrimitive(it)) }
+                    }
+                }))
+                w.color?.let { c -> put("color", JsonPrimitive(c)); w.color2?.let { put("color2", JsonPrimitive(it)) } }
             }
         }
     }
@@ -946,19 +970,36 @@ internal fun Equalizer(color: Color = Nx.colors.textBrand) {
     }
 }
 
+/** Opens a card's link once its full address has been seen, as activity links do. */
+private fun openCardLink(url: String) {
+    fish.nexa.ui.shell.confirm(t("textMenu.openLink"), url, t("textMenu.openLink"), danger = false) { openLink(url) }
+}
+
 @Composable
 private fun CardWidget(w: Widgets.CardWidget) {
     val c = Nx.colors
     val p = LocalProfile.current
     val density = LocalDensity.current.density
-    Column(Modifier.fillMaxWidth().ring(Radii.Sm, c.borderSubtle).clip(Radii.Sm).background(p.chip.copy(alpha = p.chip.alpha * 0.7f)).topEdge(Radii.Sm, c.edgeLight)) {
+    val base = p.chip.copy(alpha = p.chip.alpha * 0.7f).compositeOver(c.bgFloating)
+    // a card in its own colours: the tile's own fill, washed with them from one corner to the other
+    val tintA = w.color?.let { Color(0xFF000000L or it.toLong()) }
+    val tintB = w.color2?.let { Color(0xFF000000L or it.toLong()) } ?: tintA
+    val mix = if (c.isLight) 0.18f else 0.30f
+    val fill = if (tintA != null && tintB != null) Modifier.background(Brush.linearGradient(listOf(mixOklab(base, tintA, mix), mixOklab(base, tintB, mix))))
+    else Modifier.background(p.chip.copy(alpha = p.chip.alpha * 0.7f))
+    val edge = if (tintA != null) mixOklab(c.borderSubtle, tintA, 0.35f) else c.borderSubtle
+    Column(Modifier.fillMaxWidth().ring(Radii.Sm, edge).clip(Radii.Sm).then(fill).topEdge(Radii.Sm, c.edgeLight)) {
         if (w.image != null && w.shape != "square") AsyncImage(Media.widgetUrl(w.image, 520, density), null, Media.loader, Modifier.fillMaxWidth().aspectRatio(12f / 5f).background(c.bgActive), contentScale = ContentScale.Crop)
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (w.image != null && w.shape == "square") AsyncImage(Media.widgetUrl(w.image, 56, density), null, Media.loader, Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(c.bgActive), contentScale = ContentScale.Crop)
                 Txt(w.title, style = Nx.type.name.copy(fontSize = Nx.type.sp(17f), fontWeight = FontWeight(700), lineHeight = Nx.type.sp(21.25f)), color = c.textStrong, maxLines = 2)
             }
-            w.text?.let { Txt(it, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f), lineHeight = Nx.type.sp(20.3f)), color = c.text, modifier = Modifier.padding(top = 6.dp)) }
+            w.text?.let {
+                Box(Modifier.padding(top = 6.dp).fillMaxWidth()) {
+                    fish.nexa.ui.markdown.MarkdownView(it, fish.nexa.ui.markdown.RenderCtx(color = c.text, bodyPx = 14f, bodyLine = 20.3f), Modifier.fillMaxWidth())
+                }
+            }
             if (w.stats.isNotEmpty()) BoxWithConstraints(Modifier.padding(top = 12.dp).fillMaxWidth()) {
                 val cols = maxOf(1, minOf(w.stats.size, ((maxWidth + 6.dp) / (110.dp + 6.dp)).toInt()))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -966,23 +1007,33 @@ private fun CardWidget(w: Widgets.CardWidget) {
                         for (st in row) Column(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(p.chip).topEdge(RoundedCornerShape(9.dp), c.edgeLight).padding(start = 10.dp, end = 10.dp, top = 7.dp, bottom = 8.dp)) {
                             Txt(st.label, style = Nx.type.hint.copy(fontWeight = FontWeight(600), lineHeight = Nx.type.sp(15f)), color = c.textMuted, maxLines = 2)
                             Txt(st.value, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(700), lineHeight = Nx.type.sp(19f)), color = c.textStrong, maxLines = 2, modifier = Modifier.padding(top = 2.dp))
+                            st.bar?.let { bar ->
+                                // a stat drawn as a bar: a thin bar filled in the card's colour, or the accent
+                                Box(
+                                    Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(c.textStrong.copy(alpha = 0.12f))
+                                        .semantics { contentDescription = st.label; stateDescription = "$bar%" },
+                                ) { Box(Modifier.fillMaxWidth(bar / 100f).fillMaxHeight().background(tintA ?: c.brand, RoundedCornerShape(3.dp))) }
+                            }
                         }
                         repeat(cols - row.size) { Box(Modifier.weight(1f)) }
                     }
                 }
             }
-            w.link?.let { url ->
-                val host = Widgets.linkHost(url)
-                val showHost = w.linkLabel != null && !w.linkLabel.lowercase().contains(host.lowercase())
-                Row(
-                    Modifier.padding(top = 12.dp).height(40.dp).clip(RoundedCornerShape(999.dp)).background(p.chip).topEdge(RoundedCornerShape(999.dp), c.edgeLight)
-                        .pressable(remember { MutableInteractionSource() }) { openLink(url) }.padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    Icon("ExternalLink", c.textStrong, size = 14.dp)
-                    Txt(w.linkLabel ?: host, style = Nx.type.button.copy(fontSize = Nx.type.sp(13.5f), fontWeight = FontWeight(650)), color = c.textStrong, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-                    if (showHost) Txt(host, style = Nx.type.button.copy(fontSize = Nx.type.sp(13.5f), fontWeight = FontWeight(600)), color = c.textMuted, maxLines = 1)
+            if (w.links.isNotEmpty()) FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (l in w.links) {
+                    val host = Widgets.linkHost(l.url)
+                    // a link with words of its own also says where it goes, as a masked link in a message does
+                    val showHost = l.label != null && !l.label.lowercase().contains(host.lowercase())
+                    Row(
+                        Modifier.height(40.dp).clip(RoundedCornerShape(999.dp)).background(p.chip).topEdge(RoundedCornerShape(999.dp), c.edgeLight)
+                            .pressable(remember { MutableInteractionSource() }) { openCardLink(l.url) }.padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        Icon("ExternalLink", c.textStrong, size = 14.dp)
+                        Txt(l.label ?: host, style = Nx.type.button.copy(fontSize = Nx.type.sp(13.5f), fontWeight = FontWeight(650)), color = c.textStrong, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+                        if (showHost) Txt(host, style = Nx.type.button.copy(fontSize = Nx.type.sp(13.5f), fontWeight = FontWeight(600)), color = c.textMuted, maxLines = 1)
+                    }
                 }
             }
         }

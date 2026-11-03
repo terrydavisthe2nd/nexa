@@ -2,9 +2,12 @@ import { ArrowDown, ArrowUp, ArrowUpRight, ExternalLink, LayoutGrid, LoaderCircl
 import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
 import { Tooltip } from "@/components/common/Tooltip";
 import { avatarColor, initials } from "@/lib/avatarColor";
-import { gamePicture, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type CardWidget, type GameWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetGame, type WidgetMusic } from "@/lib/widgets";
+import { gamePicture, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type CardWidget, type GameWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetGame, type WidgetLink, type WidgetMusic } from "@/lib/widgets";
 import { t } from "@/i18n";
 import { canOpenGames, openGame } from "@/lib/games";
+import { useRenderCtx } from "@/lib/markdownCtx";
+import { Markdown } from "@/markdown";
+import { useUI } from "@/stores/ui";
 import { stopPreview, togglePreview, usePreview } from "./previews";
 import { SongVolume } from "./SongVolume";
 import s from "./Widgets.module.css";
@@ -388,37 +391,71 @@ function Songs({ w, variant, onShowAll }: { w: MusicWidget; variant: Variant; on
   );
 }
 
+/** A card's colour as CSS, from 0xRRGGBB. */
+const hex = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
+
+/** Opens a card's link once its full address has been seen, as activity links do. */
+function openCardLink(url: string) {
+  useUI.getState().openModal("confirm", {
+    title: t("textMenu.openLink"),
+    body: <span dir="ltr" style={{ overflowWrap: "anywhere", unicodeBidi: "isolate" }}>{url}</span>,
+    confirmLabel: t("textMenu.openLink"),
+    onConfirm: () => {
+      window.open(url, "_blank", "noopener,noreferrer");
+    },
+  });
+}
+
+function CardLink({ link }: { link: WidgetLink }) {
+  const host = linkHost(link.url);
+  // a link with words of its own also says where it goes, as a masked link in a message does
+  const showHost = !!link.label && !link.label.toLowerCase().includes(host.toLowerCase());
+  return (
+    <a className={s.link} href={link.url} target="_blank" rel="noopener noreferrer nofollow ugc" onClick={(e) => { e.preventDefault(); openCardLink(link.url); }} data-testid="widget-link">
+      <ExternalLink size={14} aria-hidden="true" />
+      <span className={s.linkText} dir="auto">{link.label || host}</span>
+      {showHost ? <span className={s.linkHost} dir="ltr">{host}</span> : null}
+    </a>
+  );
+}
+
 function Card({ w, variant }: { w: CardWidget; variant: Variant }) {
+  const ctx = useRenderCtx();
   const wide = w.image && w.shape !== "square" ? w.image : null;
   const square = w.image && w.shape === "square" ? w.image : null;
-  const host = w.link ? linkHost(w.link.url) : "";
-  // a link with words of its own also says where it goes, as a masked link in a message does
-  const showHost = !!w.link?.label && !w.link.label.toLowerCase().includes(host.toLowerCase());
+  const tint = w.color !== undefined ? ({ "--card-a": hex(w.color), "--card-b": hex(w.color2 ?? w.color) } as CSSProperties) : undefined;
   return (
-    <section className={[s.widget, s.card].join(" ")} data-testid="widget-custom">
+    <section className={[s.widget, s.card].join(" ")} data-tinted={tint ? "" : undefined} style={tint} data-testid="widget-custom">
       {wide ? <img className={s.cardImg} src={widgetImageUrl(wide, variant === "panel" ? 300 : 520)} alt="" loading="lazy" draggable={false} /> : null}
       <div className={s.cardBody}>
         <div className={s.cardTop}>
           {square ? <img className={s.cardSquare} src={widgetImageUrl(square, 56)} alt="" loading="lazy" draggable={false} /> : null}
           <h3 className={s.cardTitle} dir="auto">{w.title}</h3>
         </div>
-        {w.text ? <p className={s.cardText} dir="auto">{w.text}</p> : null}
+        {w.text ? (
+          <div className={s.cardText} data-testid="widget-card-text">
+            <Markdown source={w.text} ctx={ctx} />
+          </div>
+        ) : null}
         {w.stats?.length ? (
           <dl className={s.stats}>
             {w.stats.map((st, i) => (
-              <div key={i} className={s.stat}>
+              <div key={i} className={s.stat} data-bar={st.bar !== undefined || undefined}>
                 <dt dir="auto">{st.label}</dt>
                 <dd dir="auto">{st.value}</dd>
+                {st.bar !== undefined ? (
+                  <span className={s.statBar} role="progressbar" aria-label={st.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={st.bar}>
+                    <i style={{ width: `${st.bar}%` }} />
+                  </span>
+                ) : null}
               </div>
             ))}
           </dl>
         ) : null}
-        {w.link ? (
-          <a className={s.link} href={w.link.url} target="_blank" rel="noopener noreferrer nofollow ugc" data-testid="widget-link">
-            <ExternalLink size={14} aria-hidden="true" />
-            <span className={s.linkText} dir="auto">{w.link.label || host}</span>
-            {showHost ? <span className={s.linkHost} dir="ltr">{host}</span> : null}
-          </a>
+        {w.links?.length ? (
+          <div className={s.links}>
+            {w.links.map((l, i) => <CardLink key={`${l.url}-${i}`} link={l} />)}
+          </div>
         ) : null}
       </div>
     </section>

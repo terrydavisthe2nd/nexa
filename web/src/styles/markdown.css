@@ -148,5 +148,12 @@ a.md-jump:hover { background: var(--mention-bg-hover); color: var(--mention-fg);
    wrap unbroken runs. Clip ink from oversized glyphs/combining marks locally.
    Code and table wrappers keep their explicit, contained horizontal scroll. */
 :where(.md-paragraph, .md-h1, .md-h2, .md-h3, .md-h4, .md-h5, .md-h6, .md-list-item, .md-subtext, .md-alert-title, .md-summary-text) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; overflow: clip; }
+/* A list item clips its own ink (above), which cut off a marker hanging outside it: the marker sits
+   inside instead, and the item hangs it out by about its width so wrapped lines still align. */
+.md-list { padding-inline-start: 6px; }
+.md-list-item:not(.md-task-item) { list-style-position: inside; padding-inline-start: 1.3em; text-indent: -1.3em; }
+.md-list-item > * { text-indent: 0; }
+/* a task's box hangs back into the item's own padding for the same reason */
+.md-task-item { padding-inline-start: 21px; }
 /* Role/channel mentions and link host badges can contain user-controlled names. */
 .md-mention, .md-link-host { display: inline-block; min-width: 0; max-width: 100%; max-height: 1lh; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; unicode-bidi: isolate; }

@@ -1042,6 +1042,18 @@ as Discord holds it:
   `ui/moderation/BadgeTab.kt` (also `openGiveBadgesSheet`), and `badges` in `Route.Admin.TABS`. The
   event icon list must name icons both lucide-react and Android's `lucide.json` have.
 
+### Profile widgets (`api/widgets.go`, web `lib/widgets.ts`, Android `ui/profile/Widgets.kt`)
+
+- A JSON list on `users.widgets` and `server_members.widgets` (no migration for new kinds; apps skip
+  kinds they do not know), at most 12 (`maxWidgets`, one of each game and music kind) and 4 custom
+  cards, 64 KiB. A card has a title, a picture, markdown text (1000 characters, the chat renderer),
+  up to 6 stats (a stat with `bar` 0 to 100 is a progress bar whose `value` is the percentage), up to
+  3 `links` (the first repeated as `link` for older apps) and `color`/`color2` (0xRRGGBB tint and
+  gradient). Card links confirm the full address before opening.
+- Current apps always send `links` on a card, even empty. A card saved without it comes from an app
+  before cards had several links, colours and bars, so `carryCardExtras` keeps the saved card's
+  extra links, colours and bars (`TestOldAppsKeepWhatCardsGained`).
+
 ### Game pages (`internal/games/details.go`, `api/widgets.go`)
 
 - `GET /api/v1/games/{id}` is a game's page from IGDB (summary, storyline, release, genres, themes,
@@ -1385,7 +1397,8 @@ the next one's file is here.
 
 ### Shared user text layout
 
-User text must fit its slot whatever its length limit. Never blacklist Unicode to fix layout: U+FDFD,
+User text must fit its slot whatever its length limit. Markdown list items clip their own ink, so their markers sit inside with a
+hanging indent (`markdown.css`); a marker outside an item is cut off. Never blacklist Unicode to fix layout: U+FDFD,
 combining sequences, non-breaking spaces and long words must be contained, even from older saves or
 other clients. `base.css` gives inherited emergency wrapping and the `PersonName` identity boundary;
 compact labels get explicit line limits, titles are bounded, markdown blocks wrap and clip excess ink,

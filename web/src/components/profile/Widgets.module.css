@@ -117,7 +117,17 @@
 .cardTop { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .cardSquare { flex: none; width: 56px; height: 56px; border-radius: 12px; object-fit: cover; background: var(--bg-active); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 6px 14px -8px color-mix(in srgb, var(--shade) 80%, transparent); }
 .widget h3.cardTitle { margin: 0; font-family: var(--font-display); font-size: 17px; font-weight: 700; line-height: 1.25; letter-spacing: -0.005em; color: var(--text-strong); overflow-wrap: anywhere; }
-.cardText { margin: 6px 0 0; font-size: 14px; line-height: 1.45; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cardText { margin: 6px 0 0; font-size: 14px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+/* a card in its own colours: the tile's own fill, washed with them from one corner to the other */
+.card[data-tinted] { background: linear-gradient(150deg, color-mix(in oklab, var(--card-a) 30%, color-mix(in srgb, var(--profile-chip) 70%, var(--bg-floating))), color-mix(in oklab, var(--card-b) 30%, color-mix(in srgb, var(--profile-chip) 70%, var(--bg-floating)))); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px color-mix(in oklab, var(--card-a) 35%, var(--border-subtle)); }
+[data-theme="light"] .card[data-tinted] { background: linear-gradient(150deg, color-mix(in oklab, var(--card-a) 18%, var(--bg-floating)), color-mix(in oklab, var(--card-b) 18%, var(--bg-floating))); }
+/* a stat drawn as a bar: its value, then a thin bar filled in the card's colour, or the accent */
+.statBar { display: block; height: 6px; margin-top: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--text-strong) 12%, transparent); }
+.statBar i { display: block; height: 100%; border-radius: inherit; background: var(--card-a, var(--brand)); }
+.links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; min-width: 0; }
+.links .link { margin-top: 0; }
+/* side by side, each link keeps its whole host where it can; a long one gives way from its words first */
+.links .linkHost { flex: 0 1 auto; min-width: 0; max-width: none; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin: 12px 0 0; }
 .stat { min-width: 0; padding: 7px 10px 8px; border-radius: 9px; background: var(--profile-chip); box-shadow: inset 0 1px 0 var(--edge-light); }
 .stat dt { font-size: 12px; font-weight: 600; line-height: 15px; color: var(--text-muted); overflow-wrap: anywhere; }

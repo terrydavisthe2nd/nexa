@@ -139,11 +139,14 @@
 .pictureImg[data-shape="wide"] { width: min(100%, 300px); aspect-ratio: 12 / 5; }
 .pictureImg[data-shape="square"] { width: 104px; height: 104px; border-radius: 16px; }
 .statRows { display: flex; flex-direction: column; gap: 6px; }
-.statRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 32px; gap: 6px; align-items: center; }
+.statRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 32px 32px; gap: 6px; align-items: center; }
+.statRow [aria-pressed="true"] { color: var(--text-brand); background: color-mix(in srgb, var(--brand) 16%, transparent); }
 .statRow input { height: 38px; font-size: 15px; }
-.linkRow { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 6px; }
+.linkRow { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 32px; gap: 6px; align-items: center; }
 @media (max-width: 520px) {
-  .linkRow { grid-template-columns: minmax(0, 1fr); }
+  /* the address on a line of its own, its words and the remove button under it */
+  .linkRow { grid-template-columns: minmax(0, 1fr) 32px; }
+  .linkRow > :first-child { grid-column: 1 / -1; }
 }
 .error { margin: 6px 0 0; font-size: 13px; color: var(--text-danger); }
 /* the card as the profile will show it, on a sheet like the profile's own */
@@ -160,3 +163,12 @@
 .tag { min-width: 0; max-width: 100%; }
 .tag > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tag > button { flex: none; }
+
+/* a card's colours: each a swatch that opens the colour picker, then what else can be done */
+.colourRow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.colourSwatch { position: relative; display: inline-flex; width: 34px; height: 34px; border-radius: 50%; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 0 1px var(--border-subtle); overflow: hidden; }
+/* each link's address and words stay together, a little apart from the next link's */
+.linkRows { display: flex; flex-direction: column; gap: 6px; }
+@media (max-width: 520px) {
+  .linkRows { gap: 14px; }
+}

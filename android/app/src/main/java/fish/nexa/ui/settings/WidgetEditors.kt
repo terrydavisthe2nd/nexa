@@ -99,7 +99,7 @@ private object Limits {
     const val TAG = 20
     const val NAME = 100
     const val TITLE = 40
-    const val TEXT = 300
+    const val TEXT = 1000
     const val STATS = 6
     const val LABEL = 24
     const val VALUE = 40
@@ -126,7 +126,7 @@ private val TAG_SUGGESTIONS = listOf("casual", "competitive", "coop", "solo", "r
 private fun newWidgetId(): String = "w" + (1..8).map { "0123456789abcdefghijklmnopqrstuvwxyz"[Random.nextInt(36)] }.joinToString("")
 
 private fun fresh(type: String): Widgets.Widget = when (type) {
-    "custom" -> Widgets.CardWidget(newWidgetId(), "", null, null, null, emptyList(), null, null)
+    "custom" -> Widgets.CardWidget(newWidgetId(), "", null, null, null, emptyList(), emptyList())
     "artists", "albums", "songs" -> Widgets.MusicWidget(newWidgetId(), type, emptyList())
     else -> Widgets.GameWidget(newWidgetId(), type, emptyList(), null)
 }
@@ -849,6 +849,17 @@ private fun linkProblem(raw: String): String? {
     }
 }
 
+/** One of a card's colours: a round swatch that opens the colour picker. */
+@Composable
+private fun CardSwatch(value: Int, label: String, onChange: (Int) -> Unit) {
+    val hex = "#%06x".format(value)
+    Box(
+        Modifier.size(40.dp).clip(CircleShape).background(Color(0xFF000000L or value.toLong())).ring(CircleShape, Nx.colors.borderSubtle).topEdge(CircleShape, Color.White.copy(alpha = 0.2f))
+            .pressable(remember { MutableInteractionSource() }) { openColourPicker(label, hex, false) { v -> v.removePrefix("#").take(6).toIntOrNull(16)?.let(onChange) } }
+            .semantics { contentDescription = label },
+    )
+}
+
 /**
  * A card of your own: a title, a picture across its top or beside the title,
  * a few words, up to six stats and a link, and the card as the profile will
@@ -859,26 +870,29 @@ private fun openCardEditor(initial: Widgets.CardWidget, isNew: Boolean, onDone: 
     var text by mutableStateOf(initial.text ?: "")
     var image by mutableStateOf(initial.image?.let { it to (initial.shape ?: "wide") })
     var stats by mutableStateOf(initial.stats)
-    var url by mutableStateOf(initial.link ?: "")
-    var linkLabel by mutableStateOf(initial.linkLabel ?: "")
+    var links by mutableStateOf(initial.links.map { it.url to (it.label ?: "") })
+    var color by mutableStateOf(initial.color)
+    var color2 by mutableStateOf(initial.color2)
     var uploading by mutableStateOf<String?>(null)
     var tried by mutableStateOf(false)
     fun card(): Widgets.CardWidget {
-        val link = withScheme(url)
-        val filled = stats.map { Widgets.Stat(it.label.trim(), it.value.trim()) }.filter { it.label.isNotEmpty() || it.value.isNotEmpty() }
+        val filled = stats
+            .map { if (it.bar != null) Widgets.Stat(it.label.trim(), "${it.bar}%", it.bar) else Widgets.Stat(it.label.trim(), it.value.trim()) }
+            .filter { it.label.isNotEmpty() || (it.bar == null && it.value.isNotEmpty()) }
+        val typed = links.map { (u, l) -> Widgets.Link(withScheme(u), l.trim().ifEmpty { null }) }.filter { it.url.isNotEmpty() }
         return Widgets.CardWidget(
             initial.id, title.trim(), image?.first, image?.second, text.trim().ifEmpty { null }, filled,
-            link.ifEmpty { null }, if (link.isNotEmpty()) linkLabel.trim().ifEmpty { null } else null,
+            typed, color, if (color != null) color2 else null,
         )
     }
     fun problem(): String? {
         val cw = card()
-        val something = cw.text != null || cw.image != null || cw.stats.isNotEmpty() || cw.link != null
+        val something = cw.text != null || cw.image != null || cw.stats.isNotEmpty() || cw.links.isNotEmpty()
         return when {
             cw.title.isEmpty() -> t("widgets.card.needsTitle")
             !something -> t("widgets.card.needsMore")
             cw.stats.any { it.label.isEmpty() || it.value.isEmpty() } -> t("widgets.card.halfStat")
-            else -> linkProblem(withScheme(url))
+            else -> cw.links.firstNotNullOfOrNull { linkProblem(it.url) }
         }
     }
     openSheet(
@@ -920,8 +934,6 @@ private fun openCardEditor(initial: Widgets.CardWidget, isNew: Boolean, onDone: 
             pickShape = shape
             pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
-        val link = withScheme(url)
-        val badLink = linkProblem(link)
         Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             NxTextField(
                 title, { title = it.take(Limits.TITLE) },
@@ -950,13 +962,10 @@ private fun openCardEditor(initial: Widgets.CardWidget, isNew: Boolean, onDone: 
                     PickTile(t("widgets.card.square"), uploading == "square", uploading == null, Modifier.width(104.dp)) { choose("square") }
                 }
             }
-            NxTextField(
-                text, { text = it.take(Limits.TEXT) },
-                label = t("widgets.card.text"),
-                placeholder = t("widgets.card.textPlaceholder"),
-                hint = t("composer.limit.left", "count" to Limits.TEXT - text.length),
-                singleLine = false, minLines = 3, capitalize = true, imeAction = ImeAction.Default,
-            )
+            Column {
+                EditLabel(t("widgets.card.text"))
+                fish.nexa.ui.format.FormattedTextField(text, { text = it.take(Limits.TEXT) }, Limits.TEXT, t("widgets.card.textPlaceholder"), t("widgets.card.text"), null, minLines = 3)
+            }
             Column {
                 EditLabel(t("widgets.card.stats"), Modifier.padding(bottom = 0.dp))
                 Txt(t("widgets.card.statsHint"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.2f)), color = c.textMuted, modifier = Modifier.padding(bottom = 8.dp))
@@ -964,7 +973,15 @@ private fun openCardEditor(initial: Widgets.CardWidget, isNew: Boolean, onDone: 
                     stats.forEachIndexed { i, st ->
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             NxTextField(st.label, { v -> stats = stats.mapIndexed { j, s -> if (j == i) s.copy(label = v.take(Limits.LABEL)) else s } }, Modifier.weight(1f).semantics { contentDescription = t("widgets.card.statLabelN", "n" to i + 1) }, placeholder = t("widgets.card.statLabel"), capitalize = true)
-                            NxTextField(st.value, { v -> stats = stats.mapIndexed { j, s -> if (j == i) s.copy(value = v.take(Limits.VALUE)) else s } }, Modifier.weight(1.3f).semantics { contentDescription = t("widgets.card.statValueN", "n" to i + 1) }, placeholder = t("widgets.card.statValue"), capitalize = true)
+                            if (st.bar != null) NxTextField(
+                                st.bar.toString(), { v -> val n = v.filter { it.isDigit() }.take(3).toIntOrNull()?.coerceIn(0, 100) ?: 0; stats = stats.mapIndexed { j, s -> if (j == i) s.copy(bar = n) else s } },
+                                Modifier.weight(1.3f).semantics { contentDescription = t("widgets.card.statPercentN", "n" to i + 1) }, placeholder = t("widgets.card.statPercent"), keyboardType = KeyboardType.Number,
+                            ) else NxTextField(st.value, { v -> stats = stats.mapIndexed { j, s -> if (j == i) s.copy(value = v.take(Limits.VALUE)) else s } }, Modifier.weight(1.3f).semantics { contentDescription = t("widgets.card.statValueN", "n" to i + 1) }, placeholder = t("widgets.card.statValue"), capitalize = true)
+                            IconButton(
+                                "ChartNoAxesColumn", t("widgets.card.statBarN", "n" to i + 1),
+                                { stats = stats.mapIndexed { j, s -> if (j != i) s else if (s.bar != null) Widgets.Stat(s.label, "") else Widgets.Stat(s.label, "", s.value.trim().removeSuffix("%").toIntOrNull()?.coerceIn(0, 100) ?: 50) } },
+                                tint = if (st.bar != null) c.textBrand else c.textMuted, size = 36.dp, iconSize = 16.dp,
+                            )
                             IconButton("X", t("widgets.card.removeStat", "n" to i + 1), { stats = stats.filterIndexed { j, _ -> j != i } }, tint = c.textMuted, size = 36.dp, iconSize = 16.dp)
                         }
                     }
@@ -973,22 +990,50 @@ private fun openCardEditor(initial: Widgets.CardWidget, isNew: Boolean, onDone: 
                     EditChip(t("widgets.card.addStat"), "Plus") { stats = stats + Widgets.Stat("", "") }
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                EditLabel(t("widgets.card.link"), Modifier.padding(bottom = 0.dp))
-                NxTextField(
-                    url, { url = it.take(512) },
-                    Modifier.onFocusChanged { if (!it.isFocused && url.isNotBlank()) url = withScheme(url) }.semantics { contentDescription = t("widgets.card.linkUrl") },
-                    placeholder = "https://",
-                    keyboardType = KeyboardType.Uri,
-                    error = if (url.isNotBlank() && badLink != null) badLink else null,
-                )
-                NxTextField(
-                    linkLabel, { linkLabel = it.take(Limits.LINK_LABEL) },
-                    Modifier.semantics { contentDescription = t("widgets.card.linkLabel") },
-                    placeholder = t("widgets.card.linkLabel"),
-                    enabled = url.isNotBlank(),
-                    capitalize = true,
-                )
+            Column {
+                EditLabel(t("widgets.card.links"))
+                if (links.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    links.forEachIndexed { i, (u, l) ->
+                        val bad = if (u.isNotBlank()) linkProblem(withScheme(u)) else null
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            NxTextField(
+                                u, { v -> links = links.mapIndexed { j, x -> if (j == i) v.take(512) to x.second else x } },
+                                Modifier.onFocusChanged { f -> if (!f.isFocused && u.isNotBlank()) links = links.mapIndexed { j, x -> if (j == i) withScheme(x.first) to x.second else x } }.semantics { contentDescription = t("widgets.card.linkUrlN", "n" to i + 1) },
+                                placeholder = "https://",
+                                keyboardType = KeyboardType.Uri,
+                                error = bad,
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                NxTextField(
+                                    l, { v -> links = links.mapIndexed { j, x -> if (j == i) x.first to v.take(Limits.LINK_LABEL) else x } },
+                                    Modifier.weight(1f).semantics { contentDescription = t("widgets.card.linkLabelN", "n" to i + 1) },
+                                    placeholder = t("widgets.card.linkLabel"),
+                                    enabled = u.isNotBlank(),
+                                    capitalize = true,
+                                )
+                                IconButton("X", t("widgets.card.removeLink", "n" to i + 1), { links = links.filterIndexed { j, _ -> j != i } }, tint = c.textMuted, size = 36.dp, iconSize = 16.dp)
+                            }
+                        }
+                    }
+                }
+                if (links.size < Widgets.MAX_LINKS) Box(Modifier.padding(top = if (links.isNotEmpty()) 8.dp else 0.dp)) {
+                    EditChip(t("widgets.card.addLink"), "Plus") { links = links + ("" to "") }
+                }
+            }
+            Column {
+                EditLabel(t("widgets.card.colour"), Modifier.padding(bottom = 0.dp))
+                Txt(t("widgets.card.colourHint"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.2f)), color = c.textMuted, modifier = Modifier.padding(bottom = 8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                    val first = color
+                    if (first == null) EditChip(t("widgets.card.addColour"), "Palette") { color = 0x8000FF }
+                    else {
+                        CardSwatch(first, t("widgets.card.firstColour")) { color = it }
+                        val second = color2
+                        if (second != null) CardSwatch(second, t("widgets.card.secondColour")) { color2 = it }
+                        else EditChip(t("widgets.card.addSecondColour"), "Plus") { color2 = 0x00B0F4 }
+                        EditChip(t("widgets.card.noColour")) { color = null; color2 = null }
+                    }
+                }
             }
             Column {
                 EditLabel(t("settings.profile.preview"))
