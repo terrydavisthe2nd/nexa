@@ -67,7 +67,7 @@ export interface WidgetLink {
 
 export type GameWidgetType = "favorite" | "playing" | "wishlist" | "played";
 export type MusicWidgetType = "artists" | "albums" | "songs";
-export type WidgetType = GameWidgetType | MusicWidgetType | "custom" | "countdown" | "localtime";
+export type WidgetType = GameWidgetType | MusicWidgetType | "custom" | "countdown" | "localtime" | "stickers";
 
 export interface GameWidget {
   id: string;
@@ -122,11 +122,20 @@ export interface LocalTimeWidget {
   zone: string;
 }
 
-export type Widget = GameWidget | MusicWidget | CardWidget | CountdownWidget | LocalTimeWidget;
+/** A showcase of one or two of the person's own public sticker or emoji packs. */
+export interface StickersWidget {
+  id: string;
+  type: "stickers";
+  packs: string[];
+}
+
+export const MAX_SHOWCASE_PACKS = 2;
+
+export type Widget = GameWidget | MusicWidget | CardWidget | CountdownWidget | LocalTimeWidget | StickersWidget;
 
 export const GAME_TYPES: GameWidgetType[] = ["favorite", "playing", "wishlist", "played"];
 export const MUSIC_TYPES: MusicWidgetType[] = ["artists", "albums", "songs"];
-export const WIDGET_TYPES: WidgetType[] = [...GAME_TYPES, ...MUSIC_TYPES, "custom", "countdown", "localtime"];
+export const WIDGET_TYPES: WidgetType[] = [...GAME_TYPES, ...MUSIC_TYPES, "custom", "countdown", "localtime", "stickers"];
 export const MAX_WIDGETS = 12;
 export const MAX_CARD_LINKS = 3;
 export const MAX_CARDS = 4;
@@ -158,6 +167,7 @@ export function validZone(zone: string): boolean {
 export function blankWidget(type: WidgetType, id: string): Widget {
   if (type === "custom") return { id, type, title: "", links: [] };
   if (type === "countdown") return { id, type, title: "", date: "" };
+  if (type === "stickers") return { id, type, packs: [] };
   if (type === "localtime") return { id, type, zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" };
   if (isMusicType(type)) return { id, type, music: [] };
   return { id, type, games: [] };
@@ -214,6 +224,11 @@ export function readWidgets(x: unknown): Widget[] {
       if (!title || (!date && !at)) continue;
       const emoji = str(w["emoji"], 32).trim();
       out.push({ id, type, title, ...(emoji ? { emoji } : {}), ...(date ? { date } : { at: at! }) });
+      continue;
+    }
+    if (type === "stickers") {
+      const packs = Array.isArray(w["packs"]) ? w["packs"].filter((p): p is string => typeof p === "string" && /^\d{1,20}$/.test(p)).slice(0, MAX_SHOWCASE_PACKS) : [];
+      if (packs.length) out.push({ id, type, packs });
       continue;
     }
     if (type === "localtime") {
@@ -347,6 +362,7 @@ export function widgetsText(widgets: Widget[], title: (w: Widget) => string): { 
     if (isMusicWidget(w)) return { title: title(w), text: w.music.map((m) => (m.by ? `${m.name} (${m.by})` : m.name)).join(", ") };
     if (w.type === "countdown") return { title: title(w), text: [w.emoji, w.title, w.date ?? (w.at ? new Date(w.at).toISOString() : "")].filter(Boolean).join(" ") };
     if (w.type === "localtime") return { title: title(w), text: w.zone };
+    if (w.type === "stickers") return { title: title(w), text: w.packs.join(", ") };
     return { title: title(w), text: [w.title, w.text, ...(w.stats ?? []).map((st) => `${st.label}: ${st.value}`), ...(w.links ?? []).map((l) => l.url)].filter(Boolean).join(" · ") };
   });
 }

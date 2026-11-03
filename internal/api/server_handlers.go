@@ -2169,7 +2169,7 @@ func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 			if before != nil {
 				was = *before
 			}
-			clean, problem := s.cleanWidgets(r.Context(), v, was)
+			clean, problem := s.cleanWidgets(r.Context(), v, was, m.UserID)
 			if problem != "" {
 				WriteError(w, E(http.StatusBadRequest, "invalid_widgets", problem))
 				return

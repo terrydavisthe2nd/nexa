@@ -28,7 +28,7 @@ import { NameStyleEditor } from "./NameStyleEditor";
 import { nameClass, nameStyle } from "@/lib/roleLook";
 import { typingStyleText } from "@/lib/typingStyle";
 import { readNameStyle, sameNameStyle, type NameStyle } from "@/lib/nameStyle";
-import { AddWidgetDialog, CardDialog, CountdownDialog, GameWidgetDialog, LocalTimeDialog, MusicWidgetDialog } from "./WidgetsEditor";
+import { AddWidgetDialog, CardDialog, CountdownDialog, GameWidgetDialog, LocalTimeDialog, MusicWidgetDialog, StickersDialog } from "./WidgetsEditor";
 import st from "./Settings.module.css";
 import d from "./Designer.module.css";
 import { BadgeEditor } from "./BadgeEditor";
@@ -409,6 +409,7 @@ function MainDesigner({ anchor }: { anchor?: string | null | undefined }) {
       {editing && editing.widget.type === "custom" ? <CardDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
       {editing && editing.widget.type === "countdown" ? <CountdownDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
       {editing && editing.widget.type === "localtime" ? <LocalTimeDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
+      {editing && editing.widget.type === "stickers" ? <StickersDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
 
       {crop ? (
         <ImageCropModal

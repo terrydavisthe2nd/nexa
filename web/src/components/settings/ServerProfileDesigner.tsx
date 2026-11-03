@@ -30,7 +30,7 @@ import { unlessUnsaved } from "@/stores/unsaved";
 import { aboutToEdit, aboutToSave } from "./AboutMeEditor";
 import { AboutField, ChatPreview, ColoursPicker, DesignerLayout, FormField, FormSection, hexOf, jumpToField, usePreviewLayout, ViewSwitch, WidgetList } from "./designerParts";
 import { TextInput } from "@/components/common/TextInput";
-import { AddWidgetDialog, CardDialog, CountdownDialog, GameWidgetDialog, LocalTimeDialog, MusicWidgetDialog } from "./WidgetsEditor";
+import { AddWidgetDialog, CardDialog, CountdownDialog, GameWidgetDialog, LocalTimeDialog, MusicWidgetDialog, StickersDialog } from "./WidgetsEditor";
 import d from "./Designer.module.css";
 
 type View = "full" | "card" | "chat";
@@ -411,6 +411,7 @@ function Designer({ serverId, servers, onServer }: { serverId: string; servers: 
       {editing && editing.widget.type === "custom" ? <CardDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
       {editing && editing.widget.type === "countdown" ? <CountdownDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
       {editing && editing.widget.type === "localtime" ? <LocalTimeDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
+      {editing && editing.widget.type === "stickers" ? <StickersDialog initial={editing.widget} isNew={editing.isNew} onDone={doneWidget} onClose={() => setEditing(null)} /> : null}
 
       {crop ? (
         <ImageCropModal

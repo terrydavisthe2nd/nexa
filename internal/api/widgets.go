@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,6 +45,8 @@ const (
 	maxWidgetTitle = 40
 	maxWidgetText  = 1000
 	maxCardLinks   = 3
+	// the packs a sticker showcase shows
+	maxShowcasePacks = 2
 	// a countdown's emoji: one emoji, which with skin tones and joins can be long
 	maxCountdownEmoji = 32
 	maxWidgetStats    = 6
@@ -133,6 +136,8 @@ type widget struct {
 	At    int64  `json:"at,omitempty"`
 	// Zone is a local time widget's IANA time zone ("America/Anchorage")
 	Zone string `json:"zone,omitempty"`
+	// Packs are a showcase's sticker or emoji packs: the person's own, public
+	Packs []string `json:"packs,omitempty"`
 }
 
 var widgetID = regexp.MustCompile(`^[a-z0-9]{4,16}$`)
@@ -335,7 +340,7 @@ func (s *Server) musicKnown(ctx context.Context, in []widget, before string) map
 // cleanWidgets checks widgets their owner sent and writes them the one way
 // they are kept; before is how the profile had them. The second result is
 // why they were refused.
-func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before string) (string, string) {
+func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before string, owner ids.ID) (string, string) {
 	var in []widget
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return "", "widgets must be a list."
@@ -465,6 +470,30 @@ func (s *Server) cleanWidgets(ctx context.Context, raw json.RawMessage, before s
 				next.At = w.At
 			default:
 				return "", "A countdown needs a date."
+			}
+		case "stickers":
+			if seenType[w.Type] {
+				return "", "A profile has one sticker showcase."
+			}
+			seenType[w.Type] = true
+			if len(w.Packs) == 0 || len(w.Packs) > maxShowcasePacks {
+				return "", "A showcase holds one or two of your packs."
+			}
+			for _, raw := range w.Packs {
+				id, err := ids.Parse(raw)
+				if err != nil {
+					return "", "That pack isn't one of yours."
+				}
+				p, err := s.Store.PackByID(ctx, id)
+				if err != nil || p.OwnerUserID == nil || *p.OwnerUserID != owner {
+					return "", "That pack isn't one of yours."
+				}
+				if !p.Public {
+					return "", "Only a public pack can be shown on your profile."
+				}
+				if !slices.Contains(next.Packs, id.String()) {
+					next.Packs = append(next.Packs, id.String())
+				}
 			}
 		case "localtime":
 			if seenType[w.Type] {
@@ -653,7 +682,7 @@ func (s *Server) handleWidgetsPut(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, err)
 		return
 	}
-	clean, problem := s.cleanWidgets(r.Context(), req.Widgets, before)
+	clean, problem := s.cleanWidgets(r.Context(), req.Widgets, before, me.ID)
 	if problem != "" {
 		WriteError(w, E(http.StatusBadRequest, "invalid_widgets", problem))
 		return
@@ -1002,6 +1031,8 @@ func widgetsText(raw string) string {
 			parts = append(parts, strings.TrimSpace(w.Emoji+" "+w.Title))
 		} else if w.Type == "localtime" {
 			parts = append(parts, w.Zone)
+		} else if w.Type == "stickers" {
+			parts = append(parts, strings.Join(w.Packs, ", "))
 		} else if w.Type == "custom" {
 			parts = append(parts, w.Title)
 			if w.Text != "" {

@@ -1,6 +1,10 @@
-import { Bookmark, CalendarClock, ChartNoAxesColumn, Clock, Disc3, Palette, Gamepad2, GripVertical, Heart, ImagePlus, Library, LoaderCircle, MicVocal, Music, PanelTop, Plus, Search, Check, X, type LucideIcon } from "lucide-react";
+import { Bookmark, CalendarClock, Sticker, ChartNoAxesColumn, Clock, Disc3, Palette, Gamepad2, GripVertical, Heart, ImagePlus, Library, LoaderCircle, MicVocal, Music, PanelTop, Plus, Search, Check, X, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { users as usersApi } from "@/api/users";
+import { expressions as expressionsApi } from "@/api/expressions";
+import type { StickerPack } from "@/api/types";
+import { LazySticker } from "@/components/stickers/StickerTile";
+import { useAuth } from "@/stores/auth";
 import { Button } from "@/components/common/Button";
 import { ImageCropModal } from "@/components/common/ImageCropModal";
 import { Modal } from "@/components/common/Modal";
@@ -13,18 +17,19 @@ import { GameCover, MusicArt, ProfileWidgets, widgetTitle } from "@/components/p
 import { useReorder } from "@/hooks/useReorder";
 import { Tr, t } from "@/i18n";
 import { describeError } from "@/lib/errors";
-import { GAME_TYPES, LIMITS, MAX_CARD_LINKS, MAX_CARDS, MOST_GAMES, MOST_MUSIC, MUSIC_TYPES, songLength, widgetImageUrl, type CardWidget, type CountdownWidget, type FoundMusic, type LocalTimeWidget, type GameWidget, type MusicWidget, type Widget, type WidgetGame, type WidgetMusic, type WidgetStat, type WidgetType } from "@/lib/widgets";
+import { GAME_TYPES, LIMITS, MAX_CARD_LINKS, MAX_CARDS, MAX_SHOWCASE_PACKS, MOST_GAMES, MOST_MUSIC, MUSIC_TYPES, songLength, widgetImageUrl, type CardWidget, type CountdownWidget, type FoundMusic, type LocalTimeWidget, type StickersWidget, type GameWidget, type MusicWidget, type Widget, type WidgetGame, type WidgetMusic, type WidgetStat, type WidgetType } from "@/lib/widgets";
 import { allZones, zoneOffset, zonePlace } from "@/lib/timeWidgets";
 import { useUI } from "@/stores/ui";
 import s from "./WidgetsEditor.module.css";
 
-const KIND_ICONS: Record<WidgetType, LucideIcon> = { favorite: Heart, playing: Gamepad2, wishlist: Bookmark, played: Library, artists: MicVocal, albums: Disc3, songs: Music, custom: PanelTop, countdown: CalendarClock, localtime: Clock };
+const KIND_ICONS: Record<WidgetType, LucideIcon> = { favorite: Heart, playing: Gamepad2, wishlist: Bookmark, played: Library, artists: MicVocal, albums: Disc3, songs: Music, custom: PanelTop, countdown: CalendarClock, localtime: Clock, stickers: Sticker };
 /** The kinds of widget, in the groups Add a Widget lists them in. */
 const KIND_GROUPS: { title: string; types: WidgetType[] }[] = [
   { title: "widgets.group.games", types: GAME_TYPES },
   { title: "widgets.group.music", types: MUSIC_TYPES },
   { title: "widgets.group.cards", types: ["custom"] },
   { title: "widgets.group.time", types: ["countdown", "localtime"] },
+  { title: "widgets.group.stickers", types: ["stickers"] },
 ];
 const IMAGE_TYPES = "image/png,image/jpeg,image/gif,image/webp";
 /** What a dragged row carries, so a drop from anywhere else is ignored. */
@@ -1161,6 +1166,79 @@ export function LocalTimeDialog({ initial, isNew, onDone, onClose }: { initial: 
             <ProfileWidgets widgets={[w]} variant="modal" />
           </div>
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * A sticker showcase: up to two of this account's own packs. Only public
+ * packs can be shown; a private one is listed with how to change that.
+ */
+export function StickersDialog({ initial, isNew, onDone, onClose }: { initial: StickersWidget; isNew: boolean; onDone: (w: StickersWidget) => void; onClose: () => void }) {
+  const meId = useAuth((a) => a.me?.id);
+  const [packs, setPacks] = useState<StickerPack[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [picked, setPicked] = useState<string[]>(initial.packs);
+  const [tried, setTried] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    expressionsApi
+      .packs()
+      .then((list) => alive && setPacks(list.filter((p) => p.owner_user_id === meId)))
+      .catch(() => alive && setFailed(true));
+    return () => {
+      alive = false;
+    };
+  }, [meId]);
+  const toggle = (id: string) => setPicked((list) => (list.includes(id) ? list.filter((x) => x !== id) : list.length < MAX_SHOWCASE_PACKS ? [...list, id] : list));
+  const problem = picked.length === 0 ? t("widgets.stickers.needsPack") : null;
+  const finish = () => {
+    setTried(true);
+    if (!problem) onDone({ id: initial.id, type: "stickers", packs: picked });
+  };
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={isNew ? t("widgets.stickers.titleNew") : t("widgets.stickers.titleEdit")}
+      width={480}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>{t("chat.editMessage.cancel")}</Button>
+          <Button onClick={finish} disabled={tried && !!problem} data-testid="widget-done">{t("pick.done")}</Button>
+        </>
+      }
+    >
+      <div className={s.stack}>
+        <p className={s.note} style={{ margin: 0 }}>{t("widgets.stickers.hint")}</p>
+        {failed ? (
+          <p className={s.error}>{t("stickerPack.couldNotLoadThePack")}</p>
+        ) : packs === null ? (
+          <p className={s.note}>{t("stickerPack.loading")}</p>
+        ) : packs.length === 0 ? (
+          <p className={s.note}>{t("widgets.stickers.none")}</p>
+        ) : (
+          <ul className={s.packList}>
+            {packs.map((p) => {
+              const on = picked.includes(p.id);
+              const full = !on && picked.length >= MAX_SHOWCASE_PACKS;
+              return (
+                <li key={p.id}>
+                  <button type="button" className={s.packRow} aria-pressed={on} disabled={!p.public || full} onClick={() => toggle(p.id)} data-testid="showcase-pack">
+                    <span className={s.packCover}>{p.stickers[0] ? <LazySticker sticker={p.stickers[0]} pack={p} alt="" /> : p.name.slice(0, 1).toUpperCase()}</span>
+                    <span className={s.packText}>
+                      <span className={s.packName} dir="auto">{p.name}</span>
+                      <span className={s.packAbout}>{p.public ? (p.kind === "emoji" ? t("stickerPack.emojiPack") : t("stickerPack.stickerPack")) : t("widgets.stickers.private")}</span>
+                    </span>
+                    {on ? <Check size={18} className={s.packTick} aria-hidden="true" /> : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {tried && problem ? <p className={s.error} role="alert">{problem}</p> : null}
       </div>
     </Modal>
   );

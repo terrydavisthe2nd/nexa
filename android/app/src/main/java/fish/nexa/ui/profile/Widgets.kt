@@ -129,6 +129,13 @@ object Widgets {
         override val type get() = "countdown"
     }
 
+    /** A showcase of one or two of the person's own public sticker or emoji packs. */
+    data class StickersWidget(override val id: String, val packs: List<String>) : Widget {
+        override val type get() = "stickers"
+    }
+
+    const val MAX_SHOWCASE_PACKS = 2
+
     /** The time where someone is: an IANA time zone, shown only because they added it. */
     data class LocalTimeWidget(override val id: String, val zone: String) : Widget {
         override val type get() = "localtime"
@@ -186,6 +193,10 @@ object Widgets {
                     if (title.isEmpty() || (date == null && at == null)) continue
                     out += CountdownWidget(id, title, w.s("emoji", 32).trim().ifEmpty { null }, date, if (date == null) at else null)
                 }
+                "stickers" -> {
+                    val packs = (w["packs"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content?.takeIf { s -> Regex("^\\d{1,20}$").matches(s) } }?.take(MAX_SHOWCASE_PACKS) ?: emptyList()
+                    if (packs.isNotEmpty()) out += StickersWidget(id, packs)
+                }
                 "localtime" -> {
                     val zone = w.s("zone", 64).trim()
                     if (zone.isEmpty() || !fish.nexa.data.TimeWidgets.valid(zone)) continue
@@ -238,6 +249,7 @@ object Widgets {
                 if (w.date != null) put("date", JsonPrimitive(w.date)) else w.at?.let { put("at", JsonPrimitive(it)) }
             }
             is LocalTimeWidget -> put("zone", JsonPrimitive(w.zone))
+            is StickersWidget -> put("packs", JsonArray(w.packs.map { JsonPrimitive(it) }))
             is CardWidget -> {
                 put("title", JsonPrimitive(w.title))
                 w.image?.let { put("image", JsonPrimitive(it)); put("shape", JsonPrimitive(w.shape ?: "wide")) }
@@ -269,6 +281,7 @@ object Widgets {
         "songs" -> t("widgets.type.songs")
         "countdown" -> t("widgets.type.countdown")
         "localtime" -> t("widgets.type.localtime")
+        "stickers" -> t("widgets.type.stickers")
         else -> t("widgets.type.custom")
     }
 
@@ -523,6 +536,7 @@ fun ProfileWidgets(widgets: List<Widgets.Widget>, onAdd: (() -> Unit)? = null, o
         is Widgets.CardWidget -> CardWidget(w)
         is Widgets.CountdownWidget -> Countdown(w, designing = design != null)
         is Widgets.LocalTimeWidget -> LocalTime(w)
+        is Widgets.StickersWidget -> Showcase(w)
         is Widgets.GameWidget -> when (w.type) {
             "favorite" -> Favorite(w)
             "playing" -> Playing(w)
@@ -1055,6 +1069,25 @@ private fun Countdown(w: Widgets.CountdownWidget, designing: Boolean) {
     }, "widget-countdown")
 }
 
+/**
+ * A showcase of someone's own packs, each as the card a pack link makes in a
+ * chat (its stickers and Install Pack). A pack that has gone or turned private
+ * drops out; with none left the widget is not shown.
+ */
+@Composable
+private fun Showcase(w: Widgets.StickersWidget) {
+    val entries = w.packs.map { fish.nexa.ui.chat.SharedPacks.byId[it] }
+    if (entries.all { it is fish.nexa.ui.chat.SharedPacks.Entry.Missing || it is fish.nexa.ui.chat.SharedPacks.Entry.Failed }) {
+        // still asked for, so a pack that comes back shows again
+        for (id in w.packs) LaunchedEffect(id) { fish.nexa.ui.chat.SharedPacks.load(id) }
+        return
+    }
+    Column {
+        Heading(t("widgets.type.stickers"))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { for (id in w.packs) fish.nexa.ui.chat.PackLinkCard(id, quiet = true) }
+    }
+}
+
 /** Someone's local time, ticking, with where it is and how far it is from yours. */
 @Composable
 private fun LocalTime(w: Widgets.LocalTimeWidget) {
@@ -1152,6 +1185,7 @@ fun WidgetPeek(widgets: List<Widgets.Widget>, onOpen: (() -> Unit)?) {
         is Widgets.CardWidget -> w.text ?: ""
         is Widgets.CountdownWidget -> fish.nexa.data.TimeWidgets.whenText(w.date, w.at)
         is Widgets.LocalTimeWidget -> fish.nexa.data.TimeWidgets.place(w.zone)
+        is Widgets.StickersWidget -> t("widgets.stickers.packCount", "count" to w.packs.size)
     }
     Row(
         Modifier
@@ -1180,7 +1214,7 @@ fun WidgetPeek(widgets: List<Widgets.Widget>, onOpen: (() -> Unit)?) {
                 }
                 is Widgets.CardWidget -> w.image?.let { AsyncImage(Media.widgetUrl(it, 40, density), null, Media.loader, Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop) }
                 is Widgets.CountdownWidget -> w.emoji?.let { StatusEmojiImage(it, 22.dp) }
-                is Widgets.LocalTimeWidget -> Unit
+                is Widgets.LocalTimeWidget, is Widgets.StickersWidget -> Unit
             }
         }
         if (widgets.size > 1) Txt("+${widgets.size - 1}", style = Nx.type.hint.copy(fontWeight = FontWeight(700), fontFeatureSettings = "tnum"), color = c.textMuted)

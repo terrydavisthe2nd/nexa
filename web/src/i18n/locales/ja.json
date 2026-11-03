@@ -1510,7 +1510,7 @@
   "home.quick.desktopTitle": "デスクトップアプリ",
   "home.quick.languagesBody": "アラビア語にも対応し、右から左に読めるようレイアウト全体が反転します。",
   "home.quick.languagesTitle": "12 の言語",
-  "home.quick.lede": "アプリ全体のダウンロードは {size} 未満で、写真 1 枚より小さいので、回線が遅くてもすぐに開きます。",
+  "home.quick.lede": "Nexa は軽いので、遅い回線でもすぐに開きます。",
   "home.quick.phoneBody": "Nexa はスマホのブラウザで動き、アプリのようにホーム画面に追加できます。",
   "home.quick.phoneTitle": "スマホでも",
   "home.quick.title": "どの端末でも軽快",
@@ -7639,6 +7639,8 @@
   "whatsNew.r20261102.reportFeedbackTitle": "報告の結果が届くように",
   "whatsNew.r20261102.reportsBody": "「コンテンツを報告」は、わかりやすい理由の一覧から問題を選べるようになり、スタッフに届く内容をそのまま表示し、送信後すぐに相手をブロックできます。",
   "whatsNew.r20261102.reportsTitle": "報告機能を一新",
+  "whatsNew.r20261102.showcaseBody": "自分で作った公開スタンプパックや絵文字パックを2つまでプロフィールに飾れます。ほかの人はそこから直接追加できます。",
+  "whatsNew.r20261102.showcaseTitle": "スタンプのショーケース",
   "whatsNew.r20261102.themeBuilderBody": "テーマ作成画面に小さな Nexa が表示され、押した部分の色をすぐ変えられます。元に戻す・やり直し、色のアイデア、おまかせ、比較も使えます。設定の「外観」からどうぞ。",
   "whatsNew.r20261102.themeBuilderTitle": "テーマ作成がもっと便利に",
   "whatsNew.r20261102.timeWidgetsBody": "プロフィールに新しいウィジェットが2つ。大切な日までのカウントダウンや、あなたのいる場所の時刻を表示して、友達にいつ話せるか伝えられます。",
@@ -7651,6 +7653,7 @@
   "whatsNew.r20261102.visionTitle": "色覚の違いでテーマを確認",
   "widgets.about.countdown": "大切な日までをカウントダウンします。",
   "widgets.about.localtime": "あなたのいる場所の時刻を表示します。",
+  "widgets.about.stickers": "自分で作った公開スタンプパックや絵文字パックを2つまで紹介できます。",
   "widgets.card.addColour": "色を追加",
   "widgets.card.addLink": "リンクを追加",
   "widgets.card.addSecondColour": "2色目を追加",
@@ -7681,6 +7684,7 @@
   "widgets.countdown.today": "今日！",
   "widgets.countdown.what": "カウントダウンの対象",
   "widgets.countdown.whatPlaceholder": "私の誕生日",
+  "widgets.group.stickers": "スタンプと絵文字",
   "widgets.group.time": "日付と時刻",
   "widgets.localtime.ahead": "{amount}進んでいる",
   "widgets.localtime.behind": "{amount}遅れている",
@@ -7698,6 +7702,16 @@
   "widgets.localtime.where": "{place}、{gap}",
   "widgets.localtime.yours": "{zone}（この端末）",
   "widgets.localtime.zone": "タイムゾーン",
+  "widgets.stickers.hint": "自分のパックを2つまで選べます。ほかの人はあなたのプロフィールから直接追加できます。",
+  "widgets.stickers.needsPack": "パックを1つ以上選んでください。",
+  "widgets.stickers.none": "まだパックを作っていません。設定の「絵文字とスタンプ」で作れます。",
+  "widgets.stickers.packCount": {
+    "other": "{count}パック"
+  },
+  "widgets.stickers.private": "非公開：表示するには公開にしてください",
+  "widgets.stickers.titleEdit": "スタンプのショーケースを編集",
+  "widgets.stickers.titleNew": "スタンプのショーケースを追加",
   "widgets.type.countdown": "カウントダウン",
-  "widgets.type.localtime": "現地時刻"
+  "widgets.type.localtime": "現地時刻",
+  "widgets.type.stickers": "スタンプのショーケース"
 }

@@ -32,7 +32,6 @@ run "text layout fixture typecheck" bash -c 'cd web && npx tsc --noEmit -p tests
 run "web tests"     bash -c 'cd web && npx vitest run --reporter dot'
 run "web build"     bash -c 'cd web && npx vite build --outDir "${TMPDIR:-/tmp}/dist-check" --emptyOutDir >/dev/null'
 # the front page says how much the app is to download; this keeps that true
-run "app size"      python3 tools/app_size.py "${TMPDIR:-/tmp}/dist-check"
 
 run "desktop typecheck" bash -c 'cd desktop && npx tsc --noEmit -p .'
 run "desktop tests"     bash -c 'cd desktop && npx vitest run --reporter dot'

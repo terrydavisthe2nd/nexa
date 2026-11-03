@@ -1576,7 +1576,7 @@
   "home.quick.desktopTitle": "Datorapp",
   "home.quick.languagesBody": "Bland annat arabiska, med hela layouten speglad för att läsas från höger till vänster.",
   "home.quick.languagesTitle": "Tolv språk",
-  "home.quick.lede": "Hela appen är under {size} att ladda ned, mindre än ett enda foto, så den öppnas snabbt även på en långsam anslutning.",
+  "home.quick.lede": "Nexa är lätt att ladda ner, så det öppnas snabbt även på en långsam anslutning.",
   "home.quick.phoneBody": "Nexa körs i telefonens webbläsare, och du kan lägga till den på hemskärmen som en app.",
   "home.quick.phoneTitle": "På din telefon",
   "home.quick.title": "Snabb på alla enheter",
@@ -7889,6 +7889,8 @@
   "whatsNew.r20261102.reportFeedbackTitle": "Svar på Dina Anmälningar",
   "whatsNew.r20261102.reportsBody": "Anmäl Innehåll frågar nu vad som är fel med en tydlig lista över orsaker, visar exakt vad personalen ser och låter dig blockera personen direkt efteråt.",
   "whatsNew.r20261102.reportsTitle": "Anmälningar i Ny Form",
+  "whatsNew.r20261102.showcaseBody": "Visa upp till två av dina egna offentliga klistermärkes- eller emojipaket på din profil. Andra kan installera dem direkt därifrån.",
+  "whatsNew.r20261102.showcaseTitle": "Klistermärkesmonter",
   "whatsNew.r20261102.themeBuilderBody": "När du gör ett tema visas nu ett litet Nexa som du kan trycka på för att ändra valfri färg, med ångra, gör om, färgidéer, Överraska mig och Jämför. Finns under Inställningar, Utseende.",
   "whatsNew.r20261102.themeBuilderTitle": "En bättre temaredigerare",
   "whatsNew.r20261102.timeWidgetsBody": "Två nya widgetar för din profil: räkna ner till en dag som betyder något, eller visa din tid så att vänner vet när du är där.",
@@ -7901,6 +7903,7 @@
   "whatsNew.r20261102.visionTitle": "Kontrollera ett tema för färgblindhet",
   "widgets.about.countdown": "Räkna ner till en dag som betyder något för dig.",
   "widgets.about.localtime": "Visa vad klockan är där du är.",
+  "widgets.about.stickers": "Visa upp till två av dina egna offentliga klistermärkes- eller emojipaket.",
   "widgets.card.addColour": "Lägg Till en Färg",
   "widgets.card.addLink": "Lägg Till Länk",
   "widgets.card.addSecondColour": "Lägg Till Andra Färg",
@@ -7931,6 +7934,7 @@
   "widgets.countdown.today": "I dag!",
   "widgets.countdown.what": "Räknar Ner Till",
   "widgets.countdown.whatPlaceholder": "Min födelsedag",
+  "widgets.group.stickers": "Klistermärken och Emoji",
   "widgets.group.time": "Datum och Tid",
   "widgets.localtime.ahead": "{amount} före",
   "widgets.localtime.behind": "{amount} efter",
@@ -7950,6 +7954,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (den här enheten)",
   "widgets.localtime.zone": "Tidszon",
+  "widgets.stickers.hint": "Välj upp till två av dina paket. Andra kan lägga till dem direkt från din profil.",
+  "widgets.stickers.needsPack": "Välj minst ett paket.",
+  "widgets.stickers.none": "Du har inte gjort några paket än. Gör ett i Inställningar, Emoji och Klistermärken.",
+  "widgets.stickers.packCount": {
+    "one": "{count} paket",
+    "other": "{count} paket"
+  },
+  "widgets.stickers.private": "Privat: gör det offentligt för att visa det",
+  "widgets.stickers.titleEdit": "Redigera Klistermärkesmonter",
+  "widgets.stickers.titleNew": "Lägg Till Klistermärkesmonter",
   "widgets.type.countdown": "Nedräkning",
-  "widgets.type.localtime": "Lokal Tid"
+  "widgets.type.localtime": "Lokal Tid",
+  "widgets.type.stickers": "Klistermärkesmonter"
 }

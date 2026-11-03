@@ -2,13 +2,15 @@ import { ArrowDown, ArrowUp, ArrowUpRight, CalendarClock, Clock, ExternalLink, L
 import { createContext, useContext, useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
 import { Tooltip } from "@/components/common/Tooltip";
 import { avatarColor, initials } from "@/lib/avatarColor";
-import { gamePicture, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type CardWidget, type CountdownWidget, type GameWidget, type LocalTimeWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetGame, type WidgetLink, type WidgetMusic } from "@/lib/widgets";
+import { gamePicture, isGameWidget, isMusicWidget, linkHost, MAX_WIDGETS, musicLink, musicPicture, songLength, widgetImageUrl, type CardWidget, type CountdownWidget, type GameWidget, type LocalTimeWidget, type StickersWidget, type MusicWidget, type MusicWidgetType, type Widget, type WidgetGame, type WidgetLink, type WidgetMusic } from "@/lib/widgets";
 import { t } from "@/i18n";
 import { canOpenGames, openGame } from "@/lib/games";
 import { useRenderCtx } from "@/lib/markdownCtx";
 import { serverNow } from "@/lib/serverClock";
 import { countdownState, countdownWhen, zoneGap, zonePlace, zoneTime } from "@/lib/timeWidgets";
 import { useNow } from "@/hooks/useNow";
+import { PackLinkCard } from "@/components/chat/PackCards";
+import { loadSharedPack, useSharedPacks } from "@/lib/packLinks";
 import { Markdown } from "@/markdown";
 import { useUI } from "@/stores/ui";
 import { stopPreview, togglePreview, usePreview } from "./previews";
@@ -80,6 +82,8 @@ export function widgetTitle(w: Pick<Widget, "type">): string {
       return t("widgets.type.countdown");
     case "localtime":
       return t("widgets.type.localtime");
+    case "stickers":
+      return t("widgets.type.stickers");
     default:
       return t("widgets.type.custom");
   }
@@ -426,6 +430,28 @@ function Countdown({ w }: { w: CountdownWidget }) {
   );
 }
 
+/**
+ * A showcase of someone's own packs, each as the card a pack link makes in
+ * a chat (its stickers and Add Pack). A pack that has gone or turned private
+ * drops out; with none left the widget is not shown.
+ */
+function Showcase({ w }: { w: StickersWidget }) {
+  const byId = useSharedPacks((x) => x.byId);
+  useEffect(() => {
+    for (const id of w.packs) void loadSharedPack(id);
+  }, [w.packs]);
+  const gone = w.packs.every((id) => byId[id]?.status === "missing" || byId[id]?.status === "failed");
+  if (gone) return null;
+  return (
+    <section className={s.widget} data-testid="widget-stickers">
+      <h3>{t("widgets.type.stickers")}</h3>
+      <div className={s.showcase}>
+        {w.packs.map((id) => <PackLinkCard key={id} id={id} quiet />)}
+      </div>
+    </section>
+  );
+}
+
 /** Someone's local time, ticking, with where it is and how far it is from yours. */
 function LocalTime({ w, variant }: { w: LocalTimeWidget; variant: Variant }) {
   const now = serverNow(useNow());
@@ -534,6 +560,8 @@ export function WidgetPeek({ widgets, onOpen }: { widgets: Widget[]; onOpen?: ((
     art = w.emoji ? <span className={s.peekEmoji}>{w.emoji}</span> : null;
   } else if (w.type === "localtime") {
     sub = zonePlace(w.zone);
+  } else if (w.type === "stickers") {
+    sub = t("widgets.stickers.packCount", { count: w.packs.length });
   } else {
     sub = w.text ?? "";
     art = w.image ? <img className={s.peekImage} src={widgetImageUrl(w.image, 40)} alt="" draggable={false} /> : null;
@@ -584,6 +612,7 @@ export function ProfileWidgets({ widgets, variant, onAdd, onShowAll, design }: {
     }
     if (w.type === "countdown") return <Countdown key={w.id} w={w} />;
     if (w.type === "localtime") return <LocalTime key={w.id} w={w} variant={variant} />;
+    if (w.type === "stickers") return <Showcase key={w.id} w={w} />;
     if (!isGameWidget(w)) return <Card key={w.id} w={w} variant={variant} />;
     if (w.type === "favorite") return <Favorite key={w.id} w={w} variant={variant} />;
     if (w.type === "playing") return <Playing key={w.id} w={w} />;

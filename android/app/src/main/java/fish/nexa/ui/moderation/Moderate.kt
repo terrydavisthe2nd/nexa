@@ -577,6 +577,7 @@ fun widgetsText(widgets: List<Widgets.Widget>): List<Pair<String, String>> = wid
         is Widgets.CardWidget -> Widgets.title(w.type) to (listOfNotNull(w.title, w.text) + w.stats.map { "${it.label}: ${it.value}" } + w.links.map { it.url }).filter { it.isNotEmpty() }.joinToString(" · ")
         is Widgets.CountdownWidget -> Widgets.title(w.type) to listOfNotNull(w.emoji, w.title, w.date ?: w.at?.let { java.time.Instant.ofEpochMilli(it).toString() }).joinToString(" ")
         is Widgets.LocalTimeWidget -> Widgets.title(w.type) to w.zone
+        is Widgets.StickersWidget -> Widgets.title(w.type) to w.packs.joinToString(", ")
     }
 }
 

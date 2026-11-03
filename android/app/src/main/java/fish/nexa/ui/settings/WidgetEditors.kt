@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +49,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -112,7 +114,7 @@ private object Limits {
 private val KIND_ICONS = mapOf(
     "favorite" to "Heart", "playing" to "Gamepad2", "wishlist" to "Bookmark", "played" to "Library",
     "artists" to "MicVocal", "albums" to "Disc3", "songs" to "Music", "custom" to "PanelTop",
-    "countdown" to "CalendarClock", "localtime" to "Clock",
+    "countdown" to "CalendarClock", "localtime" to "Clock", "stickers" to "Sticker",
 )
 
 /** The kinds of widget, in the groups Add a Widget lists them in. */
@@ -121,6 +123,7 @@ private val KIND_GROUPS = listOf(
     "widgets.group.music" to listOf("artists", "albums", "songs"),
     "widgets.group.cards" to listOf("custom"),
     "widgets.group.time" to listOf("countdown", "localtime"),
+    "widgets.group.stickers" to listOf("stickers"),
 )
 
 private val TAG_SUGGESTIONS = listOf("casual", "competitive", "coop", "solo", "ranked", "withFriends")
@@ -130,6 +133,7 @@ private fun newWidgetId(): String = "w" + (1..8).map { "0123456789abcdefghijklmn
 private fun fresh(type: String): Widgets.Widget = when (type) {
     "custom" -> Widgets.CardWidget(newWidgetId(), "", null, null, null, emptyList(), emptyList())
     "countdown" -> Widgets.CountdownWidget(newWidgetId(), "", null, null, null)
+    "stickers" -> Widgets.StickersWidget(newWidgetId(), emptyList())
     "localtime" -> Widgets.LocalTimeWidget(newWidgetId(), java.time.ZoneId.systemDefault().id)
     "artists", "albums", "songs" -> Widgets.MusicWidget(newWidgetId(), type, emptyList())
     else -> Widgets.GameWidget(newWidgetId(), type, emptyList(), null)
@@ -238,6 +242,7 @@ fun openWidgetEditor(w: Widgets.Widget, isNew: Boolean, onDone: (Widgets.Widget)
         is Widgets.CardWidget -> openCardEditor(w, isNew, onDone)
         is Widgets.CountdownWidget -> openCountdownEditor(w, isNew, onDone)
         is Widgets.LocalTimeWidget -> openLocalTimeEditor(w, isNew, onDone)
+        is Widgets.StickersWidget -> openShowcaseEditor(w, isNew, onDone)
     }
 }
 
@@ -1222,6 +1227,65 @@ private fun openZonePicker(current: String, onPick: (String) -> Unit) {
                 Txt(if (z == own) t("widgets.localtime.yours", "zone" to label) else label, style = Nx.type.body, color = if (z == current) c.textStrong else c.text, modifier = Modifier.weight(1f), maxLines = 1)
                 if (z == current) Icon("Check", c.textBrand, size = 18.dp)
             }
+        }
+    }
+}
+
+
+/**
+ * A sticker showcase (web StickersDialog): up to two of this account's own
+ * packs. Only public packs can be shown; a private one says how to change that.
+ */
+private fun openShowcaseEditor(initial: Widgets.StickersWidget, isNew: Boolean, onDone: (Widgets.Widget) -> Unit) {
+    var picked by mutableStateOf(initial.packs)
+    var tried by mutableStateOf(false)
+    openSheet(
+        "widget-stickers", title = if (isNew) t("widgets.stickers.titleNew") else t("widgets.stickers.titleEdit"),
+        footer = { close ->
+            EditorFooter(close, enabled = !(tried && picked.isEmpty())) {
+                tried = true
+                if (picked.isEmpty()) return@EditorFooter
+                close()
+                onDone(Widgets.StickersWidget(initial.id, picked))
+            }
+        },
+    ) {
+        val c = Nx.colors
+        val all by Nexa.expressions.packs.collectAsState()
+        val meId = Nexa.users.meId
+        val mine = all.values.filter { it.ownerUserId == meId }.sortedBy { it.name.lowercase() }
+        Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Txt(t("widgets.stickers.hint"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(18.2f)), color = c.textMuted, modifier = Modifier.padding(bottom = 6.dp))
+            if (mine.isEmpty()) Txt(t("widgets.stickers.none"), style = Nx.type.bodySmall, color = c.textMuted)
+            for (p in mine) {
+                val on = p.id in picked
+                val enabled = p.public && (on || picked.size < Widgets.MAX_SHOWCASE_PACKS)
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp).ring(Radii.Sm, if (on) c.brand else c.borderSubtle, if (on) 2.dp else 1.dp)
+                        .clip(Radii.Sm).background(c.bgSurface).topEdge(Radii.Sm, c.edgeLight)
+                        .graphicsLayer { alpha = if (enabled) 1f else 0.55f }
+                        .pressable(remember(p.id) { MutableInteractionSource() }) { if (enabled) picked = if (on) picked - p.id else picked + p.id }
+                        .semantics { contentDescription = p.name; selected = on }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(c.bgActive), contentAlignment = Alignment.Center) {
+                        val first = p.stickers.firstOrNull()
+                        if (first != null) fish.nexa.ui.server.StickerImage(p, first, 40, Modifier.fillMaxSize())
+                        else Txt(p.name.take(1).uppercase(), style = Nx.type.bodySmall.copy(fontWeight = FontWeight(700)), color = c.textSubtle)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Txt(p.name, style = Nx.type.body.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(650)), color = c.textStrong, maxLines = 1)
+                        Txt(
+                            if (!p.public) t("widgets.stickers.private") else if (p.kind == "emoji") t("stickerPack.emojiPack") else t("stickerPack.stickerPack"),
+                            style = Nx.type.hint.copy(fontSize = Nx.type.sp(12.5f)), color = c.textMuted, maxLines = 1,
+                        )
+                    }
+                    if (on) Icon("Check", c.textBrand, size = 18.dp)
+                }
+            }
+            if (tried && picked.isEmpty()) Txt(t("widgets.stickers.needsPack"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f)), color = c.textDanger)
         }
     }
 }

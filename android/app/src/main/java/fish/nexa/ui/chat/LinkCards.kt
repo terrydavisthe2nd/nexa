@@ -457,7 +457,7 @@ private fun ProfileSkeleton() {
 // ---- sticker and emoji packs (components/chat/PackCards.tsx) ----
 
 /** The packs links lead to, as the server last said (lib/packLinks.ts), kept a few minutes. */
-private object SharedPacks {
+internal object SharedPacks {
     sealed interface Entry {
         data object Loading : Entry
         data class Ready(val pack: StickerPack, val at: Long) : Entry
@@ -517,10 +517,17 @@ fun PackCards(text: String?) {
     }
 }
 
+/**
+ * A pack's card by its id, loaded as a pack link's is. [quiet] draws nothing
+ * for a pack that has gone or turned private (a profile's showcase, web
+ * PackLinkCard's `quiet`).
+ */
 @Composable
-private fun PackLinkCard(id: String) {
+fun PackLinkCard(id: String, quiet: Boolean = false) {
     LaunchedEffect(id) { SharedPacks.load(id) }
-    when (val entry = SharedPacks.byId[id]) {
+    val entry = SharedPacks.byId[id]
+    if (quiet && (entry is SharedPacks.Entry.Missing || entry is SharedPacks.Entry.Failed)) return
+    when (entry) {
         is SharedPacks.Entry.Missing -> GoneCard("PackageX", t("stickerPack.packUnavailable"), t("stickerPack.thisPackIsPrivate"))
         is SharedPacks.Entry.Failed -> GoneCard("PackageX", t("stickerPack.packUnavailable"), t("stickerPack.couldNotLoadThePack")) {
             NxButton(t("invite.tryAgain"), { SharedPacks.load(id, force = true) }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "RotateCw")

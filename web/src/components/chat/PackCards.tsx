@@ -35,8 +35,14 @@ export function PackCards({ nodes }: { nodes: unknown }) {
   );
 }
 
-function PackLinkCard({ id }: { id: string }) {
+/**
+ * A pack's card by its id, loading it as a pack link does. `quiet` draws
+ * nothing for a pack that has gone or turned private (a profile's showcase,
+ * where the owner chose it and a stranger has nothing to fix).
+ */
+export function PackLinkCard({ id, quiet = false }: { id: string; quiet?: boolean }) {
   const entry = useSharedPack(id);
+  if (quiet && (entry?.status === "missing" || entry?.status === "failed")) return null;
   if (entry?.status === "missing" || entry?.status === "failed") {
     const missing = entry.status === "missing";
     return (

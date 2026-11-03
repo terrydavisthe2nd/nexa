@@ -1576,7 +1576,7 @@
   "home.quick.desktopTitle": "Desktop App",
   "home.quick.languagesBody": "Including Arabic, with the whole layout mirrored to read from right to left.",
   "home.quick.languagesTitle": "Twelve Languages",
-  "home.quick.lede": "The whole app is under {size} to download, less than a single photo, so it opens quickly even on a slow connection.",
+  "home.quick.lede": "Nexa is light to download, so it opens quickly even on a slow connection.",
   "home.quick.phoneBody": "Nexa runs in your phone's browser, and you can add it to your home screen like an app.",
   "home.quick.phoneTitle": "On Your Phone",
   "home.quick.title": "Quick on Every Device",
@@ -7889,6 +7889,8 @@
   "whatsNew.r20261102.reportFeedbackTitle": "Hear Back About Your Reports",
   "whatsNew.r20261102.reportsBody": "Report Content now asks what's wrong with a clear list of reasons, shows exactly what staff will see, and lets you block the person right after.",
   "whatsNew.r20261102.reportsTitle": "Reporting, Rebuilt",
+  "whatsNew.r20261102.showcaseBody": "Show off up to two of your own public sticker or emoji packs on your profile. People can install them right from there.",
+  "whatsNew.r20261102.showcaseTitle": "Sticker Showcase",
   "whatsNew.r20261102.themeBuilderBody": "Making a theme now shows a small Nexa you can press to change any colour, with undo, redo, colour ideas, Surprise Me and Compare. Find it in Settings, Appearance.",
   "whatsNew.r20261102.themeBuilderTitle": "A Better Theme Builder",
   "whatsNew.r20261102.timeWidgetsBody": "Two new widgets for your profile: count down to a day that matters to you, or show the time where you are so friends know when you're around.",
@@ -7901,6 +7903,7 @@
   "whatsNew.r20261102.visionTitle": "Check a Theme for Colour Blindness",
   "widgets.about.countdown": "Count down to a day that matters to you.",
   "widgets.about.localtime": "Show the time where you are.",
+  "widgets.about.stickers": "Show off up to two of your own public sticker or emoji packs.",
   "widgets.card.addColour": "Add a Colour",
   "widgets.card.addLink": "Add Link",
   "widgets.card.addSecondColour": "Add Second Colour",
@@ -7931,6 +7934,7 @@
   "widgets.countdown.today": "Today!",
   "widgets.countdown.what": "Counting Down To",
   "widgets.countdown.whatPlaceholder": "My birthday",
+  "widgets.group.stickers": "Stickers and Emoji",
   "widgets.group.time": "Dates and Time",
   "widgets.localtime.ahead": "{amount} ahead",
   "widgets.localtime.behind": "{amount} behind",
@@ -7950,6 +7954,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (this device)",
   "widgets.localtime.zone": "Time Zone",
+  "widgets.stickers.hint": "Pick up to two of your own packs. People can add them straight from your profile.",
+  "widgets.stickers.needsPack": "Pick at least one pack.",
+  "widgets.stickers.none": "You haven't made any packs yet. Make one in Settings, Emoji & Stickers.",
+  "widgets.stickers.packCount": {
+    "one": "{count} pack",
+    "other": "{count} packs"
+  },
+  "widgets.stickers.private": "Private: make it public to show it",
+  "widgets.stickers.titleEdit": "Edit Sticker Showcase",
+  "widgets.stickers.titleNew": "Add a Sticker Showcase",
   "widgets.type.countdown": "Countdown",
-  "widgets.type.localtime": "Local Time"
+  "widgets.type.localtime": "Local Time",
+  "widgets.type.stickers": "Sticker Showcase"
 }

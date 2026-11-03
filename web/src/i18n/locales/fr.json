@@ -1597,7 +1597,7 @@
   "home.quick.desktopTitle": "Application de bureau",
   "home.quick.languagesBody": "Dont l'arabe, avec toute l'interface inversée pour se lire de droite à gauche.",
   "home.quick.languagesTitle": "Douze langues",
-  "home.quick.lede": "L'application entière pèse moins de {size}, moins qu'une seule photo : elle s'ouvre vite, même avec une connexion lente.",
+  "home.quick.lede": "Nexa est léger à télécharger, il s'ouvre donc vite même avec une connexion lente.",
   "home.quick.phoneBody": "Nexa fonctionne dans le navigateur de votre téléphone, et vous pouvez l'ajouter à l'écran d'accueil comme une application.",
   "home.quick.phoneTitle": "Sur votre téléphone",
   "home.quick.title": "Rapide sur tous vos appareils",
@@ -8005,6 +8005,8 @@
   "whatsNew.r20261102.reportFeedbackTitle": "Des Réponses à Tes Signalements",
   "whatsNew.r20261102.reportsBody": "« Signaler le contenu » te demande maintenant le problème avec une liste claire de motifs, montre exactement ce que verra l’équipe et te permet de bloquer la personne juste après.",
   "whatsNew.r20261102.reportsTitle": "Signalements Repensés",
+  "whatsNew.r20261102.showcaseBody": "Mets en avant sur ton profil jusqu'à deux de tes packs publics de stickers ou d'emojis. Les autres peuvent les installer directement depuis là.",
+  "whatsNew.r20261102.showcaseTitle": "Vitrine de Stickers",
   "whatsNew.r20261102.themeBuilderBody": "Créer un thème affiche maintenant un petit Nexa sur lequel appuyer pour changer n’importe quelle couleur, avec annuler, rétablir, des idées de couleurs, Surprenez-moi et Comparer. Dans Paramètres, Apparence.",
   "whatsNew.r20261102.themeBuilderTitle": "Un meilleur éditeur de thèmes",
   "whatsNew.r20261102.timeWidgetsBody": "Deux nouveaux widgets pour ton profil : un compte à rebours jusqu'à une date importante, ou l'heure là où tu es pour que tes proches sachent quand tu es là.",
@@ -8017,6 +8019,7 @@
   "whatsNew.r20261102.visionTitle": "Vérifiez un thème pour le daltonisme",
   "widgets.about.countdown": "Compte les jours jusqu'à une date qui compte pour toi.",
   "widgets.about.localtime": "Affiche l'heure là où tu es.",
+  "widgets.about.stickers": "Mets en avant jusqu'à deux de tes packs publics de stickers ou d'emojis.",
   "widgets.card.addColour": "Ajouter une Couleur",
   "widgets.card.addLink": "Ajouter un Lien",
   "widgets.card.addSecondColour": "Ajouter une Deuxième Couleur",
@@ -8047,6 +8050,7 @@
   "widgets.countdown.today": "Aujourd'hui !",
   "widgets.countdown.what": "Compte à Rebours Jusqu'à",
   "widgets.countdown.whatPlaceholder": "Mon anniversaire",
+  "widgets.group.stickers": "Stickers et Emojis",
   "widgets.group.time": "Dates et Heure",
   "widgets.localtime.ahead": "{amount} d'avance",
   "widgets.localtime.behind": "{amount} de retard",
@@ -8066,6 +8070,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (cet appareil)",
   "widgets.localtime.zone": "Fuseau Horaire",
+  "widgets.stickers.hint": "Choisis jusqu'à deux de tes packs. Les autres peuvent les ajouter directement depuis ton profil.",
+  "widgets.stickers.needsPack": "Choisis au moins un pack.",
+  "widgets.stickers.none": "Tu n'as encore créé aucun pack. Crées-en un dans Paramètres, Emojis et Stickers.",
+  "widgets.stickers.packCount": {
+    "one": "{count} pack",
+    "other": "{count} packs"
+  },
+  "widgets.stickers.private": "Privé : rends-le public pour l'afficher",
+  "widgets.stickers.titleEdit": "Modifier la Vitrine de Stickers",
+  "widgets.stickers.titleNew": "Ajouter une Vitrine de Stickers",
   "widgets.type.countdown": "Compte à Rebours",
-  "widgets.type.localtime": "Heure Locale"
+  "widgets.type.localtime": "Heure Locale",
+  "widgets.type.stickers": "Vitrine de Stickers"
 }

@@ -381,3 +381,6 @@ button.track:focus-visible { outline-offset: -2px; }
 .momentBig[data-today] { color: var(--text-brand); }
 .momentSub { margin-top: 2px; font-size: 13px; line-height: 1.35; color: var(--text-muted); overflow-wrap: anywhere; }
 .peekEmoji { font-size: 22px; line-height: 1; }
+/* a sticker showcase: its packs' cards, one under the other */
+.showcase { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.showcase > * { max-width: none; }

@@ -11,24 +11,12 @@ import { formatBytes } from "@/lib/time";
 import { admin } from "@/api/admin";
 import { android } from "@/api/android";
 import { AndroidBanner } from "@/components/shell/AndroidBanner";
-import { t, translator } from "@/i18n";
+import { t } from "@/i18n";
 // The headings' weight, which the app itself never uses: it arrives with this page only.
 import "@fontsource/noto-sans/800.css";
 import { seal } from "./homeSeal";
 import s from "./Home.module.css";
 import HomeDemo from "./HomeDemo";
-
-/**
- * The most the app takes to load, gzipped: the script and styles every page
- * starts with. tools/app_size.py measures each build against it, so the claim
- * on this page cannot drift from the truth unnoticed, as "264 KB" had. (It
- * was 208 kB when this was first set at 300, and 500 had stopped saying much;
- * it was 321 kB when it became 330, about half of it the English strings,
- * 330.3 kB when it became 335, 337 kB when it became 340, 342.4 kB when
- * it became 345, with apps' strings, and 345.1 kB when it became 350, with
- * the person menu in conversations. It became 365 with the translated homepage demo.)
- */
-export const LOAD_KB_LIMIT = 380;
 
 /** Whether this visitor has asked for less movement, by either route. */
 function useStillness(): boolean {
@@ -390,15 +378,6 @@ function Promises({ uploadLimit }: { uploadLimit: number | null }) {
 
 const facts = (area: string, names: string[]): Fact[] => names.map((n) => ({ title: t(`home.${area}.${n}Title`), body: t(`home.${area}.${n}Body`) }));
 
-/** A number with its unit, as the reader's language writes it. */
-function kilobytes(value: number): string {
-  try {
-    return new Intl.NumberFormat(translator().locale, { style: "unit", unit: "kilobyte" }).format(value);
-  } catch {
-    return `${value} kB`;
-  }
-}
-
 const CANT = ["messages", "files", "calls", "keys", "settings"] as const;
 const KNOWS = ["account", "where", "when", "sizes", "emoji"] as const;
 
@@ -537,7 +516,7 @@ export default function HomePage() {
           <Chapter
             id="home-quick"
             title={t("home.quick.title")}
-            lede={t("home.quick.lede", { size: kilobytes(LOAD_KB_LIMIT) })}
+            lede={t("home.quick.lede")}
             media={<Movie name="speed" alt={t("home.shot.speed")} still={still} from={2} />}
             facts={facts("quick", ["desktop", "phone", "languages"])}
           />

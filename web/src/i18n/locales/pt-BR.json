@@ -1597,7 +1597,7 @@
   "home.quick.desktopTitle": "App para computador",
   "home.quick.languagesBody": "Incluindo o árabe, com toda a interface espelhada para ler da direita para a esquerda.",
   "home.quick.languagesTitle": "Doze idiomas",
-  "home.quick.lede": "O app inteiro tem menos de {size}, menos que uma única foto, então abre rápido mesmo com a conexão lenta.",
+  "home.quick.lede": "O Nexa é leve para baixar, então abre rápido mesmo numa conexão lenta.",
   "home.quick.phoneBody": "O Nexa funciona no navegador do celular, e você pode adicioná-lo à tela inicial como um app.",
   "home.quick.phoneTitle": "No seu celular",
   "home.quick.title": "Rápido em qualquer dispositivo",
@@ -8006,6 +8006,8 @@
   "whatsNew.r20261102.reportFeedbackTitle": "Respostas às suas denúncias",
   "whatsNew.r20261102.reportsBody": "Denunciar conteúdo agora pergunta qual é o problema com uma lista clara de motivos, mostra exatamente o que a equipe vai ver e deixa você bloquear a pessoa logo depois.",
   "whatsNew.r20261102.reportsTitle": "Denúncias renovadas",
+  "whatsNew.r20261102.showcaseBody": "Mostre no seu perfil até dois dos seus pacotes públicos de figurinhas ou emojis. As pessoas podem instalá-los direto de lá.",
+  "whatsNew.r20261102.showcaseTitle": "Vitrine de Figurinhas",
   "whatsNew.r20261102.themeBuilderBody": "Ao criar um tema, agora aparece um Nexa em miniatura em que você toca para mudar qualquer cor, com desfazer, refazer, ideias de cor, Surpreenda-me e Comparar. Fica em Configurações, Aparência.",
   "whatsNew.r20261102.themeBuilderTitle": "Um editor de temas melhor",
   "whatsNew.r20261102.timeWidgetsBody": "Dois widgets novos para o seu perfil: conte os dias até uma data importante ou mostre a hora onde você está para seus amigos saberem quando você está por perto.",
@@ -8018,6 +8020,7 @@
   "whatsNew.r20261102.visionTitle": "Teste um tema para daltonismo",
   "widgets.about.countdown": "Conte os dias até uma data importante para você.",
   "widgets.about.localtime": "Mostre a hora onde você está.",
+  "widgets.about.stickers": "Mostre até dois dos seus próprios pacotes públicos de figurinhas ou emojis.",
   "widgets.card.addColour": "Adicionar uma Cor",
   "widgets.card.addLink": "Adicionar Link",
   "widgets.card.addSecondColour": "Adicionar Segunda Cor",
@@ -8048,6 +8051,7 @@
   "widgets.countdown.today": "Hoje!",
   "widgets.countdown.what": "Contagem Para",
   "widgets.countdown.whatPlaceholder": "Meu aniversário",
+  "widgets.group.stickers": "Figurinhas e Emojis",
   "widgets.group.time": "Datas e Hora",
   "widgets.localtime.ahead": "{amount} à frente",
   "widgets.localtime.behind": "{amount} atrás",
@@ -8067,6 +8071,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (este dispositivo)",
   "widgets.localtime.zone": "Fuso Horário",
+  "widgets.stickers.hint": "Escolha até dois dos seus pacotes. As pessoas podem adicioná-los direto do seu perfil.",
+  "widgets.stickers.needsPack": "Escolha pelo menos um pacote.",
+  "widgets.stickers.none": "Você ainda não criou pacotes. Crie um em Configurações, Emojis e Figurinhas.",
+  "widgets.stickers.packCount": {
+    "one": "{count} pacote",
+    "other": "{count} pacotes"
+  },
+  "widgets.stickers.private": "Privado: torne-o público para mostrá-lo",
+  "widgets.stickers.titleEdit": "Editar Vitrine de Figurinhas",
+  "widgets.stickers.titleNew": "Adicionar Vitrine de Figurinhas",
   "widgets.type.countdown": "Contagem Regressiva",
-  "widgets.type.localtime": "Hora Local"
+  "widgets.type.localtime": "Hora Local",
+  "widgets.type.stickers": "Vitrine de Figurinhas"
 }

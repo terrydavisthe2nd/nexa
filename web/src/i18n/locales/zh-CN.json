@@ -1510,7 +1510,7 @@
   "home.quick.desktopTitle": "桌面应用",
   "home.quick.languagesBody": "包括阿拉伯语，整个界面会镜像翻转，从右往左读。",
   "home.quick.languagesTitle": "十二种语言",
-  "home.quick.lede": "整个应用下载不到 {size}，比一张照片还小，网速慢也能很快打开。",
+  "home.quick.lede": "Nexa 下载体积小，即使网络很慢也能快速打开。",
   "home.quick.phoneBody": "Nexa 可以在手机浏览器里使用，也能像应用一样添加到主屏幕。",
   "home.quick.phoneTitle": "在手机上",
   "home.quick.title": "在任何设备上都很快",
@@ -7639,6 +7639,8 @@
   "whatsNew.r20261102.reportFeedbackTitle": "举报结果会通知你",
   "whatsNew.r20261102.reportsBody": "“举报内容”现在会用清晰的原因列表询问问题，准确显示团队将看到的内容，并让你在提交后立即屏蔽对方。",
   "whatsNew.r20261102.reportsTitle": "举报功能全面升级",
+  "whatsNew.r20261102.showcaseBody": "在资料上展示最多两个你自己制作的公开贴纸包或表情包，别人可以直接从那里安装。",
+  "whatsNew.r20261102.showcaseTitle": "贴纸展示",
   "whatsNew.r20261102.themeBuilderBody": "制作主题时会显示一个迷你 Nexa，点按任意部分即可更改它的颜色，还有撤销、重做、颜色建议、随机一下和对比。位于设置的“外观”中。",
   "whatsNew.r20261102.themeBuilderTitle": "更好用的主题编辑器",
   "whatsNew.r20261102.timeWidgetsBody": "资料新增两个小组件：为重要的日子倒计时，或显示你所在地的时间，让朋友知道你什么时候在。",
@@ -7651,6 +7653,7 @@
   "whatsNew.r20261102.visionTitle": "检查主题的色盲效果",
   "widgets.about.countdown": "为对你重要的日子倒计时。",
   "widgets.about.localtime": "显示你所在地的时间。",
+  "widgets.about.stickers": "展示最多两个你自己制作的公开贴纸包或表情包。",
   "widgets.card.addColour": "添加颜色",
   "widgets.card.addLink": "添加链接",
   "widgets.card.addSecondColour": "添加第二种颜色",
@@ -7681,6 +7684,7 @@
   "widgets.countdown.today": "就是今天！",
   "widgets.countdown.what": "倒计时目标",
   "widgets.countdown.whatPlaceholder": "我的生日",
+  "widgets.group.stickers": "贴纸和表情",
   "widgets.group.time": "日期和时间",
   "widgets.localtime.ahead": "快 {amount}",
   "widgets.localtime.behind": "慢 {amount}",
@@ -7698,6 +7702,16 @@
   "widgets.localtime.where": "{place}，{gap}",
   "widgets.localtime.yours": "{zone}（此设备）",
   "widgets.localtime.zone": "时区",
+  "widgets.stickers.hint": "选择最多两个你自己的包。别人可以直接从你的资料添加它们。",
+  "widgets.stickers.needsPack": "请至少选择一个包。",
+  "widgets.stickers.none": "你还没有制作任何包。可以在设置的“表情和贴纸”中制作。",
+  "widgets.stickers.packCount": {
+    "other": "{count} 个包"
+  },
+  "widgets.stickers.private": "私密：设为公开后才能展示",
+  "widgets.stickers.titleEdit": "编辑贴纸展示",
+  "widgets.stickers.titleNew": "添加贴纸展示",
   "widgets.type.countdown": "倒计时",
-  "widgets.type.localtime": "当地时间"
+  "widgets.type.localtime": "当地时间",
+  "widgets.type.stickers": "贴纸展示"
 }

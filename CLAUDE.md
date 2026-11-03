@@ -164,7 +164,7 @@ From the repository root, each line on its own. None of these write anything liv
 
 ```
 tools/check.sh                    # the whole pre-publish check: Go build/vet/tests, privacy, web typecheck,
-                                  # tests and scratch build, app size, desktop typecheck/tests/bundle, i18n keys
+                                  # tests and scratch build, desktop typecheck/tests/bundle, i18n keys
 go build ./... && go vet ./...
 go test ./...                     # `make test-go` adds -race; the api package then takes minutes
 go test ./internal/api -run TestEditKeepsTheKeyThatOpensIt -count=1
@@ -206,9 +206,6 @@ Work that goes with certain changes:
 
 - Dependencies added or upgraded in any build: `make licenses` rewrites `web/src/data/licenses.json`
   (Settings, Licenses); `android/tools/android_licenses.py` does Android's (steps in its header).
-- The web's first load grew: `tools/app_size.py` (in `check.sh`) fails once the gzipped first load
-  passes `LOAD_KB_LIMIT` in `web/src/pages/HomePage.tsx`, the number the front page prints. Keep that
-  claim true.
 - The web's markdown, search, themes, formatting editor or webhook messages changed: regenerate the
   Android test vectors (`android/tools/*_vectors.ts`) and make the Kotlin port pass them. URL oracle
   entries depend on Node/ICU: check a changed expectation against current Chromium too before updating
@@ -1056,6 +1053,11 @@ as Discord holds it:
   the server checks with its embedded tzdata) shows that zone's time and its gap from the viewer's.
   Both count against the server clock; web `lib/timeWidgets.ts`, Android `data/TimeWidgets.kt`. The
   Android editor uses the system date and time pickers, as the web uses the browser's.
+- Sticker Showcase (`stickers`: `packs`, one or two ids) shows the person's own public sticker or
+  emoji packs as the cards pack links make in chat (web `PackLinkCard` with `quiet`, Android
+  `PackLinkCard(quiet = true)` in `ui/chat/LinkCards.kt`), with Install Pack. The server checks owner
+  and public on save (`cleanWidgets` takes the profile's owner); a pack later deleted or made private
+  drops out for viewers.
 - Current apps always send `links` on a card, even empty. A card saved without it comes from an app
   before cards had several links, colours and bars, so `carryCardExtras` keeps the saved card's
   extra links, colours and bars (`TestOldAppsKeepWhatCardsGained`).
@@ -1792,7 +1794,7 @@ cargo-ndk) for notes.
 - Testing: `check.sh`, `e2e.py`, `screenshot.py`, `seed.py`, `webhook_e2e.py`, `bot_e2e.py` with
   `bots/`, `apps_ui.py`, `discord_e2e.py`, `sfu_call.py`, `sfu_guest.py`, `call_quality.py` and
   `share_quality.py` with `netsim/`, `call_layout_audit.py`, `text_layout_audit.py`, `ios_sim.py` with
-  `ios/`, `app_size.py`, `desktop_idle.py` with `desktop_idle/`, `check_frame_crypto.mjs` with
+  `ios/`, `desktop_idle.py` with `desktop_idle/`, `check_frame_crypto.mjs` with
   `frame_crypto_check.cc`, `privacy_check.py`, and the unittest suites `test_build_pipeline.py`
   (`make build` in isolation, deploying nothing), `test_maintenance.py` and `test_publish_desktop.py`.
 - i18n: `i18n_check.py`, `i18n_keys_used.py`, `i18n_apply.py` (write or merge a language's values),

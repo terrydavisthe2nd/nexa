@@ -1576,7 +1576,7 @@
   "home.quick.desktopTitle": "Desktop-App",
   "home.quick.languagesBody": "Auch Arabisch, mit komplett gespiegelter Oberfläche, die von rechts nach links läuft.",
   "home.quick.languagesTitle": "Zwölf Sprachen",
-  "home.quick.lede": "Die ganze App ist unter {size} groß, kleiner als ein einziges Foto, und öffnet sich deshalb auch bei langsamer Verbindung schnell.",
+  "home.quick.lede": "Nexa ist schnell geladen und öffnet sich auch bei langsamer Verbindung zügig.",
   "home.quick.phoneBody": "Nexa läuft im Browser deines Handys, und du kannst es wie eine App zum Startbildschirm hinzufügen.",
   "home.quick.phoneTitle": "Auf dem Handy",
   "home.quick.title": "Schnell auf jedem Gerät",
@@ -7889,6 +7889,8 @@
   "whatsNew.r20261102.reportFeedbackTitle": "Antworten auf Deine Meldungen",
   "whatsNew.r20261102.reportsBody": "„Inhalt Melden“ fragt jetzt mit einer klaren Liste von Gründen, was los ist, zeigt genau, was das Team sieht, und lässt dich die Person direkt danach blockieren.",
   "whatsNew.r20261102.reportsTitle": "Melden, Neu Gemacht",
+  "whatsNew.r20261102.showcaseBody": "Zeige bis zu zwei deiner eigenen öffentlichen Sticker- oder Emoji-Pakete auf deinem Profil. Andere können sie direkt dort installieren.",
+  "whatsNew.r20261102.showcaseTitle": "Sticker-Vitrine",
   "whatsNew.r20261102.themeBuilderBody": "Beim Erstellen eines Designs siehst du jetzt ein kleines Nexa, auf das du tippen kannst, um jede Farbe zu ändern, mit Rückgängig, Wiederholen, Farbideen, „Überrasch mich“ und „Vergleichen“. Zu finden unter Einstellungen, Darstellung.",
   "whatsNew.r20261102.themeBuilderTitle": "Ein besserer Design-Editor",
   "whatsNew.r20261102.timeWidgetsBody": "Zwei neue Widgets für dein Profil: Zähle bis zu einem Tag herunter, der dir wichtig ist, oder zeige deine Uhrzeit, damit Freunde wissen, wann du da bist.",
@@ -7901,6 +7903,7 @@
   "whatsNew.r20261102.visionTitle": "Design auf Farbenblindheit prüfen",
   "widgets.about.countdown": "Zähle die Tage bis zu einem Tag, der dir wichtig ist.",
   "widgets.about.localtime": "Zeige die Uhrzeit dort, wo du bist.",
+  "widgets.about.stickers": "Zeige bis zu zwei deiner eigenen öffentlichen Sticker- oder Emoji-Pakete.",
   "widgets.card.addColour": "Farbe Hinzufügen",
   "widgets.card.addLink": "Link Hinzufügen",
   "widgets.card.addSecondColour": "Zweite Farbe Hinzufügen",
@@ -7931,6 +7934,7 @@
   "widgets.countdown.today": "Heute!",
   "widgets.countdown.what": "Countdown Bis",
   "widgets.countdown.whatPlaceholder": "Mein Geburtstag",
+  "widgets.group.stickers": "Sticker und Emoji",
   "widgets.group.time": "Daten und Zeit",
   "widgets.localtime.ahead": "{amount} voraus",
   "widgets.localtime.behind": "{amount} zurück",
@@ -7950,6 +7954,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (dieses Gerät)",
   "widgets.localtime.zone": "Zeitzone",
+  "widgets.stickers.hint": "Wähle bis zu zwei deiner Pakete. Andere können sie direkt von deinem Profil hinzufügen.",
+  "widgets.stickers.needsPack": "Wähle mindestens ein Paket.",
+  "widgets.stickers.none": "Du hast noch keine Pakete erstellt. Erstelle eines unter Einstellungen, Emoji & Sticker.",
+  "widgets.stickers.packCount": {
+    "one": "{count} Paket",
+    "other": "{count} Pakete"
+  },
+  "widgets.stickers.private": "Privat: Mach es öffentlich, um es zu zeigen",
+  "widgets.stickers.titleEdit": "Sticker-Vitrine Bearbeiten",
+  "widgets.stickers.titleNew": "Sticker-Vitrine Hinzufügen",
   "widgets.type.countdown": "Countdown",
-  "widgets.type.localtime": "Ortszeit"
+  "widgets.type.localtime": "Ortszeit",
+  "widgets.type.stickers": "Sticker-Vitrine"
 }

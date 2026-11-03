@@ -1576,7 +1576,7 @@
   "home.quick.desktopTitle": "डेस्कटॉप ऐप",
   "home.quick.languagesBody": "जिनमें अरबी भी है, जिसमें पूरा लेआउट दाएँ से बाएँ पढ़ने के लिए उलट जाता है।",
   "home.quick.languagesTitle": "बारह भाषाएँ",
-  "home.quick.lede": "पूरा ऐप {size} से कम का है, एक फ़ोटो से भी छोटा, इसलिए धीमे कनेक्शन पर भी जल्दी खुलता है।",
+  "home.quick.lede": "Nexa डाउनलोड में हल्का है, इसलिए धीमे कनेक्शन पर भी जल्दी खुलता है।",
   "home.quick.phoneBody": "Nexa आपके फ़ोन के ब्राउज़र में चलता है, और आप इसे ऐप की तरह होम स्क्रीन पर जोड़ सकते हैं।",
   "home.quick.phoneTitle": "आपके फ़ोन पर",
   "home.quick.title": "हर डिवाइस पर तेज़",
@@ -7889,6 +7889,8 @@
   "whatsNew.r20261102.reportFeedbackTitle": "अपनी रिपोर्टों का जवाब पाएँ",
   "whatsNew.r20261102.reportsBody": "“सामग्री की रिपोर्ट करें” अब कारणों की साफ़ सूची से पूछता है कि क्या गलत है, ठीक-ठीक दिखाता है कि टीम क्या देखेगी, और तुरंत बाद व्यक्ति को ब्लॉक करने देता है।",
   "whatsNew.r20261102.reportsTitle": "रिपोर्टिंग, नए सिरे से",
+  "whatsNew.r20261102.showcaseBody": "अपनी प्रोफ़ाइल पर अपने बनाए दो तक सार्वजनिक स्टिकर या इमोजी पैक दिखाएँ। लोग उन्हें वहीं से इंस्टॉल कर सकते हैं।",
+  "whatsNew.r20261102.showcaseTitle": "स्टिकर शोकेस",
   "whatsNew.r20261102.themeBuilderBody": "थीम बनाते समय अब एक छोटा Nexa दिखता है, जिसके किसी भी हिस्से को दबाकर उसका रंग बदल सकते हैं। साथ में पूर्ववत, फिर से करें, रंगों के सुझाव, सरप्राइज़ और तुलना भी है। यह सेटिंग्स, अपीयरेंस में है।",
   "whatsNew.r20261102.themeBuilderTitle": "बेहतर थीम बिल्डर",
   "whatsNew.r20261102.timeWidgetsBody": "आपकी प्रोफ़ाइल के लिए दो नए विजेट: किसी खास दिन तक उलटी गिनती करें, या अपना स्थानीय समय दिखाएँ ताकि दोस्तों को पता रहे कि आप कब उपलब्ध हैं।",
@@ -7901,6 +7903,7 @@
   "whatsNew.r20261102.visionTitle": "कलर ब्लाइंडनेस के लिए थीम जाँचें",
   "widgets.about.countdown": "अपने लिए खास किसी दिन तक उलटी गिनती करें।",
   "widgets.about.localtime": "दिखाएँ कि आप जहाँ हैं वहाँ क्या समय है।",
+  "widgets.about.stickers": "अपने बनाए दो तक सार्वजनिक स्टिकर या इमोजी पैक दिखाएँ।",
   "widgets.card.addColour": "रंग जोड़ें",
   "widgets.card.addLink": "लिंक जोड़ें",
   "widgets.card.addSecondColour": "दूसरा रंग जोड़ें",
@@ -7931,6 +7934,7 @@
   "widgets.countdown.today": "आज!",
   "widgets.countdown.what": "किसकी उलटी गिनती",
   "widgets.countdown.whatPlaceholder": "मेरा जन्मदिन",
+  "widgets.group.stickers": "स्टिकर और इमोजी",
   "widgets.group.time": "तारीख़ और समय",
   "widgets.localtime.ahead": "{amount} आगे",
   "widgets.localtime.behind": "{amount} पीछे",
@@ -7950,6 +7954,17 @@
   "widgets.localtime.where": "{place}, {gap}",
   "widgets.localtime.yours": "{zone} (यह डिवाइस)",
   "widgets.localtime.zone": "समय क्षेत्र",
+  "widgets.stickers.hint": "अपने दो तक पैक चुनें। लोग उन्हें सीधे आपकी प्रोफ़ाइल से जोड़ सकते हैं।",
+  "widgets.stickers.needsPack": "कम से कम एक पैक चुनें।",
+  "widgets.stickers.none": "आपने अभी तक कोई पैक नहीं बनाया है। सेटिंग्स, इमोजी और स्टिकर में एक बनाएँ।",
+  "widgets.stickers.packCount": {
+    "one": "{count} पैक",
+    "other": "{count} पैक"
+  },
+  "widgets.stickers.private": "निजी: दिखाने के लिए इसे सार्वजनिक करें",
+  "widgets.stickers.titleEdit": "स्टिकर शोकेस बदलें",
+  "widgets.stickers.titleNew": "स्टिकर शोकेस जोड़ें",
   "widgets.type.countdown": "काउंटडाउन",
-  "widgets.type.localtime": "स्थानीय समय"
+  "widgets.type.localtime": "स्थानीय समय",
+  "widgets.type.stickers": "स्टिकर शोकेस"
 }
