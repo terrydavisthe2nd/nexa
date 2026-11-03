@@ -41,6 +41,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
@@ -169,6 +171,13 @@ internal fun IncomingCallOverlay(layer: Layer) {
     }
     // the last ring answered, declined or gone: nothing left to show
     LaunchedEffect(entry == null) { if (entry == null) Layers.remove(layer) }
+    // a call arriving mid-sentence closes the keyboard, which would otherwise
+    // cover the card and its buttons
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
+    LaunchedEffect(entry?.key) {
+        if (entry != null) { focus.clearFocus(force = true); keyboard?.hide() }
+    }
     if (entry == null) return
     val (channelId, ring) = entry
     Box(Modifier.fillMaxSize()) {

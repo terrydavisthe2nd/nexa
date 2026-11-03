@@ -1,5 +1,6 @@
 import { PersonName } from "@/components/common/PersonName";
 import { BellOff, Phone } from "lucide-react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar } from "@/components/common/Avatar";
 import { Modal } from "@/components/common/Modal";
@@ -25,6 +26,14 @@ export function IncomingCallHost() {
   const meId = useAuth((a) => a.me?.id);
   const nav = useNavigate();
   const entry = Object.entries(ringing).sort((a, b) => a[1].at - b[1].at)[0];
+  const ringingId = entry?.[0];
+  // A call arriving mid-sentence closes the keyboard, which would otherwise
+  // cover the buttons on a phone (the dialog leaves focus alone on touch).
+  useEffect(() => {
+    if (!ringingId) return;
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && (el.isContentEditable || el.matches("input, textarea"))) el.blur();
+  }, [ringingId]);
   if (!entry) return null;
   const [channelId, { from }] = entry;
   const channel = channels[channelId];
