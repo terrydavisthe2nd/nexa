@@ -604,7 +604,7 @@ func (s *Server) handleAttachmentUpload(w http.ResponseWriter, r *http.Request) 
 	if r.ContentLength > 0 && r.ContentLength < size {
 		size = r.ContentLength
 	}
-	release, err := s.reserveUpload(r.Context(), me.ID, size, false)
+	release, err := s.reserveUpload(r.Context(), me.ID, size, false, true)
 	if err != nil {
 		WriteError(w, err)
 		return

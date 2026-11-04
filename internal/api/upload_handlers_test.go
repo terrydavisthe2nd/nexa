@@ -486,7 +486,7 @@ func TestUploadsHaveAnAllowancePerAccount(t *testing.T) {
 	if err != nil || room.UserOpen != maxOpenUploads || room.UserPending != maxOpenUploads*1000 {
 		t.Fatalf("room: %+v %v", room, err)
 	}
-	if err := srv.roomForUpload(t.Context(), modID(mustID(t, ts, token)), pendingAllowance+srv.planLimitsFor("").FileMax+1, false); err == nil {
+	if err := srv.roomForUpload(t.Context(), modID(mustID(t, ts, token)), pendingAllowance+srv.planLimitsFor("").FileMax+1, false, true); err == nil {
 		t.Error("a file past the allowance was let in")
 	}
 }

@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import fish.nexa.BuildConfig
 import fish.nexa.Nexa
@@ -63,6 +66,7 @@ import fish.nexa.ui.theme.topEdge
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -259,6 +263,14 @@ fun AdminPage() {
                 }
             }
 
+            if (st.flag("storage_remote")) {
+                FileStorageSection(s["storage"] as? JsonObject, (st["storage_budget_cents"] as? JsonPrimitive)?.longOrNull) { next ->
+                    settings = next
+                    // whether uploads are paused follows the new limit at once
+                    scope.launch { runCatching { Nexa.api.get("/admin/stats") as? JsonObject }.getOrNull()?.let { stats = it } }
+                }
+            }
+
             SectionHeading(t("settings.admin.registration"))
             val mode = st.str("registration") ?: "open"
             fun patch(body: JsonObject, failText: String, okText: String? = null, optimistic: JsonObject? = null) {
@@ -330,6 +342,87 @@ fun AdminPage() {
     val ownerId = ((nexa as? JsonObject)?.get("staff") as? JsonObject).str("owner_id")
     if (ownerId != null && ownerId == me?.id) LegalReportSection()
     CrashesSection()
+}
+
+/** A limit typed in dollars ("50", "12.5", "7,25"), in cents, or null when it is not one (AdminPage.tsx parseDollars). */
+private fun parseDollars(raw: String): Long? {
+    val m = Regex("""^(\d{1,6})(?:[.,](\d{0,2}))?$""").matchEntire(raw.trim()) ?: return null
+    val cents = m.groupValues[1].toLong() * 100 + m.groupValues[2].padEnd(2, '0').toLong()
+    return if (cents <= 10_000_000) cents else null
+}
+
+private fun dollars(cents: Long): String =
+    NumberFormat.getCurrencyInstance(I18n.locale).apply { currency = java.util.Currency.getInstance("USD") }.format(cents / 100.0)
+
+/**
+ * File Storage (AdminPage.tsx FileStorage): what keeping attachments in
+ * Cloudflare R2 costs this month, against the limit the server holds new
+ * files to, and where that limit is set. Shown only while attachments go to
+ * a bucket.
+ */
+@Composable
+private fun FileStorageSection(meter: JsonObject?, limitCents: Long?, onSaved: (JsonObject) -> Unit) {
+    val c = Nx.colors
+    val scope = rememberCoroutineScope()
+    val shown = limitCents?.let { String.format(java.util.Locale.US, "%.2f", it / 100.0) } ?: ""
+    var draft by remember(shown) { mutableStateOf(shown) }
+    var busy by remember { mutableStateOf(false) }
+    val cents = parseDollars(draft)
+    fun save(next: Long?) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try {
+                val body = buildJsonObject { if (next == null) put("storage_budget", JsonNull) else put("storage_budget", next) }
+                (Nexa.api.request("PATCH", "/admin/settings", body) as? JsonObject)?.let(onSaved)
+                Nexa.ui.toast(t(if (next == null) "settings.admin.limitRemoved" else "settings.admin.limitSaved"), "success")
+            } catch (e: Exception) {
+                Nexa.ui.toast((e as? ApiError)?.message ?: t("settings.admin.couldNotChangeTheLimit"), "error")
+            } finally {
+                busy = false
+            }
+        }
+    }
+    SectionHeading(t("settings.admin.fileStorage"))
+    Hint(t("settings.admin.fileStorageHint"))
+    if (meter == null) {
+        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { Spinner() }
+    } else {
+        val held = meter.flag("held")
+        val limit = (meter["limit_cents"] as? JsonPrimitive)?.longOrNull
+        val cost = meter.num("cost_cents")
+        Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            Column(Modifier.padding(vertical = 8.dp)) {
+                Txt(t("settings.admin.storageThisMonth"), style = Nx.type.label.copy(fontSize = Nx.type.sp(12.5f), fontWeight = FontWeight(700)), color = c.textMuted)
+                Txt(
+                    if (limit == null) t("settings.admin.storageCostNoLimit", "cost" to dollars(cost)) else t("settings.admin.storageCost", "cost" to dollars(cost), "limit" to dollars(limit)),
+                    style = Nx.type.body.copy(fontFeatureSettings = "tnum"), color = if (held) c.textWarning else c.text,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                if (held) Txt(t("settings.admin.storagePaused"), style = Nx.type.bodySmall, color = c.textWarning)
+                // the upload allowance's meter over the composer, drawn the same way
+                if (limit != null) {
+                    val share = (cost.toFloat() / maxOf(1L, limit)).coerceIn(0f, 1f)
+                    Box(Modifier.padding(top = 8.dp).fillMaxWidth().height(4.dp).clip(CircleShape).background(c.textStrong.copy(alpha = 0.08f))) {
+                        if (share > 0f) Box(Modifier.fillMaxWidth(share).fillMaxHeight().background(if (held) c.warning else c.textMuted, CircleShape))
+                    }
+                }
+            }
+            FieldRow(t("settings.admin.storageInBucket"), Time.bytes(meter.num("stored_bytes")), Modifier.padding(vertical = 8.dp))
+            FieldRow(t("settings.admin.storageWaiting"), Time.bytes(meter.num("waiting_bytes")), Modifier.padding(vertical = 8.dp))
+        }
+    }
+    NxTextField(
+        draft, { draft = it.take(9) },
+        modifier = Modifier.padding(top = 14.dp),
+        label = t("settings.admin.monthlyLimit"), placeholder = t("settings.admin.noLimit"), hint = t("settings.admin.monthlyLimitHint"),
+        keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done,
+        onIme = { if (cents != null && cents != limitCents) save(cents) },
+    )
+    Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        NxButton(t("chat.editMessage.save"), { cents?.let { save(it) } }, size = ButtonSize.SM, enabled = !busy && cents != null && cents != limitCents)
+        if (limitCents != null) NxButton(t("settings.admin.removeLimit"), { save(null) }, kind = ButtonKind.GHOST, size = ButtonSize.SM, enabled = !busy)
+    }
 }
 
 /** Everything Nexa already holds about one account, compiled for an officer with valid legal process (owner only). */

@@ -80,7 +80,7 @@ func (s *Server) handleAdminStats(w http.ResponseWriter, r *http.Request) {
 	if s.Meter != nil {
 		calls = s.Meter.Status(r.Context())
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"users": st.Users, "servers": st.Servers, "messages": st.Messages, "blobs": st.Blobs, "blob_bytes": st.BlobBytes, "online": online, "version": s.Version, "realtime": calls})
+	WriteJSON(w, http.StatusOK, map[string]any{"users": st.Users, "servers": st.Servers, "messages": st.Messages, "blobs": st.Blobs, "blob_bytes": st.BlobBytes, "online": online, "version": s.Version, "realtime": calls, "storage": s.storageStatus(r.Context())})
 }
 
 func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
@@ -334,7 +334,13 @@ func (s *Server) handleAdminUserDelete(w http.ResponseWriter, r *http.Request) {
 func (s *Server) adminSettingsView(r *http.Request) map[string]any {
 	mode, key := s.registrationPolicy(r.Context())
 	overrides, _ := s.Store.InstanceSettings(r.Context())
+	var budget any
+	if cents, set, err := s.storageLimit(r.Context()); err == nil && set {
+		budget = cents
+	}
 	return map[string]any{
+		"storage_remote":       s.bucketOn(),
+		"storage_budget_cents": budget,
 		"registration":         mode,
 		"registration_key_set": key != "",
 		"signup_ip_limit":      s.signupIPLimitOn(r.Context()),
@@ -397,6 +403,19 @@ func (s *Server) handleAdminSettingsPatch(w http.ResponseWriter, r *http.Request
 			value = "off"
 		}
 		pending = append(pending, [2]string{"signup_ip_limit", value})
+	}
+	if v, ok := raw["storage_budget"]; ok {
+		// cents a month; null takes the limit away
+		value := ""
+		if string(v) != "null" {
+			var cents int64
+			if json.Unmarshal(v, &cents) != nil || cents < 0 || cents > maxStorageBudget {
+				WriteError(w, E(http.StatusBadRequest, "invalid_value", "storage_budget must be a whole number of cents from 0 to 10000000, or null."))
+				return
+			}
+			value = strconv.FormatInt(cents, 10)
+		}
+		pending = append(pending, [2]string{"storage_budget", value})
 	}
 	if err := s.Store.SetInstanceSettings(r.Context(), pending); err != nil {
 		WriteError(w, err)

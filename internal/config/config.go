@@ -156,6 +156,19 @@ type Config struct {
 	// (launchd); under systemd the journal already does this.
 	LogFile    string
 	SessionTTL time.Duration
+	// R2AccountID, R2Bucket, R2AccessKeyID and R2SecretAccessKey keep end-to-end
+	// encrypted attachments in a Cloudflare R2 bucket instead of on this
+	// machine's disk (internal/media/remote.go), with an API token allowed
+	// Object Read & Write on that bucket alone. R2Endpoint replaces
+	// https://<account>.r2.cloudflarestorage.com, for tests. R2Bucket "off"
+	// turns it off even when the env file names a bucket: an empty variable
+	// in the environment does not override the file, and the dev instance
+	// reads the live chatd.env.
+	R2AccountID       string
+	R2Bucket          string
+	R2AccessKeyID     string
+	R2SecretAccessKey string
+	R2Endpoint        string
 	// NodeID would tell processes sharing one database apart in the ids they
 	// hand out, 0–1023. chatd runs as a single process, so it stays 0
 	// and startup warns when it is not.
@@ -226,6 +239,11 @@ func Load(getenv func(string) string) (Config, error) {
 	str("TURNSTILE_SECRET_KEY", &c.TurnstileSecretKey)
 	str("HCAPTCHA_SITE_KEY", &c.HCaptchaSiteKey)
 	str("HCAPTCHA_SECRET_KEY", &c.HCaptchaSecretKey)
+	str("R2_ACCOUNT_ID", &c.R2AccountID)
+	str("R2_BUCKET", &c.R2Bucket)
+	str("R2_ACCESS_KEY_ID", &c.R2AccessKeyID)
+	str("R2_SECRET_ACCESS_KEY", &c.R2SecretAccessKey)
+	str("R2_ENDPOINT", &c.R2Endpoint)
 	str("REALTIME_APP_ID", &c.RealtimeAppID)
 	str("REALTIME_APP_SECRET", &c.RealtimeAppSecret)
 	str("REALTIME_ACCOUNT_ID", &c.RealtimeAccountID)
@@ -343,6 +361,14 @@ func Load(getenv func(string) string) (Config, error) {
 	if (c.RealtimeAppID == "") != (c.RealtimeAppSecret == "") {
 		return c, fmt.Errorf("REALTIME_APP_ID and REALTIME_APP_SECRET: set both to send calls through Cloudflare Realtime, or neither")
 	}
+	// Half a bucket's settings would quietly keep every file on this disk.
+	if c.R2On() {
+		if c.R2AccessKeyID == "" || c.R2SecretAccessKey == "" || (c.R2AccountID == "" && c.R2Endpoint == "") {
+			return c, fmt.Errorf("R2_BUCKET: also set R2_ACCOUNT_ID (or R2_ENDPOINT), R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY, or set R2_BUCKET=off")
+		}
+	} else if c.R2Bucket == "" && (c.R2AccessKeyID != "" || c.R2SecretAccessKey != "") {
+		return c, fmt.Errorf("R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY: set R2_BUCKET too, or remove them")
+	}
 	c.PublicURL = strings.TrimRight(c.PublicURL, "/")
 	if !strings.HasPrefix(c.PublicURL, "http://") && !strings.HasPrefix(c.PublicURL, "https://") {
 		return c, fmt.Errorf("PUBLIC_URL: must start with http:// or https://, got %q", c.PublicURL)
@@ -365,6 +391,17 @@ func Load(getenv func(string) string) (Config, error) {
 		}
 	}
 	return c, nil
+}
+
+// R2On says whether attachments go to an R2 bucket.
+func (c Config) R2On() bool { return c.R2Bucket != "" && c.R2Bucket != "off" }
+
+// R2URL is the bucket's S3 address.
+func (c Config) R2URL() string {
+	if c.R2Endpoint != "" {
+		return c.R2Endpoint
+	}
+	return "https://" + c.R2AccountID + ".r2.cloudflarestorage.com"
 }
 
 func hostOf(raw string) string {

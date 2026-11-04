@@ -669,6 +669,24 @@ export interface AdminStats {
   version: string;
   /** This month's estimated call traffic against Nexa's allowance; absent when calls are not metered. */
   realtime?: { month: string; used_bytes: number; limit_bytes: number; video_paused: boolean; calls_paused: boolean } | null;
+  /** What keeping attachments in the R2 bucket costs this month; null while every file stays on the server's disk. */
+  storage?: StorageMeter | null;
+}
+
+/** The bucket's cost meter (internal/api/storage_budget.go). */
+export interface StorageMeter {
+  /** What the bucket holds and bills for. */
+  stored_bytes: number;
+  /** Attachments still on the server, and uploads on their way: what the bucket will hold. */
+  waiting_bytes: number;
+  /** This month's requests to the bucket, by the class R2 bills them in. */
+  class_a: number;
+  class_b: number;
+  /** This month's estimate in US cents: keeping everything for the month, plus the requests so far. */
+  cost_cents: number;
+  limit_cents: number | null;
+  /** New attachments are refused: the next one would pass the limit. */
+  held: boolean;
 }
 
 export interface AdminSettings {
@@ -684,6 +702,10 @@ export interface AdminSettings {
   max_avatar_bytes: number;
   gif_search: boolean;
   turn: boolean;
+  /** Attachments are kept in an R2 bucket, so the monthly limit applies. */
+  storage_remote: boolean;
+  /** The most keeping attachments may cost a month, in US cents; null for no limit. */
+  storage_budget_cents: number | null;
 }
 
 /**

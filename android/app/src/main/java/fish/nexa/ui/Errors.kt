@@ -17,6 +17,7 @@ fun describeError(err: Throwable?, fallback: String? = null): String {
             "too_many_uploads" -> return t("errors.tooManyUploads")
             "upload_quota" -> return t("errors.uploadQuota")
             "no_space" -> return t("errors.noSpace")
+            "storage_budget" -> return t("errors.storageBudget")
         }
         if (!err.code.startsWith("http_") && !err.message.isNullOrBlank()) return err.message!!
         return fallback ?: err.message ?: t("modals.confirm.somethingWentWrong")

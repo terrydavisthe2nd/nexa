@@ -126,9 +126,10 @@ server-dev:
 # Dev site behind dev.nexa.fish (tunnel ingress points it at :6969): builds
 # both the web app (into web/dist-dev, leaving prod's web/dist alone) and the
 # dev server binary, then runs it against a separate DATA_DIR so it never
-# touches the live database on :8090.
+# touches the live database on :8090. R2_BUCKET=off keeps it away from the
+# live bucket that chatd.env names: its collector would delete live files.
 run-dev: web-dev server-dev
-	LISTEN=127.0.0.1:6969 PUBLIC_URL=https://dev.nexa.fish DATA_DIR=./data-dev WEB_DIST=./web/dist-dev ./bin/chatd_dev -env chatd.env
+	LISTEN=127.0.0.1:6969 PUBLIC_URL=https://dev.nexa.fish DATA_DIR=./data-dev WEB_DIST=./web/dist-dev R2_BUCKET=off ./bin/chatd_dev -env chatd.env
 
 # What builds leave lying around, and nothing else. bin/ and web/dist are not
 # leftovers: they are what is running (and bin/chatd.prev the way back), so one

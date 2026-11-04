@@ -13,6 +13,7 @@ import (
 	"image/color"
 	"image/gif"
 	"image/jpeg"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -612,7 +613,7 @@ func storedBytes(t *testing.T, m *Store, id ids.ID) []byte {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	b, err := os.ReadFile(f.Name())
+	b, err := io.ReadAll(f)
 	if err != nil {
 		t.Fatal(err)
 	}

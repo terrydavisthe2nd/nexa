@@ -39,6 +39,7 @@ function codes(): Record<string, string> {
     too_many_uploads: t("errors.tooManyUploads"),
     upload_quota: t("errors.uploadQuota"),
     no_space: t("errors.noSpace"),
+    storage_budget: t("errors.storageBudget"),
     no_fetch: t("modals.confirm.somethingWentWrong"),
     no_xhr: t("modals.confirm.somethingWentWrong"),
   };

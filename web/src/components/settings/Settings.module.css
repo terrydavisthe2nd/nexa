@@ -270,3 +270,10 @@
 
 .deviceName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deviceName > span[dir] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* File Storage's cost against the monthly limit (AdminPage.tsx FileStorage),
+   drawn the way the upload allowance is over the composer (MonthMeter): a
+   thin rule under the row it measures, in the warning colour once uploads pause. */
+.costBar { position: relative; display: block; block-size: 4px; margin-block-start: -8px; border-radius: 999px; background: color-mix(in srgb, var(--text-strong) 8%, transparent); overflow: hidden; }
+.costBar i { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: inherit; background: var(--text-muted); }
+.costBar[data-held] i { background: var(--warning); }

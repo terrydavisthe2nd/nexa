@@ -82,6 +82,8 @@ type Server struct {
 	// Uploads admitted but not yet represented in the database, and staged
 	// chunks not yet applied to their resumable transfer.
 	uploads uploadReservations
+	// what keeping attachments in the bucket costs this month (storage_budget.go)
+	storage storageMeter
 	// the plans' prices from Stripe, kept for a while (billing.go)
 	priceCache priceCache
 

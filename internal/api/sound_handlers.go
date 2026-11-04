@@ -56,7 +56,7 @@ func (s *Server) handleSoundUpload(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, errTooManySounds)
 		return
 	}
-	release, err := s.reserveUpload(r.Context(), me.ID, size, false)
+	release, err := s.reserveUpload(r.Context(), me.ID, size, false, true)
 	if err != nil {
 		WriteError(w, err)
 		return

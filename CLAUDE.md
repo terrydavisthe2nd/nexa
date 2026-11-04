@@ -243,6 +243,14 @@ tools/.venv/bin/python tools/seed.py http://127.0.0.1:$PORT
 open by default, the first account becomes the owner (staff rank Developer, the oldest), and captchas,
 SFU calls, GIF search and the other keyed services stay off without their keys.
 
+To try attachments in R2, start the scratch chatd with the test bucket's settings in its environment
+(`set -a; . ~/.config/nexa/r2-test.env; set +a` first; the file holds `R2_*` for `nexa-media-test`,
+whose token reaches no other bucket). Never point a test at the live bucket, `nexa-media`. The mover
+takes held files a minute old every half minute. In Playwright, clear `e2e.Session`'s CF-Connecting-IP
+(`ctx.set_extra_http_headers({})`) before downloading from the bucket, since it follows the link there
+and asks for a preflight no real browser makes, and delete `window.showSaveFilePicker` in headless
+Chromium, which never answers it.
+
 ### The dev instance (dev.nexa.fish)
 
 When the owner asks for the dev site, run the new build at https://dev.nexa.fish: the tunnel sends it to
@@ -261,9 +269,12 @@ so start it in the background; stop it with `pkill -f bin/chatd_dev`.
   make web-dev server-dev
   TURNSTILE_SITE_KEY=1x00000000000000000000AA TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA \
     HCAPTCHA_SITE_KEY= HCAPTCHA_SECRET_KEY= \
-    LISTEN=127.0.0.1:6969 PUBLIC_URL=https://dev.nexa.fish DATA_DIR=./data-dev \
+    LISTEN=127.0.0.1:6969 PUBLIC_URL=https://dev.nexa.fish DATA_DIR=./data-dev R2_BUCKET=off \
     WEB_DIST=./web/dist-dev ./bin/chatd_dev -env chatd.env      # in the background
   ```
+
+- `R2_BUCKET=off` (`make run-dev` sets it too) keeps it out of the live bucket `chatd.env` names: an
+  empty variable does not override the file, and its uploads and deletions would land on live keys.
 
 - `data-dev` keeps its accounts between runs and is not the throwaway server's database: alice and bob
   exist there only once seeded. Before handing it over, check (`sqlite3 data-dev/chat.db "select username
@@ -399,7 +410,7 @@ store, the media store (`DATA_DIR/media`), the server secret (`DATA_DIR/server.s
 Redis cache, builds `api.Server`, wires the gateway hub (`srv.Bcast`: `WireServers`, `WireVoice`,
 `WireActivities`, `WireDiscord`, last `WireModeration`), starts the background loops (`StartLimiters`,
 `StartGuests`, `StartModeration`, `StartPolls`, `StartThreads`, `StartDiscord`, `StartAccountSweep`,
-`StartBilling`, `StartRealtime`, the WARP keeper, the usage meter, `maintenance`) and serves until
+`StartBilling`, `StartRealtime`, `StartStorage`, the WARP keeper, the usage meter, `maintenance`) and serves until
 SIGINT or SIGTERM.
 
 ### Packages (`internal/`)
@@ -418,7 +429,8 @@ SIGINT or SIGTERM.
 | `games`, `music`, `books`, `screen` | IGDB, Deezer, Open Library and TMDB for profile widgets; art kept, previews streamed through |
 | `gateway` | the WebSocket hub: connections, presence, typing, voice signalling, fan-out |
 | `ids` | snowflakes (41 bits of milliseconds, 10 of node, 12 of sequence), decimal strings in JSON |
-| `media` | blob storage, upload validation, sized variants, metadata scrub |
+| `media` | blob storage, upload validation, sized variants, metadata scrub; moving attachments to the bucket (`remote.go`) |
+| `objstore` | a small S3 client for the R2 bucket (SigV4, multipart, ranged reads, presigned links), standard library only |
 | `perms` | Discord's permission model and bit values |
 | `ratelimit` | keyed token buckets, optionally shared through Redis |
 | `realtime` | Cloudflare Realtime: the SFU client, the usage meter, analytics, TURN keys |
@@ -590,7 +602,7 @@ SIGINT or SIGTERM.
   `roles`, `member_roles`, `invites` (`vanity` for vanity links), `bans`, `audit_log`, `automod_rules`, `automod_events`), plans
   (`billing`, `server_boosts`, `plan_gifts`, `gift_links`, `users.plan`, `servers.boosts`), expressions
   (`emojis`, `sticker_packs`, `stickers`, `sticker_installs`, `recent_stickers`, `blocked_images`),
-  files (`blobs`, `uploads`), calls (`guest_links`, `guests`, `realtime_usage`, `realtime_measurements`,
+  files (`blobs`, `uploads`, `remote_blobs`, `storage_usage`), calls (`guest_links`, `guests`, `realtime_usage`, `realtime_measurements`,
   `realtime_sessions`, `call_usage`, `turn_credentials`), integrations (`webhooks`, `discord_links`),
   notes (`notes`, `note_members`, `note_invites`, `note_links`, `note_files`, `note_versions`,
   `note_version_files`, `note_keys`, `note_updates`, `note_uploads`), Nexa and moderation (`mod_cases`,
@@ -677,6 +689,28 @@ as Discord holds it:
   `icon`, 256 px). Uploading clears the glyph and saving a glyph puts the picture away; if both are set
   the picture wins (`ChannelGlyph` on both clients, Android's in `ui/shell/Sidebars.kt`). The picker
   uploads at once and edits it as the value `picture`.
+- With an R2 bucket (`R2_*`), end-to-end encrypted attachments (kind `attachment`: message and note
+  files, sound pack recordings) move there once something holds them (`media/remote.go`). They land on
+  disk as always; every half minute `StartStorage` (`api/storage_budget.go`) copies held ones a minute
+  old to `attachments/<content name>`, checks the size with a HEAD, records them in `remote_blobs` and
+  only then deletes the file here. Reads prefer the disk. For a moved one `/media/attachments/{id}`
+  hands over an hour's presigned link (`Cache-Control: no-store`): as JSON (`media.LinkType`, `url` and
+  `expires_in`) when asked with `X-Nexa-Link: 1`, which the web app does and then fetches the link without
+  its token (`fetchAttachment` in `api/channels.ts`, `fetchCipher` in `download-sw.ts`, which keeps the
+  link for a job's later ranges), since R2 refuses a request carrying both and WebKit keeps the
+  Authorization header across a redirect; otherwise as a 302, which Android's OkHttp and older apps
+  follow, dropping the header. The bot CDN and reported-file reads stream from the bucket
+  (`objstore.Reader`). `Remove` marks a copy gone and the next pass deletes it. Pictures, private (bug, case, report) and webhook files never move, so the bucket holds
+  only ciphertext. Its CORS allows GET and HEAD with `range` from Nexa's origins (`nexa-media`; the
+  test bucket `nexa-media-test` allows any origin). Uploads still come through this server in pieces.
+- R2 has no spending cap, so Settings, Nexa Admin, File Storage sets a monthly limit (instance setting
+  `storage_budget` in US cents, `PATCH /admin/settings` with `storage_budget`, null for none; web
+  `FileStorage` in `settings/AdminPage.tsx`, Android `FileStorageSection` in `ui/settings/HelpPages.kt`;
+  the meter is `storage` in `/admin/stats`). `storageCostCents` prices as R2 bills (checked 2026-11-04:
+  $0.015 a GB-month, Class A and B requests, the free tiers, each rounded up) what the bucket holds plus
+  what waits here and is on its way, plus this month's requests (`storage_usage`, a presigned link
+  counting as its one read). An upload headed for the bucket (`reserveUpload`'s `remote`) that would
+  pass it answers 507 `storage_budget`, and the mover leaves files on disk rather than pass it.
 - Small files go up in one request (`POST /channels/{id}/attachments`), big ones in pieces through
   `/api/v1/uploads` (Cloudflare caps a request at 100 MB) within disk headroom and per-account caps
   (`roomForUpload`). `reserveUpload` serializes admission and counts bodies still arriving until their
@@ -1278,7 +1312,8 @@ it.
 
 Every setting is documented in `chatd.env.example` and loaded by `internal/config`. Groups: addresses
 (`LISTEN`, `PUBLIC_URL`, `ALT_URLS`, `MOVED_FROM`), storage (`DATA_DIR`, `DATABASE_URL`, `REDIS_URL`,
-`WEB_DIST`, `DESKTOP_DIR`, `ANDROID_DIR`, `NODE_ID`), limits (`MAX_UPLOAD_BYTES`, `MAX_AVATAR_BYTES`,
+`WEB_DIST`, `DESKTOP_DIR`, `ANDROID_DIR`, `NODE_ID`, and the bucket: `R2_ACCOUNT_ID`, `R2_BUCKET` (`off`
+turns it off), `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT` for tests), limits (`MAX_UPLOAD_BYTES`, `MAX_AVATAR_BYTES`,
 `MAX_EMOJI_BYTES`, `MAX_STICKER_BYTES`, `SESSION_TTL_DAYS`), sign-up (`REGISTRATION` open/invite/closed,
 `REGISTRATION_KEY`, `ADMIN_USERNAME`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and the
 `HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY` fallback), calls
@@ -1308,7 +1343,11 @@ payments (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_API_URL` for a f
   Realtime SFU stand-in is `newRealtimeStandIn` (`sfu_handlers_test.go`).
 - `internal/store`: `newStore(t)`, `mkUser(t, s, name)`.
 - Tests against live services run only with their variables set (`UNFURL_LIVE`, `REALTIME_LIVE`,
-  `TELEGRAM_LIVE_TOKEN`, `DISCORD_BOT_TOKEN`); the Discord tests otherwise use `fakediscord`.
+  `TELEGRAM_LIVE_TOKEN`, `DISCORD_BOT_TOKEN`, and `OBJSTORE_LIVE` with the test bucket's `R2_*`, which
+  refuses any bucket not named for tests); the Discord tests otherwise use `fakediscord`.
+- The TURN tests (`turn_test.go`, `TestGuestTURN...`, `TestCloudflareTURNCredentials`) fail now and then
+  when the whole package runs, at HEAD of 2026-11-04 too; they pass alone. A failure there alone is
+  that, not a regression.
 
 ## End-to-end encryption
 

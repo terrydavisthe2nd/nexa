@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Shield } from "lucide-react";
 import { admin as adminApi, type ClientErrorReport } from "@/api/admin";
 import { ApiError } from "@/api/client";
-import type { AdminSettings, AdminStats, LegalReport } from "@/api/types";
+import type { AdminSettings, AdminStats, LegalReport, StorageMeter } from "@/api/types";
 import { Button } from "@/components/common/Button";
 import { Spinner } from "@/components/common/Spinner";
 import { Field, TextInput } from "@/components/common/TextInput";
@@ -91,6 +91,17 @@ export default function AdminPage() {
           {stats.realtime && stats.realtime.limit_bytes > 0 ? <CallUsage usage={stats.realtime} /> : null}
         </div>
       ) : failed ? <LoadError message={tr_("moderation.loadFailed")} onRetry={loadAll} /> : <Spinner />}
+      {settings?.storage_remote ? (
+        <FileStorage
+          meter={stats?.storage}
+          limitCents={settings.storage_budget_cents}
+          onSaved={(next) => {
+            setSettings(next);
+            // whether uploads are paused follows the new limit at once
+            adminApi.stats().then(setStats).catch(() => undefined);
+          }}
+        />
+      ) : null}
       <h3 className={st.h5}>{tr_("settings.admin.registration")}</h3>
       {settings ? (
         <>
@@ -300,6 +311,93 @@ function CrashLog() {
  * video at 90% and calls at 99%, and until this row the operator's first sign
  * of it was video quietly refusing to start.
  */
+/** A limit typed in dollars ("50", "12.5", "7,25"), in cents, or null when it is not one. */
+function parseDollars(raw: string): number | null {
+  const m = /^(\d{1,6})(?:[.,](\d{0,2}))?$/.exec(raw.trim());
+  if (!m) return null;
+  const cents = Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
+  return cents <= 10_000_000 ? cents : null;
+}
+
+function dollars(cents: number): string {
+  try {
+    return new Intl.NumberFormat(translator().locale, { style: "currency", currency: "USD" }).format(cents / 100);
+  } catch {
+    return `$${(cents / 100).toFixed(2)}`;
+  }
+}
+
+/**
+ * File Storage: what keeping attachments in Cloudflare R2 costs this month,
+ * against the limit the server holds new files to (storage_budget.go), and
+ * where that limit is set. Shown only while attachments go to a bucket.
+ */
+function FileStorage({ meter, limitCents, onSaved }: { meter: StorageMeter | null | undefined; limitCents: number | null; onSaved: (next: AdminSettings) => void }) {
+  const toast = useUI((u) => u.toast);
+  const shown = limitCents == null ? "" : (limitCents / 100).toFixed(2);
+  const [draft, setDraft] = useState(shown);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setDraft(shown), [shown]);
+  const cents = parseDollars(draft);
+  const save = async (next: number | null) => {
+    setBusy(true);
+    try {
+      onSaved(await adminApi.patchSettings({ storage_budget: next }));
+      toast(tr_(next == null ? "settings.admin.limitRemoved" : "settings.admin.limitSaved"), "success");
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : tr_("settings.admin.couldNotChangeTheLimit"), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <h3 className={st.h5}>{tr_("settings.admin.fileStorage")}</h3>
+      <p className={st.hint} style={{ margin: "0 0 12px" }}>{tr_("settings.admin.fileStorageHint")}</p>
+      {meter ? (
+        <div className={st.rows} style={{ margin: 0, background: "var(--bg-surface)" }} data-testid="admin-storage">
+          <div className={st.row}>
+            <span className={st.rowLabel}>
+              {tr_("settings.admin.storageThisMonth")}
+              {meter.held ? <span className={st.deviceSub} style={{ display: "block", fontWeight: 400, color: "var(--text-warning)" }}>{tr_("settings.admin.storagePaused")}</span> : null}
+            </span>
+            <span className={st.rowValue} style={{ fontVariantNumeric: "tabular-nums", ...(meter.held ? { color: "var(--text-warning)" } : {}) }}>
+              {meter.limit_cents == null ? tr_("settings.admin.storageCostNoLimit", { cost: dollars(meter.cost_cents) }) : tr_("settings.admin.storageCost", { cost: dollars(meter.cost_cents), limit: dollars(meter.limit_cents) })}
+            </span>
+          </div>
+          {meter.limit_cents != null ? (
+            <span className={st.costBar} data-held={meter.held || undefined} aria-hidden="true">
+              <i style={{ inlineSize: `${Math.min(100, (meter.cost_cents / Math.max(1, meter.limit_cents)) * 100)}%` }} />
+            </span>
+          ) : null}
+          <div className={st.row}><span className={st.rowLabel}>{tr_("settings.admin.storageInBucket")}</span><span className={st.rowValue}>{formatBytes(meter.stored_bytes)}</span></div>
+          <div className={st.row}><span className={st.rowLabel}>{tr_("settings.admin.storageWaiting")}</span><span className={st.rowValue}>{formatBytes(meter.waiting_bytes)}</span></div>
+        </div>
+      ) : <Spinner />}
+      <div style={{ marginTop: 16 }}>
+        <Field label={tr_("settings.admin.monthlyLimit")} hint={tr_("settings.admin.monthlyLimitHint")}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <TextInput
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && cents != null && cents !== limitCents) void save(cents);
+              }}
+              placeholder={tr_("settings.admin.noLimit")}
+              inputMode="decimal"
+              maxLength={9}
+              style={{ flex: "1 1 120px", minWidth: 0 }}
+              data-testid="storage-limit"
+            />
+            <Button size="sm" disabled={busy || cents == null || cents === limitCents} onClick={() => cents != null && void save(cents)}>{tr_("chat.editMessage.save")}</Button>
+            {limitCents != null ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => void save(null)}>{tr_("settings.admin.removeLimit")}</Button> : null}
+          </div>
+        </Field>
+      </div>
+    </>
+  );
+}
+
 function CallUsage({ usage }: { usage: NonNullable<AdminStats["realtime"]> }) {
   // gigabytes as the allowance is set in the config, in thousands rather than 1024s
   const gb = (n: number) => {

@@ -1,0 +1,257 @@
+package media
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"time"
+
+	"evilion.xyz/chat/internal/objstore"
+	"evilion.xyz/chat/internal/store"
+)
+
+// End-to-end encrypted attachments can live in a bucket (Cloudflare R2)
+// instead of on this machine's disk. They arrive here as always; once
+// something holds one (its message was sent), the mover copies it to the
+// bucket, checks the copy, records it in remote_blobs, and only then
+// removes the file here. Reads prefer the file here while it exists. Apps
+// are sent to the bucket with a short-lived signed link, so the bytes no
+// longer pass through this machine's connection. Only ciphertext goes:
+// pictures, bug report, case and report files, and webhook files stay here,
+// so the bucket holds nothing anyone there could read.
+
+// ObjectStore is the bucket: an *objstore.Client, or a stand-in in tests.
+type ObjectStore interface {
+	objstore.Getter
+	Put(ctx context.Context, key string, f io.ReaderAt, size int64, contentType string) error
+	Head(ctx context.Context, key string) (int64, error)
+	Delete(ctx context.Context, key string) error
+	Presign(key string, ttl time.Duration) string
+}
+
+// File is a blob's bytes, on disk (*os.File) or in the bucket.
+type File interface {
+	io.ReadSeekCloser
+	io.ReaderAt
+}
+
+// linkLife is how long a signed link to a file in the bucket works. Apps
+// ask this server again for every download and every stretch of a video,
+// so a link only has to outlast the start of one request.
+const linkLife = time.Hour
+
+// moveAfter is how old a held attachment is before it moves: the people in
+// a conversation fetch a new file at once, and do so from here.
+var moveAfter = time.Minute
+
+// remoteKey is where content name lives in the bucket.
+func remoteKey(name string) string { return "attachments/" + name }
+
+// billed tells the meter about a request the bucket bills.
+func (m *Store) billed(class byte) {
+	if m.Billed != nil {
+		m.Billed(class)
+	}
+}
+
+// openBytes opens a blob's bytes wherever they are.
+func (m *Store) openBytes(ctx context.Context, b *store.Blob) (File, error) {
+	name := shaOf(b)
+	if f, err := os.Open(m.Path(name)); err == nil {
+		return f, nil
+	}
+	if m.Remote != nil && b.Encrypted {
+		if size, ok, err := m.st.RemoteBlobSize(ctx, name); err == nil && ok {
+			return objstore.NewReader(ctx, m.Remote, remoteKey(name), size), nil
+		}
+	}
+	return nil, store.ErrNotFound
+}
+
+// LinkType marks the answer to a download asked for with X-Nexa-Link: 1
+// whose bytes are in the bucket: {"url", "expires_in"} rather than the bytes.
+const LinkType = "application/vnd.nexa.link+json"
+
+// sendToBucket answers a download whose bytes are in the bucket with a
+// signed link to them, which the app fetches without its token: the bucket
+// refuses a request carrying both, and has no business seeing it. The web
+// app asks for the link outright (X-Nexa-Link), because WebKit keeps the
+// Authorization header across a redirect to another origin; Android's
+// OkHttp and the apps from before follow a redirect, dropping the header
+// as it leaves this server.
+func (m *Store) sendToBucket(w http.ResponseWriter, r *http.Request, b *store.Blob) bool {
+	if m.Remote == nil || !b.Encrypted {
+		return false
+	}
+	name := shaOf(b)
+	if _, ok, err := m.st.RemoteBlobSize(r.Context(), name); err != nil || !ok {
+		return false
+	}
+	m.billed(objstore.ClassB) // the read the app makes with it
+	link := m.Remote.Presign(remoteKey(name), linkLife)
+	h := w.Header()
+	h.Set("Cache-Control", "private, no-store")
+	h.Set("Referrer-Policy", "no-referrer")
+	if r.Header.Get("X-Nexa-Link") == "1" {
+		h.Set("Content-Type", LinkType)
+		h.Set("X-Content-Type-Options", "nosniff")
+		_ = json.NewEncoder(w).Encode(map[string]any{"url": link, "expires_in": int(linkLife / time.Second)})
+		return true
+	}
+	http.Redirect(w, r, link, http.StatusFound)
+	return true
+}
+
+// MoveResult is what one pass of the mover did.
+type MoveResult struct {
+	Moved int
+	Bytes int64
+	// Held says the pass stopped because the bucket had no room under the
+	// monthly limit.
+	Held bool
+}
+
+// MoveToRemote copies up to max held attachments to the bucket, oldest
+// first, and removes their files here. room says whether the bucket may
+// take size more bytes; a no stops the pass, leaving the rest here.
+func (m *Store) MoveToRemote(ctx context.Context, max int, room func(size int64) bool) (MoveResult, error) {
+	var res MoveResult
+	if m.Remote == nil {
+		return res, nil
+	}
+	list, err := m.st.BlobsToMove(ctx, time.Now().Add(-moveAfter).UnixMilli(), max+m.skipCount())
+	if err != nil {
+		return res, err
+	}
+	for _, c := range list {
+		if res.Moved >= max {
+			break
+		}
+		if m.skipped(c.Name) {
+			continue
+		}
+		if !room(c.Size) {
+			res.Held = true
+			return res, nil
+		}
+		size, err := m.moveOne(ctx, c.Name)
+		if err != nil {
+			return res, err
+		}
+		if size > 0 {
+			res.Moved++
+			res.Bytes += size
+		}
+	}
+	return res, nil
+}
+
+// moveOne copies one file to the bucket and removes it here.
+func (m *Store) moveOne(ctx context.Context, name string) (int64, error) {
+	path := m.Path(name)
+	f, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		// a row whose file is gone has nothing to move; asking again each
+		// pass would stall the queue behind it
+		m.skip(name)
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return 0, err
+	}
+	key := remoteKey(name)
+	if err := m.Remote.Put(ctx, key, f, info.Size(), "application/octet-stream"); err != nil {
+		return 0, fmt.Errorf("move %s: %w", name, err)
+	}
+	if got, err := m.Remote.Head(ctx, key); err != nil || got != info.Size() {
+		return 0, fmt.Errorf("move %s: the bucket holds %d of %d bytes (%v)", name, got, info.Size(), err)
+	}
+	unlock := m.lockContent(name)
+	defer unlock()
+	if err := m.st.AddRemoteBlob(ctx, name, info.Size()); err != nil {
+		return 0, err
+	}
+	// Everything that held it may have gone while it was on its way (Remove
+	// takes this lock too, and has already deleted the file here): then the
+	// copy is nobody's, and goes the way any such copy does.
+	if n, err := m.st.CountBlobsByContent(ctx, name); err != nil {
+		return 0, err
+	} else if n == 0 {
+		return 0, m.st.MarkRemoteGone(ctx, name)
+	}
+	// Only now may the file here go: every read from here on finds the copy.
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return 0, err
+	}
+	if dir, err := os.Open(filepath.Dir(path)); err == nil {
+		_ = dir.Sync()
+		dir.Close()
+	}
+	return info.Size(), nil
+}
+
+// SweepRemote deletes bucket copies that nothing holds any more (marked
+// gone by Remove), up to max, and returns how many went. Each is checked
+// again first: the same bytes may have been uploaded again since.
+func (m *Store) SweepRemote(ctx context.Context, max int) (int, error) {
+	if m.Remote == nil {
+		return 0, nil
+	}
+	names, err := m.st.GoneRemoteBlobs(ctx, max)
+	if err != nil {
+		return 0, err
+	}
+	done := 0
+	for _, name := range names {
+		if err := m.sweepOne(ctx, name); err != nil {
+			return done, err
+		}
+		done++
+	}
+	return done, nil
+}
+
+func (m *Store) sweepOne(ctx context.Context, name string) error {
+	unlock := m.lockContent(name)
+	defer unlock()
+	if n, err := m.st.CountBlobsByContent(ctx, name); err != nil {
+		return err
+	} else if n > 0 {
+		return m.st.KeepRemoteBlob(ctx, name)
+	}
+	if err := m.Remote.Delete(ctx, remoteKey(name)); err != nil {
+		return err
+	}
+	return m.st.DeleteRemoteBlob(ctx, name)
+}
+
+func (m *Store) skip(name string) {
+	m.skipMu.Lock()
+	defer m.skipMu.Unlock()
+	if m.skips == nil {
+		m.skips = map[string]bool{}
+	}
+	m.skips[name] = true
+}
+
+func (m *Store) skipped(name string) bool {
+	m.skipMu.Lock()
+	defer m.skipMu.Unlock()
+	return m.skips[name]
+}
+
+func (m *Store) skipCount() int {
+	m.skipMu.Lock()
+	defer m.skipMu.Unlock()
+	return len(m.skips)
+}

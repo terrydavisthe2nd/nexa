@@ -11,7 +11,7 @@
  */
 
 /** The effective date of the Terms and Privacy Policy in docs/legal (a test holds the two to it). */
-export const LEGAL_EFFECTIVE = "2026-11-02";
+export const LEGAL_EFFECTIVE = "2026-11-04";
 
 /**
  * What an account agrees to: the effective date, and which revision of that

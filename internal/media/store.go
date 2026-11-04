@@ -33,6 +33,16 @@ type Store struct {
 	// file the collector removed a moment later.
 	contentMu    sync.Mutex
 	contentLocks map[string]*uploadLock
+
+	// Remote, when set, is the bucket end-to-end encrypted attachments move
+	// to (remote.go); nil keeps every file on this disk.
+	Remote ObjectStore
+	// Billed is told about each bucket request that costs money, for the
+	// monthly limit: the bucket client reports its own, and this store adds
+	// the read an app makes with each signed link it is given.
+	Billed func(class byte)
+	skipMu sync.Mutex
+	skips  map[string]bool
 }
 
 // lockContent holds the lock for one file's bytes; call the result to let go.
@@ -391,9 +401,11 @@ func (m *Store) FinishSpool(ctx context.Context, id ids.ID, owner ids.ID, size i
 			return nil, err
 		}
 	} else if committed, err := os.Stat(m.Path(name)); err != nil || committed.Size() != size {
-		// no spool and nothing committed under this upload's name: there is
-		// nothing here to finish
-		return nil, ErrNotFound
+		// no spool and nothing committed under this upload's name, here or
+		// in the bucket: there is nothing here to finish
+		if moved, ok, rerr := m.st.RemoteBlobSize(ctx, name); rerr != nil || !ok || moved != size {
+			return nil, ErrNotFound
+		}
 	}
 	ow := owner
 	b := &store.Blob{SHA256: name, Size: size, Mime: "application/octet-stream", Kind: "attachment", Encrypted: true, RefCount: 0, OwnerID: &ow}
@@ -425,15 +437,15 @@ func (m *Store) commit(tmp, sha string) error {
 	return nil
 }
 
-// Open returns the file for a blob id.
-func (m *Store) Open(ctx context.Context, id ids.ID) (*os.File, *store.Blob, error) {
+// Open returns a blob's bytes, from this disk or from the bucket, and its row.
+func (m *Store) Open(ctx context.Context, id ids.ID) (File, *store.Blob, error) {
 	b, err := m.st.BlobByID(ctx, id)
 	if err != nil {
 		return nil, nil, err
 	}
-	f, err := os.Open(m.Path(shaOf(b)))
+	f, err := m.openBytes(ctx, b)
 	if err != nil {
-		return nil, nil, store.ErrNotFound
+		return nil, nil, err
 	}
 	return f, b, nil
 }
@@ -465,6 +477,11 @@ func (m *Store) Remove(ctx context.Context, b *store.Blob) error {
 	if n == 0 {
 		_ = os.Remove(m.Path(shaOf(b)))
 		m.removeVariants(shaOf(b))
+		// The bucket's copy, if it has one, goes with the mover's next pass
+		// (SweepRemote), so a long list of removals never waits on it.
+		if err := m.st.MarkRemoteGone(ctx, shaOf(b)); err != nil {
+			return err
+		}
 	}
 	return nil
 }

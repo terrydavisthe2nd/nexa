@@ -63,6 +63,8 @@ const JOB_ID = /^[0-9a-f]{32}$/;
 interface DownloadJob {
   url: string;
   token: string | null;
+  /** The bucket's signed link to the file, once the server has handed one over (fetchCipher). */
+  link?: Linked | null;
   key: Uint8Array;
   name: string;
   size: number;
@@ -136,12 +138,48 @@ sw.addEventListener("message", (e) => {
   // "keepalive" needs no answer: receiving it is what keeps this worker running
 });
 
+/** A signed link to a file in the bucket, and until when (this device's clock) to trust it. */
+interface Linked {
+  url: string;
+  until: number;
+}
+
+/** What the server answers a request marked X-Nexa-Link with once the file is in the bucket (internal/media/remote.go). */
+const LINK_TYPE = "application/vnd.nexa.link+json";
+
+/**
+ * Asks for an attachment's ciphertext, or part of it. Once the file has
+ * moved to the bucket the server answers with a signed link rather than the
+ * bytes, and the bytes come from there without the token: the bucket refuses
+ * a request carrying both, and WebKit keeps the Authorization header across a
+ * redirect to another origin. The link serves the job's later requests while
+ * it is good, and one that has run out is asked for again. The page does the
+ * same in api/channels.ts; this file cannot share a module with the app.
+ */
+async function fetchCipher(job: { url: string; token: string | null; link?: Linked | null }, range: string | null): Promise<Response> {
+  const fromBucket = (link: Linked): Promise<Response> => fetch(link.url, { headers: range ? { Range: range } : {}, cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer" });
+  if (job.link && job.link.until > Date.now()) {
+    const res = await fromBucket(job.link);
+    if (res.status !== 403) return res;
+    void res.body?.cancel().catch(() => undefined);
+    job.link = null;
+  }
+  const headers: Record<string, string> = { "X-Nexa-Link": "1" };
+  if (job.token) headers["Authorization"] = `Bearer ${job.token}`;
+  if (range) headers["Range"] = range;
+  const res = await fetch(job.url, { headers, cache: "no-store" });
+  if (!res.ok || !(res.headers.get("Content-Type") ?? "").startsWith(LINK_TYPE)) return res;
+  const body = (await res.json()) as { url?: unknown; expires_in?: unknown };
+  if (typeof body.url !== "string" || !/^https?:\/\//.test(body.url)) throw new Permanent("The server sent a link that is not one.");
+  const life = typeof body.expires_in === "number" ? body.expires_in : 600;
+  // a minute short of the end, so a request is never sent on a link about to lapse
+  job.link = { url: body.url, until: Date.now() + Math.max(0, life - 60) * 1000 };
+  return fromBucket(job.link);
+}
+
 /** Fetches the ciphertext from `offset` onwards, sorting failures worth retrying from those that are not. */
 async function openCipher(job: DownloadJob, offset: number): Promise<CipherBody> {
-  const headers: Record<string, string> = {};
-  if (job.token) headers["Authorization"] = `Bearer ${job.token}`;
-  if (offset > 0) headers["Range"] = `bytes=${offset}-`;
-  const res = await fetch(job.url, { headers, cache: "no-store" });
+  const res = await fetchCipher(job, offset > 0 ? `bytes=${offset}-` : null);
   if (res.body && (res.status === 200 || res.status === 206)) {
     let start = 0;
     if (res.status === 206) {
@@ -255,6 +293,7 @@ const MEDIA_TYPE = /^(?:video|audio)\/[0-9a-z.+-]{1,100}$/i;
 interface StreamJob {
   url: string;
   token: string | null;
+  link?: Linked | null;
   type: string;
   source: RangeSource;
   at: number;
@@ -324,11 +363,9 @@ async function stretchOf(body: ReadableStream<Uint8Array>, start: number, end: n
   return filled === out.length ? out : out.subarray(0, filled);
 }
 
-/** Bytes [start, end] of a stream's file on the server. */
+/** Bytes [start, end] of a stream's file, from the server or the bucket. */
 async function fetchStretch(job: StreamJob, start: number, end: number): Promise<Uint8Array<ArrayBuffer>> {
-  const headers: Record<string, string> = { Range: `bytes=${start}-${end}` };
-  if (job.token) headers["Authorization"] = `Bearer ${job.token}`;
-  const res = await fetch(job.url, { headers, cache: "no-store" });
+  const res = await fetchCipher(job, `bytes=${start}-${end}`);
   if (res.status === 206) {
     const m = /^bytes (\d+)-(\d+)\//.exec(res.headers.get("Content-Range") ?? "");
     if (!m || Number(m[1]) !== start || Number(m[2]) !== end) {

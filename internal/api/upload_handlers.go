@@ -53,20 +53,25 @@ type uploadReservation struct {
 
 type uploadReservations struct {
 	sync.Mutex
-	users      map[ids.ID]uploadReservation
-	bytes      int64
-	stages     map[ids.ID]int
-	stageCount int
-	stageBytes int64
+	users map[ids.ID]uploadReservation
+	bytes int64
+	// remoteBytes is the part of bytes headed for the bucket, which the
+	// monthly limit counts as on its way (storage_budget.go)
+	remoteBytes int64
+	stages      map[ids.ID]int
+	stageCount  int
+	stageBytes  int64
 }
 
 // reserveUpload makes quota checks and admission atomic, and counts bodies
 // still arriving. Counting only committed blobs lets concurrent requests each
 // spend the same remaining allowance before any of them creates its blob.
-func (s *Server) reserveUpload(ctx context.Context, uid ids.ID, size int64, session bool) (func(), error) {
+// remote says the file is an end-to-end encrypted attachment, which ends up
+// in the bucket when there is one, and so has to fit under the monthly limit.
+func (s *Server) reserveUpload(ctx context.Context, uid ids.ID, size int64, session, remote bool) (func(), error) {
 	s.uploads.Lock()
 	defer s.uploads.Unlock()
-	if err := s.uploadRoomLocked(ctx, uid, size, session); err != nil {
+	if err := s.uploadRoomLocked(ctx, uid, size, session, remote); err != nil {
 		return nil, err
 	}
 	if s.uploads.users == nil {
@@ -77,6 +82,9 @@ func (s *Server) reserveUpload(ctx context.Context, uid ids.ID, size int64, sess
 	r.open++
 	s.uploads.users[uid] = r
 	s.uploads.bytes += size
+	if remote {
+		s.uploads.remoteBytes += size
+	}
 	return func() {
 		s.uploads.Lock()
 		defer s.uploads.Unlock()
@@ -89,6 +97,11 @@ func (s *Server) reserveUpload(ctx context.Context, uid ids.ID, size int64, sess
 			s.uploads.users[uid] = r
 		}
 		s.uploads.bytes -= size
+		if remote {
+			s.uploads.remoteBytes -= size
+			// what arrived is a file waiting here now, or an upload on its way
+			s.storageChanged()
+		}
 	}, nil
 }
 
@@ -136,13 +149,13 @@ var errNoSpace = E(http.StatusInsufficientStorage, "no_space", "This server does
 // so one account cannot fill the disk for everyone, and none may upload more
 // in 30 days than its plan allows. session says a resumable transfer is
 // being opened, which counts against the open-transfer cap.
-func (s *Server) roomForUpload(ctx context.Context, uid ids.ID, size int64, session bool) error {
+func (s *Server) roomForUpload(ctx context.Context, uid ids.ID, size int64, session, remote bool) error {
 	s.uploads.Lock()
 	defer s.uploads.Unlock()
-	return s.uploadRoomLocked(ctx, uid, size, session)
+	return s.uploadRoomLocked(ctx, uid, size, session, remote)
 }
 
-func (s *Server) uploadRoomLocked(ctx context.Context, uid ids.ID, size int64, session bool) error {
+func (s *Server) uploadRoomLocked(ctx context.Context, uid ids.ID, size int64, session, remote bool) error {
 	room, err := s.Store.UploadRoomFor(ctx, uid)
 	if err != nil {
 		return err
@@ -165,6 +178,9 @@ func (s *Server) uploadRoomLocked(ctx context.Context, uid ids.ID, size int64, s
 		return err
 	} else if free-room.AllRemaining-s.uploads.bytes-s.uploads.stageBytes < size+diskHeadroom {
 		return errNoSpace
+	}
+	if remote {
+		return s.storageRoomLocked(ctx, size)
 	}
 	return nil
 }
@@ -226,7 +242,7 @@ func (s *Server) handleUploadCreate(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ErrRateLimited)
 		return
 	}
-	release, err := s.reserveUpload(r.Context(), me.ID, req.Size, true)
+	release, err := s.reserveUpload(r.Context(), me.ID, req.Size, true, true)
 	if err != nil {
 		WriteError(w, err)
 		return

@@ -33,6 +33,7 @@ import (
 	"evilion.xyz/chat/internal/ids"
 	"evilion.xyz/chat/internal/media"
 	"evilion.xyz/chat/internal/music"
+	"evilion.xyz/chat/internal/objstore"
 	"evilion.xyz/chat/internal/rpcapps"
 	"evilion.xyz/chat/internal/screen"
 	"evilion.xyz/chat/internal/store"
@@ -99,6 +100,17 @@ func main() {
 		log.Error("media dir", "err", err)
 		os.Exit(1)
 	}
+	// End-to-end encrypted attachments move to the bucket once sent
+	// (internal/media/remote.go); without one every file stays on this disk.
+	var bucket *objstore.Client
+	if cfg.R2On() {
+		if bucket, err = objstore.New(cfg.R2URL(), cfg.R2Bucket, cfg.R2AccessKeyID, cfg.R2SecretAccessKey); err != nil {
+			log.Error("R2 bucket", "err", err)
+			os.Exit(2)
+		}
+		mediaStore.Remote = bucket
+		log.Info("attachments are kept in R2", "bucket", cfg.R2Bucket)
+	}
 	secret, err := loadOrCreateSecret(filepath.Join(cfg.DataDir, "server.secret"), func() (int, error) {
 		return st.CountTwoFactorAccounts(context.Background())
 	})
@@ -123,6 +135,10 @@ func main() {
 	}
 	srv.Secret = secret
 	srv.Media = mediaStore
+	if bucket != nil {
+		bucket.Billed = srv.StorageBilled
+		mediaStore.Billed = srv.StorageBilled
+	}
 	srv.Unfurl = unfurl.NewService()
 	// Twitch's player refuses to open unless it is told which pages may hold
 	// it: every address this Nexa is at.
@@ -189,6 +205,7 @@ func main() {
 	// TURN credentials revoked once their calls end, Cloudflare's measurement
 	// of what calls used, and the clearing out of old call records
 	srv.StartRealtime(ctx)
+	srv.StartStorage(ctx)
 	if warp != nil {
 		go func() {
 			if err := warp.Ensure(ctx); err != nil {

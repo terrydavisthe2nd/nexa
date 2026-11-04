@@ -1,7 +1,7 @@
 NEXA - PRIVACY POLICY
 Site: nexa.fish (also at mathtest.lol, and formerly chat.evilion.xyz)
 Contact the owner (nora) here: evilionx3@proton.me
-Effective: 2026-11-02
+Effective: 2026-11-04
 
 This policy lists exactly what Nexa holds. It is written against the
 actual database, so if something is not listed here, there is no place
@@ -27,8 +27,9 @@ under data protection law, including the GDPR (sections 9 to 11).
   that share an address, such as a second account made to get around
   a ban. The moderation panel never shows the addresses themselves.
 - Nexa uses a few outside services, listed in section 6 with what
-  each one gets. Cloudflare carries all traffic to and from Nexa, runs
-  the captcha, and relays calls. None of them can read your messages.
+  each one gets. Cloudflare carries all traffic to and from Nexa,
+  keeps the encrypted files people send, runs the captcha, and relays
+  calls. None of them can read your messages or files.
 - Links you share are previewed by the server through Cloudflare, so
   the sites never see your address, and YouTube videos and music from
   Spotify, Apple Music, Deezer and SoundCloud play through the server,
@@ -396,6 +397,17 @@ calls.
   makes. Your messages, files, notes, and calls are already encrypted
   when they pass through it. Why: so the server is never reachable
   directly from the internet.
+- Cloudflare R2, for keeping files. Once sent, the files in messages
+  and notes, and the recordings in sound packs, are kept in R2,
+  Cloudflare's storage service, instead of on Nexa's server. They are
+  encrypted on your device before they leave it, so Cloudflare holds
+  only encrypted bytes and their sizes, never a key, and cannot read
+  them. Your app downloads them straight from R2 with a link the
+  server signs for an hour once it has checked you may see the file,
+  so Cloudflare sees your IP address then too. Public pictures, bug
+  report, case and report files, and files sent by webhooks and apps
+  stay on Nexa's server. Why: so files cost little to keep and
+  download quickly wherever you are.
 - Cloudflare Turnstile, for the captcha when you sign up, sign in,
   recover an account, send a friend request, invite someone to a
   note, create or join a server, or join a call as a guest. Your
@@ -496,17 +508,20 @@ calls.
   history, and the moderation log: kept as the moderation
   record, including after an account is deleted.
 - Backups: a copy of everything the server stores, made from time to
-  time (usually before an update) and kept on the same machine.
-  Making a new backup deletes the one before, so only the newest
-  exists, and something deleted from Nexa stays in it until the next
-  backup replaces it. It holds the same encrypted content as the
-  server, under the same encryption.
+  time (usually before an update) and kept on the same machine. Files
+  kept in Cloudflare R2 (section 6) are not part of it. Making a new
+  backup deletes the one before, so only the newest exists, and
+  something deleted from Nexa stays in it until the next backup
+  replaces it. It holds the same encrypted content as the server,
+  under the same encryption.
 
 8. DELETION
 
 - Deleted messages, files, and accounts are removed from the
   database. No trash bin or archive is kept; only the newest backup
-  (section 7) holds a copy until the next one replaces it.
+  (section 7) holds a copy until the next one replaces it. A file
+  kept in Cloudflare R2 is deleted there within minutes of leaving
+  the server.
 - Deleting your own account deletes everything it made: your messages
   everywhere, the files you uploaded, your reactions, votes, and
   packs, the notes you own, your bug reports and sound recordings, the
@@ -541,7 +556,9 @@ the owner of Nexa (nora), in Alaska, United States.
   Contact the owner (nora) here: evilionx3@proton.me
 
 Nexa's server, and everything it stores, its backup included, is in
-Alaska, United States. If you use Nexa from the European Union, the
+Alaska, United States, except the encrypted files kept in Cloudflare
+R2 (section 6), which are in Cloudflare's western North America
+region. If you use Nexa from the European Union, the
 European Economic Area, the United Kingdom, or Switzerland, what you
 send it goes to the United States, and so does what Cloudflare and
 Discord get (section 6). Cloudflare and Discord are US companies

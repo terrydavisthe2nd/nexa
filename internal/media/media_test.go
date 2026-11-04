@@ -9,6 +9,7 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -176,10 +177,10 @@ func TestPutEncrypted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st, _ := f.Stat()
+	size, _ := f.Seek(0, io.SeekEnd)
 	f.Close()
-	if st.Size() != 1000 {
-		t.Errorf("size on disk %d", st.Size())
+	if size != 1000 {
+		t.Errorf("size on disk %d", size)
 	}
 	if err := m.Remove(ctx, a); err != nil {
 		t.Fatal(err)

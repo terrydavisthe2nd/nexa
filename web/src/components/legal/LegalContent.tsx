@@ -63,11 +63,12 @@ export function LegalHighlights() {
 
 /**
  * What changed since the version `previous` (what this account agreed to
- * before): the passkeys' wrapped keys, then what each older version
+ * before): what this version changed, then what each older version
  * brought, for an agreement from before it.
  */
 export function LegalChanges({ previous }: { previous: string }) {
-  const changes = [t("legal.newReportOutcomes")];
+  const changes = [t("legal.newFileStorage")];
+  if (previous < "2026-11-02.1") changes.push(t("legal.newReportOutcomes"));
   if (previous < "2026-11-01.1") changes.push(t("legal.newTurnstile"));
   if (previous < "2026-10-31.1") changes.push(t("legal.newCallUsage"));
   if (previous < "2026-10-28.1") changes.push(t("legal.newNSFW"));

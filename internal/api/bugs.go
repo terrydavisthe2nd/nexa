@@ -268,7 +268,7 @@ func (s *Server) handleBugUpload(w http.ResponseWriter, r *http.Request) {
 	if r.ContentLength > 0 {
 		size = r.ContentLength
 	}
-	release, err := s.reserveUpload(r.Context(), me.ID, size, false)
+	release, err := s.reserveUpload(r.Context(), me.ID, size, false, false)
 	if err != nil {
 		WriteError(w, err)
 		return
