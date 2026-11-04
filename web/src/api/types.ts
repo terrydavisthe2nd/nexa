@@ -687,6 +687,10 @@ export interface StorageMeter {
   limit_cents: number | null;
   /** New attachments are refused: the next one would pass the limit. */
   held: boolean;
+  /** When Cloudflare's own measurements run to (the server counts on from there); null while it counts alone. */
+  measured_at: number | null;
+  /** Cloudflare's measurements are read here (an analytics token is set), once they can be. */
+  measuring: boolean;
 }
 
 export interface AdminSettings {

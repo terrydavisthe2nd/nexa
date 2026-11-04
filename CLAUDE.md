@@ -710,7 +710,15 @@ as Discord holds it:
   $0.015 a GB-month, Class A and B requests, the free tiers, each rounded up) what the bucket holds plus
   what waits here and is on its way, plus this month's requests (`storage_usage`, a presigned link
   counting as its one read). An upload headed for the bucket (`reserveUpload`'s `remote`) that would
-  pass it answers 507 `storage_budget`, and the mover leaves files on disk rather than pass it.
+  pass it answers 507 `storage_budget`, and the mover leaves files on disk rather than pass it. With an
+  analytics token (`R2_ANALYTICS_TOKEN`, else `REALTIME_ANALYTICS_TOKEN` for the same account) the
+  numbers are Cloudflare's: every five minutes `measureStorage` reads the bucket's measured size and
+  this month's requests by class (`objstore.Analytics`, GraphQL `r2StorageAdaptiveGroups` and
+  `r2OperationsAdaptiveGroups`; failed requests count, and an operation the price list does not name
+  counts as a read when Get or Head, else a write) up to the newest moment ten minutes back at which
+  `noteCounts` recorded this server's own count, and adds that count's growth since. The size used is
+  the larger of the measured one and `remote_blobs`; the meter's `measured_at` says when Cloudflare's
+  numbers run to, and the admin page names which numbers it shows.
 - Small files go up in one request (`POST /channels/{id}/attachments`), big ones in pieces through
   `/api/v1/uploads` (Cloudflare caps a request at 100 MB) within disk headroom and per-account caps
   (`roomForUpload`). `reserveUpload` serializes admission and counts bodies still arriving until their
@@ -1313,7 +1321,7 @@ it.
 Every setting is documented in `chatd.env.example` and loaded by `internal/config`. Groups: addresses
 (`LISTEN`, `PUBLIC_URL`, `ALT_URLS`, `MOVED_FROM`), storage (`DATA_DIR`, `DATABASE_URL`, `REDIS_URL`,
 `WEB_DIST`, `DESKTOP_DIR`, `ANDROID_DIR`, `NODE_ID`, and the bucket: `R2_ACCOUNT_ID`, `R2_BUCKET` (`off`
-turns it off), `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT` for tests), limits (`MAX_UPLOAD_BYTES`, `MAX_AVATAR_BYTES`,
+turns it off), `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT` for tests, `R2_ANALYTICS_TOKEN`), limits (`MAX_UPLOAD_BYTES`, `MAX_AVATAR_BYTES`,
 `MAX_EMOJI_BYTES`, `MAX_STICKER_BYTES`, `SESSION_TTL_DAYS`), sign-up (`REGISTRATION` open/invite/closed,
 `REGISTRATION_KEY`, `ADMIN_USERNAME`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and the
 `HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY` fallback), calls

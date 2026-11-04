@@ -19,6 +19,13 @@ import (
 // this month's requests so far. Once a new attachment would take that past
 // the limit it is refused (storage_budget), and the mover leaves files here
 // rather than take the bucket past it. Nothing is deleted.
+//
+// With an analytics token (R2Analytics) the numbers are Cloudflare's own,
+// read every five minutes: the bucket's measured size and this month's
+// measured requests, which include what this server cannot count, such as a
+// signed link fetched more than once. Measurements arrive minutes late, so
+// they are read up to a moment ten minutes back, and this server's own count
+// since that moment is added on top.
 
 // R2's prices for Standard storage, checked on 2026-11-04 against
 // developers.cloudflare.com/r2/pricing: $0.015 a GB-month, $4.50 a million
@@ -41,6 +48,10 @@ const (
 	// many files one pass moves before looking again.
 	storagePass = 30 * time.Second
 	moveBatch   = 20
+	// measureEvery is how often Cloudflare's numbers are read, and
+	// measureLag how far back they are read to, past their delay.
+	measureEvery = 5 * time.Minute
+	measureLag   = 10 * time.Minute
 )
 
 var errStorageFull = E(http.StatusInsufficientStorage, "storage_budget", "New files can't be uploaded right now. Try again later.")
@@ -77,9 +88,32 @@ type storageMeter struct {
 	stored  int64 // in the bucket
 	waiting int64 // attachments still on this disk, and uploads on their way
 	held    bool  // the last state logged: new attachments refused
+
+	// this server's count of the month's requests at each pass, the last
+	// half hour of them, to line a measurement up with
+	snaps []opSnap
+	// Cloudflare's numbers for measuredMonth up to measuredUntil, and this
+	// server's count at that moment
+	measured       *objstore.Usage
+	measuredMonth  string
+	measuredUntil  time.Time
+	baseA, baseB   int64
+	lastMeasure    time.Time
+	measureFailing bool
 }
 
-type storageNumbers struct{ stored, waiting, a, b int64 }
+type opSnap struct {
+	at    time.Time
+	month string
+	a, b  int64
+}
+
+type storageNumbers struct {
+	stored, waiting, a, b int64
+	// measuredUntil is when Cloudflare's numbers run to; zero when the
+	// numbers are this server's own count
+	measuredUntil time.Time
+}
 
 func storageMonth(t time.Time) string { return t.UTC().Format("2006-01") }
 
@@ -134,11 +168,86 @@ func (s *Server) storageNow(ctx context.Context) (storageNumbers, error) {
 		}
 		s.storage.stored, s.storage.waiting, s.storage.at = stored, local+arriving, time.Now()
 	}
-	a, b, err := s.Store.StorageOps(ctx, storageMonth(time.Now()))
+	month := storageMonth(time.Now())
+	a, b, err := s.Store.StorageOps(ctx, month)
 	if err != nil {
 		return storageNumbers{}, err
 	}
-	return storageNumbers{stored: s.storage.stored, waiting: s.storage.waiting, a: a + s.storage.a.Load(), b: b + s.storage.b.Load()}, nil
+	n := storageNumbers{stored: s.storage.stored, waiting: s.storage.waiting, a: a + s.storage.a.Load(), b: b + s.storage.b.Load()}
+	if m := s.storage.measured; m != nil && s.storage.measuredMonth == month {
+		// Cloudflare's count to its moment, and this server's own since
+		n.a = m.ClassA + max(0, n.a-s.storage.baseA)
+		n.b = m.ClassB + max(0, n.b-s.storage.baseB)
+		// what the bucket measures beyond these records (an upload cut off
+		// before it was recorded) is billed too
+		n.stored = max(n.stored, m.StoredBytes)
+		n.measuredUntil = s.storage.measuredUntil
+	}
+	return n, nil
+}
+
+// noteCounts keeps this server's count of the month's requests as it stands,
+// for a measurement to be lined up with later.
+func (s *Server) noteCounts(ctx context.Context) {
+	now := time.Now()
+	month := storageMonth(now)
+	a, b, err := s.Store.StorageOps(ctx, month)
+	if err != nil {
+		return
+	}
+	s.storage.mu.Lock()
+	defer s.storage.mu.Unlock()
+	s.storage.snaps = append(s.storage.snaps, opSnap{at: now, month: month, a: a + s.storage.a.Load(), b: b + s.storage.b.Load()})
+	if n := len(s.storage.snaps); n > 64 {
+		s.storage.snaps = append([]opSnap(nil), s.storage.snaps[n-64:]...)
+	}
+}
+
+// measureStorage reads Cloudflare's numbers for the bucket this month, up to
+// the newest moment this server noted its own count at that is far enough
+// back for the measurement to be complete.
+func (s *Server) measureStorage(ctx context.Context) {
+	if s.R2Analytics == nil {
+		return
+	}
+	now := time.Now()
+	s.storage.mu.Lock()
+	due := now.Sub(s.storage.lastMeasure) >= measureEvery
+	var at *opSnap
+	for i := len(s.storage.snaps) - 1; i >= 0; i-- {
+		if sn := s.storage.snaps[i]; !sn.at.After(now.Add(-measureLag)) {
+			at = &sn
+			break
+		}
+	}
+	if due {
+		s.storage.lastMeasure = now
+	}
+	s.storage.mu.Unlock()
+	month := storageMonth(now)
+	// nothing far enough back yet (just started), or the moment is last month's
+	if !due || at == nil || at.month != month {
+		return
+	}
+	start := time.Date(now.UTC().Year(), now.UTC().Month(), 1, 0, 0, 0, 0, time.UTC)
+	mctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+	u, err := s.R2Analytics.Usage(mctx, s.Cfg.R2Bucket, start, at.at)
+	s.storage.mu.Lock()
+	defer s.storage.mu.Unlock()
+	if err != nil {
+		if !s.storage.measureFailing && ctx.Err() == nil {
+			s.Log.Warn("storage: could not read Cloudflare's numbers, so the meter counts on its own", "err", err)
+		}
+		s.storage.measureFailing = true
+		return
+	}
+	if s.storage.measureFailing {
+		s.Log.Info("storage: reading Cloudflare's numbers again")
+	}
+	s.storage.measureFailing = false
+	s.storage.measured, s.storage.measuredMonth, s.storage.measuredUntil = &u, month, at.at
+	s.storage.baseA, s.storage.baseB = at.a, at.b
 }
 
 // storageLimit returns the monthly limit in cents, and whether one is set.
@@ -230,6 +339,8 @@ func (s *Server) StartStorage(ctx context.Context) {
 		for {
 			wait := storagePass
 			s.flushStorageOps(ctx)
+			s.noteCounts(ctx)
+			s.measureStorage(ctx)
 			if n, err := s.Media.SweepRemote(ctx, 500); err != nil && ctx.Err() == nil {
 				s.Log.Warn("storage: delete from the bucket", "err", err)
 			} else if n > 0 {
@@ -283,6 +394,13 @@ func (s *Server) storageStatus(ctx context.Context) map[string]any {
 		"cost_cents":    storageCostCents(n.stored+n.waiting, n.a, n.b),
 		"limit_cents":   nil,
 		"held":          false,
+		// when Cloudflare's numbers run to; null while the count is this server's own
+		"measured_at": nil,
+		// Cloudflare's numbers are read here, once they can be
+		"measuring": s.R2Analytics != nil,
+	}
+	if !n.measuredUntil.IsZero() {
+		out["measured_at"] = n.measuredUntil.UnixMilli()
 	}
 	if set {
 		out["limit_cents"] = limit

@@ -411,6 +411,15 @@ private fun FileStorageSection(meter: JsonObject?, limitCents: Long?, onSaved: (
             FieldRow(t("settings.admin.storageInBucket"), Time.bytes(meter.num("stored_bytes")), Modifier.padding(vertical = 8.dp))
             FieldRow(t("settings.admin.storageWaiting"), Time.bytes(meter.num("waiting_bytes")), Modifier.padding(vertical = 8.dp))
         }
+        // where the numbers come from: Cloudflare's measurements, or this server's count alone
+        val measuredAt = meter.num("measured_at")
+        Hint(
+            when {
+                measuredAt > 0 -> t("settings.admin.storageMeasured", "time" to Time.time(measuredAt))
+                meter.flag("measuring") -> t("settings.admin.storageMeasuring")
+                else -> t("settings.admin.storageEstimated")
+            },
+        )
     }
     NxTextField(
         draft, { draft = it.take(9) },

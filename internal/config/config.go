@@ -169,6 +169,10 @@ type Config struct {
 	R2AccessKeyID     string
 	R2SecretAccessKey string
 	R2Endpoint        string
+	// R2AnalyticsToken (Account Analytics: Read on R2AccountID) lets the
+	// monthly limit use Cloudflare's own measurements of the bucket; empty
+	// takes RealtimeAnalyticsToken when the account is the same.
+	R2AnalyticsToken string
 	// NodeID would tell processes sharing one database apart in the ids they
 	// hand out, 0–1023. chatd runs as a single process, so it stays 0
 	// and startup warns when it is not.
@@ -244,6 +248,7 @@ func Load(getenv func(string) string) (Config, error) {
 	str("R2_ACCESS_KEY_ID", &c.R2AccessKeyID)
 	str("R2_SECRET_ACCESS_KEY", &c.R2SecretAccessKey)
 	str("R2_ENDPOINT", &c.R2Endpoint)
+	str("R2_ANALYTICS_TOKEN", &c.R2AnalyticsToken)
 	str("REALTIME_APP_ID", &c.RealtimeAppID)
 	str("REALTIME_APP_SECRET", &c.RealtimeAppSecret)
 	str("REALTIME_ACCOUNT_ID", &c.RealtimeAccountID)
@@ -395,6 +400,18 @@ func Load(getenv func(string) string) (Config, error) {
 
 // R2On says whether attachments go to an R2 bucket.
 func (c Config) R2On() bool { return c.R2Bucket != "" && c.R2Bucket != "off" }
+
+// R2Analytics returns the token that reads Cloudflare's numbers for the
+// bucket, if there is one.
+func (c Config) R2Analytics() string {
+	if c.R2AnalyticsToken != "" {
+		return c.R2AnalyticsToken
+	}
+	if c.RealtimeAccountID == c.R2AccountID {
+		return c.RealtimeAnalyticsToken
+	}
+	return ""
+}
 
 // R2URL is the bucket's S3 address.
 func (c Config) R2URL() string {

@@ -21,6 +21,7 @@ import (
 	"evilion.xyz/chat/internal/ids"
 	"evilion.xyz/chat/internal/media"
 	"evilion.xyz/chat/internal/music"
+	"evilion.xyz/chat/internal/objstore"
 	"evilion.xyz/chat/internal/ratelimit"
 	"evilion.xyz/chat/internal/realtime"
 	"evilion.xyz/chat/internal/rpcapps"
@@ -84,6 +85,9 @@ type Server struct {
 	uploads uploadReservations
 	// what keeping attachments in the bucket costs this month (storage_budget.go)
 	storage storageMeter
+	// R2Analytics reads Cloudflare's own numbers for the bucket; nil leaves
+	// the meter to this server's count
+	R2Analytics *objstore.Analytics
 	// the plans' prices from Stripe, kept for a while (billing.go)
 	priceCache priceCache
 

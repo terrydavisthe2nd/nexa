@@ -68,4 +68,17 @@ func TestStorageLimit(t *testing.T) {
 	if res, body := do(t, ts, "PATCH", "/api/v1/admin/settings", tok, map[string]any{"storage_budget": nil}); res.StatusCode != 200 || body["storage_budget_cents"] != nil {
 		t.Fatalf("take the limit away: %d %v", res.StatusCode, body)
 	}
+
+	// Cloudflare's numbers, once read, count what this server could not: the
+	// bucket measured at 30 GB, and 12 million reads (links fetched again)
+	srv.storage.mu.Lock()
+	srv.storage.measured = &objstore.Usage{StoredBytes: 30_000_000_000, ClassB: 12_000_000}
+	srv.storage.measuredMonth = storageMonth(time.Now())
+	srv.storage.measuredUntil = time.Now().Add(-measureLag)
+	srv.storage.mu.Unlock()
+	_, stats = do(t, ts, "GET", "/api/v1/admin/stats", tok, nil)
+	meter, _ = stats["storage"].(map[string]any)
+	if want := storageCostCents(30_000_000_000+1000, 0, 12_000_000); meter == nil || meter["cost_cents"] != float64(want) || meter["measured_at"] == nil {
+		t.Fatalf("measured meter: %v, want %d cents", stats["storage"], want)
+	}
 }

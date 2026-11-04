@@ -138,6 +138,10 @@ func main() {
 	if bucket != nil {
 		bucket.Billed = srv.StorageBilled
 		mediaStore.Billed = srv.StorageBilled
+		// the limit's numbers from Cloudflare's own measurements, not only this server's count
+		if token := cfg.R2Analytics(); token != "" && cfg.R2AccountID != "" {
+			srv.R2Analytics = objstore.NewAnalytics(cfg.R2AccountID, token)
+		}
 	}
 	srv.Unfurl = unfurl.NewService()
 	// Twitch's player refuses to open unless it is told which pages may hold

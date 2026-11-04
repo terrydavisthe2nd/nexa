@@ -8,7 +8,7 @@ import type { AdminSettings, AdminStats, LegalReport, StorageMeter } from "@/api
 import { Button } from "@/components/common/Button";
 import { Spinner } from "@/components/common/Spinner";
 import { Field, TextInput } from "@/components/common/TextInput";
-import { formatBytes, formatFull } from "@/lib/time";
+import { formatBytes, formatFull, formatTime } from "@/lib/time";
 import { useAuth } from "@/stores/auth";
 import { useNexa } from "@/stores/nexa";
 import { useUI } from "@/stores/ui";
@@ -374,6 +374,7 @@ function FileStorage({ meter, limitCents, onSaved }: { meter: StorageMeter | nul
           <div className={st.row}><span className={st.rowLabel}>{tr_("settings.admin.storageWaiting")}</span><span className={st.rowValue}>{formatBytes(meter.waiting_bytes)}</span></div>
         </div>
       ) : <Spinner />}
+      {meter ? <p className={st.hint} style={{ margin: "8px 0 0", fontSize: 13 }}>{meter.measured_at ? tr_("settings.admin.storageMeasured", { time: formatTime(meter.measured_at) }) : meter.measuring ? tr_("settings.admin.storageMeasuring") : tr_("settings.admin.storageEstimated")}</p> : null}
       <div style={{ marginTop: 16 }}>
         <Field label={tr_("settings.admin.monthlyLimit")} hint={tr_("settings.admin.monthlyLimitHint")}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
