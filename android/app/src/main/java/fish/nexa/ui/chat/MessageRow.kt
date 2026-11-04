@@ -497,7 +497,7 @@ private fun ReplyLine(ctx: ListCtx, replyId: String, msg: fish.nexa.net.Message?
                 val hookId = original.m.webhookId?.takeIf { hook != null }
                 val who = if (hook != null && hookId != null) hook.name else Names.member(ctx.server?.server?.id, original.authorId)
                 if (hook != null && hookId != null) fish.nexa.ui.media.HookAvatar(hook, hookId, 16.dp)
-                else Avatar(original.authorId, who, Nexa.users.get(original.authorId)?.avatarId, 16.dp)
+                else Avatar(original.authorId, who, ctx.server?.members?.get(original.authorId)?.avatarId ?: Nexa.users.get(original.authorId)?.avatarId, 16.dp)
                 PersonName(
                     original.authorId.takeIf { hookId == null }, who, serverId = ctx.server?.server?.id, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f), fontWeight = FontWeight(500)), color = c.text, maxLines = 1,
                     // a webhook has no profile; its message is where to go

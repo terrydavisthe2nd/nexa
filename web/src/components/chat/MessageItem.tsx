@@ -97,7 +97,14 @@ function ReplyPreview({ msg }: { msg: DecryptedMessage }) {
   const target = inList ?? (typeof kept === "object" && kept.channel_id === msg.channel_id ? kept : undefined);
   const deleted = !target && (kept === "deleted" || (kept === undefined && msg.referenced_message === null));
   const failed = !target && kept === "failed";
-  const avatarId = useUsers((u) => (target ? (u.byId[target.author_id]?.avatar_id ?? null) : null));
+  const userAvatar = useUsers((u) => (target ? (u.byId[target.author_id]?.avatar_id ?? null) : null));
+  // in a server, the picture the quoted person set for it, as their own row shows
+  const memberAvatar = useServers((st) => {
+    if (!target) return null;
+    const sid = useChannels.getState().byId[msg.channel_id]?.server_id;
+    return sid ? (st.byId[sid]?.members[target.author_id]?.avatar_id ?? null) : null;
+  });
+  const avatarId = memberAvatar ?? userAvatar;
   // a webhook's message goes by the name it was sent with; an app's, by its bot's
   const byHook = !!target?.hook && !!target.webhook_id;
   const shownName = useShownName(msg.channel_id, byHook ? undefined : target?.author_id);
