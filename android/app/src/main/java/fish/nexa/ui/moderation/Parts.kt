@@ -1,5 +1,9 @@
 package fish.nexa.ui.moderation
 
+import fish.nexa.ui.components.Glide
+import fish.nexa.ui.components.GlidePill
+import fish.nexa.ui.components.glideItem
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -619,9 +623,13 @@ fun PageHead(back: String, onBack: () -> Unit, leading: @Composable () -> Unit, 
     }
 }
 
-/** `.subTab`: a person's page, one view at a time. */
+/**
+ * `.subTab`: a person's page, one view at a time. With a [glide] the chosen
+ * one draws no background of its own: the row's shared pill slides to it
+ * ([SubTabPill], components/Glide.kt).
+ */
 @Composable
-fun SubTab(label: String, icon: String, selected: Boolean, count: Int? = null, badge: Int = 0, onClick: () -> Unit) {
+fun SubTab(label: String, icon: String, selected: Boolean, count: Int? = null, badge: Int = 0, glide: Glide? = null, key: Any = label, onClick: () -> Unit) {
     val c = Nx.colors
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -629,8 +637,9 @@ fun SubTab(label: String, icon: String, selected: Boolean, count: Int? = null, b
     Row(
         Modifier
             .height(40.dp)
-            .background(if (selected) c.bgSelected else if (pressed) c.bgHover else Color.Transparent, shape)
-            .then(if (selected) Modifier.topEdge(shape, c.edgeLight) else Modifier)
+            .then(if (glide != null) Modifier.glideItem(glide, key) else Modifier)
+            .background(if (selected && glide == null) c.bgSelected else if (pressed && !selected) c.bgHover else Color.Transparent, shape)
+            .then(if (selected && glide == null) Modifier.topEdge(shape, c.edgeLight) else Modifier)
             .clip(shape)
             .pressable(interaction, role = Role.Tab, onClick = onClick)
             .semantics { this.selected = selected }
@@ -644,6 +653,14 @@ fun SubTab(label: String, icon: String, selected: Boolean, count: Int? = null, b
         if (count != null) Txt(count.toString(), style = Nx.type.hint.copy(fontSize = Nx.type.sp(12f)), color = fg.copy(alpha = 0.85f))
         if (badge > 0) TabBadge(badge, t("moderation.needsReplyCount", "count" to badge))
     }
+}
+
+/** The pill a row of [SubTab]s shares, drawn behind them in their [glideArea] Box. */
+@Composable
+fun BoxScope.SubTabPill(glide: Glide) {
+    val c = Nx.colors
+    val shape = RoundedCornerShape(10.dp)
+    GlidePill(glide, Modifier.background(c.bgSelected, shape).topEdge(shape, c.edgeLight))
 }
 
 /** A rule across the page, under a header or a row of sub tabs. */

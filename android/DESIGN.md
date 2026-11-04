@@ -138,6 +138,11 @@ From the owner (CLAUDE.md and standing feedback):
   look similar in layout, sizes, colours and words.
 - An improvement made here for phones (a gesture, a better flow, a smarter default) goes to the web
   too, so the two stay consistent: list it in section 7 and port it.
+- Motion answers what was done to one thing: a chosen tab's pill slides (`components/Glide.kt`), a
+  chevron turns, what a category or expander brings back unfolds, a new message or reaction
+  arrives, a sheet or toast leaves. Never fade or dim a whole page, list or pane when someone
+  switches tabs, conversations, servers or settings pages: the owner saw it as the app blinking
+  (2026-11-03). What replaces something just appears, or slides in already partly in view.
 
 ## 7. Phone improvements beyond the web (each one is brought to the web too)
 
@@ -159,6 +164,8 @@ From the owner (CLAUDE.md and standing feedback):
 | While picking accounts in the staff panel, a tap anywhere on a card picks it | Done: UserGrid cards |
 | Choose a save location for files and pictures | Done: lib/saveFile.ts uses a picker where supported and mobile file sharing, with the browser download flow elsewhere |
 | Full-message reporting, the stepped report form, Your Reports and the one-page staff report with a return path from related staff pages | Done: ReportModal, ReportsTab, YourReportsPage and reportNavigation on the web |
+| Dialogs, sheets, Settings and the picture viewer fade or slide away when closed instead of vanishing | Done: lib/leaveCopy.ts (Modal, SettingsLayer, Lightbox, toasts) |
+| The picture viewer moves sideways between a message's pictures | Done: Lightbox's `data-step` slides the next one in from that side |
 
 Report forms are steps, as on the web: the reasons as one panel of rows (glyph tinted by urgency, name, what it covers; a press goes on), then the details (the chosen reason with Change, an emergency note for urgent reasons, What Staff Will See, What Happened?, the sharing notice), then the receipt with Block and Your Reports. Message previews and staff evidence use MessageRow, with readonly polls and retained files supplied to the staff row. Only Something Else reports take screenshots.
 

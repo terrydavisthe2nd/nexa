@@ -131,6 +131,16 @@ export function ChatView({ channel }: { channel: Channel }) {
   };
   const membersOpen = drawer ? rightOpen : membersOpenDesktop;
   const toggleMembers = () => (drawer ? setRightOpen(!rightOpen) : toggleMembersDesktop());
+  // Beside the conversation, the list slides in from its edge when it is
+  // opened (from the header or a shortcut), never when a conversation that
+  // already shows it is opened. Worked out as it renders, so the list is never
+  // drawn in place for a frame before the slide starts.
+  const [membersWere, setMembersWere] = useState(membersOpenDesktop);
+  const [membersEnter, setMembersEnter] = useState(false);
+  if (membersWere !== membersOpenDesktop) {
+    setMembersWere(membersOpenDesktop);
+    setMembersEnter(membersOpenDesktop);
+  }
   // The drawer's member list is mounted only while open, and for its slide-out
   // after, so a closed drawer never pages in and sorts every member of a big server.
   const [membersMounted, setMembersMounted] = useState(membersOpen);
@@ -449,7 +459,7 @@ export function ChatView({ channel }: { channel: Channel }) {
         {threadsOpen && threadsHere ? <ThreadsPanel channel={channel} onClose={() => setThreadsOpen(false)} /> : null}
         {/* where search covers the chat, a picked result closes it (keeping the query) so the message shows */}
         {searchOpen ? <SearchPanel channel={channel} query={searchQuery} onQuery={setSearchQuery} caret={searchCaret} inline={compactSearch} keysRef={searchKeys} onSuggest={onSuggest} onJump={drawer ? () => setSearchOpen(false) : undefined} onClose={() => { setSearchOpen(false); setSearchQuery(""); }} /> : null}
-        {isServer && serverId && (drawer ? membersOpen || membersMounted : membersOpen) ? <MemberList serverId={serverId} channelId={channel.id} drawer={drawer} open={membersOpen} /> : null}
+        {isServer && serverId && (drawer ? membersOpen || membersMounted : membersOpen) ? <MemberList serverId={serverId} channelId={channel.id} drawer={drawer} open={membersOpen} entering={!drawer && membersEnter} onEntered={() => setMembersEnter(false)} /> : null}
         {drawer && membersOpen && (isServer || convo.type === "group_dm") ? <div className={s.membersBackdrop} onClick={toggleMembers} /> : null}
         {convo.type === "group_dm" && (drawer || membersOpen) ? <GroupMemberList channel={convo} drawer={drawer} open={membersOpen} /> : null}
         {!mobile && channel.type === "dm" && other && profileOpen && !searchOpen ? (

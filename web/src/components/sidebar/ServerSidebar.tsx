@@ -1,6 +1,6 @@
 import { useMediaAnimation } from "@/lib/mediaAnimation";
-import { ArrowUpRight, ChevronDown, ChevronRight, Plus, Settings, UserPlus, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
+import { ArrowUpRight, ChevronDown, Plus, Settings, UserPlus, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { Channel } from "@/api/types";
 import { ApiError } from "@/api/client";
@@ -98,10 +98,25 @@ export function ServerSidebar({ serverId }: { serverId: string }) {
   }, [channels, serverId, st, viewAs]);
   const canManage = canI(st, P.MANAGE_CHANNELS);
   const collapsed = settings.collapsedCategories;
+  // A closed category still shows the open channel and the ones with
+  // something new; the rest come back when it is opened.
+  const keptClosed = (c: Channel) => c.id === active || (isUnread(reads[c.id], c.last_message_id) && !isMuted(settings, c.id, serverId)) || (reads[c.id]?.mentions ?? 0) > 0;
+  // The category just opened here and the channels it brought back, which
+  // slide into place one after another. Fixed as it opens, so a channel that
+  // is read or turns unread later never plays it again, and the ones that
+  // were showing all along stay where they are.
+  const [opened, setOpened] = useState<{ id: string; rows: ReadonlyMap<string, number> } | null>(null);
 
   const toggleCategory = useCallback(
-    (id: string) => patch({ collapsedCategories: collapsed.includes(id) ? collapsed.filter((x) => x !== id) : [...collapsed, id] }),
-    [collapsed, patch],
+    (id: string) => {
+      const opening = collapsed.includes(id);
+      const back = opening ? (tree.categories.find((c) => c.category.id === id)?.children ?? []).filter((c) => !keptClosed(c)) : [];
+      setOpened(opening ? { id, rows: new Map(back.map((c, i) => [c.id, i])) } : null);
+      patch({ collapsedCategories: opening ? collapsed.filter((x) => x !== id) : [...collapsed, id] });
+    },
+    // keptClosed reads this render's read states, which is what the list shows as it opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [collapsed, patch, tree, reads, settings, active, serverId],
   );
 
   const openHeaderMenu = () => {
@@ -331,7 +346,7 @@ export function ServerSidebar({ serverId }: { serverId: string }) {
     );
   };
 
-  const renderChannel = (ch: Channel) => {
+  const renderChannel = (ch: Channel, reveal?: number) => {
     const rs = reads[ch.id];
     const unread = (ch.type === "text" || ch.type === "announcement" || ch.type === "voice") && isUnread(rs, ch.last_message_id) && !isMuted(settings, ch.id, serverId);
     // The threads this account is in, still going, under the channel they
@@ -345,7 +360,7 @@ export function ServerSidebar({ serverId }: { serverId: string }) {
     const priv = isPrivateChannel(serverId, ch.overwrites);
     const muted = settings.notifications.muted.includes(ch.id);
     return (
-      <div key={ch.id} className={ch.type === "voice" ? s.voiceBlock : undefined} data-member-drop={(ch.type === "voice" && memberOver === ch.id) || undefined} {...(ch.type === "voice" ? memberDrop(ch) : {})}>
+      <div key={ch.id} className={ch.type === "voice" ? s.voiceBlock : undefined} data-reveal={reveal !== undefined || undefined} style={reveal !== undefined ? ({ "--reveal-i": reveal } as CSSProperties) : undefined} data-member-drop={(ch.type === "voice" && memberOver === ch.id) || undefined} {...(ch.type === "voice" ? memberDrop(ch) : {})}>
       <div
         className={s.row}
         data-selected={selected}
@@ -412,7 +427,7 @@ export function ServerSidebar({ serverId }: { serverId: string }) {
       </button>
       <div className={s.scroll} ref={listRef} onScroll={banner ? measureBanner : undefined} onDragOver={onListDragOver} onDragLeave={onListDragLeave} onDrop={onDrop}>
         {banner ? <div className={s.banner} style={{ backgroundImage: `url(${banner})` }} aria-hidden="true" /> : <div className={s.top} />}
-        {tree.loose.map(renderChannel)}
+        {tree.loose.map((c) => renderChannel(c))}
         {tree.categories.map(({ category, children }) => {
           const isCollapsed = collapsed.includes(category.id);
           return (
@@ -428,7 +443,7 @@ export function ServerSidebar({ serverId }: { serverId: string }) {
                 onContextMenu={(e) => onCategoryContext(e, category.id)}
               >
                 <button className={s.catToggle} onClick={() => toggleCategory(category.id)} aria-expanded={!isCollapsed}>
-                  {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                  <ChevronDown size={12} className={s.catChevron} data-collapsed={isCollapsed || undefined} />
                   <ChannelGlyph channel={category} size={14} className={s.catGlyph} />
                   <span className={s.catName}>{category.name}</span>
                 </button>
@@ -438,7 +453,7 @@ export function ServerSidebar({ serverId }: { serverId: string }) {
                   </Tooltip>
                 ) : null}
               </div>
-              {children.filter((c) => !isCollapsed || c.id === active || (isUnread(reads[c.id], c.last_message_id) && !isMuted(settings, c.id, serverId)) || (reads[c.id]?.mentions ?? 0) > 0).map(renderChannel)}
+              {children.filter((c) => !isCollapsed || keptClosed(c)).map((c) => renderChannel(c, opened?.id === category.id ? opened.rows.get(c.id) : undefined))}
             </div>
           );
         })}

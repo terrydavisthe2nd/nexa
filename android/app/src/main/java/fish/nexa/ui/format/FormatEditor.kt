@@ -1,5 +1,9 @@
 package fish.nexa.ui.format
 
+import fish.nexa.ui.components.GlidePill
+import fish.nexa.ui.components.glideArea
+import fish.nexa.ui.components.glideItem
+import fish.nexa.ui.components.rememberGlide
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -706,17 +710,18 @@ private fun ColourTray(s: SurfaceState, surface: FormatSurface) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // what to colour: the text or its highlight
-            Row(
-                Modifier.background(c.bgInput, Radii.Sm).padding(2.dp).semantics { contentDescription = t("composer.format.colourFor") },
-            ) {
+            // what to colour: the text or its highlight, the pill sliding between them (components/Glide.kt)
+            val partGlide = rememberGlide(part)
+            Box(Modifier.background(c.bgInput, Radii.Sm).padding(2.dp).glideArea(partGlide).semantics { contentDescription = t("composer.format.colourFor") }) {
+            GlidePill(partGlide, Modifier.background(c.bgRaised, RoundedCornerShape(6.dp)))
+            Row {
                 for (p in listOf("fg", "bg")) {
                     val on = part == p
                     Box(
                         Modifier
                             .heightIn(min = 40.dp)
+                            .glideItem(partGlide, p)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(if (on) c.bgRaised else Color.Transparent)
                             .pressable(remember { MutableInteractionSource() }, role = Role.RadioButton) { part = p }
                             .semantics { selected = on }
                             .padding(horizontal = 10.dp),
@@ -725,6 +730,7 @@ private fun ColourTray(s: SurfaceState, surface: FormatSurface) {
                         Txt(if (p == "fg") t("composer.format.colourText") else t("composer.format.highlight"), style = Nx.type.label.copy(fontWeight = FontWeight(600)), color = if (on) c.text else c.textMuted)
                     }
                 }
+            }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Swatch(null, current == null, t("composer.format.colourNone"), part) { apply(null) }

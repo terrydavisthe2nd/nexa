@@ -77,6 +77,9 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 
+/** Whether a screen of AuthLayout has been shown yet in this run of the app. */
+private var authArrived = false
+
 /**
  * Auth.module.css: the canvas lit from above in the accent, the wordmark
  * with its glow thrown down, and a frosted card that rises in after it.
@@ -85,8 +88,11 @@ import androidx.compose.ui.text.input.KeyboardType
 fun AuthLayout(title: String, subtitle: String? = null, maxWidth: Int = 480, mark: (@Composable () -> Unit)? = null, subtitlePersonId: String? = null, subtitleName: String? = null, subtitleNameStyle: kotlinx.serialization.json.JsonElement? = null, content: @Composable ColumnScope.() -> Unit) {
     val c = Nx.colors
     val reduced = Nx.motion.reduced
-    val rise = remember { Animatable(if (reduced) 1f else 0f) }
-    LaunchedEffect(Unit) { rise.animateTo(1f, tween(520, easing = androidx.compose.animation.core.CubicBezierEasing(0.22f, 1f, 0.36f, 1f))) }
+    // The wordmark and card rise in on the first of these screens someone lands on;
+    // going on between them (Log In, Register, Recover) keeps them still, as on the
+    // web (AuthLayout's arrive): rising again from nothing read as a blink.
+    val rise = remember { Animatable(if (reduced || authArrived) 1f else 0f).also { authArrived = true } }
+    LaunchedEffect(Unit) { if (rise.value < 1f) rise.animateTo(1f, tween(520, easing = androidx.compose.animation.core.CubicBezierEasing(0.22f, 1f, 0.36f, 1f))) }
     Box(
         Modifier
             .fillMaxSize()

@@ -63,7 +63,7 @@ export function Tabs() {
 
   return (
     <div className={s.tabs} data-no-swipe="">
-      <div className={s.tabList} role="tablist" aria-label={t("panes.tabs")}>
+      <div className={s.tabList} role="tablist" aria-label={t("panes.tabs")} data-no-glide="">
         {tabs.map((tab, i) => (
           <div
             key={tab.id}

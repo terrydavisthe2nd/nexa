@@ -71,7 +71,7 @@
    the reply spine all hang in, so it has to mirror with them in Arabic. */
 /* Rows are inset from the panel's edges and rounded, so the one under the
    pointer lights up as a tile rather than a stripe across the whole panel. */
-.msg { position: relative; padding-block: 2px; padding-inline: 64px 40px; margin-top: 0; margin-inline: 8px; border-radius: var(--radius-sm); min-height: 22px; }
+.msg { position: relative; padding-block: 2px; padding-inline: 64px 40px; margin-top: 0; margin-inline: 8px; border-radius: var(--radius-sm); min-height: 22px; transition: background-color 90ms ease; }
 /* A touch browser keeps :hover on the last row tapped, which read as a
    selection that never went away; only a real pointer shades the row. */
 .msg[data-menu="true"] { background: var(--bg-message-hover); }
@@ -118,6 +118,9 @@
 @media (prefers-reduced-motion: reduce) { .msg[data-highlight="true"] { animation: none; background: var(--mention-bg); } }
 [data-reduced-motion="true"] .msg[data-highlight="true"] { animation: none; background: var(--mention-bg); }
 .msg[data-pending="true"] { opacity: 0.55; }
+/* a message arriving while the channel is open rises into place */
+.msg[data-fresh] { animation: msgIn 240ms var(--ease-out); }
+@keyframes msgIn { from { opacity: 0; transform: translateY(6px); } }
 /* a message waiting on its files is dimmed a little less, so its progress can be read */
 .msg[data-pending="true"][data-uploading="true"] { opacity: 0.8; }
 .msg[data-failed="true"] .content { color: var(--text-danger); }
@@ -203,7 +206,15 @@
 .tBtn:hover { color: var(--text-strong); background: var(--bg-hover); }
 .reactions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; position: relative; }
 .pill { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 11px 0 9px; border-radius: 999px; background: var(--bg-surface); border: 1px solid var(--border-subtle); font-size: 15px; font-weight: 600; color: var(--text-subtle); font-variant-numeric: tabular-nums; transition: border-color var(--transition), background-color var(--transition), transform 120ms var(--ease-spring); }
+.pill[data-new] { animation: pillPop 260ms var(--ease-spring); }
 .pill:hover { border-color: var(--border-strong); }
+@keyframes pillPop { from { transform: scale(0.6); opacity: 0; } }
+/* a count that moves ticks over: up from below as it grows, down from above as it shrinks */
+.pillCount { display: inline-block; }
+.pillCount[data-tick] { animation: tickUp 200ms var(--ease-out); }
+.pillCount[data-tick="down"] { animation-name: tickDown; }
+@keyframes tickUp { from { transform: translateY(45%); opacity: 0; } }
+@keyframes tickDown { from { transform: translateY(-45%); opacity: 0; } }
 .pill:active { transform: scale(0.94); }
 .pill[data-me="true"] { background: color-mix(in srgb, var(--brand) 20%, var(--bg-surface)); border-color: color-mix(in srgb, var(--brand) 70%, transparent); color: var(--text-strong); box-shadow: 0 0 12px -4px color-mix(in srgb, var(--brand) 70%, transparent); }
 /* where no new reaction may be added, someone else's can only be looked at */

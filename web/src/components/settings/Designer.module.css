@@ -119,7 +119,9 @@
 .expanderValue > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .expanderChevron { flex: none; color: var(--text-muted); transition: transform var(--transition); }
 .expander[aria-expanded="true"] .expanderChevron { transform: rotate(180deg); }
-.expanderBody { display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
+/* what an expander holds unfolds as it opens, as a server's category does; closing is immediate */
+.expanderBody { display: flex; flex-direction: column; gap: 12px; padding-top: 4px; animation: expanderIn 220ms var(--ease-out); }
+@keyframes expanderIn { from { opacity: 0; transform: translateY(-6px); } }
 
 /* the widgets, in the profile's order; the pinned one is the card's */
 .widgetList { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }

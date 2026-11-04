@@ -1,5 +1,9 @@
 package fish.nexa.ui.settings
 
+import fish.nexa.ui.components.GlidePill
+import fish.nexa.ui.components.glideArea
+import fish.nexa.ui.components.glideItem
+import fish.nexa.ui.components.rememberGlide
 import android.net.Uri
 import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -839,28 +843,37 @@ private fun BackRow(label: String, onBack: () -> Unit) {
     }
 }
 
-/** Two or three choices side by side in a sunken strip (the builder's tabs, Dark and Light). */
+/**
+ * Two or three choices side by side in a sunken strip (the builder's tabs,
+ * Dark and Light), the chosen one's pill sliding to the next (components/Glide.kt).
+ */
 @Composable
 fun <T> Segmented(options: List<Pair<String, T>>, value: T, onPick: (T) -> Unit, modifier: Modifier = Modifier, label: String? = null) {
     val c = Nx.colors
     val shape = Radii.Sm
-    Row(
+    val inner = RoundedCornerShape(8.dp)
+    val glide = rememberGlide(value)
+    Box(
         modifier
             .fillMaxWidth()
             .sunken(shape, c)
             .ring(shape, c.borderSubtle)
             .padding(3.dp)
+            .glideArea(glide)
             .semantics { if (label != null) contentDescription = label },
+    ) {
+    GlidePill(glide, Modifier.ring(inner, c.panelEdge).background(c.bgFloating, inner))
+    Row(
+        Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         for ((name, v) in options) {
             val on = v == value
-            val inner = RoundedCornerShape(8.dp)
             Box(
                 Modifier
                     .weight(1f)
                     .heightIn(min = 40.dp)
-                    .then(if (on) Modifier.ring(inner, c.panelEdge).background(c.bgFloating, inner) else Modifier)
+                    .glideItem(glide, v as Any)
                     .clip(inner)
                     .pressable(remember { MutableInteractionSource() }, role = Role.Tab) { onPick(v) }
                     .semantics { selected = on },
@@ -869,6 +882,7 @@ fun <T> Segmented(options: List<Pair<String, T>>, value: T, onPick: (T) -> Unit,
                 Txt(name, style = Nx.type.bodySmall.copy(fontWeight = FontWeight(600)), color = if (on) c.textStrong else c.textMuted, maxLines = 1)
             }
         }
+    }
     }
 }
 

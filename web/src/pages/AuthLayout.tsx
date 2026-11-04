@@ -8,9 +8,19 @@ import { useUI } from "@/stores/ui";
 import s from "./Auth.module.css";
 
 import { t } from "@/i18n";
+// The wordmark and the card rise into place on the first of these pages someone
+// lands on. Going on between them (Log In, Register, Recover) keeps them still:
+// rising again from nothing read as the page blinking.
+let arrived = false;
+
 export function AuthLayout({ title, subtitle, children, width = 480, mark, banner = false }: { title: string; subtitle?: ReactNode; children?: ReactNode; width?: number; /** drawn above the title: how something went, at a glance */ mark?: ReactNode; /** the Android app's banner across the top, on the pages people arrive at */ banner?: boolean }) {
+  const [arrive] = useState(() => {
+    const first = !arrived;
+    arrived = true;
+    return first;
+  });
   return (
-    <div className={s.page}>
+    <div className={s.page} data-arrive={arrive || undefined}>
       {banner ? <AndroidBanner bleed /> : null}
       <div className={s.brand}><NexaWordmark height={38} /></div>
       {/* One landmark, so a screen reader has somewhere to skip to rather than

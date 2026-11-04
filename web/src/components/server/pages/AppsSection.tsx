@@ -204,7 +204,7 @@ function CommandPermissions({ serverId, app }: { serverId: string; app: ServerAp
     <div key={`${e.type}:${e.id}`} className={s.permRow}>
       {picture(e)}
       <span className={s.permName} dir="auto">{label(e)}</span>
-      <span className={s.permSwitch} role="radiogroup" aria-label={label(e)}>
+      <span className={s.permSwitch} role="radiogroup" data-glide="" aria-label={label(e)}>
         <button type="button" role="radio" aria-checked={e.permission} data-allow="" onClick={() => set(entries.map((x) => (x === e ? { ...x, permission: true } : x)))}>{t("apps.server.allowed")}</button>
         <button type="button" role="radio" aria-checked={!e.permission} data-deny="" onClick={() => set(entries.map((x) => (x === e ? { ...x, permission: false } : x)))}>{t("apps.server.denied")}</button>
       </span>

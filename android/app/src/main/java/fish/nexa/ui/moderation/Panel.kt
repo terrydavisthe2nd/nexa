@@ -1,5 +1,13 @@
 package fish.nexa.ui.moderation
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.runtime.key
+import fish.nexa.ui.components.GlidePill
+import fish.nexa.ui.components.glideArea
+import fish.nexa.ui.components.glideItem
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -11,9 +19,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -174,52 +179,67 @@ fun AdminPanel(route: Route.Admin) {
     }
 }
 
-/** `.tabs`: one segmented control, a well with the open tab lifted out of it, sliding sideways on a phone. */
+/**
+ * `.tabs`: one segmented control, a well with the open tab lifted out of it,
+ * sliding sideways on a phone. The lifted pill slides from tab to tab
+ * (components/Glide.kt, the web's lib/tabGlide.ts); it lives inside the
+ * scrolled row, so it moves with the tabs as the row scrolls.
+ */
 @Composable
 private fun TabStripRow(tabs: List<PanelTab>, selected: String) {
     val c = Nx.colors
-    val state = rememberLazyListState()
-    val at = tabs.indexOfFirst { it.id == selected }.coerceAtLeast(0)
+    val scroll = androidx.compose.foundation.rememberScrollState()
+    val glide = fish.nexa.ui.components.rememberGlide(selected)
+    var viewport by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    // where each tab sits along the scrolled row, the well's padding included
+    val tabX = remember { HashMap<String, IntRange>() }
+    val padPx = with(androidx.compose.ui.platform.LocalDensity.current) { 3.dp.roundToPx() }
     // the open tab is always in view
-    LaunchedEffect(at) {
-        val seen = state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == at }
-        val end = state.layoutInfo.viewportEndOffset
-        if (seen == null || seen.offset < 0 || seen.offset + seen.size > end) state.animateScrollToItem(at)
+    LaunchedEffect(selected, viewport) {
+        val span = tabX[selected] ?: return@LaunchedEffect
+        if (viewport <= 0) return@LaunchedEffect
+        if (span.first - padPx < scroll.value) scroll.animateScrollTo(span.first - padPx)
+        else if (span.last + padPx > scroll.value + viewport) scroll.animateScrollTo(span.last + padPx - viewport)
     }
     val well = RoundedCornerShape(12.dp)
-    LazyRow(
+    val shape = RoundedCornerShape(9.dp)
+    Box(
         Modifier
             .fillMaxWidth()
             .sunken(well, c)
             .ring(well, c.borderSubtle)
-            .claimsSideways { state.canScrollForward || state.canScrollBackward }
+            .clip(well)
+            .onSizeChanged { viewport = it.width }
+            .claimsSideways { scroll.canScrollForward || scroll.canScrollBackward }
             .semantics { contentDescription = t("moderation.title") },
-        state = state,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        itemsIndexed(tabs, key = { _, it -> it.id }) { _, tb ->
-            val on = tb.id == selected
-            val interaction = remember { MutableInteractionSource() }
-            val pressed by interaction.collectIsPressedAsState()
-            val shape = RoundedCornerShape(9.dp)
-            Row(
-                Modifier
-                    .height(40.dp)
-                    .then(if (on) Modifier.shadowLow(shape, c).ring(shape, c.borderSubtle).background(c.bgSurface, shape).background(sheen(c), shape).topEdge(shape, c.edgeLight) else Modifier)
-                    .clip(shape)
-                    .pressable(interaction, role = Role.Tab) { if (!on) {ReportNavigation.origin=null;goPanel(tb.id, replace = true)} }
-                    .semantics {
-                        this.selected = on
-                        if (tb.badge > 0 && tb.badgeLabel != null) contentDescription = "${tb.label}, ${tb.badgeLabel}"
+        Box(Modifier.horizontalScroll(scroll).padding(3.dp).glideArea(glide)) {
+            GlidePill(glide, Modifier.shadowLow(shape, c).ring(shape, c.borderSubtle).background(c.bgSurface, shape).background(sheen(c), shape).topEdge(shape, c.edgeLight))
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                for (tb in tabs) key(tb.id) {
+                    val on = tb.id == selected
+                    val interaction = remember { MutableInteractionSource() }
+                    val pressed by interaction.collectIsPressedAsState()
+                    Row(
+                        Modifier
+                            .height(40.dp)
+                            .glideItem(glide, tb.id)
+                            .onGloballyPositioned { val x = padPx + it.positionInParent().x.toInt(); tabX[tb.id] = x..(x + it.size.width) }
+                            .clip(shape)
+                            .pressable(interaction, role = Role.Tab) { if (!on) {ReportNavigation.origin=null;goPanel(tb.id, replace = true)} }
+                            .semantics {
+                                this.selected = on
+                                if (tb.badge > 0 && tb.badgeLabel != null) contentDescription = "${tb.label}, ${tb.badgeLabel}"
+                            }
+                            .padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        Icon(tb.icon, if (on) c.textBrand else if (pressed) c.textStrong else c.textMuted, size = 17.dp)
+                        Txt(tb.label, style = Nx.type.button.copy(fontSize = Nx.type.sp(14.5f), fontWeight = FontWeight(600)), color = if (on || pressed) c.textStrong else c.textMuted, maxLines = 1)
+                        if (tb.badge > 0) TabBadge(tb.badge, tb.badgeLabel ?: "")
                     }
-                    .padding(horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
-                Icon(tb.icon, if (on) c.textBrand else if (pressed) c.textStrong else c.textMuted, size = 17.dp)
-                Txt(tb.label, style = Nx.type.button.copy(fontSize = Nx.type.sp(14.5f), fontWeight = FontWeight(600)), color = if (on || pressed) c.textStrong else c.textMuted, maxLines = 1)
-                if (tb.badge > 0) TabBadge(tb.badge, tb.badgeLabel ?: "")
+                }
             }
         }
     }

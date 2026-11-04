@@ -295,7 +295,7 @@ export default function DiscoveryPage() {
             ))}
           </div>
           <div className={s.controls}>
-            <div className={s.sorts} role="radiogroup" aria-label={t("discovery.sortLabel")}>
+            <div className={s.sorts} role="radiogroup" data-glide="" aria-label={t("discovery.sortLabel")}>
               {(["members", "newest", "created"] as const).map((x) => (
                 <button key={x} type="button" role="radio" aria-checked={sort === x} onClick={() => setSort(x)}>{t(`discovery.sort.${x}`)}</button>
               ))}

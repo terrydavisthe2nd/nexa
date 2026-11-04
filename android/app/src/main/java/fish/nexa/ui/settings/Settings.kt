@@ -252,6 +252,21 @@ private fun SettingsLayer(layer: Layer, startPage: String?, startAnchor: String?
     val isTop = Layers.stack.lastOrNull() === layer
     // from 768 dp the list stays beside the page, as on the web, with My Account open first
     val wide = fish.nexa.ui.nav.Nav.wide
+    // On a phone the list and a page take turns: a page pushes in from the side it
+    // opens towards and the list comes back from the other (web SettingsLayer's
+    // arrive), both still in view as they move. Decided as they are drawn, so the
+    // arriving one never shows still for a frame first.
+    val onList = !wide && page == null
+    val listBefore = remember { booleanArrayOf(onList) }
+    val arrive = remember(onList) { val d = when { onList == listBefore[0] -> 0; onList -> -1; else -> 1 }; listBefore[0] = onList; d }
+    val push = remember(onList) { Animatable(if (arrive != 0 && !reduced && !wide) 0f else 1f) }
+    LaunchedEffect(push) { if (push.value < 1f) push.animateTo(1f, tween(240, easing = ease)) }
+    val pushRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val pushed = Modifier.graphicsLayer {
+        val v = push.value
+        alpha = 0.5f + 0.5f * v
+        translationX = (1f - v) * 32.dp.toPx() * arrive * (if (pushRtl) -1f else 1f)
+    }
     BackHandler(enabled = isTop) {
         if (page != null && !wide) Unsaved.unlessUnsaved { page = null } else Unsaved.unlessUnsaved { close() }
     }
@@ -296,17 +311,19 @@ private fun SettingsLayer(layer: Layer, startPage: String?, startAnchor: String?
                     )
                 }
             }
-        } else if (current == null) SettingsList(query, { query = it }, onOpen = ::openPage, onClose = { Unsaved.unlessUnsaved { close() } })
+        } else if (current == null) Box(pushed) { SettingsList(query, { query = it }, onOpen = ::openPage, onClose = { Unsaved.unlessUnsaved { close() } }) }
         else key(current) {
-            PageView(
-                current,
-                anchor,
-                isTop = isTop,
-                onAnchorDone = { anchor = null },
-                onBack = { page = null },
-                onClose = { Unsaved.unlessUnsaved { close() } },
-                openPage = ::openPage,
-            )
+            Box(pushed) {
+                PageView(
+                    current,
+                    anchor,
+                    isTop = isTop,
+                    onAnchorDone = { anchor = null },
+                    onBack = { page = null },
+                    onClose = { Unsaved.unlessUnsaved { close() } },
+                    openPage = ::openPage,
+                )
+            }
         }
     }
 }
@@ -525,8 +542,9 @@ private fun PageView(
     val reduced = Nx.motion.reduced
     val ease = Nx.motion.easeOut
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    val enter = remember { Animatable(if (reduced) 1f else 0f) }
-    LaunchedEffect(Unit) { enter.animateTo(1f, tween(260, easing = ease)) }
+    // No fade of its own as it appears: on a phone the page pushes in (SettingsLayer's
+    // arrive), and beside the list a page that faded in from nothing on every switch
+    // read as a blink (the web's desktop Settings changes page in place).
     val drag = remember { Animatable(0f) }
     val scroll = rememberScrollState()
     val host = remember { AnchorHost(scroll) }
@@ -561,8 +579,7 @@ private fun PageView(
                 .fillMaxSize()
                 .graphicsLayer {
                     translationX = drag.value
-                    alpha = (if (drag.value != 0f) maxOf(0.4f, 1f - abs(drag.value) / (600f * density)) else 1f) * enter.value
-                    translationY = (1f - enter.value) * 6f * density
+                    alpha = if (drag.value != 0f) maxOf(0.4f, 1f - abs(drag.value) / (600f * density)) else 1f
                 }
                 .pointerInput(rtl, widthPx, onBack == null) {
                     if (onBack == null) return@pointerInput

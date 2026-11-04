@@ -238,8 +238,26 @@ fun MainShell() {
             }
         }
 
-        if (roomy && Nav.hasMembers && Nav.membersPinned) {
-            Box(Modifier.width(MEMBERS_W).fillMaxHeight().blurredBy { SCRIM_BLUR * Layers.dim }) { MemberDrawer() }
+        // Beside the conversation, the list slides in from its edge when it is pinned
+        // open (web MemberList listIn), never when a conversation that shows it opens.
+        // Decided as it is drawn, so it never shows in place for a frame first.
+        val pinned = Nav.membersPinned
+        val stillMembers = Nx.motion.reduced
+        val membersEase = Nx.motion.easeOut
+        val pinnedBefore = remember { booleanArrayOf(pinned) }
+        val shownIn = remember(pinned) {
+            val opening = pinned && !pinnedBefore[0]
+            pinnedBefore[0] = pinned
+            androidx.compose.animation.core.Animatable(if (opening && !stillMembers) 0f else 1f)
+        }
+        LaunchedEffect(shownIn) { if (shownIn.value < 1f) shownIn.animateTo(1f, tween(220, easing = membersEase)) }
+        if (roomy && Nav.hasMembers && pinned) {
+            val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
+            Box(
+                Modifier.width(MEMBERS_W).fillMaxHeight()
+                    .graphicsLayer { alpha = shownIn.value; translationX = (1f - shownIn.value) * 12.dp.toPx() * if (rtl) -1f else 1f }
+                    .blurredBy { SCRIM_BLUR * Layers.dim },
+            ) { MemberDrawer() }
         }
         }
         // scrim behind the drawer

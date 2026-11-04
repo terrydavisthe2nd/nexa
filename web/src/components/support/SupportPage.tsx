@@ -199,7 +199,7 @@ export function SupportPanel({ inSettings = false }: { inSettings?: boolean }) {
       </section>
 
       {plan === "" ? (
-        <div className={s.period} role="radiogroup" aria-label={t("support.period")}>
+        <div className={s.period} role="radiogroup" data-glide="" aria-label={t("support.period")}>
           {(["month", "year"] as const).map((per) => (
             <button key={per} role="radio" aria-checked={period === per} className={s.periodBtn} onClick={() => setPeriod(per)} data-testid={`period-${per}`}>
               {per === "month" ? t("support.monthly") : t("support.yearly")}
@@ -451,7 +451,7 @@ function GiveAPlan() {
       </div>
       {given ? <p className={s.notice} role="status">{t("support.gift.done")}</p> : null}
       {back === "link" ? <p className={s.notice} role="status">{t("support.giftLink.done")}</p> : null}
-      <div className={s.period} role="radiogroup" aria-label={t("support.gift.who")}>
+      <div className={s.period} role="radiogroup" data-glide="" aria-label={t("support.gift.who")}>
         <button role="radio" aria-checked={!asLink} className={s.periodBtn} onClick={() => setAsLink(false)} data-testid="gift-to-friend">
           {t("support.giftLink.toFriend")}
         </button>
@@ -485,12 +485,12 @@ function GiveAPlan() {
         </>
       )}
       <div className={s.giftChoices}>
-        <div className={s.period} role="radiogroup" aria-label={t("support.plans")}>
+        <div className={s.period} role="radiogroup" data-glide="" aria-label={t("support.plans")}>
           {PAID_PLANS.map((p) => (
             <button key={p} role="radio" aria-checked={plan === p} className={s.periodBtn} data-plan={p} onClick={() => setPlan(p)}>{planName(p)}</button>
           ))}
         </div>
-        <div className={s.period} role="radiogroup" aria-label={t("support.period")}>
+        <div className={s.period} role="radiogroup" data-glide="" aria-label={t("support.period")}>
           {(["month", "year"] as const).map((per) => (
             <button key={per} role="radio" aria-checked={period === per} className={s.periodBtn} onClick={() => setPeriod(per)}>
               {per === "month" ? t("support.gift.aMonth") : t("support.gift.aYear")}

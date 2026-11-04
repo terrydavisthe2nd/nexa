@@ -1,5 +1,9 @@
 package fish.nexa.ui.support
 
+import fish.nexa.ui.components.GlidePill
+import fish.nexa.ui.components.glideArea
+import fish.nexa.ui.components.glideItem
+import fish.nexa.ui.components.rememberGlide
 import androidx.compose.foundation.background
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -452,7 +456,7 @@ fun TierButton(text: String, plan: String, onClick: () -> Unit, enabled: Boolean
     }
 }
 
-/** A pill of choices, one picked (Support.module.css `.period`). */
+/** A pill of choices, one picked (Support.module.css `.period`), the pill sliding to the next one picked (components/Glide.kt). */
 @Composable
 fun Segmented(
     options: List<Pair<String, String>>,
@@ -465,12 +469,18 @@ fun Segmented(
 ) {
     val c = Nx.colors
     val pill = RoundedCornerShape(999.dp)
-    Row(
+    val glide = rememberGlide(picked)
+    Box(
         (if (fill) Modifier.fillMaxWidth() else Modifier)
             .background(c.bgInput, pill)
             .ring(pill, c.borderSubtle)
             .padding(4.dp)
+            .glideArea(glide)
             .semantics { contentDescription = label },
+    ) {
+    GlidePill(glide, Modifier.liftLow(pill, c).background(c.bgSurface, pill).topEdge(pill, c.edgeLight))
+    Row(
+        if (fill) Modifier.fillMaxWidth() else Modifier,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         for ((key, text) in options) {
@@ -478,7 +488,7 @@ fun Segmented(
             Row(
                 (if (fill) Modifier.weight(1f) else Modifier)
                     .height(40.dp)
-                    .then(if (on) Modifier.liftLow(pill, c).background(c.bgSurface, pill).topEdge(pill, c.edgeLight) else Modifier)
+                    .glideItem(glide, key)
                     .clip(pill)
                     .pressable(remember { MutableInteractionSource() }) { onPick(key) }
                     .semantics { role = Role.RadioButton; selected = on }
@@ -490,6 +500,7 @@ fun Segmented(
                 extra(key)
             }
         }
+    }
     }
 }
 

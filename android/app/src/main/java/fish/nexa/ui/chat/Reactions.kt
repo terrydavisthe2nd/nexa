@@ -93,6 +93,11 @@ fun canReact(cm: ChatMessage, ctx: ListCtx): Boolean {
 @Composable
 fun ReactionsRow(cm: ChatMessage, ctx: ListCtx) {
     val reactions = cm.m.reactions
+    // Reactions already here when the message was drawn stay still; one that
+    // arrives pops in, a removed one that comes back too (web Reactions.tsx).
+    // Remembered before the row can step aside for having none, or the first
+    // reaction to arrive would already be in it and never pop.
+    val seen = remember(cm.id) { HashSet(reactions.map { it.emoji }) }
     if (reactions.isEmpty()) return
     val can = canReact(cm, ctx)
     FlowRow(
@@ -100,17 +105,34 @@ fun ReactionsRow(cm: ChatMessage, ctx: ListCtx) {
         horizontalArrangement = Arrangement.spacedBy(7.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        for (r in reactions) ReactionPill(cm, ctx, r.emoji, r.count, r.me, locked = !can && !r.me)
+        for (r in reactions) androidx.compose.runtime.key(r.emoji) {
+            val fresh = remember { (r.emoji !in seen).also { seen.add(r.emoji) } }
+            androidx.compose.runtime.DisposableEffect(Unit) { onDispose { seen.remove(r.emoji) } }
+            ReactionPill(cm, ctx, r.emoji, r.count, r.me, locked = !can && !r.me, fresh = fresh)
+        }
         if (can) AddReactionPill(cm, ctx)
     }
 }
 
 @Composable
-private fun ReactionPill(cm: ChatMessage, ctx: ListCtx, emoji: String, count: Int, me: Boolean, locked: Boolean) {
+private fun ReactionPill(cm: ChatMessage, ctx: ListCtx, emoji: String, count: Int, me: Boolean, locked: Boolean, fresh: Boolean = false) {
     val c = Nx.colors
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed && !locked && !Nx.motion.reduced) 0.94f else 1f, tween(120, easing = Nx.motion.spring), label = "pill")
+    val still = Nx.motion.reduced
+    val springy = Nx.motion.spring
+    // always here, so a pop that has begun is always finished, whatever renders on the way
+    val pop = remember { androidx.compose.animation.core.Animatable(if (fresh && !still) 0f else 1f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { if (pop.value < 1f) pop.animateTo(1f, tween(260, easing = springy)) }
+    // A count that moves ticks over: up from below as it grows, down from above as it
+    // shrinks (web .pillCount). Decided as the new count is drawn, so it never shows
+    // still for a frame first; the count the pill came with stays still.
+    val ease = Nx.motion.easeOut
+    val lastCount = remember { intArrayOf(count) }
+    val tickFrom = remember(count) { val d = count.compareTo(lastCount[0]); lastCount[0] = count; if (still) 0 else d }
+    val tick = remember(count) { androidx.compose.animation.core.Animatable(if (tickFrom == 0) 1f else 0f) }
+    androidx.compose.runtime.LaunchedEffect(tick) { if (tick.value < 1f) tick.animateTo(1f, tween(200, easing = ease)) }
     val haptics = LocalHapticFeedback.current
     val ref = remember { AnchorRef() }
     val shape = RoundedCornerShape(999.dp)
@@ -118,7 +140,7 @@ private fun ReactionPill(cm: ChatMessage, ctx: ListCtx, emoji: String, count: In
     Row(
         Modifier
             .anchor(ref)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .graphicsLayer { val k = scale * (0.6f + 0.4f * pop.value); scaleX = k; scaleY = k; alpha = pop.value }
             .then(if (me) Modifier.boxShadow(shape, 0f, 12f, c.brand.copy(alpha = 0.7f), spread = -4f) else Modifier)
             .ring(shape, if (me) c.brand.copy(alpha = 0.7f) else c.borderSubtle)
             .background(bg, shape)
@@ -146,6 +168,7 @@ private fun ReactionPill(cm: ChatMessage, ctx: ListCtx, emoji: String, count: In
             count.toString(),
             style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(600), fontFeatureSettings = "tnum"),
             color = if (me) c.textStrong else c.textSubtle,
+            modifier = Modifier.graphicsLayer { alpha = tick.value; translationY = (1f - tick.value) * tickFrom * 0.45f * size.height },
         )
     }
 }

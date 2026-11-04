@@ -1,6 +1,7 @@
 import { useNoDownloads } from "@/lib/mediaDownloads";
 import { ChevronLeft, ChevronRight, Download, ExternalLink, MessageSquare, X, ZoomIn, ZoomOut } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { leaveCopy } from "@/lib/leaveCopy";
 import { createPortal } from "react-dom";
 import type { AttachmentMeta } from "@/crypto/message";
 import { PRIORITY, acquire, attachmentObjectURL, cachedURL, release } from "@/lib/mediaCache";
@@ -87,6 +88,14 @@ export function Lightbox({ items, start = 0, onClose }: { items: LightboxItem[];
   const [scale, setScale] = useState(1);
   const zoom = useRef<ZoomPanHandle>(null);
   const root = useRef<HTMLDivElement>(null);
+  // Put away, the picture fades out with what is around it, settling back a
+  // little, rather than vanishing (lib/leaveCopy; a clip just goes).
+  useLayoutEffect(() => {
+    const layer = root.current;
+    return () => {
+      if (layer) leaveCopy(layer, { ms: 160, part: { el: layer.querySelector<HTMLElement>(`.${s.stage}`), frames: [{ transform: "none" }, { transform: "scale(0.97)" }] } });
+    };
+  }, []);
   const closeBtn = useRef<HTMLButtonElement>(null);
   const swipe = useRef<{ x: number; y: number; t: number; down: boolean } | null>(null);
   /** The fingers on the picture: a second one makes it a pinch, never a swipe. */
@@ -110,10 +119,13 @@ export function Lightbox({ items, start = 0, onClose }: { items: LightboxItem[];
   // a dialog in every sense: focus goes in, stays in, and comes back to the picture after
   useFocusTrap(root, true, () => closeBtn.current);
   const rtl = typeof document !== "undefined" && document.documentElement.dir === "rtl";
+  // which way the last step went, so the picture arriving slides in from that side
+  const [stepped, setStepped] = useState<"next" | "prev" | null>(null);
   const step = (d: number) => {
     const next = index + d;
     if (next < 0 || next >= count) return;
     zoom.current?.reset();
+    setStepped(d > 0 ? "next" : "prev");
     setIndex(next);
   };
 
@@ -146,7 +158,7 @@ export function Lightbox({ items, start = 0, onClose }: { items: LightboxItem[];
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   return createPortal(
     // a layer, so the back gesture on a phone puts the picture away rather than leaving the page under it
-    <div ref={root} className={s.lightbox} tabIndex={-1} onClick={onClose} onKeyDown={onKeyDown} role="dialog" aria-modal="true" aria-label={item.name} data-zoomed={scale > 1 || undefined} data-modal-layer="" data-testid="lightbox">
+    <div ref={root} className={s.lightbox} tabIndex={-1} onClick={onClose} onKeyDown={onKeyDown} role="dialog" aria-modal="true" aria-label={item.name} data-zoomed={scale > 1 || undefined} data-step={stepped ?? undefined} data-modal-layer="" data-testid="lightbox">
       <div className={s.top} onClick={stop}>
         <div className={s.info}>
           <span className={s.name} dir="auto" title={item.name}>{item.name}</span>

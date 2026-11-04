@@ -1,4 +1,6 @@
+import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { leaveCopy } from "@/lib/leaveCopy";
 import { usePortalRoot } from "@/hooks/usePortalRoot";
 import { useUI } from "@/stores/ui";
 import s from "./Toasts.module.css";
@@ -18,7 +20,7 @@ export function Toasts() {
   return createPortal(
     <div className={s.stack} role="status" aria-live="polite" aria-relevant="additions text">
       {toasts.map((x) => (
-        <button key={x.id} className={[s.toast, s[x.kind]].join(" ")} onClick={() => dismiss(x.id)} onMouseEnter={() => hold(true)} onMouseLeave={() => hold(false)} onFocus={() => hold(true)} onBlur={() => hold(false)}>
+        <Toast key={x.id} className={[s.toast, s[x.kind]].join(" ")} onClick={() => dismiss(x.id)} onHold={hold}>
           {/* Severity was carried by a 4px border colour and nothing else. */}
           <span className="visually-hidden">{x.kind === "error" ? t("toasts.error") : x.kind === "success" ? t("toasts.done") : x.kind === "warning" ? t("toasts.warning") : t("toasts.note")}{": "}</span>
           {/* An error is worth interrupting for; the rest wait for a pause.
@@ -27,9 +29,36 @@ export function Toasts() {
               being something you can press to dismiss. */}
           {x.kind === "error" ? <span role="alert">{x.text}</span> : x.text}
           <span className="visually-hidden"> {t("toasts.dismiss")}</span>
-        </button>
+        </Toast>
       ))}
     </div>,
     root,
+  );
+}
+
+/**
+ * One toast. Going, it rises a little and fades as the space it took closes,
+ * so the ones under it slide up instead of jumping (lib/leaveCopy).
+ */
+function Toast({ className, onClick, onHold, children }: { className: string; onClick: () => void; onHold: (on: boolean) => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    return () => {
+      if (!el) return;
+      const h = `${el.offsetHeight}px`;
+      leaveCopy(el, {
+        ms: 200,
+        frames: [
+          { boxSizing: "border-box", height: h, marginBottom: "0px", opacity: 1, transform: "none" },
+          { boxSizing: "border-box", height: "0px", paddingTop: "0px", paddingBottom: "0px", marginBottom: "-8px", opacity: 0, transform: "translateY(-6px) scale(0.98)" },
+        ],
+      });
+    };
+  }, []);
+  return (
+    <button ref={ref} className={className} onClick={onClick} onMouseEnter={() => onHold(true)} onMouseLeave={() => onHold(false)} onFocus={() => onHold(true)} onBlur={() => onHold(false)}>
+      {children}
+    </button>
   );
 }

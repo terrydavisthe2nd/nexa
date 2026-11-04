@@ -1,3 +1,5 @@
+import { serverNow } from "@/lib/serverClock";
+import { listOpenedAt } from "@/lib/motion";
 import { jumpTarget } from "@/lib/appLinks";
 import { useDownloadsHidden } from "@/lib/mediaDownloads";
 import { PersonName } from "@/components/common/PersonName";
@@ -204,6 +206,16 @@ function ToolButton({ label, danger, onClick, children }: { label: string; dange
 
 export const MessageItem = memo(function MessageItem({ msg, groupStart, pending, upload, highlight, first, preview, evidence, previewAuthor }: Props) {
   const me = useAuth((a) => a.me);
+  // A message that arrives while the conversation is open rises into place:
+  // someone else's as it comes in, one's own as it is sent. History, previews,
+  // the server's copy of one's own send and what came in just before the
+  // conversation was opened stay still.
+  const [fresh] = useState(() => {
+    if (preview || evidence) return false;
+    if (pending === "sending") return true;
+    const opened = listOpenedAt.get(msg.channel_id);
+    return msg.author_id !== me?.id && opened !== undefined && msg.created_at > opened - 1000 && serverNow() - msg.created_at < 4000;
+  });
   const ownAvatar = useUsers((u) => u.byId[msg.author_id]?.avatar_id ?? null);
   // in a server, the picture someone set for it
   const serverAvatar = useServers((st) => {
@@ -335,6 +347,7 @@ export const MessageItem = memo(function MessageItem({ msg, groupStart, pending,
       data-reply={isReply}
       data-ephemeral={ephemeral || undefined}
       data-pending={pending === "sending"}
+      data-fresh={fresh || undefined}
       data-failed={pending === "failed"}
       data-uploading={!!upload || undefined}
       data-menu={menuOpen}

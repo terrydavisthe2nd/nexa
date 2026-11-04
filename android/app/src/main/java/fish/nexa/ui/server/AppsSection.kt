@@ -1,5 +1,9 @@
 package fish.nexa.ui.server
 
+import fish.nexa.ui.components.GlidePill
+import fish.nexa.ui.components.glideArea
+import fish.nexa.ui.components.glideItem
+import fish.nexa.ui.components.rememberGlide
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -265,19 +269,25 @@ private fun CommandPermissions(serverId: String, app: ServerApp) {
                 }
             }
             Txt(label(e), style = Nx.type.body.copy(fontSize = Nx.type.sp(14.5f), fontWeight = FontWeight(550)), color = c.text, maxLines = 1, modifier = Modifier.weight(1f))
-            Row(Modifier.clip(Radii.Sm).background(c.bgInput, Radii.Sm).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            // the pill slides between Allowed and Denied, turning from green to red on its way (components/Glide.kt)
+            val glide = rememberGlide(e.permission)
+            val tint = glide.tint { if (it == true) c.positive else c.danger }
+            val pillShape = RoundedCornerShape(7.dp)
+            Box(Modifier.clip(Radii.Sm).background(c.bgInput, Radii.Sm).padding(3.dp).glideArea(glide)) {
+            GlidePill(glide, Modifier.background(tint.copy(alpha = 0.18f), pillShape).ring(pillShape, tint.copy(alpha = 0.5f)))
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 for ((allow, word) in listOf(true to t("apps.server.allowed"), false to t("apps.server.denied"))) {
                     val on = e.permission == allow
-                    val tint = if (allow) c.positive else c.danger
                     Box(
                         Modifier
-                            .clip(RoundedCornerShape(7.dp))
-                            .then(if (on) Modifier.background(tint.copy(alpha = 0.18f)).ring(RoundedCornerShape(7.dp), tint.copy(alpha = 0.5f)) else Modifier)
+                            .glideItem(glide, allow)
+                            .clip(pillShape)
                             .pressable(remember(e.id, allow) { MutableInteractionSource() }, role = Role.RadioButton) { set(entries.map { if (it === e) it.copy(permission = allow) else it }) }
                             .semantics { selected = on }
                             .padding(horizontal = 10.dp, vertical = 7.dp),
                     ) { Txt(word, style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f), fontWeight = FontWeight(650)), color = if (on) (if (allow) c.positive else c.textDanger) else c.textMuted) }
                 }
+            }
             }
             fish.nexa.ui.components.IconButton("X", t("apps.server.removeEntry", "name" to label(e)), { set(entries.filter { it !== e }) }, tint = c.icon, size = 36.dp, iconSize = 15.dp)
         }

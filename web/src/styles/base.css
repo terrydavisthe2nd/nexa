@@ -35,6 +35,25 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 input, textarea, select { font: inherit; color: inherit; }
 a { color: var(--link); text-decoration: none; }
 a:hover { text-decoration: underline; }
+/* A tab strip or segmented switch whose pill is sliding to the new choice
+   (lib/tabGlide.ts): the items' own backgrounds change without easing while
+   it is held or gliding, so only the sliding pill moves and nothing fades in
+   after it lands, and the new choice's own background stands aside until the
+   pill arrives. */
+[data-glide-hold] :is([role="tab"], [role="radio"]), [data-gliding] :is([role="tab"], [role="radio"]) { transition-property: color !important; }
+[data-gliding] :is([role="tab"][aria-selected="true"], [role="radio"][aria-checked="true"]) { background: transparent !important; box-shadow: none !important; }
+/* The copy of something closing, fading away where it stood (lib/leaveCopy.ts):
+   nothing in it starts over or eases, and nothing in it can be pressed. */
+[data-leaving], [data-leaving] *, [data-leaving] *::before, [data-leaving] *::after { animation: none !important; transition: none !important; }
+[data-leaving] { pointer-events: none !important; }
+/* While a theme is put on, nothing eases from the old colours to the new ones
+   (lib/theme.ts applyTheme): controls trailing the rest of the page read as a flicker. */
+:root[data-theme-switching] *, :root[data-theme-switching] *::before, :root[data-theme-switching] *::after { transition: none !important; }
+/* Every control eases between its states instead of snapping. :where() keeps
+   this at zero specificity, so a component's own transition always wins. */
+:where(button, a, summary, label, input, select, textarea, [role="button"], [role="tab"], [role="option"], [role="menuitem"], [role="switch"], [role="link"]) {
+  transition: color var(--transition), background-color var(--transition), border-color var(--transition), box-shadow var(--transition), opacity var(--transition);
+}
 img, video { max-width: 100%; display: block; }
 code, pre, kbd { font-family: var(--font-mono); }
 :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--radius-xs); }

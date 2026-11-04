@@ -1,5 +1,7 @@
 package fish.nexa.ui.moderation
 
+import fish.nexa.ui.components.glideArea
+import fish.nexa.ui.components.rememberGlide
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -143,9 +145,16 @@ fun PersonPage(userId: String, cases: Boolean, caseId: String?) {
                 if (user.blocked.isEmpty()) NxButton(t("moderation.moderate"), { moderate() }, size = ButtonSize.TOUCH, icon = "Gavel")
             }),
         )
-        Row(Modifier.fillMaxWidth().sidewaysScroll().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            SubTab(t("moderation.person.profileTab"), "IdCard", !cases) { goPanel(base, replace = true) }
-            SubTab(t("moderation.person.casesTab"), "FolderOpen", cases, count = d.cases.size, badge = awaiting) { goPanel("$base/cases", replace = true) }
+        // the two views share one pill, which slides to the one opened (components/Glide.kt)
+        val subGlide = rememberGlide(cases)
+        Box(Modifier.fillMaxWidth().sidewaysScroll().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Box(Modifier.glideArea(subGlide)) {
+                SubTabPill(subGlide)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SubTab(t("moderation.person.profileTab"), "IdCard", !cases, glide = subGlide, key = false) { goPanel(base, replace = true) }
+                    SubTab(t("moderation.person.casesTab"), "FolderOpen", cases, count = d.cases.size, badge = awaiting, glide = subGlide, key = true) { goPanel("$base/cases", replace = true) }
+                }
+            }
         }
         Rule()
         Box(Modifier.weight(1f).fillMaxWidth()) {

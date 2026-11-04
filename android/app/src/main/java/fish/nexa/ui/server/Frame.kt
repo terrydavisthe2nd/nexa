@@ -195,6 +195,20 @@ fun SettingsFrame(
     val isTop = Layers.stack.lastOrNull() === layer
     // from 768 dp the list stays beside the page, as on the web
     val wide = fish.nexa.ui.nav.Nav.wide
+    // On a phone the list and a page take turns: a page pushes in from the side it
+    // opens towards and the list comes back from the other (web SettingsLayer's
+    // arrive), both still in view as they move. Decided as they are drawn, so the
+    // arriving one never shows still for a frame first.
+    val listBefore = remember { booleanArrayOf(atList) }
+    val arrive = remember(atList) { val d = when { atList == listBefore[0] -> 0; atList -> -1; else -> 1 }; listBefore[0] = atList; d }
+    val push = remember(atList) { Animatable(if (arrive != 0 && !reduced && !wide) 0f else 1f) }
+    LaunchedEffect(push) { if (push.value < 1f) push.animateTo(1f, tween(240, easing = ease)) }
+    val pushRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val pushed = Modifier.graphicsLayer {
+        val v = push.value
+        alpha = 0.5f + 0.5f * v
+        translationX = (1f - v) * 32.dp.toPx() * arrive * (if (pushRtl) -1f else 1f)
+    }
     BackHandler(enabled = isTop) {
         if (!atList && !wide) Holds.unlessUnsaved { atList = true } else Holds.unlessUnsaved { close() }
     }
@@ -222,7 +236,7 @@ fun SettingsFrame(
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 key(page) { PageView(title, onBack = null, onClose = { Holds.unlessUnsaved { close() } }) { content(page) } }
             }
-        } else if (atList) {
+        } else if (atList) Box(pushed) {
             NavList(title, sections, onOpen = { id ->
                 Holds.unlessUnsaved {
                     setPage(id)
@@ -230,11 +244,13 @@ fun SettingsFrame(
                 }
             }, onClose = { Holds.unlessUnsaved { close() } })
         } else key(page) {
-            PageView(
-                title,
-                onBack = { atList = true },
-                onClose = { Holds.unlessUnsaved { close() } },
-            ) { content(page) }
+            Box(pushed) {
+                PageView(
+                    title,
+                    onBack = { atList = true },
+                    onClose = { Holds.unlessUnsaved { close() } },
+                ) { content(page) }
+            }
         }
     }
 }
@@ -382,8 +398,9 @@ private fun PageView(title: String, onBack: (() -> Unit)?, onClose: () -> Unit, 
     val reduced = Nx.motion.reduced
     val ease = Nx.motion.easeOut
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    val enter = remember { Animatable(if (reduced) 1f else 0f) }
-    LaunchedEffect(Unit) { enter.animateTo(1f, tween(260, easing = ease)) }
+    // No fade of its own as it appears: on a phone the page pushes in (SettingsFrame's
+    // arrive), and beside the list a page that faded in from nothing on every switch
+    // read as a blink (the web's desktop Settings changes page in place).
     val drag = remember { Animatable(0f) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val widthPx = constraints.maxWidth.toFloat()
@@ -393,8 +410,7 @@ private fun PageView(title: String, onBack: (() -> Unit)?, onClose: () -> Unit, 
                 .fillMaxSize()
                 .graphicsLayer {
                     translationX = drag.value
-                    alpha = (if (drag.value != 0f) maxOf(0.4f, 1f - abs(drag.value) / (600f * density)) else 1f) * enter.value
-                    translationY = (1f - enter.value) * 6f * density
+                    alpha = if (drag.value != 0f) maxOf(0.4f, 1f - abs(drag.value) / (600f * density)) else 1f
                 }
                 .pointerInput(rtl, widthPx, onBack == null) {
                     if (onBack == null) return@pointerInput

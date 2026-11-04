@@ -661,7 +661,7 @@ function ColourTray({ marks, surfaceEl, run }: { marks: SurfaceState["marks"]; s
   };
   return (
     <div className={s.colourTray}>
-      <div className={s.segment} role="radiogroup" aria-label={t("composer.format.colourFor")}>
+      <div className={s.segment} role="radiogroup" data-glide="" aria-label={t("composer.format.colourFor")}>
         {(["fg", "bg"] as const).map((p) => (
           <button key={p} type="button" role="radio" aria-checked={part === p} className={s.segmentItem} onMouseDown={(e) => e.preventDefault()} onClick={() => setPart(p)}>
             {p === "fg" ? t("composer.format.colourText") : t("composer.format.highlight")}

@@ -323,7 +323,7 @@ export default function ForumView({ channel }: { channel: Channel }) {
                     <option value="created">{t("forum.sort.created")}</option>
                   </select>
                 </label>
-                {media ? null : <div className={s.layoutSwitch} role="radiogroup" aria-label={t("forum.settings.layout")}>
+                {media ? null : <div className={s.layoutSwitch} role="radiogroup" data-glide="" aria-label={t("forum.settings.layout")}>
                   <button type="button" role="radio" aria-checked={layout === "list"} aria-label={t("forum.layout.list")} title={t("forum.layout.list")} onClick={() => setLayout("list")}>
                     <LayoutList size={18} aria-hidden="true" />
                   </button>

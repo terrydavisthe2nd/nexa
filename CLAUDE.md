@@ -90,6 +90,15 @@ those once while working (a scratch test, a screenshot) and leave them out of th
 kept test small and quick: a few hard cases, not a grid of every combination. Adding a test is a
 choice to justify, not a step every change takes.
 
+### Motion answers what was done, and nothing blinks
+
+The owner's rule (2026-11-03): motion belongs to the thing someone acted on (a chosen tab's pill
+sliding, a chevron turning, what a category or expander brings back unfolding, a message or reaction
+arriving, a dialog, sheet or toast leaving). Never fade or dim a whole page, list or pane when someone
+switches tabs, conversations, servers or settings pages: it read as the app blinking. What replaces a
+view appears at once, or slides in already partly visible. Everything stops under Reduced motion.
+Check new motion frame by frame before calling it done (Testing, Motion).
+
 ### When the work is done
 
 1. Run the checks (`tools/check.sh` covers most) and the web and Android testing above, and update this
@@ -312,6 +321,17 @@ $ADB emu kill                                       # when finished
 - Before trusting a screenshot, check that `$ADB shell dumpsys window | grep mCurrentFocus` names
   `fish.nexa.debug`. After a cold boot, Play Services' "Sign in with ease" screen or a launcher "isn't
   responding" dialog can sit on top; dismiss it and start the app again.
+
+### Motion
+
+- Web: sample what is on screen every frame with `requestAnimationFrame` from Playwright (computed
+  opacity, transform or background per frame) and slow animations with CDP's
+  `Animation.setPlaybackRate` for screenshots. A hand-off is right when no frame shows neither the old
+  state nor the new one; a timer started with `setTimeout` ignores the slowed rate.
+- Android: `adb shell settings put global animator_duration_scale 10` slows Compose animations for
+  `screenrecord` (set it back to 1 after). The emulator's software GPU draws blurred layers (an open
+  drawer) at about one frame a second, so motion there cannot be judged from a recording: log the
+  animated values with a temporary `Log.d` and remove it.
 
 ### Other end-to-end runs
 
@@ -1441,6 +1461,39 @@ with `cd web && npx tsc --noEmit -p tests` and `tools/text_layout_audit.py` agai
 scratch-server proxy; Android's debug-only `TextLayoutAuditActivity` takes theme, payload and page
 extras. Neither is a production route.
 
+### Motion
+
+- `lib/motion.ts`: `motionOff()` (Reduced motion, Nexa's or the system's) for script animations, and
+  `listOpenedAt`. CSS animations and transitions stop through `base.css`'s Reduced motion rules.
+- Every control eases between its states: `:where(button, a, ...)` in `base.css` gives colour,
+  background, border, shadow and opacity transitions at zero specificity, so a component's own
+  transition wins. `applyTheme` holds every transition (`data-theme-switching`) while a theme, accent
+  or size goes on, so controls never trail the page.
+- Tab strips: `lib/tabGlide.ts` (installed in `App.tsx`) watches `aria-selected` and `aria-checked`. In
+  every `role="tablist"`, and every `role="radiogroup"` marked `data-glide` (segmented switches only,
+  never swatches, cards or chips), the chosen item's pill slides to the new one: a copy of the new
+  item's look moves behind the words while the item's own background stands aside
+  (`[data-gliding]`), then the item takes it back with transitions held (`[data-glide-hold]`; handing
+  it back with them running flashed once as it landed). Only between items of the same class; a strip
+  whose choice is an underline does nothing; `data-no-glide` opts out (the window's tab bar). The
+  leaving item's look is read on pointerdown and keydown, so the pill changes colour on its way.
+- Closing: `lib/leaveCopy.ts` leaves an inert, `aria-hidden` copy fading where the thing stood
+  (Modal's `leave`, `SettingsLayer`, `Lightbox`, each toast), with typed values and scroll positions
+  copied, ids, `data-modal-layer` and `role="dialog"` removed (code that asks whether a dialog is open
+  must not see it), nothing in it moving (`[data-leaving]`), and no copy of anything holding a canvas,
+  video or iframe, which would come up blank. A copy is removed when its animation finishes. A
+  dialog opening while another's copy fades takes over the dim at once (`data-calm`) and the copy
+  hurries out above it, so the dim never doubles or dips.
+- Arrivals: a message that comes in while its conversation is open rises in (`data-fresh`; never
+  history or what came before `listOpenedAt`); a new reaction pops and a changed count ticks
+  (`Reactions.tsx` `moving`, let go on animationend so a render cannot cut it short); opening a category
+  slides back only the channels it hid, staggered (`ServerSidebar` `opened`); an expander's body
+  unfolds; the member list beside the chat slides in when opened (`ChatView` `membersEnter`), not
+  when a conversation changes; on a phone Settings pushes a page in and brings the list back from the
+  other side (`SettingsLayer` `arrive`); the picture viewer slides between pictures (`data-step`); the
+  sign-in pages rise only on the first one landed on (`AuthLayout`). State that starts an animation
+  is decided while rendering, never in an effect, so nothing shows still for a frame first.
+
 ### Homepage demo (web only)
 
 `HomeDemo.tsx` embeds `demo.html`, a second Vite entry, in a sandboxed iframe running the real routes
@@ -1792,6 +1845,14 @@ cargo-ndk) for notes.
   prompt (`setRequireUserAction(USER_ACTION_NOT_REQUIRED)`, `UPDATE_PACKAGES_WITHOUT_USER_ACTION`;
   Android 14+ also claims update ownership), so Install is one tap; the first update after a manual
   install may still ask.
+- Motion matches the web's (Web app, Motion): `ui/components/Glide.kt` (`rememberGlide`, `glideArea`,
+  `glideItem`, `GlidePill`) slides a row's chosen pill (the staff panel's tabs, Mentions kinds, an
+  app's Allowed and Denied, changing colour, both `Segmented`s, the formatting editor's Text and
+  Highlight, a person's sub-tabs) and `TabStrip` has its own; toasts leave through `ToastSlot`;
+  reactions pop (`seen` is remembered before the row returns for having none) and counts tick; the
+  settings layers push pages on a phone (`arrive` in `Settings.kt` and `Frame.kt`) and their pages have
+  no fade of their own; the pinned member list slides in only when pinned; `AuthLayout` rises only on
+  the first screen. Values that start an animation are fixed in `remember`, not set from an effect.
 - `copyWebAssets` copies the web's locales, sounds, emoji sprites, `whatsNew.ts`, seasonal pictures and
   legal documents into the app; `assets/lucide.json`, `assets/emoji/` and `assets/licenses.json` come
   from `android/tools`. Ported logic (markdown, search, themes, the formatting editor, webhook messages,

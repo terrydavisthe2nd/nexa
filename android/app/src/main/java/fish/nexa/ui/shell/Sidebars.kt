@@ -1,5 +1,10 @@
 package fish.nexa.ui.shell
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -134,12 +139,16 @@ fun ServerSidebar(serverId: String, channelId: String?) {
         }
     }
     val collapsed = Nexa.settings.collapsedCategories
+    // the category just opened here and the channels it brought back (web ServerSidebar's opened)
+    var opened by remember(serverId) { mutableStateOf<Opened?>(null) }
     val density = LocalDensity.current.density
     val banner = st.server.bannerId
     val list = rememberLazyListState()
     val overBanner by remember { derivedStateOf { banner != null && list.firstVisibleItemIndex == 0 && list.firstVisibleItemScrollOffset < 89 * density } }
 
     Box(Modifier.fillMaxSize()) {
+        val still = Nx.motion.reduced
+        val ease = Nx.motion.easeOut
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
             if (banner != null) item("banner") {
                 AsyncImage(
@@ -153,12 +162,29 @@ fun ServerSidebar(serverId: String, channelId: String?) {
             items(tree.loose, key = { it.id }) { ch -> ChannelRow(st.server.id, ch, ch.id == channelId || inside(ch), threadsUnder(ch), channelId) }
             for (cat in tree.categories) {
                 val isCollapsed = cat.channel.id in collapsed
-                item(cat.channel.id) { CategoryHeader(serverId, cat.channel, isCollapsed) }
-                val shown = if (!isCollapsed) cat.children else cat.children.filter { ch ->
-                    ch.id == channelId || inside(ch) || (ch.hasChat && Unread.isUnread(Nexa.readStates.get(ch.id), ch.lastMessageId) && !Unread.isMuted(ch.id, serverId)) || (Nexa.readStates.get(ch.id)?.mentions ?: 0) > 0 ||
-                        threadsUnder(ch).any { it.id == channelId }
+                // a closed category still shows the open channel and the ones with something new
+                fun keptClosed(ch: Channel) = ch.id == channelId || inside(ch) || (ch.hasChat && Unread.isUnread(Nexa.readStates.get(ch.id), ch.lastMessageId) && !Unread.isMuted(ch.id, serverId)) || (Nexa.readStates.get(ch.id)?.mentions ?: 0) > 0 ||
+                    threadsUnder(ch).any { it.id == channelId }
+                item(cat.channel.id) {
+                    CategoryHeader(serverId, cat.channel, isCollapsed) {
+                        // the channels this brings back, in order, fixed as it opens (web toggleCategory)
+                        opened = Opened(cat.channel.id, cat.children.filter { !keptClosed(it) }.mapIndexed { i, ch -> ch.id to i }.toMap(), android.os.SystemClock.uptimeMillis())
+                    }
                 }
-                items(shown, key = { it.id }) { ch -> ChannelRow(st.server.id, ch, ch.id == channelId || inside(ch), threadsUnder(ch), channelId) }
+                val shown = if (!isCollapsed) cat.children else cat.children.filter { keptClosed(it) }
+                // Opening a category slides the channels it brings back down into place, one just
+                // after another (web catReveal); the ones showing all along stay where they are,
+                // and closing is immediate, as there.
+                val reveal = opened?.takeIf { it.category == cat.channel.id }
+                items(shown, key = { it.id }) { ch ->
+                    val at = reveal?.rows?.get(ch.id)
+                    // only as it opens: not when a row scrolled out of sight comes back later
+                    val rise = remember { androidx.compose.animation.core.Animatable(if (at != null && !still && android.os.SystemClock.uptimeMillis() - reveal.at < 400) 0f else 1f) }
+                    LaunchedEffect(rise) { if (rise.value < 1f) rise.animateTo(1f, tween(220, delayMillis = minOf(at ?: 0, 8) * 18, easing = ease)) }
+                    Box(Modifier.graphicsLayer { alpha = rise.value; translationY = (rise.value - 1f) * 6.dp.toPx() }) {
+                        ChannelRow(st.server.id, ch, ch.id == channelId || inside(ch), threadsUnder(ch), channelId)
+                    }
+                }
             }
             if (tree.loose.isEmpty() && tree.categories.isEmpty()) item("empty") {
                 Txt(t("sidebar.serverSidebar.noChannelsYouCanSeeYet"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f)), color = c.textMuted, align = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 24.dp))
@@ -189,7 +215,7 @@ fun ServerSidebar(serverId: String, channelId: String?) {
 }
 
 @Composable
-private fun CategoryHeader(serverId: String, cat: Channel, collapsed: Boolean) {
+private fun CategoryHeader(serverId: String, cat: Channel, collapsed: Boolean, onOpen: () -> Unit) {
     val c = Nx.colors
     val interaction = remember { MutableInteractionSource() }
     Row(
@@ -197,12 +223,16 @@ private fun CategoryHeader(serverId: String, cat: Channel, collapsed: Boolean) {
             .fillMaxWidth()
             .padding(top = 16.dp)
             .height(40.dp)
-            .pressable(interaction, onLongClick = { openMenu(categoryMenu(serverId, cat, collapsed)) }) { toggleCollapsed(cat.id, collapsed) }
+            .pressable(interaction, onLongClick = { openMenu(categoryMenu(serverId, cat, collapsed, onOpen)) }) { if (collapsed) onOpen(); toggleCollapsed(cat.id, collapsed) }
             .padding(start = 2.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Icon(if (collapsed) "ChevronRight" else "ChevronDown", c.textMuted, size = 12.dp)
+        // the chevron turns as the category opens and closes (web .catChevron)
+        val ease = Nx.motion.easeOut
+        val turn by androidx.compose.animation.core.animateFloatAsState(if (collapsed) 1f else 0f, tween(Nx.motion.normal, easing = ease), label = "chevron")
+        val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
+        Box(Modifier.graphicsLayer { rotationZ = turn * if (rtl) 90f else -90f }) { Icon("ChevronDown", c.textMuted, size = 12.dp) }
         cat.glyph?.let { ChannelGlyph(cat, 14.dp, c.textMuted, Modifier.padding(start = 2.dp, end = 4.dp)) }
         Txt(cat.name, style = Nx.type.label.copy(fontSize = Nx.type.sp(12.5f), letterSpacing = androidx.compose.ui.unit.TextUnit(0.01f, androidx.compose.ui.unit.TextUnitType.Em)), color = c.textMuted, maxLines = 1)
     }
@@ -214,11 +244,11 @@ fun toggleCollapsed(id: String, collapsed: Boolean) {
     Nexa.settings.set("collapsedCategories", JsonArray(now.map { JsonPrimitive(it) }))
 }
 
-private fun categoryMenu(serverId: String, cat: Channel, collapsed: Boolean): List<MenuItem> {
+private fun categoryMenu(serverId: String, cat: Channel, collapsed: Boolean, onOpen: () -> Unit): List<MenuItem> {
     val st = Nexa.servers.get(serverId)
     val items = ArrayList<MenuItem>()
     items += fish.nexa.ui.reports.reportItem(fish.nexa.data.ReportContext(kind = "channel", id = cat.id))
-    items += MenuItem.Action(if (collapsed) t("sidebar.serverMenu.expandCategory") else t("sidebar.serverMenu.collapseCategory"), separatorAfter = true) { toggleCollapsed(cat.id, collapsed) }
+    items += MenuItem.Action(if (collapsed) t("sidebar.serverMenu.expandCategory") else t("sidebar.serverMenu.collapseCategory"), separatorAfter = true) { if (collapsed) onOpen(); toggleCollapsed(cat.id, collapsed) }
     if (Nexa.servers.canI(st, P.MANAGE_CHANNELS)) {
         items += MenuItem.Action(t("modals.createChannel.createChannel")) { openCreateChannel(serverId, cat.id) }
         items += MenuItem.Action(t("sidebar.serverMenu.editCategory")) { openChannelSettings(cat.id) }
@@ -537,3 +567,6 @@ private fun channelMenu(serverId: String, ch: Channel): List<MenuItem> {
     return items
 }
 
+
+/** A category just opened in the sidebar: the channels it brought back, in order, and when. */
+private data class Opened(val category: String, val rows: Map<String, Int>, val at: Long)

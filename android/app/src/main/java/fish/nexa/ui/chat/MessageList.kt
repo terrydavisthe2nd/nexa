@@ -267,6 +267,8 @@ private fun buildRows(
 fun MessageList(channel: Channel, modifier: Modifier = Modifier) {
     val c = Nx.colors
     val channelId = channel.id
+    // when this conversation was opened (server time): only what arrives after it rises into place
+    val openedAt = remember(channelId) { fish.nexa.data.ServerClock.now() }
     val entry by Nexa.messages.channels.collectEntryAsState(channelId)
     val state = entry ?: remember(channelId) { ChannelMessages() }
     val mark = Nexa.readStates.byChannel.collectEntryAsState(channelId).value
@@ -424,8 +426,21 @@ fun MessageList(channel: Channel, modifier: Modifier = Modifier) {
                     ListRow.NewLine -> NewDivider()
                     is ListRow.Msg -> {
                         val cm = row.item.cm
+                        // A message arriving while the conversation is open rises into place (web
+                        // data-fresh): someone else's as it comes in, one's own as it is sent.
+                        // History, the server's copy of one's own send and what came in just
+                        // before the conversation was opened stay still.
+                        val still = Nx.motion.reduced
+                        val ease = Nx.motion.easeOut
+                        val fresh = remember(row.key) {
+                            !still && (row.item.pending != null || (cm != null && cm.authorId != ctx.meId && cm.m.createdAt > openedAt - 1000 && fish.nexa.data.ServerClock.now() - cm.m.createdAt < 4000))
+                        }
+                        val rise = remember(row.key) { Animatable(if (fresh) 0f else 1f) }
+                        if (fresh) LaunchedEffect(row.key) { rise.animateTo(1f, tween(240, easing = ease)) }
+                        androidx.compose.foundation.layout.Box(Modifier.graphicsLayer { alpha = rise.value; translationY = (1f - rise.value) * 6.dp.toPx() }) {
                         if (cm?.m?.type == "system_call") CallRecordRow(cm, ctx)
                         else MessageRow(row.item, ctx, cm?.let { flashes[it.id] }, picked = cm != null && cm.id in ChatUi.picked, canPick = cm != null && !cm.m.ephemeral && canDelete(cm.m))
+                        }
                     }
                     is ListRow.System -> if (row.cm.m.type == "system_automod") fish.nexa.ui.automod.AutomodAlertRow(row.cm, ctx) else SystemRow(row.cm, ctx)
                     is ListRow.Blocked -> BlockedRun(row, ctx) { blockedShown[row.key] = !row.shown }

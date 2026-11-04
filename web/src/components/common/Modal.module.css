@@ -21,6 +21,8 @@
 /* buttons that do not fit side by side (a narrow window) go on to a second row rather than off the edge */
 .footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 14px 20px; background: color-mix(in oklab, var(--bg-base) 55%, var(--bg-floating)); box-shadow: inset 0 1px 0 var(--border-subtle); }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+/* a dialog opening as another's copy fades takes over its dim without fading in (Modal.tsx arrive) */
+.overlay[data-calm] { animation: none; }
 @keyframes pop { from { transform: translateY(10px) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes sheetUp { from { transform: translateY(40px); opacity: 0.4; } to { transform: none; opacity: 1; } }
 /* a bottom sheet on phones: sized to the visible screen, which vh is not while the toolbars show, and clear of the home indicator */

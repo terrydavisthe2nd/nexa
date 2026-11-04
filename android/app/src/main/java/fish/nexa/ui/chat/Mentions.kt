@@ -1,5 +1,9 @@
 package fish.nexa.ui.chat
 
+import fish.nexa.ui.components.GlidePill
+import fish.nexa.ui.components.glideArea
+import fish.nexa.ui.components.glideItem
+import fish.nexa.ui.components.rememberGlide
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -199,13 +203,19 @@ fun openMentions() {
     }
 }
 
-/** All, You, Your Roles, @everyone: one picked (MentionsModal.module.css `.kinds`). */
+/**
+ * All, You, Your Roles, @everyone: one picked (MentionsModal.module.css
+ * `.kinds`), its pill sliding to the one picked next (components/Glide.kt).
+ */
 @Composable
 private fun KindPicker(picked: String, onPick: (String) -> Unit) {
     val c = Nx.colors
     val inner = RoundedCornerShape(6.dp)
+    val glide = rememberGlide(picked)
+    Box(Modifier.fillMaxWidth().background(c.bgInput, Radii.Sm).padding(3.dp).glideArea(glide).semantics { contentDescription = t("mentions.kindLabel") }) {
+    GlidePill(glide, Modifier.background(c.bgFloating, inner))
     Row(
-        Modifier.fillMaxWidth().background(c.bgInput, Radii.Sm).padding(3.dp).semantics { contentDescription = t("mentions.kindLabel") },
+        Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         for ((key, label) in listOf("all" to t("mentions.kindAll"), "me" to t("mentions.kindMe"), "roles" to t("mentions.kindRoles"), "everyone" to t("mentions.kindEveryone"))) {
@@ -214,8 +224,8 @@ private fun KindPicker(picked: String, onPick: (String) -> Unit) {
                 Modifier
                     .weight(1f)
                     .height(40.dp)
+                    .glideItem(glide, key)
                     .clip(inner)
-                    .then(if (on) Modifier.background(c.bgFloating, inner) else Modifier)
                     .pressable(remember { MutableInteractionSource() }) { onPick(key) }
                     .semantics { role = Role.RadioButton; selected = on },
                 contentAlignment = Alignment.Center,
@@ -223,6 +233,7 @@ private fun KindPicker(picked: String, onPick: (String) -> Unit) {
                 Txt(label, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), fontWeight = FontWeight(600)), color = if (on) c.textStrong else c.textMuted, maxLines = 1)
             }
         }
+    }
     }
 }
 

@@ -32,7 +32,7 @@
   user-select: none;
   white-space: nowrap;
 }
-.tab { --glyph-cut: var(--bg-base); }
+.tab { --glyph-cut: var(--bg-base); transition: background-color var(--transition), color var(--transition); }
 .tab:hover { background: var(--bg-hover); color: var(--text); --glyph-cut: linear-gradient(var(--bg-hover), var(--bg-hover)), var(--bg-base); }
 .tab[data-selected="true"] { background: var(--bg-raised); color: var(--text-strong); --glyph-cut: var(--bg-raised); }
 /* the button fills the tab, so the whole tab is the thing to press */

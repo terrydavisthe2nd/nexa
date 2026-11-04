@@ -22,6 +22,8 @@ import { useUsers } from "@/stores/users";
 import { useReplyTargets, type ReplyTarget } from "@/stores/replyTargets";
 import { useChannels } from "@/stores/channels";
 import { MessageItem } from "./MessageItem";
+import { listOpenedAt } from "@/lib/motion";
+import { serverNow } from "@/lib/serverClock";
 import { GroupAlone } from "./GroupAlone";
 import { useReadingApps } from "./apps/readingApps";
 import { ThreadIntro } from "@/components/threads/ThreadIntro";
@@ -244,6 +246,8 @@ function pendingToMessage(p: PendingMessage): DecryptedMessage {
 
 export function MessageList({ channel }: { channel: Channel }) {
   const me = useAuth((a) => a.me);
+  // set as the list is first drawn, before any of its rows (MessageItem's fresh)
+  useState(() => listOpenedAt.set(channel.id, serverNow()));
   const users = useUsers((u) => u.byId);
   const byIdChannels = useChannels((c) => c.byId);
   const state = useMessages((m) => m.channels[channel.id]);

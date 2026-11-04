@@ -90,6 +90,30 @@ export function Reactions({ msg, pickerAnchor, onOpenPicker, onPickerClose }: Pr
   // who reacted, asked for once per emoji and count: a count that moved means
   // the list did too, where it used to be kept from the first look for good
   const [who, setWho] = useState<Record<string, string[]>>({});
+  // What the pills last showed, so a reaction that arrives pops in and a count
+  // that moves ticks over, while what was here when the message was drawn
+  // stays still. Each one's motion is let go only when it has finished, so a
+  // render on the way (the names coming in on hover) cannot cut it short.
+  const counts = msg.reactions.map((r) => `${r.emoji}\u0001${r.count}`).join("\u0000");
+  const [seen, setSeen] = useState(() => ({ counts, by: new Map(msg.reactions.map((r) => [r.emoji, r.count])) }));
+  const [moving, setMoving] = useState<ReadonlyMap<string, "pop" | "up" | "down">>(() => new Map());
+  if (seen.counts !== counts) {
+    const next = new Map(moving);
+    for (const r of msg.reactions) {
+      const was = seen.by.get(r.emoji);
+      if (was === undefined) next.set(r.emoji, "pop");
+      else if (was !== r.count && next.get(r.emoji) !== "pop") next.set(r.emoji, r.count > was ? "up" : "down");
+    }
+    setSeen({ counts, by: new Map(msg.reactions.map((r) => [r.emoji, r.count])) });
+    setMoving(next);
+  }
+  const landed = (emoji: string) =>
+    setMoving((m) => {
+      if (!m.has(emoji)) return m;
+      const n = new Map(m);
+      n.delete(emoji);
+      return n;
+    });
   const [showing, setShowing] = useState<{ emoji: string; anchor: DOMRect } | null>(null);
   const closeShowing = useCallback(() => setShowing(null), []);
   const closePicker = onPickerClose;
@@ -131,6 +155,8 @@ export function Reactions({ msg, pickerAnchor, onOpenPicker, onPickerClose }: Pr
             <button
               className={s.pill}
               data-me={r.me}
+              data-new={moving.get(r.emoji) === "pop" || undefined}
+              onAnimationEnd={(e) => e.target === e.currentTarget && landed(r.emoji)}
               data-locked={locked || undefined}
               aria-pressed={r.me}
               aria-disabled={locked || undefined}
@@ -141,7 +167,8 @@ export function Reactions({ msg, pickerAnchor, onOpenPicker, onPickerClose }: Pr
               onClick={() => !locked && void toggleReaction(msg, r.emoji)}
             >
               {custom ? <img src={emojiUrl(custom.id, custom.animated, 24)} alt="" /> : <Twemoji text={r.emoji} className={s.pillImg} fallbackClassName={s.pillEmoji} title="" />}
-              <span aria-hidden="true">{r.count}</span>
+              {/* keyed by the count, so a new number is a new element that ticks in */}
+              <span key={r.count} aria-hidden="true" className={s.pillCount} data-tick={moving.get(r.emoji) === "up" || moving.get(r.emoji) === "down" ? moving.get(r.emoji) : undefined} onAnimationEnd={() => landed(r.emoji)}>{r.count}</span>
             </button>
           </Tooltip>
         );

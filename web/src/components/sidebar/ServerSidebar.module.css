@@ -19,6 +19,13 @@
 .sidebar[data-banner="true"] .head[data-over-banner="true"]:hover, .sidebar[data-banner="true"] .head[data-over-banner="true"][data-open="true"] { background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.4) 60%, rgba(0, 0, 0, 0)) border-box; }
 .banner { height: 138px; margin-inline: -8px; margin-bottom: 12px; background-size: cover; background-position: center; }
 .category { position: relative; margin-top: 16px; }
+/* opening a category slides the channels it brings back down into place, one
+   just after another; the chevron turns */
+.scroll [data-reveal] { animation: catReveal 220ms var(--ease-out) both; animation-delay: calc(min(var(--reveal-i, 0), 8) * 18ms); }
+@keyframes catReveal { from { opacity: 0; transform: translateY(-6px); } }
+.catChevron { flex: none; transition: transform var(--dur) var(--ease-out); }
+.catChevron[data-collapsed] { transform: rotate(-90deg); }
+:dir(rtl) .catChevron[data-collapsed] { transform: rotate(90deg); }
 /* a dragged category's landing: a line above a category's head, or under the last category */
 .category[data-drop="before"]::before, .category[data-drop="after"]::after { content: ""; position: absolute; inset-inline: 0; height: 2px; background: var(--brand); border-radius: 1px; pointer-events: none; }
 .category[data-drop="before"]::before { top: -3px; }

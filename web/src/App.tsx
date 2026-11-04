@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useState } from "react";
+import { installTabGlide } from "@/lib/tabGlide";
 import { ContextMenuHost } from "@/components/common/ContextMenu";
 import { Toasts } from "@/components/common/Toasts";
 import { AppLockEffect } from "@/components/shell/AppLockEffect";
@@ -37,6 +38,8 @@ function AccountDeletedNotice() {
 export default function App() {
   useEffect(markHealthy, []);
   useEffect(markChunksHealthy, []);
+  // every tab strip's pill slides to the tab chosen
+  useEffect(() => installTabGlide(), []);
   // The account carries the choice, so signing in anywhere is in the same
   // language; with none set the browser's own preference decides.
   const locale = useAppLocale();

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { usePortalRoot } from "@/hooks/usePortalRoot";
 import { attachSheetDrag, fadeOverlay, sheetsHere } from "@/lib/sheetDrag";
+import { leaveCopy } from "@/lib/leaveCopy";
 import s from "./Modal.module.css";
 
 import { t } from "@/i18n";
@@ -11,6 +12,45 @@ export function isTopLayer(el: HTMLElement | null): boolean {
   if (!el) return false;
   const layers = document.querySelectorAll("[data-modal-layer]");
   return layers[layers.length - 1] === el;
+}
+
+/** Copies of dialogs that have closed, still fading away (leave). */
+const leaving = new Set<HTMLElement>();
+
+/**
+ * As a dialog goes, a copy of it fades away where it stood (lib/leaveCopy),
+ * mirroring how it came: a card shrinks a little as it fades, a phone's sheet
+ * drops. A sheet that was swiped away has already left.
+ */
+function leave(host: HTMLElement): void {
+  const overlay = host.firstElementChild as HTMLElement | null;
+  const card = overlay?.querySelector<HTMLElement>("[data-modal-layer]");
+  if (!overlay || !card || card.style.transform || overlay.style.getPropertyValue("--sheet-dim")) return;
+  const sheet = sheetsHere() && !overlay.hasAttribute("data-centered");
+  const ms = sheet ? 200 : 140;
+  // beside the dialog's own container, which goes as soon as this returns
+  const copy: HTMLElement | null = leaveCopy(overlay, { ms, beside: host, onGone: () => copy && leaving.delete(copy), part: { el: card, frames: [{ transform: "none" }, { transform: sheet ? "translateY(48px)" : "translateY(4px) scale(0.97)" }] } });
+  if (copy) leaving.add(copy);
+}
+
+/**
+ * A dialog that opens while another's copy is still fading takes over the dim
+ * at once rather than fading in a second one over it (which made the page
+ * behind darken and lighten again). The copy stays above it, so nothing is
+ * dimmed twice, and hurries out at twice the pace, so the two are seen
+ * together for only a moment: the one dialog crossfades into the next.
+ */
+function arrive(host: HTMLElement): void {
+  if (leaving.size === 0) return;
+  (host.firstElementChild as HTMLElement | null)?.setAttribute("data-calm", "");
+  for (const ghost of leaving) {
+    if (!ghost.isConnected || ghost.parentNode !== host.parentNode) continue;
+    ghost.style.background = "transparent";
+    ghost.style.backdropFilter = "none";
+    ghost.style.setProperty("-webkit-backdrop-filter", "none");
+    host.parentNode?.appendChild(ghost);
+    for (const run of ghost.getAnimations({ subtree: true })) run.updatePlaybackRate(2);
+  }
 }
 
 interface Props {
@@ -87,9 +127,18 @@ export function Modal({ open, onClose, title, children, footer, width = 440, clo
     el.style.display = "contents";
     return el;
   });
+  // As it closes, a copy fades away where it stood (leave). Its own effect,
+  // ahead of the one below, so it runs while the dialog is still in place, and
+  // only when the dialog goes: the one below also runs when the dialog moves
+  // into or out of a full-screen element.
+  useLayoutEffect(() => {
+    if (!host || !open) return;
+    return () => leave(host);
+  }, [host, open]);
   useLayoutEffect(() => {
     if (!host || !open) return;
     portalRoot.append(host);
+    arrive(host);
     return () => host.remove();
   }, [host, portalRoot, open]);
   // Held in a ref so a caller passing a fresh function on every render does

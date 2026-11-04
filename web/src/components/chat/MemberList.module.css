@@ -16,6 +16,14 @@
 .crown { color: var(--warning); flex: none; }
 /* a long name gives way to the crown and the tag after it, rather than pushing them out of sight */
 .nameText { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Beside the conversation, the list slides in from its edge as it is opened
+   (ChatView's membersEnter), never as a conversation that shows it opens. */
+@media (min-width: 1100px) {
+  .list[data-entering] { animation: listIn 220ms var(--ease-out); }
+  @keyframes listIn { from { opacity: 0; transform: translateX(12px); } }
+  [dir="rtl"] .list[data-entering] { animation-name: listInRtl; }
+  @keyframes listInRtl { from { opacity: 0; transform: translateX(-12px); } }
+}
 /* On phones, tablets and narrow windows the list slides in from the right over
    the conversation (ChatView's useIsNarrow). It is mounted as it opens, so the
    slide-in is an animation; the slide-out is the transition. */

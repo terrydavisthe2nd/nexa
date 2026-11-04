@@ -1,5 +1,6 @@
 package fish.nexa.ui.settings
 
+import androidx.compose.ui.graphics.graphicsLayer
 import android.content.Context
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -189,9 +190,22 @@ fun FormExpander(field: String, setting: String?, label: String, open: Boolean, 
         ) {
             Txt(label, style = Nx.type.body.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(650)), color = c.textStrong)
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { value() }
-            Icon("ChevronDown", c.textMuted, size = 18.dp, modifier = Modifier.rotate(if (open) 180f else 0f))
+            // the chevron turns as it opens and closes (web .expanderChevron)
+            val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, androidx.compose.animation.core.tween(Nx.motion.normal, easing = Nx.motion.easeOut), label = "expander")
+            Icon("ChevronDown", c.textMuted, size = 18.dp, modifier = Modifier.rotate(turn))
         }
-        if (open) Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        // what it holds unfolds as it opens, as a server's category does (web expanderIn); closing is immediate
+        if (open) {
+            val still = Nx.motion.reduced
+            val ease = Nx.motion.easeOut
+            val unfold = remember { androidx.compose.animation.core.Animatable(if (still) 1f else 0f) }
+            LaunchedEffect(unfold) { if (unfold.value < 1f) unfold.animateTo(1f, androidx.compose.animation.core.tween(220, easing = ease)) }
+            Column(
+                Modifier.fillMaxWidth().graphicsLayer { alpha = unfold.value; translationY = (unfold.value - 1f) * 6.dp.toPx() }.padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = content,
+            )
+        }
     }
 }
 

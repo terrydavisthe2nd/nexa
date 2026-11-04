@@ -1,6 +1,10 @@
 package fish.nexa.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.runtime.LaunchedEffect
+import kotlin.math.roundToInt
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,18 +68,37 @@ fun <T> TabStrip(
     ) {
         val inner = maxWidth - 6.dp
         val narrow = maxWidth < 420.dp
+        // the chosen tab's pill slides to the tab chosen next (web lib/tabGlide.ts); the
+        // position is a fractional tab index, so the pill passes over the tabs between
+        val at = tabs.indexOfFirst { it.first == selected }
+        val still = Nx.motion.reduced
+        val ease = Nx.motion.easeOut
+        val pos = remember { Animatable(at.toFloat()) }
+        LaunchedEffect(at) {
+            if (at < 0) return@LaunchedEffect
+            if (still || pos.value < 0f) pos.snapTo(at.toFloat()) else pos.animateTo(at.toFloat(), tween(260, easing = ease))
+        }
         Box(Modifier.sidewaysScroll().padding(3.dp)) {
-            ShareRow(inner, gap = 2.dp) {
+            ShareRow(inner, gap = 2.dp, pill = if (at >= 0) ({ pos.value }) else null) {
+                val shape = RoundedCornerShape(9.dp)
+                Box(Modifier.shadowLow(shape, c).ring(shape, c.borderSubtle).background(c.bgSurface, shape).background(sheen(c), shape).topEdge(shape, c.edgeLight))
                 for ((key, text) in tabs) StripTab(text, key == selected, tabHeight, if (narrow) 8.dp else 12.dp, count(key)) { onSelect(key) }
             }
         }
     }
 }
 
-/** Lays children out at their own widths, then grows each by an equal share of what is left of [fill]. */
+/**
+ * Lays children out at their own widths, then grows each by an equal share of
+ * what is left of [fill]. The first child is the selected pill, drawn behind
+ * the tabs at [pill] (a fractional tab index read here, in layout, so its
+ * movement relays out without recomposing), or not at all without one.
+ */
 @Composable
-private fun ShareRow(fill: Dp, gap: Dp, content: @Composable () -> Unit) {
-    Layout(content) { measurables, constraints ->
+private fun ShareRow(fill: Dp, gap: Dp, pill: (() -> Float)?, content: @Composable () -> Unit) {
+    Layout(content) { all, constraints ->
+        val pillM = all.first()
+        val measurables = all.drop(1)
         val gapPx = gap.roundToPx()
         val natural = measurables.map { it.maxIntrinsicWidth(constraints.maxHeight) }
         val used = natural.sum() + gapPx * (measurables.size - 1).coerceAtLeast(0)
@@ -87,12 +110,20 @@ private fun ShareRow(fill: Dp, gap: Dp, content: @Composable () -> Unit) {
         }
         val height = placeables.maxOfOrNull { it.height } ?: 0
         val width = placeables.sumOf { it.width } + gapPx * (placeables.size - 1).coerceAtLeast(0)
+        val xs = IntArray(placeables.size)
+        run { var x = 0; for ((i, p) in placeables.withIndex()) { xs[i] = x; x += p.width + gapPx } }
+        val f = pill?.invoke()?.coerceIn(0f, (placeables.size - 1).coerceAtLeast(0).toFloat())
+        val pillP = if (f != null && placeables.isNotEmpty()) {
+            val i = f.toInt().coerceAtMost(placeables.size - 1)
+            val j = (i + 1).coerceAtMost(placeables.size - 1)
+            val t = f - i
+            val px = xs[i] + (xs[j] - xs[i]) * t
+            val pw = placeables[i].width + (placeables[j].width - placeables[i].width) * t
+            pillM.measure(Constraints.fixed(pw.roundToInt().coerceAtLeast(0), height)) to px.roundToInt()
+        } else null
         layout(width, height) {
-            var x = 0
-            for (p in placeables) {
-                p.placeRelative(x, 0)
-                x += p.width + gapPx
-            }
+            pillP?.let { (p, x) -> p.placeRelative(x, 0) }
+            for ((i, p) in placeables.withIndex()) p.placeRelative(xs[i], 0)
         }
     }
 }
@@ -104,7 +135,6 @@ private fun StripTab(text: String, on: Boolean, height: Dp, pad: Dp, count: Int?
     Box(
         Modifier
             .height(height)
-            .then(if (on) Modifier.shadowLow(shape, c).ring(shape, c.borderSubtle).background(c.bgSurface, shape).background(sheen(c), shape).topEdge(shape, c.edgeLight) else Modifier)
             .clip(shape)
             .pressable(remember { MutableInteractionSource() }, role = Role.Tab, onClick = onClick)
             .semantics { selected = on }

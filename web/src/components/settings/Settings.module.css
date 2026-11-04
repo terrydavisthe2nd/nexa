@@ -127,6 +127,19 @@
 .legalReportRow > input { flex: 1 1 180px; min-width: 0; }
 /* a phone has no room for the words beside the button: the button goes under them */
 @media (max-width: 767px) { .dangerBox { flex-direction: column; align-items: stretch; gap: 12px; } .dangerBox > :last-child { align-self: flex-end; } }
+/* On a phone the list and a page take turns (SettingsLayer's arrive): a page
+   pushes in from the side it opens towards and the list comes back from the
+   other, both still in view as they move, instead of a page fading in from
+   nothing. */
+@media (max-width: 767px) {
+  .content { animation: none; }
+  .layer[data-arrive="page"] .contentWrap { animation: pushIn 240ms var(--ease-out); }
+  .layer[data-arrive="list"] .navWrap { animation: popBack 240ms var(--ease-out); }
+  [dir="rtl"] .layer[data-arrive="page"] .contentWrap { animation-name: popBack; }
+  [dir="rtl"] .layer[data-arrive="list"] .navWrap { animation-name: pushIn; }
+}
+@keyframes pushIn { from { transform: translateX(32px); opacity: 0.5; } }
+@keyframes popBack { from { transform: translateX(-32px); opacity: 0.5; } }
 /* beside the nav on a tablet there is no room for the form and a 300px preview */
 @media (max-width: 1023px) {
   .twoCol { grid-template-columns: minmax(0, 1fr); }

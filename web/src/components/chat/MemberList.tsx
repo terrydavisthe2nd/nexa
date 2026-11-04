@@ -46,7 +46,7 @@ const VIRTUAL_FROM = 200;
 /** Members grouped by hoisted roles, then online, then offline; windowed past 200 rows. */
 const NO_PICKS: string[] = [];
 
-export function MemberList({ serverId, channelId, drawer, open }: { serverId: string; channelId: string; drawer?: boolean; open?: boolean }) {
+export function MemberList({ serverId, channelId, drawer, open, entering, onEntered }: { serverId: string; channelId: string; drawer?: boolean; open?: boolean; entering?: boolean; onEntered?: () => void }) {
   const st = useServers((x) => x.byId[serverId]);
   const upsertMembers = useServers((x) => x.upsertMembers);
   const users = useUsers((u) => u.byId);
@@ -234,7 +234,7 @@ export function MemberList({ serverId, channelId, drawer, open }: { serverId: st
   const bulk = isPicking ? memberBulk(serverId, picked) : null;
 
   return (
-    <aside className={s.list} ref={ref} onScroll={(e) => virtual && setScrollTop(e.currentTarget.scrollTop)} data-testid="member-list" data-open={drawer ? !!open : undefined} aria-hidden={drawer && !open} {...(drawer && !open ? ({ inert: "" } as Record<string, string>) : {})}>
+    <aside className={s.list} ref={ref} onScroll={(e) => virtual && setScrollTop(e.currentTarget.scrollTop)} data-testid="member-list" data-open={drawer ? !!open : undefined} data-entering={entering || undefined} onAnimationEnd={(e) => { if (e.target === e.currentTarget && entering) onEntered?.(); }} aria-hidden={drawer && !open} {...(drawer && !open ? ({ inert: "" } as Record<string, string>) : {})}>
       {padTop ? <div style={{ height: padTop }} /> : null}
       {rows.slice(start, end).map((row) => {
         if (row.kind === "head") {

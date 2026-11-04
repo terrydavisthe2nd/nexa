@@ -175,18 +175,41 @@ function themeStyle(): HTMLStyleElement {
   return el;
 }
 
+/** What applyTheme last put on the page, to tell a change of theme from the same one again. */
+let drawn: string | null = null;
+
 /** Applies theme, accent, font scale and motion preferences to the document. */
 export function applyTheme(s: Appearance, draft?: ThemeDraft | null): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   const look = resolveLook(s, draft);
+  // Another theme (or accent, or size) goes on at once everywhere: controls
+  // easing from the old colours while the rest of the page has already
+  // changed read as a flicker, so transitions are held while it is applied
+  // and let go once every style has its new value (base.css).
+  const scale = String(Math.min(1.5, Math.max(0.75, s.fontScale || 1)));
+  const drawing = [look.id, look.classic, look.scheme, scale, s.accent ?? "", s.fontFace ?? "", JSON.stringify(look.tokens ?? null)].join("|");
+  const switching = drawn !== null && drawn !== drawing;
+  drawn = drawing;
+  if (switching) root.setAttribute("data-theme-switching", "");
+  try {
+    paintTheme(root, s, look, draft, scale);
+  } finally {
+    if (switching) {
+      void root.offsetWidth;
+      root.removeAttribute("data-theme-switching");
+    }
+  }
+}
+
+function paintTheme(root: HTMLElement, s: Appearance, look: ReturnType<typeof resolveLook>, draft: ThemeDraft | null | undefined, scale: string): void {
   if (look.classic === "dark") delete root.dataset["theme"];
   else root.dataset["theme"] = look.classic;
   // for custom CSS that wants to style one theme and not another
   root.dataset["look"] = look.id;
   // light or dark, for what draws itself outside the theme's tokens (the captcha)
   root.dataset["scheme"] = look.scheme;
-  root.style.setProperty("--font-scale", String(Math.min(1.5, Math.max(0.75, s.fontScale || 1))));
+  root.style.setProperty("--font-scale", scale);
   for (const v of ACCENT_VARS) root.style.removeProperty(v);
   // A theme being built is shown with its own accent, which is what is being chosen.
   const accent = s.accent && !draft ? accentVarsOn(s.accent, hardestSurface(look), look.scheme) : null;

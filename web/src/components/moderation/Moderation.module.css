@@ -219,8 +219,10 @@
   overflow: hidden;
   transition: box-shadow var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
   min-width: 0;
-  animation: cardRise 360ms var(--ease-out) both;
 }
+/* The cards themselves just appear: rising from nothing each time a filter or
+   tab changed blanked the whole grid for a moment. What rises is the bar a
+   choice brings up (.bulkBar). */
 @keyframes cardRise {
   from {
     opacity: 0;

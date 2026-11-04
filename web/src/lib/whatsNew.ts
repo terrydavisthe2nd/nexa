@@ -44,6 +44,7 @@ export const RELEASES: Release[] = [
       { icon: Link, title: "whatsNew.r20261102.musicLinkTitle", body: "whatsNew.r20261102.musicLinkBody" },
       { icon: HandCoins, title: "whatsNew.r20261102.pwywTitle", body: "whatsNew.r20261102.pwywBody" },
       { icon: RotateCcw, title: "whatsNew.r20261102.refundsTitle", body: "whatsNew.r20261102.refundsBody" },
+      { icon: Sparkles, title: "whatsNew.r20261102.motionTitle", body: "whatsNew.r20261102.motionBody" },
     ],
   },
   {

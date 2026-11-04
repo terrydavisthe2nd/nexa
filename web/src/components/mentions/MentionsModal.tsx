@@ -248,7 +248,7 @@ export function MentionsModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal open onClose={onClose} title={t("mentions.title")} width={760} className={s.modal}>
       <div className={s.bar}>
-        <div className={s.kinds} role="radiogroup" aria-labelledby={kindLabel}>
+        <div className={s.kinds} role="radiogroup" data-glide="" aria-labelledby={kindLabel}>
           <span id={kindLabel} className={s.hidden}>{t("mentions.kindLabel")}</span>
           {kinds.map((k) => (
             <button

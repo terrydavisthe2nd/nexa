@@ -25,7 +25,17 @@
 /* the picture, as large as fits under the bar */
 .stageWrap { flex: 1; min-height: 0; display: flex; padding: 0 16px max(16px, env(safe-area-inset-bottom)); }
 .stage { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; touch-action: none; }
-.stage img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8); -webkit-user-select: none; user-select: none; animation: imgIn 260ms var(--ease-out); }
+.stage img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8); -webkit-user-select: none; user-select: none; }
+/* Opening, the picture grows into place with the dark; stepping to another,
+   the one arriving slides in from the side it was asked for, already in view,
+   rather than fading in from nothing over the dark (a blink between pictures). */
+.lightbox:not([data-step]) .stage img { animation: imgIn 260ms var(--ease-out); }
+.lightbox[data-step="next"] .stage img { animation: stepFromEnd 240ms var(--ease-out); }
+.lightbox[data-step="prev"] .stage img { animation: stepFromStart 240ms var(--ease-out); }
+[dir="rtl"] .lightbox[data-step="next"] .stage img { animation-name: stepFromStart; }
+[dir="rtl"] .lightbox[data-step="prev"] .stage img { animation-name: stepFromEnd; }
+@keyframes stepFromEnd { from { opacity: 0.4; transform: translateX(32px); } }
+@keyframes stepFromStart { from { opacity: 0.4; transform: translateX(-32px); } }
 @keyframes imgIn { from { opacity: 0; transform: scale(0.96); } }
 .video { max-width: 100%; max-height: 100%; background: #000; box-shadow: var(--shadow-high); }
 .stage[data-zoomed="true"] { cursor: grab; }

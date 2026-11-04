@@ -10,6 +10,7 @@ import { unlessUnsaved, useHoldUnsaved, useUnsaved } from "@/stores/unsaved";
 
 import { t } from "@/i18n";
 import { usePortalRoot } from "@/hooks/usePortalRoot";
+import { leaveCopy } from "@/lib/leaveCopy";
 /** A picture for each page the settings have, by its id, the same for a user's, a server's and a channel's. */
 const NAV_ICONS: Record<string, LucideIcon> = {
   account: UserRound,
@@ -107,6 +108,14 @@ export function SettingsLayer({
   navBody?: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Settings came in growing out of the page; it goes the same way, fading as
+  // it grows a little (lib/leaveCopy), rather than vanishing.
+  useLayoutEffect(() => {
+    const layer = ref.current;
+    return () => {
+      if (layer) leaveCopy(layer, { ms: 160, frames: [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(1.015)" }] });
+    };
+  }, []);
   const scroller = useRef<HTMLDivElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
   // into the full-screen element when a call is full screen, where the body is not seen
@@ -119,6 +128,17 @@ export function SettingsLayer({
     if (!mobile) setAtList(false);
   }, [mobile]);
   const onList = mobile && atList;
+  // On a phone the list and a page take turns: a page pushes in from the
+  // side it opens towards, and the list comes back from the other side, so
+  // something is always on screen (a page fading in from nothing read as a
+  // blink). Worked out as it renders, so the arriving side never shows still
+  // for a frame first.
+  const [listShown, setListShown] = useState(onList);
+  const [arrive, setArrive] = useState<"page" | "list" | null>(null);
+  if (listShown !== onList) {
+    setListShown(onList);
+    setArrive(mobile ? (onList ? "list" : "page") : null);
+  }
   // a page chosen from outside the nav (what Settings' search found) is opened, on a phone too
   const firstPage = useRef(true);
   useEffect(() => {
@@ -239,7 +259,7 @@ export function SettingsLayer({
     </button>
   );
   return createPortal(
-    <div ref={ref} className={s.layer} role="dialog" aria-modal="true" aria-label={label} data-modal-layer="" data-view={mobile ? (onList ? "list" : "page") : undefined} tabIndex={-1}>
+    <div ref={ref} className={s.layer} role="dialog" aria-modal="true" aria-label={label} data-modal-layer="" data-view={mobile ? (onList ? "list" : "page") : undefined} data-arrive={arrive ?? undefined} tabIndex={-1}>
       {mobile ? (
         <div className={s.topBar}>
           {onList ? (

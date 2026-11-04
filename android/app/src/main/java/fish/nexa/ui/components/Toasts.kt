@@ -1,5 +1,6 @@
 package fish.nexa.ui.components
 
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -49,15 +50,46 @@ import kotlinx.coroutines.delay
 @Composable
 fun ToastHost() {
     val toasts by Nexa.ui.toasts.collectAsState()
+    // A toast that goes stays drawn while it leaves: it rises a little and fades
+    // as the space it took closes, so the ones under it slide up instead of
+    // jumping (web Toasts.tsx). What is drawn keeps its place; new ones join the end.
+    val drawn = remember { mutableListOf<Toast>() }
+    var dropped by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    for (t in toasts) if (drawn.none { it.id == t.id }) drawn.add(t)
+    val live = toasts.mapTo(HashSet()) { it.id }
     Box(Modifier.fillMaxSize().statusBarsPadding().padding(top = 60.dp), contentAlignment = Alignment.TopCenter) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            for (toast in toasts) key(toast.id) { ToastView(toast) }
+            dropped // read, so a toast that has finished leaving is let go of
+            for (toast in drawn.toList()) key(toast.id) {
+                ToastSlot(toast, toast.id in live) {
+                    drawn.removeAll { it.id == toast.id }
+                    dropped++
+                }
+            }
         }
     }
+}
+
+/** One toast in the column, with the gap under it, which closes with it as it leaves. */
+@Composable
+private fun ToastSlot(toast: Toast, live: Boolean, gone: () -> Unit) {
+    val still = Nx.motion.reduced
+    val state = remember { androidx.compose.animation.core.MutableTransitionState(true) }
+    LaunchedEffect(live) { state.targetState = live }
+    androidx.compose.animation.AnimatedVisibility(
+        visibleState = state,
+        enter = androidx.compose.animation.EnterTransition.None,
+        exit = if (still) androidx.compose.animation.ExitTransition.None
+        else androidx.compose.animation.fadeOut(tween(200)) +
+            androidx.compose.animation.shrinkVertically(tween(200), shrinkTowards = Alignment.Top) +
+            androidx.compose.animation.slideOutVertically(tween(200)) { -it / 6 },
+    ) {
+        Box(Modifier.padding(bottom = 8.dp)) { ToastView(toast) }
+    }
+    if (!live && state.isIdle && !state.currentState) LaunchedEffect(Unit) { gone() }
 }
 
 @Composable
