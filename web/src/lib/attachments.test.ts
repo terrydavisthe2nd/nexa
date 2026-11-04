@@ -265,7 +265,27 @@ describe("uploadStaged", () => {
         return onPiece(job, body);
       };
       const { meta } = await uploadStaged("c1", staged(data), () => undefined, send);
-      expect(server.jobs[3]!.first).toBe(server.jobs[2]!.first);
+      // the piece whose request failed goes out again later
+      const failed = server.jobs[2]!.first;
+      expect(server.jobs.slice(3).some((j) => j.first === failed)).toBe(true);
+      expect(await same(server.stored(), meta.key, data)).toBe(true);
+    });
+
+    it("sends the next piece while the current one's answer is on its way", async () => {
+      const { server, send } = fakeServer();
+      const onPiece = server.onPiece;
+      const events: string[] = [];
+      server.onPiece = async (job, body) => {
+        events.push(`sent ${job.first}`);
+        // the answer takes a while, as it does through the proxy
+        await new Promise((r) => setTimeout(r, 30));
+        const reply = await onPiece(job, body);
+        events.push(`answered ${job.first}`);
+        return reply;
+      };
+      const { meta } = await uploadStaged("c1", staged(data), () => undefined, send);
+      const second = server.jobs.find((j) => j.first > 0)!.first;
+      expect(events.indexOf(`sent ${second}`)).toBeLessThan(events.indexOf("answered 0"));
       expect(await same(server.stored(), meta.key, data)).toBe(true);
     });
 
@@ -369,7 +389,9 @@ describe("uploadStaged", () => {
         throw new Error("network");
       };
       await expect(uploadStaged("c1", staged(data), () => undefined, send)).rejects.toThrow("network");
-      expect(server.jobs).toHaveLength(4);
+      // the first piece is tried four times; the one sent ahead of it once
+      expect(server.jobs.filter((j) => j.first === 0)).toHaveLength(4);
+      expect(server.jobs.length).toBeLessThanOrEqual(5);
       expect(server.cancelled).toBe(1);
     });
   });

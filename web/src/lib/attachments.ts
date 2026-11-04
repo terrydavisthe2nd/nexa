@@ -427,6 +427,42 @@ export async function uploadInPieces(file: Blob, key: Uint8Array, baseIv: Uint8A
     return body;
   };
   let prepared: Promise<Uint8Array<ArrayBuffer>> | undefined;
+  // The next piece goes out as soon as the current one's bytes have left,
+  // while its answer is still on the way: through the proxy and a home
+  // connection that round trip left the line idle at every piece boundary,
+  // so a big upload stopped and started. The server holds a piece that comes
+  // early until the one before it has landed.
+  /** The piece sent early, whether its bytes have all left, and what to do when they have. */
+  type Ahead = { first: number; reply: Promise<unknown>; left: boolean; onLeft?: () => void };
+  let ahead: Ahead | undefined;
+  let shown = 0;
+  const show = (n: number): void => {
+    if (n > shown) {
+      shown = n;
+      onProgress(n);
+    }
+  };
+  const launchNext = (next: number): void => {
+    if (ahead || next >= chunks || !prepared || signal?.aborted) return;
+    const count = Math.min(perPiece, chunks - next);
+    const start = frameOffset(next);
+    const body = prepared;
+    prepared = next + count < chunks ? prepare(next + count) : undefined;
+    const end = Math.min(total, frameOffset(next + count));
+    const entry: Ahead = { first: next, reply: Promise.resolve(), left: false };
+    entry.reply = body.then((b) =>
+      send({ method: "PATCH", path: `/uploads/${session.id}`, headers: { "Upload-Offset": String(start) }, file, key, baseIv, first: next, count, skip: 0, body: b }, (loaded) => {
+        show(start + loaded);
+        if (start + loaded >= end && !entry.left) {
+          entry.left = true;
+          entry.onLeft?.();
+        }
+      }, signal),
+    );
+    // taken, or its failure handled, when its turn comes
+    void entry.reply.catch(() => undefined);
+    ahead = entry;
+  };
   try {
     prepared = prepare(0);
     for (let first = 0; first < chunks; first += perPiece) {
@@ -434,18 +470,39 @@ export async function uploadInPieces(file: Blob, key: Uint8Array, baseIv: Uint8A
       const start = first === 0 ? 0 : frameOffset(first);
       const end = Math.min(total, frameOffset(first + count));
       if (sent !== start) throw new Error(t("attachments.theUploadLostItsPlace"));
-      let body: Uint8Array<ArrayBuffer> | undefined = await prepared;
-      if (signal?.aborted) throw cancelled();
-      prepared = first + count < chunks ? prepare(first + count) : undefined;
+      const early = ahead && ahead.first === first ? ahead : undefined;
+      let pending = early?.reply;
+      ahead = undefined;
+      // now the current piece: once its bytes have left, the next one goes
+      if (early) {
+        if (early.left) launchNext(first + count);
+        else early.onLeft = () => launchNext(first + count);
+      }
+      let body: Uint8Array<ArrayBuffer> | undefined;
+      if (!pending) {
+        body = await prepared;
+        if (signal?.aborted) throw cancelled();
+        prepared = first + count < chunks ? prepare(first + count) : undefined;
+      }
       let tries = 0;
       while (sent < end) {
         try {
           if (signal?.aborted) throw cancelled();
-          const job: PieceJob = { method: "PATCH", path: `/uploads/${session.id}`, headers: { "Upload-Offset": String(sent) }, file, key, baseIv, first, count, skip: sent - start, ...(body ? { body } : {}) };
-          // A worker transfers the buffer, so a retry must regenerate it.
-          body = undefined;
-          const from = sent;
-          const reply = (await send(job, (loaded) => onProgress(from + loaded), signal)) as { received?: number } | undefined;
+          let reply: { received?: number } | undefined;
+          if (pending) {
+            const waiting = pending;
+            pending = undefined;
+            reply = (await waiting) as { received?: number } | undefined;
+          } else {
+            const job: PieceJob = { method: "PATCH", path: `/uploads/${session.id}`, headers: { "Upload-Offset": String(sent) }, file, key, baseIv, first, count, skip: sent - start, ...(body ? { body } : {}) };
+            // A worker transfers the buffer, so a retry must regenerate it.
+            body = undefined;
+            const from = sent;
+            reply = (await send(job, (loaded) => {
+              show(from + loaded);
+              if (from + loaded >= end) launchNext(first + count);
+            }, signal)) as { received?: number } | undefined;
+          }
           const received = reply?.received ?? -1;
           if (received <= sent || received > end) throw new Error(t("attachments.theServerLostTrackOfThis"));
           sent = received;
@@ -467,7 +524,7 @@ export async function uploadInPieces(file: Blob, key: Uint8Array, baseIv: Uint8A
           sent = landed.received;
           if (sent < end) await new Promise((r) => setTimeout(r, 400 * tries));
         }
-        onProgress(sent);
+        show(sent);
       }
     }
     if (sent !== total) throw new Error(t("attachments.theUploadCameOutADifferentSize"));

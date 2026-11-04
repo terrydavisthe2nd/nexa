@@ -726,8 +726,12 @@ as Discord holds it:
   transfer), so stalled retries cannot pile up copies of an offset. Reservations assume the one chatd
   process the deployment uses.
 - Clients (web `lib/attachments.ts`, Android `data/Send.kt`) prepare the next piece while one is in
-  flight and hold at most the active request and one prepared piece, landing in order at the confirmed
-  offset; `encryptChunks` writes frames straight into the request buffer and partial retries send a view
+  flight, and send it as soon as the current piece's bytes have left, before its answer: through
+  Cloudflare and a home connection that round trip left the line idle at every 32 MB boundary, so big
+  uploads stopped and started (2026-11-04). The server takes a piece up to one piece ahead of what has
+  landed and holds it (`aheadWait`, two minutes) until its predecessor lands, so pieces still land in
+  order at the confirmed offset; at most two pieces of one upload are in flight and staged at once
+  (`maxChunkStagesPerUpload`), and a failed early piece goes through the same resume as any other; `encryptChunks` writes frames straight into the request buffer and partial retries send a view
   or offset (web workers regenerate a transferred buffer if they fail before starting). Downloads read
   ahead at most one encrypted chunk (web `crypto/streamDecrypt.ts`; Android `media/Media.kt` and
   `media/Downloads.kt` through the bounded pipe `media/TransferStreams.kt`); authentication and the

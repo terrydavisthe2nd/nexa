@@ -41,7 +41,9 @@ const (
 	// pendingAllowance is what one account may hold in files not sent yet,
 	// beyond the largest single file: room for a few files on their way
 	// while the big one finishes.
-	pendingAllowance        = 4 << 30
+	pendingAllowance = 4 << 30
+	// aheadWait is how long a piece sent ahead waits for the one before it.
+	aheadWait               = 2 * time.Minute
 	maxChunkStages          = 16
 	maxChunkStagesPerUpload = 2 // a stalled request must still allow its retry
 )
@@ -280,7 +282,11 @@ func (s *Server) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, E(http.StatusBadRequest, "bad_offset", "Upload-Offset must say where this piece belongs."))
 		return
 	}
-	if offset != up.Received {
+	// One piece may come ahead of the one still landing: apps send the next
+	// as soon as the current one has left, so the connection never idles
+	// through a round trip at each piece boundary. It waits its turn below.
+	ahead := offset > up.Received && offset-up.Received <= MaxChunkBytes
+	if offset != up.Received && !ahead {
 		// Not an error worth failing over: tell the client where to resume.
 		w.Header().Set("Upload-Offset", strconv.FormatInt(up.Received, 10))
 		WriteError(w, E(http.StatusConflict, "offset_mismatch", "That piece does not follow on from what has arrived."))
@@ -317,6 +323,21 @@ func (s *Server) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer os.Remove(piece)
+	if ahead {
+		// the piece before it is still arriving or being written
+		deadline := time.Now().Add(aheadWait)
+		for {
+			cur, err := s.Store.UploadByID(r.Context(), up.ID)
+			if err != nil || cur.Received >= offset || cur.BlobID != nil || time.Now().After(deadline) {
+				break
+			}
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(50 * time.Millisecond):
+			}
+		}
+	}
 	unlock := s.Media.LockUpload(up.ID)
 	defer unlock()
 	// another request may have landed this piece while the body was arriving

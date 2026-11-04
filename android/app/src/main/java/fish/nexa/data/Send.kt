@@ -21,6 +21,8 @@ import fish.nexa.ui.t
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -794,7 +796,48 @@ object Uploads {
                     FileCrypto.encryptChunks(raf, st.size, key, baseIv, first, minOf(perPiece, chunks - first))
                 }
             }
-            var prepared = prepare(0)
+            // The next piece goes out as soon as the current one's bytes have
+            // left, while its answer is still on the way (lib/attachments.ts):
+            // through the proxy and a home connection that round trip left the
+            // line idle at every piece boundary. The server holds a piece that
+            // comes early until the one before it has landed. Its failure is
+            // kept as a result, so it cannot cancel the upload before its turn.
+            class Ahead(val first: Int, val body: Deferred<ByteArray>) {
+                lateinit var reply: Deferred<Result<JsonObject>>
+                @Volatile var left = false
+                @Volatile var onLeft: (() -> Unit)? = null
+            }
+            val lock = Any()
+            var prepared: Deferred<ByteArray>? = prepare(0)
+            var ahead: Ahead? = null
+            val shown = java.util.concurrent.atomic.AtomicLong(0)
+            fun show(n: Long) {
+                if (shown.getAndAccumulate(n) { a, b -> maxOf(a, b) } < n) onProgress(n)
+            }
+            fun launchNext(next: Int) {
+                synchronized(lock) {
+                    val body = prepared
+                    if (ahead != null || next >= chunks || body == null) return
+                    val count = minOf(perPiece, chunks - next)
+                    val start = FileCrypto.frameOffset(next)
+                    val end = minOf(total, FileCrypto.frameOffset(next + count))
+                    prepared = if (next + count < chunks) prepare(next + count) else null
+                    val entry = Ahead(next, body)
+                    entry.reply = async(start = CoroutineStart.LAZY) {
+                        runCatching {
+                            post("/uploads/$id", "PATCH", body.await(), mapOf("Upload-Offset" to start.toString()), offset = 0) {
+                                show(start + it)
+                                if (start + it >= end && !entry.left) {
+                                    entry.left = true
+                                    entry.onLeft?.invoke()
+                                }
+                            }
+                        }
+                    }
+                    ahead = entry
+                    entry.reply.start()
+                }
+            }
             try {
                 var first = 0
                 while (first < chunks) {
@@ -802,15 +845,32 @@ object Uploads {
                     val start = if (first == 0) 0L else FileCrypto.frameOffset(first)
                     val end = minOf(total, FileCrypto.frameOffset(first + count))
                     if (sent != start) throw ApiError(0, "lost", t("attachments.theUploadLostItsPlace"))
-                    val whole = prepared.await()
-                    val next = first + count
-                    if (next < chunks) prepared = prepare(next)
+                    val early = synchronized(lock) { ahead.also { ahead = null } }?.takeIf { it.first == first }
+                    var pending = early?.reply
+                    val whole: ByteArray
+                    if (early != null) {
+                        // now the current piece: once its bytes have left, the next one goes
+                        early.onLeft = { launchNext(first + count) }
+                        if (early.left) launchNext(first + count)
+                        whole = early.body.await()
+                    } else {
+                        whole = prepared!!.await()
+                        synchronized(lock) { prepared = if (first + count < chunks) prepare(first + count) else null }
+                    }
                     var tries = 0
                     while (sent < end) {
                         try {
-                            val skip = (sent - start).toInt()
-                            val from = sent
-                            val reply = post("/uploads/$id", "PATCH", whole, mapOf("Upload-Offset" to sent.toString()), offset = skip) { onProgress(from + it) }
+                            val reply = pending?.let {
+                                pending = null
+                                it.await().getOrThrow()
+                            } ?: run {
+                                val skip = (sent - start).toInt()
+                                val from = sent
+                                post("/uploads/$id", "PATCH", whole, mapOf("Upload-Offset" to sent.toString()), offset = skip) {
+                                    show(from + it)
+                                    if (from + it >= end) launchNext(first + count)
+                                }
+                            }
                             val received = (reply["received"] as? JsonPrimitive)?.longOrNull ?: -1
                             if (received <= sent || received > end) throw ApiError(0, "lost", t("attachments.theServerLostTrackOfThis"))
                             sent = received
@@ -828,12 +888,15 @@ object Uploads {
                             sent = landed.first
                             if (sent < end) delay(400L * tries)
                         }
-                        onProgress(sent)
+                        show(sent)
                     }
                     first += perPiece
                 }
             } finally {
-                prepared.cancel()
+                synchronized(lock) {
+                    prepared?.cancel()
+                    ahead?.reply?.cancel()
+                }
             }
             if (sent != total) throw ApiError(0, "size", t("attachments.theUploadCameOutADifferentSize"))
             finishUpload(id)
