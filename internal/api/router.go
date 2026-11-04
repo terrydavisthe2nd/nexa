@@ -101,12 +101,14 @@ type Server struct {
 	limMsg     *ratelimit.Limiter
 	limUpload  *ratelimit.Limiter
 	// limParts paces the parts of uploads relayed to the bucket and finishing
-	// them, limReads downloads read from it, and limRelay opening uploads
-	// there, each a billed write (past it an upload lands here instead),
-	// per account (upload_relay.go)
+	// them, and limRelay opening uploads there, each a billed write (past it
+	// an upload lands here instead), per account (upload_relay.go); limLinks
+	// paces links to download from it (past it the bytes come through here)
+	// and limReads those streamed through here (storage_links.go)
 	limParts   *ratelimit.Limiter
-	limReads   *ratelimit.Limiter
 	limRelay   *ratelimit.Limiter
+	limLinks   *ratelimit.Limiter
+	limReads   *ratelimit.Limiter
 	limUnfurl  *ratelimit.Limiter
 	limProxy   *ratelimit.Limiter
 	limYouTube *ratelimit.Limiter
@@ -298,6 +300,8 @@ func NewServer(cfg config.Config, st *store.Store, log *slog.Logger, bc Broadcas
 		// a 4 GB file is 256 parts, with room for retries and finishing; a
 		// part may be sent six times at most
 		limParts: ratelimit.New(ratelimit.Every(240, time.Minute), 300, time.Hour),
+		// a chat full of pictures asks for one link each
+		limLinks: ratelimit.New(ratelimit.Every(300, time.Minute), 600, time.Hour),
 		// a chat full of pictures reads one file each, a video a stretch at a time
 		limReads: ratelimit.New(ratelimit.Every(300, time.Minute), 600, time.Hour),
 		// sixty big files an hour, thirty at once
@@ -434,7 +438,7 @@ func NewServer(cfg config.Config, st *store.Store, log *slog.Logger, bc Broadcas
 func (s *Server) limiters() map[string]*ratelimit.Limiter {
 	out := map[string]*ratelimit.Limiter{
 		"generic": s.limGeneric, "auth-ip": s.limAuthIP, "auth-user": s.limAuthUsr, "register": s.limReg, "signup": s.limSignup, "message": s.limMsg,
-		"upload": s.limUpload, "parts": s.limParts, "reads": s.limReads, "relay": s.limRelay, "unfurl": s.limUnfurl, "proxy": s.limProxy, "youtube": s.limYouTube, "refresh": s.limRefresh, "voice": s.limVoice, "turn": s.limTurn,
+		"upload": s.limUpload, "parts": s.limParts, "links": s.limLinks, "reads": s.limReads, "relay": s.limRelay, "unfurl": s.limUnfurl, "proxy": s.limProxy, "youtube": s.limYouTube, "refresh": s.limRefresh, "voice": s.limVoice, "turn": s.limTurn,
 		"guest": s.limGuest, "rotate": s.limRotate, "password": s.limPass, "profile": s.limProfile, "expressions": s.limExpr,
 		"import": s.limImport, "crash": s.limCrash, "bug": s.limBug, "report": s.limReport, "bug-file": s.limBugFile, "key-ask": s.limKeyAsk,
 		"webhook": s.limHook, "webhook-channel": s.limHookCh, "webhook-manage": s.limHookMgr, "poll-vote": s.limVote, "discord": s.limDiscord, "server-tag": s.limTag, "music-search": s.limMusic, "music-preview": s.limPreview,

@@ -100,6 +100,9 @@ type storageMeter struct {
 	baseA, baseB   int64
 	lastMeasure    time.Time
 	measureFailing bool
+	// this month's reads have passed their cap, so downloads get no links
+	// (storage_links.go)
+	readsOver bool
 }
 
 type opSnap struct {
@@ -341,6 +344,7 @@ func (s *Server) StartStorage(ctx context.Context) {
 			s.flushStorageOps(ctx)
 			s.noteCounts(ctx)
 			s.measureStorage(ctx)
+			s.noteReads(ctx)
 			s.relay.prune()
 			if n, err := s.Media.SweepRemote(ctx, 500); err != nil && ctx.Err() == nil {
 				s.Log.Warn("storage: delete from the bucket", "err", err)
@@ -399,6 +403,8 @@ func (s *Server) storageStatus(ctx context.Context) map[string]any {
 		"measured_at": nil,
 		// Cloudflare's numbers are read here, once they can be
 		"measuring": s.R2Analytics != nil,
+		// whether downloads get links to the bucket (storage_links.go)
+		"links": s.linksStatus(ctx, n.b),
 	}
 	if !n.measuredUntil.IsZero() {
 		out["measured_at"] = n.measuredUntil.UnixMilli()

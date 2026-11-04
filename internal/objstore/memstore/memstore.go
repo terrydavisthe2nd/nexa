@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"evilion.xyz/chat/internal/objstore"
 )
@@ -77,6 +78,10 @@ func (b *Bucket) Get(_ context.Context, key string, from, n int64) (io.ReadClose
 		d = d[:n]
 	}
 	return io.NopCloser(bytes.NewReader(d)), nil
+}
+
+func (b *Bucket) Presign(key string, _ time.Duration) string {
+	return "https://bucket.test/" + key + "?X-Amz-Signature=x"
 }
 
 func (b *Bucket) CreateMultipart(_ context.Context, key, _ string) (string, error) {

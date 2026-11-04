@@ -691,6 +691,8 @@ export interface StorageMeter {
   measured_at: number | null;
   /** Cloudflare's measurements are read here (an analytics token is set), once they can be. */
   measuring: boolean;
+  /** Whether downloads get links to the bucket: they stop for the month once reads cost more than cap_cents (internal/api/storage_links.go). */
+  links?: { on: boolean; read_cents: number; cap_cents: number };
 }
 
 export interface AdminSettings {

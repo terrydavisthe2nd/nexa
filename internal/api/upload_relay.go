@@ -243,15 +243,3 @@ func (s *Server) dropRelay(r *http.Request, up *store.Upload) {
 	s.relay.forget(up.ID)
 	s.storageChanged()
 }
-
-// BucketReadOK paces reads from the bucket per account (media.Store.ReadOK):
-// every download of a file kept there is a read this server makes and the
-// bucket bills.
-func (s *Server) BucketReadOK(r *http.Request) bool {
-	key := "ip:" + auth.ClientIP(r)
-	if u := auth.UserFrom(r.Context()); u != nil {
-		key = "u:" + u.ID.String()
-	}
-	ok, _ := s.limReads.Allow(key)
-	return ok
-}

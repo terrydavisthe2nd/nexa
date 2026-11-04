@@ -11,6 +11,29 @@ export function attachmentUrl(blobId: Snowflake): string {
   return `${api.baseUrl}/media/attachments/${blobId}`;
 }
 
+/** What the server answers a request marked X-Nexa-Link with once the file is in the bucket (internal/media/remote.go). */
+const LINK_TYPE = "application/vnd.nexa.link+json";
+
+/**
+ * An attachment's ciphertext, from this server or, once the file has moved
+ * to the bucket, from the signed link the server hands over, fetched without
+ * the token: the bucket refuses a request carrying both, and WebKit keeps the
+ * Authorization header across a redirect to another origin. The download
+ * worker does the same in download-sw.ts.
+ */
+async function fetchAttachment(blobId: Snowflake, signal?: AbortSignal): Promise<Response> {
+  const headers: Record<string, string> = { "X-Nexa-Link": "1" };
+  const token = api.getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await api.fetchImpl(attachmentUrl(blobId), signal ? { method: "GET", headers, signal } : { method: "GET", headers });
+  if (!res.ok || !(res.headers.get("Content-Type") ?? "").startsWith(LINK_TYPE)) return res;
+  const body = (await res.json()) as { url?: unknown };
+  if (typeof body.url !== "string" || !/^https?:\/\//.test(body.url)) throw new ApiError(0, "bad_response", t("errors.theServerSAnswerMadeNo"));
+  const direct: RequestInit = { method: "GET", credentials: "omit", referrerPolicy: "no-referrer" };
+  if (signal) direct.signal = signal;
+  return api.fetchImpl(body.url, direct);
+}
+
 export const channels = {
   createDM(recipientIds: Snowflake[], name?: string): Promise<Channel> {
     const body: { recipient_ids: Snowflake[]; name?: string } = { recipient_ids: recipientIds };
@@ -94,12 +117,7 @@ export const channels = {
    * many bytes have come in so far, which means reading the body piece by piece.
    */
   async downloadAttachment(blobId: Snowflake, signal?: AbortSignal, expected?: number, onProgress?: (got: number) => void): Promise<Blob> {
-    const headers: Record<string, string> = {};
-    const token = api.getToken();
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const init: RequestInit = { method: "GET", headers };
-    if (signal) init.signal = signal;
-    const res = await api.fetchImpl(attachmentUrl(blobId), init);
+    const res = await fetchAttachment(blobId, signal);
     if (!res.ok) throw await errorFromResponse(res);
     if (expected === undefined || !res.body) return res.blob();
     const wrongSize = (): ApiError => new ApiError(0, "size_mismatch", t("channels.thatFileIsNotTheSize"));

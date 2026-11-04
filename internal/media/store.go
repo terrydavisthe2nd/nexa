@@ -42,8 +42,12 @@ type Store struct {
 	// monthly limit: the bucket client reports its own, and this store adds
 	// the read an app makes with each signed link it is given.
 	Billed func(class byte)
-	// ReadOK, when set, says whether a download may read from the bucket
-	// now; no answers 429 (api paces reads per account, each one billed).
+	// LinkOK, when set, says whether a download may be handed a signed link
+	// to the bucket; without one the bytes stream through here. ReadOK says
+	// whether such a stream may read from the bucket now; no answers 429.
+	// (api: links stop past the month's cap on reads and an account's pace;
+	// streams are paced per account, each read billed.)
+	LinkOK func(r *http.Request) bool
 	ReadOK func(r *http.Request) bool
 	skipMu sync.Mutex
 	skips  map[string]bool

@@ -410,6 +410,20 @@ private fun FileStorageSection(meter: JsonObject?, limitCents: Long?, onSaved: (
             }
             FieldRow(t("settings.admin.storageInBucket"), Time.bytes(meter.num("stored_bytes")), Modifier.padding(vertical = 8.dp))
             FieldRow(t("settings.admin.storageWaiting"), Time.bytes(meter.num("waiting_bytes")), Modifier.padding(vertical = 8.dp))
+            // whether downloads get links to R2 (api/storage_links.go)
+            (meter["links"] as? JsonObject)?.let { links ->
+                val on = links.flag("on")
+                val cap = dollars(links.num("cap_cents"))
+                Column(Modifier.padding(vertical = 8.dp)) {
+                    Txt(t("settings.admin.downloadLinks"), style = Nx.type.label.copy(fontSize = Nx.type.sp(12.5f), fontWeight = FontWeight(700)), color = c.textMuted)
+                    Txt(t(if (on) "settings.admin.downloadLinksOn" else "settings.admin.downloadLinksOff"), style = Nx.type.body, color = if (on) c.text else c.textWarning, modifier = Modifier.padding(top = 2.dp))
+                    Txt(
+                        if (on) t("settings.admin.downloadLinksReads", "cost" to dollars(links.num("read_cents")), "cap" to cap)
+                        else t("settings.admin.downloadLinksPaused", "cap" to cap),
+                        style = Nx.type.bodySmall, color = if (on) c.textMuted else c.textWarning,
+                    )
+                }
+            }
         }
         // where the numbers come from: Cloudflare's measurements, or this server's count alone
         val measuredAt = meter.num("measured_at")

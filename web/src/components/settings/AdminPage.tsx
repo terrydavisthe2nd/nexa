@@ -372,6 +372,21 @@ function FileStorage({ meter, limitCents, onSaved }: { meter: StorageMeter | nul
           ) : null}
           <div className={st.row}><span className={st.rowLabel}>{tr_("settings.admin.storageInBucket")}</span><span className={st.rowValue}>{formatBytes(meter.stored_bytes)}</span></div>
           <div className={st.row}><span className={st.rowLabel}>{tr_("settings.admin.storageWaiting")}</span><span className={st.rowValue}>{formatBytes(meter.waiting_bytes)}</span></div>
+          {meter.links ? (
+            <div className={st.row} data-testid="admin-download-links">
+              <span className={st.rowLabel}>
+                {tr_("settings.admin.downloadLinks")}
+                <span className={st.deviceSub} style={{ display: "block", fontWeight: 400, ...(meter.links.on ? {} : { color: "var(--text-warning)" }) }}>
+                  {meter.links.on
+                    ? tr_("settings.admin.downloadLinksReads", { cost: dollars(meter.links.read_cents), cap: dollars(meter.links.cap_cents) })
+                    : tr_("settings.admin.downloadLinksPaused", { cap: dollars(meter.links.cap_cents) })}
+                </span>
+              </span>
+              <span className={st.rowValue} style={{ flexShrink: 0, whiteSpace: "nowrap", ...(meter.links.on ? {} : { color: "var(--text-warning)" }) }}>
+                {tr_(meter.links.on ? "settings.admin.downloadLinksOn" : "settings.admin.downloadLinksOff")}
+              </span>
+            </div>
+          ) : null}
         </div>
       ) : <Spinner />}
       {meter ? <p className={st.hint} style={{ margin: "8px 0 0", fontSize: 13 }}>{meter.measured_at ? tr_("settings.admin.storageMeasured", { time: formatTime(meter.measured_at) }) : meter.measuring ? tr_("settings.admin.storageMeasuring") : tr_("settings.admin.storageEstimated")}</p> : null}

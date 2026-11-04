@@ -248,7 +248,9 @@ To try attachments in R2, start the scratch chatd with the test bucket's setting
 whose token reaches no other bucket). Never point a test at the live bucket, `nexa-media`. Uploads
 stream straight there; the mover takes held files left on disk a minute old every half minute. Go
 tests use `objstore/memstore`, an in-memory bucket that refuses short streams as R2 does. In
-Playwright, delete `window.showSaveFilePicker` in headless Chromium, which never answers it.
+Playwright, clear `e2e.Session`'s CF-Connecting-IP (`ctx.set_extra_http_headers({})`) before
+downloading from the bucket, since it follows the link there and asks for a preflight no real browser
+makes, and delete `window.showSaveFilePicker` in headless Chromium, which never answers it.
 
 ### The dev instance (dev.nexa.fish)
 
@@ -428,8 +430,8 @@ SIGINT or SIGTERM.
 | `games`, `music`, `books`, `screen` | IGDB, Deezer, Open Library and TMDB for profile widgets; art kept, previews streamed through |
 | `gateway` | the WebSocket hub: connections, presence, typing, voice signalling, fan-out |
 | `ids` | snowflakes (41 bits of milliseconds, 10 of node, 12 of sequence), decimal strings in JSON |
-| `media` | blob storage, upload validation, sized variants, metadata scrub; attachments in the bucket: streamed in and out, moved there (`remote.go`), relayed in parts (`relay.go`) |
-| `objstore` | a small S3 client for the R2 bucket (SigV4, multipart, streamed puts checked by ETag, ranged reads), standard library only; `objstore/memstore` is an in-memory bucket for tests |
+| `media` | blob storage, upload validation, sized variants, metadata scrub; attachments in the bucket: streamed in, downloaded by link or streamed out, moved there (`remote.go`), relayed in parts (`relay.go`) |
+| `objstore` | a small S3 client for the R2 bucket (SigV4, multipart, streamed puts checked by ETag, ranged reads, presigned links), standard library only; `objstore/memstore` is an in-memory bucket for tests |
 | `perms` | Discord's permission model and bit values |
 | `ratelimit` | keyed token buckets, optionally shared through Redis |
 | `realtime` | Cloudflare Realtime: the SFU client, the usage meter, analytics, TURN keys |
@@ -689,22 +691,34 @@ as Discord holds it:
   the picture wins (`ChannelGlyph` on both clients, Android's in `ui/shell/Sidebars.kt`). The picker
   uploads at once and edits it as the value `picture`.
 - With an R2 bucket (`R2_*`), end-to-end encrypted attachments (kind `attachment`: message and note
-  files, sound pack recordings) live there, not on this disk, and every byte to and from the bucket
-  passes through this server: apps are never handed a link to it (the owner's decision, 2026-11-04: a
-  link cannot be taken back and every use is billed, so every request to the bucket is this server's
-  own, counted and paced). A single-request upload with a Content-Length streams straight to
-  `attachments/<content name>` as it arrives (`PutEncrypted`, `putEncryptedRemote`: `objstore.PutStream`
-  with `UNSIGNED-PAYLOAD`, checked against R2's MD5 ETag, then a HEAD, then `remote_blobs` and the
-  blob). Files that did land on disk (pieces from older apps, uploads without a length, files from
-  before the bucket) are moved by the mover: every half minute `StartStorage` (`api/storage_budget.go`)
-  copies held ones a minute old, checks the size with a HEAD, records them in `remote_blobs` and only
-  then deletes the file here. Reads prefer the disk; otherwise `/media/attachments/{id}` streams the
-  bucket's bytes through (`serveFromBucket`, ranges included, cached by browsers as immutable),
-  paced per account by `limReads` (`media.Store.ReadOK`, 429 past it), as do the bot CDN and
-  reported-file reads (`objstore.Reader`). `Remove` marks a copy gone and the next pass deletes it.
-  Pictures, private (bug, case, report) and webhook files never move, so the bucket holds only
-  ciphertext. The bucket's CORS rule (GET and HEAD from Nexa's origins) is left from when apps read it
-  directly and is unused.
+  files, sound pack recordings) live there, not on this disk. Uploads pass through this server and are
+  never written here (the owner's decision, 2026-11-04: the server disk is a slow SATA SSD, and apps
+  get no link to write to the bucket, since a link cannot be taken back). A single-request upload with
+  a Content-Length streams straight to `attachments/<content name>` as it arrives (`PutEncrypted`,
+  `putEncryptedRemote`: `objstore.PutStream` with `UNSIGNED-PAYLOAD`, checked against R2's MD5 ETag,
+  then a HEAD, then `remote_blobs` and the blob). Files that did land on disk (pieces from older apps,
+  uploads without a length, files from before the bucket) are moved by the mover: every half minute
+  `StartStorage` (`api/storage_budget.go`) copies held ones a minute old, checks the size with a HEAD,
+  records them in `remote_blobs` and only then deletes the file here. Reads prefer the disk.
+- Downloads of a file in the bucket (`serveFromBucket` in `media/remote.go`) get a presigned link good
+  for two minutes (`linkLife`; `Cache-Control: no-store`), counted as one read: as JSON
+  (`media.LinkType`, `url` and `expires_in`) when asked with `X-Nexa-Link: 1`, which the web app does
+  and then fetches the link without its token (`fetchAttachment` in `api/channels.ts`, `fetchCipher` in
+  `download-sw.ts`, which keeps the link for a job's later ranges until a minute before it lapses),
+  since R2 refuses a request carrying both and WebKit keeps the Authorization header across a
+  redirect; otherwise as a 302, which Android's OkHttp and older apps follow, dropping the header. A
+  link can be replayed until it lapses, so `api/storage_links.go` caps what reads may cost in a month:
+  past a fifth of the monthly limit (`readCapShare`; `readCapNoLimit`, $10, without one), as the meter
+  counts them (Cloudflare's measured reads when an analytics token is set), links stop for the rest of
+  the month (`noteReads`, each storage pass) and the bytes stream through here instead, ranges
+  included, cached by browsers as immutable and paced per account by `limReads` (`media.Store.ReadOK`,
+  429 past it). Reads alone therefore never stop uploads, which stop only at the whole limit. An
+  account asking for links faster than `limLinks` gets streamed bytes too (`LinkOK`). The meter's
+  `links` (`on`, `read_cents`, `cap_cents`) is the Download Links row in Settings, Nexa Admin. The bot
+  CDN and reported-file reads stream from the bucket (`objstore.Reader`). `Remove` marks a copy gone
+  and the next pass deletes it. Pictures, private (bug, case, report) and webhook files never move, so
+  the bucket holds only ciphertext. Its CORS allows GET and HEAD with `range` from Nexa's origins
+  (`nexa-media`; the test bucket `nexa-media-test` allows any origin).
 - Relayed uploads (`api/upload_relay.go`, `media/relay.go`): an app creates an upload of at least
   `relayMinBytes` (5 MiB, R2's smallest part) with `relay: true`; the answer's `relay` (`part_size`,
   `parts`) says it may, else it goes in pieces to disk as before. The server opens a multipart upload at
@@ -726,8 +740,8 @@ as Discord holds it:
   `FileStorage` in `settings/AdminPage.tsx`, Android `FileStorageSection` in `ui/settings/HelpPages.kt`;
   the meter is `storage` in `/admin/stats`). `storageCostCents` prices as R2 bills (checked 2026-11-04:
   $0.015 a GB-month, Class A and B requests, the free tiers, each rounded up) what the bucket holds plus
-  what waits here and is on its way, plus this month's requests (`storage_usage`, each request this server
-  makes, as the bucket client reports it). An upload headed for the bucket (`reserveUpload`'s `remote`) that would
+  what waits here and is on its way, plus this month's requests (`storage_usage`, a presigned link
+  counting as its one read). An upload headed for the bucket (`reserveUpload`'s `remote`) that would
   pass it answers 507 `storage_budget`, and the mover leaves files on disk rather than pass it. With an
   analytics token (`R2_ANALYTICS_TOKEN`, else `REALTIME_ANALYTICS_TOKEN` for the same account) the
   numbers are Cloudflare's: every five minutes `measureStorage` reads the bucket's measured size and

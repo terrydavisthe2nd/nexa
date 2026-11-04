@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,34 +83,46 @@ func TestAttachmentsMoveToTheBucket(t *testing.T) {
 	if err != nil || !bytes.Equal(got, sent) {
 		t.Fatalf("read back %d bytes: %v", len(got), err)
 	}
-	// downloads stream through here, never a link to the bucket, ranges too
+	// while links are on, a download gets a short signed link to the bucket,
+	// counted as the read it makes: a redirect, or JSON when the app asks
 	b, _ := st.BlobByID(ctx, sentID)
-	for _, linkAsked := range []bool{false, true} {
-		req := httptest.NewRequest(http.MethodGet, "/media/attachments/x", nil)
-		if linkAsked {
-			req.Header.Set("X-Nexa-Link", "1") // what apps from before asked with
-		}
-		w := httptest.NewRecorder()
-		m.ServeEncrypted(w, req, b)
-		if w.Code != http.StatusOK || w.Header().Get("Location") != "" || !bytes.Equal(w.Body.Bytes(), sent) {
-			t.Fatalf("download: %d %q %d bytes", w.Code, w.Header().Get("Location"), w.Body.Len())
+	var reads int
+	m.Billed = func(class byte) {
+		if class == objstore.ClassB {
+			reads++
 		}
 	}
-	ranged := httptest.NewRequest(http.MethodGet, "/media/attachments/x", nil)
-	ranged.Header.Set("Range", "bytes=10-19")
+	m.LinkOK = func(*http.Request) bool { return true }
 	w := httptest.NewRecorder()
-	m.ServeEncrypted(w, ranged, b)
-	if w.Code != http.StatusPartialContent || !bytes.Equal(w.Body.Bytes(), sent[10:20]) {
-		t.Fatalf("range: %d %d bytes", w.Code, w.Body.Len())
+	m.ServeEncrypted(w, httptest.NewRequest(http.MethodGet, "/media/attachments/x", nil), b)
+	if w.Code != http.StatusFound || !strings.HasPrefix(w.Header().Get("Location"), "https://bucket.test/attachments/") || w.Header().Get("Cache-Control") != "private, no-store" || reads != 1 {
+		t.Fatalf("download: %d %q %q, %d reads counted", w.Code, w.Header().Get("Location"), w.Header().Get("Cache-Control"), reads)
 	}
-	// past an account's pace, a read is turned down rather than made
+	asked := httptest.NewRequest(http.MethodGet, "/media/attachments/x", nil)
+	asked.Header.Set("X-Nexa-Link", "1")
+	w = httptest.NewRecorder()
+	m.ServeEncrypted(w, asked, b)
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != LinkType || !strings.Contains(w.Body.String(), `"url":"https://bucket.test/attachments/`) || !strings.Contains(w.Body.String(), `"expires_in":120`) {
+		t.Fatalf("link asked for: %d %q %s", w.Code, w.Header().Get("Content-Type"), w.Body.String())
+	}
+	// with links stopped the bytes stream through here, ranges too
+	m.LinkOK = func(*http.Request) bool { return false }
+	ranged := httptest.NewRequest(http.MethodGet, "/media/attachments/x", nil)
+	ranged.Header.Set("X-Nexa-Link", "1")
+	ranged.Header.Set("Range", "bytes=10-19")
+	w = httptest.NewRecorder()
+	m.ServeEncrypted(w, ranged, b)
+	if w.Code != http.StatusPartialContent || w.Header().Get("Location") != "" || !bytes.Equal(w.Body.Bytes(), sent[10:20]) {
+		t.Fatalf("streamed: %d %q %d bytes", w.Code, w.Header().Get("Content-Type"), w.Body.Len())
+	}
+	// and past an account's pace, a streamed read is turned down rather than made
 	m.ReadOK = func(*http.Request) bool { return false }
 	w = httptest.NewRecorder()
 	m.ServeEncrypted(w, httptest.NewRequest(http.MethodGet, "/media/attachments/x", nil), b)
 	if w.Code != http.StatusTooManyRequests {
 		t.Fatalf("over the pace: %d", w.Code)
 	}
-	m.ReadOK = nil
+	m.LinkOK, m.ReadOK = nil, nil
 
 	// with room again the held one goes; the unsent one never does
 	if res, err := m.MoveToRemote(ctx, 10, func(int64) bool { return true }); err != nil || res.Moved != 1 || res.Held {

@@ -138,7 +138,9 @@ func main() {
 	if bucket != nil {
 		bucket.Billed = srv.StorageBilled
 		mediaStore.Billed = srv.StorageBilled
-		// reads from the bucket, paced per account (api/upload_relay.go)
+		// downloads get links to the bucket under the month's cap on reads,
+		// else stream through here, paced per account (api/storage_links.go)
+		mediaStore.LinkOK = srv.LinkOK
 		mediaStore.ReadOK = srv.BucketReadOK
 		// the limit's numbers from Cloudflare's own measurements, not only this server's count
 		if token := cfg.R2Analytics(); token != "" && cfg.R2AccountID != "" {

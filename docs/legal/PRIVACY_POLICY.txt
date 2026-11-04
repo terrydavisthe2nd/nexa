@@ -402,12 +402,15 @@ calls.
   storage service, instead of on Nexa's server. They are encrypted on
   your device before they leave it, so Cloudflare holds only encrypted
   bytes and their sizes, never a key, and cannot read them. Your app
-  sends and downloads them through Nexa's server, which passes them on
-  to and from R2 as they go (a file an older app sends may wait on the
-  server for a minute or two first), so R2 never sees your device or
-  your IP address. Public pictures, bug report, case and report files,
-  and files sent by webhooks and apps stay on Nexa's server. Why: so
-  files cost little to keep.
+  sends them through Nexa's server, which passes them on to R2 as they
+  arrive (a file an older app sends may wait on the server for a
+  minute or two first). It downloads them straight from R2 with a link
+  the server signs for two minutes once it has checked you may see the
+  file, so Cloudflare sees your IP address then; when those links are
+  paused, downloads come through Nexa's server instead. Public
+  pictures, bug report, case and report files, and files sent by
+  webhooks and apps stay on Nexa's server. Why: so files cost little
+  to keep and download quickly wherever you are.
 - Cloudflare Turnstile, for the captcha when you sign up, sign in,
   recover an account, send a friend request, invite someone to a
   note, create or join a server, or join a call as a guest. Your

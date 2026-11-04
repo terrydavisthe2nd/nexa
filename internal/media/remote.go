@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,8 +21,7 @@ import (
 // pieces, or from before the bucket) are copied there by the mover once
 // something holds them (their message was sent): it checks the copy,
 // records it in remote_blobs, and only then removes the file here. Reads
-// prefer the file here while it exists, and otherwise stream from the
-// bucket through here. Only ciphertext goes:
+// prefer the file here while it exists. Only ciphertext goes:
 // pictures, bug report, case and report files, and webhook files stay here,
 // so the bucket holds nothing anyone there could read.
 
@@ -31,6 +31,7 @@ type ObjectStore interface {
 	Put(ctx context.Context, key string, f io.ReaderAt, size int64, contentType string) error
 	Head(ctx context.Context, key string) (int64, error)
 	Delete(ctx context.Context, key string) error
+	Presign(key string, ttl time.Duration) string
 	PutStream(ctx context.Context, key string, r io.Reader, size int64, contentType string) error
 	// for uploads relayed to the bucket (relay.go)
 	CreateMultipart(ctx context.Context, key, contentType string) (string, error)
@@ -74,12 +75,27 @@ func (m *Store) openBytes(ctx context.Context, b *store.Blob) (File, error) {
 	return nil, store.ErrNotFound
 }
 
-// serveFromBucket answers a download whose bytes are in the bucket by
-// streaming them through here, ranges included. Apps are never handed a
-// link to the bucket: a link cannot be taken back, and every use of one is
-// a read the bucket bills, so every read is this server's own, counted and
-// paced per account (ReadOK). Attachments never change, so browsers keep
-// what they fetched instead of asking again.
+// linkLife is how long a signed link to a file in the bucket works. A link
+// cannot be taken back, and whoever holds one can fetch with it until it
+// ends, each fetch a read the bucket bills, so it is short: apps ask again
+// once one runs out (the web's download worker keeps one for a job's later
+// stretches until a minute before its end; Android follows a fresh redirect
+// for every request).
+const linkLife = 2 * time.Minute
+
+// LinkType marks the answer to a download asked for with X-Nexa-Link: 1
+// whose bytes are in the bucket: {"url", "expires_in"} rather than the bytes.
+const LinkType = "application/vnd.nexa.link+json"
+
+// serveFromBucket answers a download whose bytes are in the bucket. While
+// links are on (LinkOK: under the month's cap on reads, and within this
+// account's pace) the app gets a signed link and fetches the bytes from the
+// bucket without its token: the bucket refuses a request carrying both, and
+// has no business seeing it. The web app asks for the link outright
+// (X-Nexa-Link), because WebKit keeps the Authorization header across a
+// redirect to another origin; Android's OkHttp and older apps follow a
+// redirect, dropping the header as it leaves this server. Otherwise the
+// bytes stream through here, ranges included, paced per account (ReadOK).
 func (m *Store) serveFromBucket(w http.ResponseWriter, r *http.Request, b *store.Blob) bool {
 	if m.Remote == nil || !b.Encrypted {
 		return false
@@ -89,6 +105,21 @@ func (m *Store) serveFromBucket(w http.ResponseWriter, r *http.Request, b *store
 	if err != nil || !ok {
 		return false
 	}
+	h := w.Header()
+	if m.LinkOK != nil && m.LinkOK(r) {
+		m.billed(objstore.ClassB) // the read the app makes with it
+		link := m.Remote.Presign(remoteKey(name), linkLife)
+		h.Set("Cache-Control", "private, no-store")
+		h.Set("Referrer-Policy", "no-referrer")
+		if r.Header.Get("X-Nexa-Link") == "1" {
+			h.Set("Content-Type", LinkType)
+			h.Set("X-Content-Type-Options", "nosniff")
+			_ = json.NewEncoder(w).Encode(map[string]any{"url": link, "expires_in": int(linkLife / time.Second)})
+			return true
+		}
+		http.Redirect(w, r, link, http.StatusFound)
+		return true
+	}
 	if m.ReadOK != nil && !m.ReadOK(r) {
 		w.Header().Set("Retry-After", "10")
 		http.Error(w, "too many downloads at once", http.StatusTooManyRequests)
@@ -96,7 +127,6 @@ func (m *Store) serveFromBucket(w http.ResponseWriter, r *http.Request, b *store
 	}
 	f := objstore.NewReader(r.Context(), m.Remote, remoteKey(name), size)
 	defer f.Close()
-	h := w.Header()
 	h.Set("Content-Type", "application/octet-stream")
 	h.Set("Cache-Control", "private, max-age=31536000, immutable")
 	h.Set("X-Content-Type-Options", "nosniff")

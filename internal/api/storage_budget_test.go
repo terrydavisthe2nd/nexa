@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -68,5 +69,27 @@ func TestStorageLimit(t *testing.T) {
 	meter, _ = stats["storage"].(map[string]any)
 	if want := storageCostCents(30_000_000_000+1000, 0, 12_000_000); meter == nil || meter["cost_cents"] != float64(want) || meter["measured_at"] == nil {
 		t.Fatalf("measured meter: %v, want %d cents", stats["storage"], want)
+	}
+
+	// Download links stop once the month's reads cost more than their cap (a
+	// fifth of the limit, $10 without one), and only then: 12 million reads
+	// cost 72 cents, a $2 cap stops them, a $5 one does not.
+	req := httptest.NewRequest("GET", "/media/attachments/1", nil)
+	for _, c := range []struct {
+		limit any
+		on    bool
+	}{{nil, true}, {200, false}, {500, true}} {
+		if res, body := do(t, ts, "PATCH", "/api/v1/admin/settings", tok, map[string]any{"storage_budget": c.limit}); res.StatusCode != 200 {
+			t.Fatalf("limit %v: %d %v", c.limit, res.StatusCode, body)
+		}
+		srv.noteReads(t.Context())
+		if got := srv.LinkOK(req); got != c.on {
+			t.Errorf("limit %v: links on %v, want %v", c.limit, got, c.on)
+		}
+		_, stats = do(t, ts, "GET", "/api/v1/admin/stats", tok, nil)
+		links, _ := stats["storage"].(map[string]any)["links"].(map[string]any)
+		if links == nil || links["on"] != c.on || links["read_cents"] != float64(72) {
+			t.Errorf("limit %v: meter says %v", c.limit, links)
+		}
 	}
 }
