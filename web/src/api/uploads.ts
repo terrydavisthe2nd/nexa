@@ -6,6 +6,8 @@ export interface UploadSession {
   size: number;
   received: number;
   chunk_size: number;
+  /** Present when the file goes in parts the server streams on to storage: every part but the last is part_size bytes. */
+  relay?: { part_size: number; parts: number };
 }
 
 /**
@@ -15,8 +17,9 @@ export interface UploadSession {
  */
 export const uploads = {
   /** `channelId` is where the file goes, when it is a channel: a boosted server takes bigger files. */
-  create(size: number, channelId?: Snowflake): Promise<UploadSession> {
-    return api.request<UploadSession>("POST", "/uploads", channelId ? { size, channel_id: channelId } : { size });
+  /** `relay` asks to send the file in parts streamed on to storage (PUT /uploads/{id}/parts/{n}). */
+  create(size: number, channelId?: Snowflake, relay?: boolean): Promise<UploadSession> {
+    return api.request<UploadSession>("POST", "/uploads", { size, ...(channelId ? { channel_id: channelId } : {}), ...(relay ? { relay: true } : {}) });
   },
   status(id: Snowflake): Promise<UploadSession> {
     return api.request<UploadSession>("GET", `/uploads/${id}`);

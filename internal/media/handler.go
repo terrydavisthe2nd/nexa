@@ -35,12 +35,12 @@ func (m *Store) ServePublic(w http.ResponseWriter, r *http.Request, kind string,
 	return true
 }
 
-// ServeEncrypted writes attachment ciphertext, or sends the app to the
-// bucket for it once it has moved there; the caller has already checked access.
+// ServeEncrypted writes attachment ciphertext, from this disk or streamed
+// from the bucket; the caller has already checked access.
 func (m *Store) ServeEncrypted(w http.ResponseWriter, r *http.Request, b *store.Blob) {
 	f, err := os.Open(m.Path(shaOf(b)))
 	if err != nil {
-		if !m.sendToBucket(w, r, b) {
+		if !m.serveFromBucket(w, r, b) {
 			http.Error(w, "not found", http.StatusNotFound)
 		}
 		return

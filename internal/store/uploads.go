@@ -19,6 +19,11 @@ type Upload struct {
 	UpdatedAt int64  `json:"updated_at"`
 	// BlobID is what the transfer became once it was finished.
 	BlobID *ids.ID `json:"-"`
+	// RemoteID is the bucket's id for an upload going straight there
+	// (api/upload_direct.go), and PartSize the size of its parts; empty and
+	// zero for one coming through this server.
+	RemoteID string `json:"-"`
+	PartSize int64  `json:"-"`
 }
 
 // CreateUpload opens a transfer.
@@ -35,9 +40,10 @@ func (s *Store) CreateUpload(ctx context.Context, userID ids.ID, size int64) (*U
 // UploadByID loads one transfer.
 func (s *Store) UploadByID(ctx context.Context, id ids.ID) (*Upload, error) {
 	var u Upload
-	var blob sql.NullInt64
-	err := s.db.R.QueryRowContext(ctx, `SELECT id, user_id, size, received, created_at, updated_at, blob_id FROM uploads WHERE id = ?`, int64(id)).
-		Scan(&u.ID, &u.UserID, &u.Size, &u.Received, &u.CreatedAt, &u.UpdatedAt, &blob)
+	var blob, part sql.NullInt64
+	var remote sql.NullString
+	err := s.db.R.QueryRowContext(ctx, `SELECT id, user_id, size, received, created_at, updated_at, blob_id, remote_id, part_size FROM uploads WHERE id = ?`, int64(id)).
+		Scan(&u.ID, &u.UserID, &u.Size, &u.Received, &u.CreatedAt, &u.UpdatedAt, &blob, &remote, &part)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -47,7 +53,20 @@ func (s *Store) UploadByID(ctx context.Context, id ids.ID) (*Upload, error) {
 		return nil, err
 	}
 	u.BlobID = idPtr(blob)
+	u.RemoteID, u.PartSize = remote.String, part.Int64
 	return &u, nil
+}
+
+// SetUploadRemote records the bucket's multipart upload an upload goes to.
+func (s *Store) SetUploadRemote(ctx context.Context, id ids.ID, remoteID string, partSize int64) error {
+	_, err := s.db.W.ExecContext(ctx, `UPDATE uploads SET remote_id = ?, part_size = ?, updated_at = ? WHERE id = ?`, remoteID, partSize, nowMs(), int64(id))
+	return err
+}
+
+// TouchUpload marks an upload as still going, so the stale sweep leaves it.
+func (s *Store) TouchUpload(ctx context.Context, id ids.ID) error {
+	_, err := s.db.W.ExecContext(ctx, `UPDATE uploads SET updated_at = ? WHERE id = ?`, nowMs(), int64(id))
+	return err
 }
 
 // AdvanceUpload records more bytes, but only from the offset we expect: two
@@ -93,20 +112,30 @@ func (s *Store) DeleteUpload(ctx context.Context, id ids.ID) error {
 	return err
 }
 
+// StaleUpload is a transfer nothing has touched for a while, and the
+// bucket's multipart upload behind it when it was going straight there and
+// never finished.
+type StaleUpload struct {
+	ID       ids.ID
+	RemoteID string
+}
+
 // StaleUploads lists transfers nothing has touched since before cutoff.
-func (s *Store) StaleUploads(ctx context.Context, cutoff int64) ([]ids.ID, error) {
-	rows, err := s.db.R.QueryContext(ctx, `SELECT id FROM uploads WHERE updated_at < ?`, cutoff)
+func (s *Store) StaleUploads(ctx context.Context, cutoff int64) ([]StaleUpload, error) {
+	rows, err := s.db.R.QueryContext(ctx, `SELECT id, CASE WHEN blob_id IS NULL THEN remote_id END FROM uploads WHERE updated_at < ?`, cutoff)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []ids.ID{}
+	out := []StaleUpload{}
 	for rows.Next() {
-		var id ids.ID
-		if err := rows.Scan(&id); err != nil {
+		var u StaleUpload
+		var remote sql.NullString
+		if err := rows.Scan(&u.ID, &remote); err != nil {
 			return nil, err
 		}
-		out = append(out, id)
+		u.RemoteID = remote.String
+		out = append(out, u)
 	}
 	return out, rows.Err()
 }
@@ -122,6 +151,8 @@ type UploadRoom struct {
 	// which UserPending counts too, beside its files not sent yet.
 	UserDeclared int64
 	UserOpen     int
+	// AllRemaining is what transfers coming through this server still
+	// bring to its disk; those going straight to the bucket bring nothing.
 	AllRemaining int64
 }
 
@@ -135,7 +166,7 @@ func (s *Store) UploadRoomFor(ctx context.Context, uid ids.ID) (UploadRoom, erro
 	if err := s.db.R.QueryRowContext(ctx, `SELECT coalesce(sum(size), 0), count(*) FROM uploads WHERE user_id = ? AND blob_id IS NULL`, int64(uid)).Scan(&declared, &r.UserOpen); err != nil {
 		return r, err
 	}
-	if err := s.db.R.QueryRowContext(ctx, `SELECT coalesce(sum(size - received), 0) FROM uploads WHERE blob_id IS NULL`).Scan(&r.AllRemaining); err != nil {
+	if err := s.db.R.QueryRowContext(ctx, `SELECT coalesce(sum(size - received), 0) FROM uploads WHERE blob_id IS NULL AND remote_id IS NULL`).Scan(&r.AllRemaining); err != nil {
 		return r, err
 	}
 	r.UserPending, r.UserDeclared = loose+declared, declared

@@ -3,7 +3,7 @@ import { b64 } from "@/crypto/bytes";
 import { decryptFile } from "@/crypto/file";
 import { CHUNK, FRAME_LEN, HEADER_LEN, encryptChunks, encryptedSize } from "@/crypto/fileChunks";
 import { ApiError } from "@/api/client";
-import { fitsUploadLimit, setUploadLimits, uploadStaged, type PieceJob, type PieceSender, type Staged } from "./attachments";
+import { encryptBytes, fitsUploadLimit, setUploadLimits, uploadStaged, type PieceJob, type PieceSender, type Staged } from "./attachments";
 import { lookAtPicture } from "./pictureCopy";
 
 vi.mock("./pictureCopy", async (orig) => ({ ...(await orig<typeof import("./pictureCopy")>()), lookAtPicture: vi.fn(async () => ({})) }));
@@ -29,6 +29,7 @@ async function same(bytes: Uint8Array, key: string, data: Uint8Array): Promise<b
 /** What a piece's request would carry. */
 async function bodyOf(job: PieceJob): Promise<Uint8Array> {
   if (job.body) return job.body;
+  if (job.range) return encryptBytes(job.file, job.key, job.baseIv, job.range.from, job.range.to);
   const whole = await encryptChunks(job.file, job.key, job.baseIv, job.first, job.count);
   return whole.subarray(job.skip);
 }
@@ -181,7 +182,8 @@ describe("uploadStaged", () => {
     const data = pattern(9 * MiB);
     const { server, send } = fakeServer();
     const { meta } = await uploadStaged("c1", staged(data), () => undefined, send);
-    expect(uploads.create).not.toHaveBeenCalled();
+    // asked to go straight to storage, refused, and the session given back
+    expect(server.cancelled).toBe(1);
     expect(server.jobs).toHaveLength(1);
     expect(await same(server.single!, meta.key, data)).toBe(true);
   });
@@ -201,7 +203,7 @@ describe("uploadStaged", () => {
       const { meta, blob_id } = await uploadStaged("c1", staged(data), (p) => progress.push(p), send);
       expect(blob_id).toBe("b1");
       // the channel goes with it, for a boosted server's bigger limit
-      expect(uploads.create).toHaveBeenCalledWith(total, "c1");
+      expect(uploads.create).toHaveBeenCalledWith(total, "c1", true);
       expect(server.jobs.map((j) => [j.first, j.count])).toEqual(Array.from({ length: 5 }, (_, i) => [i, 1]));
       expect(server.jobs.map((j) => j.headers?.["Upload-Offset"])).toEqual(Array.from({ length: 5 }, (_, i) => String(i === 0 ? 0 : HEADER_LEN + i * FRAME_LEN)));
       expect(await same(server.stored(), meta.key, data)).toBe(true);
@@ -319,7 +321,8 @@ describe("uploadStaged", () => {
         return { received: server.stored().length };
       };
       const { meta } = await uploadStaged("c1", staged(data), () => undefined, send);
-      expect(server.jobs[2]).toMatchObject({ first: 1, count: 1, skip: 1000 });
+      // the piece after it may already be on its way, so look for the resend by what it is
+      expect(server.jobs).toContainEqual(expect.objectContaining({ first: 1, count: 1, skip: 1000 }));
       expect(await same(server.stored(), meta.key, data)).toBe(true);
     });
 
@@ -393,6 +396,83 @@ describe("uploadStaged", () => {
       expect(server.jobs.filter((j) => j.first === 0)).toHaveLength(4);
       expect(server.jobs.length).toBeLessThanOrEqual(5);
       expect(server.cancelled).toBe(1);
+    });
+  });
+
+  describe("in parts relayed to storage", { timeout: 20_000 }, () => {
+    const data = pattern(2 * CHUNK + 4321);
+    const total = encryptedSize(data.length);
+    const part = Math.ceil(total / 3);
+
+    /** A server that relays parts by number and joins them as R2 does. */
+    function relay() {
+      const parts = new Map<number, Uint8Array>();
+      const sent: PieceJob[] = [];
+      let cancelled = 0;
+      vi.spyOn(uploads, "create").mockImplementation(async (size, _c, asked) => ({ id: "u1", size, received: 0, chunk_size: 32 * MiB, ...(asked ? { relay: { part_size: part, parts: 3 } } : {}) }));
+      vi.spyOn(uploads, "finish").mockImplementation(async () => {
+        const sizes = [1, 2, 3].map((n) => parts.get(n)?.length ?? -1);
+        if (sizes[0] !== part || sizes[1] !== part || sizes[2] !== total - 2 * part) throw new ApiError(409, "parts_missing", "missing");
+        return { blob_id: "b1", size: total };
+      });
+      vi.spyOn(uploads, "cancel").mockImplementation(async () => {
+        cancelled += 1;
+      });
+      const send: PieceSender = async (job, onProgress) => {
+        sent.push(job);
+        const m = /^\/uploads\/u1\/parts\/(\d+)$/.exec(job.path);
+        if (job.method !== "PUT" || !m) throw new Error(`unexpected ${job.method} ${job.path}`);
+        const body = await bodyOf(job);
+        onProgress(body.length);
+        parts.set(Number(m[1]), body.slice());
+        return { n: Number(m[1]), size: body.length };
+      };
+      const joined = (): Uint8Array => {
+        const out = new Uint8Array(total);
+        let at = 0;
+        for (const n of [1, 2, 3]) {
+          out.set(parts.get(n)!, at);
+          at += parts.get(n)!.length;
+        }
+        return out;
+      };
+      return { parts, sent, send, joined, cancelled: () => cancelled };
+    }
+
+    it("sends equal parts cut by bytes that join into the encrypted file", async () => {
+      const server = relay();
+      const { meta, blob_id } = await uploadStaged("c1", staged(data), () => undefined, server.send);
+      expect(blob_id).toBe("b1");
+      expect(uploads.create).toHaveBeenCalledWith(total, "c1", true);
+      expect([...server.parts.keys()].sort()).toEqual([1, 2, 3]);
+      expect(await same(server.joined(), meta.key, data)).toBe(true);
+      expect(server.cancelled()).toBe(0);
+    });
+
+    it("sends a part again when storage did not take it", async () => {
+      const server = relay();
+      let failed = false;
+      const send: PieceSender = async (job, onProgress, signal) => {
+        if (!failed && job.path.endsWith("/parts/2")) {
+          failed = true;
+          throw new ApiError(502, "part_failed", "failed");
+        }
+        return server.send(job, onProgress, signal);
+      };
+      const { meta } = await uploadStaged("c1", staged(data), () => undefined, send);
+      expect(server.sent.filter((j) => j.path.endsWith("/parts/2"))).toHaveLength(1);
+      expect(failed).toBe(true);
+      expect(await same(server.joined(), meta.key, data)).toBe(true);
+    });
+
+    it("throws the upload away when a part is turned down", async () => {
+      const server = relay();
+      const send: PieceSender = async (job, onProgress, signal) => {
+        if (job.path.endsWith("/parts/3")) throw new ApiError(429, "part_retries", "too many");
+        return server.send(job, onProgress, signal);
+      };
+      await expect(uploadStaged("c1", staged(data), () => undefined, send)).rejects.toMatchObject({ code: "part_retries" });
+      expect(server.cancelled()).toBe(1);
     });
   });
 

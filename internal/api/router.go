@@ -85,6 +85,8 @@ type Server struct {
 	uploads uploadReservations
 	// what keeping attachments in the bucket costs this month (storage_budget.go)
 	storage storageMeter
+	// sends and finishes of uploads relayed to the bucket (upload_relay.go)
+	relay relayCounts
 	// R2Analytics reads Cloudflare's own numbers for the bucket; nil leaves
 	// the meter to this server's count
 	R2Analytics *objstore.Analytics
@@ -98,6 +100,13 @@ type Server struct {
 	limSignup  *ratelimit.Limiter // accounts made, two a day from one address
 	limMsg     *ratelimit.Limiter
 	limUpload  *ratelimit.Limiter
+	// limParts paces the parts of uploads relayed to the bucket and finishing
+	// them, limReads downloads read from it, and limRelay opening uploads
+	// there, each a billed write (past it an upload lands here instead),
+	// per account (upload_relay.go)
+	limParts   *ratelimit.Limiter
+	limReads   *ratelimit.Limiter
+	limRelay   *ratelimit.Limiter
 	limUnfurl  *ratelimit.Limiter
 	limProxy   *ratelimit.Limiter
 	limYouTube *ratelimit.Limiter
@@ -286,7 +295,14 @@ func NewServer(cfg config.Config, st *store.Store, log *slog.Logger, bc Broadcas
 		limSignup:  ratelimit.New(ratelimit.Every(2, 24*time.Hour), 2, 25*time.Hour),
 		limMsg:     ratelimit.New(ratelimit.Every(5, 5*time.Second), 5, 5*time.Minute),
 		limUpload:  ratelimit.New(ratelimit.Every(120, time.Minute), 120, time.Hour),
-		limUnfurl:  ratelimit.New(ratelimit.Every(30, time.Minute), 30, 10*time.Minute),
+		// a 4 GB file is 256 parts, with room for retries and finishing; a
+		// part may be sent six times at most
+		limParts: ratelimit.New(ratelimit.Every(240, time.Minute), 300, time.Hour),
+		// a chat full of pictures reads one file each, a video a stretch at a time
+		limReads: ratelimit.New(ratelimit.Every(300, time.Minute), 600, time.Hour),
+		// sixty big files an hour, thirty at once
+		limRelay:  ratelimit.New(ratelimit.Every(60, time.Hour), 30, 2*time.Hour),
+		limUnfurl: ratelimit.New(ratelimit.Every(30, time.Minute), 30, 10*time.Minute),
 		// The media proxy fetches from somewhere else on the caller's behalf,
 		// so an unmetered one is both a way to exhaust Nexa's
 		// bandwidth and a way to aim Nexa at someone else's.
@@ -418,7 +434,7 @@ func NewServer(cfg config.Config, st *store.Store, log *slog.Logger, bc Broadcas
 func (s *Server) limiters() map[string]*ratelimit.Limiter {
 	out := map[string]*ratelimit.Limiter{
 		"generic": s.limGeneric, "auth-ip": s.limAuthIP, "auth-user": s.limAuthUsr, "register": s.limReg, "signup": s.limSignup, "message": s.limMsg,
-		"upload": s.limUpload, "unfurl": s.limUnfurl, "proxy": s.limProxy, "youtube": s.limYouTube, "refresh": s.limRefresh, "voice": s.limVoice, "turn": s.limTurn,
+		"upload": s.limUpload, "parts": s.limParts, "reads": s.limReads, "relay": s.limRelay, "unfurl": s.limUnfurl, "proxy": s.limProxy, "youtube": s.limYouTube, "refresh": s.limRefresh, "voice": s.limVoice, "turn": s.limTurn,
 		"guest": s.limGuest, "rotate": s.limRotate, "password": s.limPass, "profile": s.limProfile, "expressions": s.limExpr,
 		"import": s.limImport, "crash": s.limCrash, "bug": s.limBug, "report": s.limReport, "bug-file": s.limBugFile, "key-ask": s.limKeyAsk,
 		"webhook": s.limHook, "webhook-channel": s.limHookCh, "webhook-manage": s.limHookMgr, "poll-vote": s.limVote, "discord": s.limDiscord, "server-tag": s.limTag, "music-search": s.limMusic, "music-preview": s.limPreview,

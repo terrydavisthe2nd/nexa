@@ -644,9 +644,12 @@ object Uploads {
         }
     }
 
-    private suspend fun post(path: String, method: String, body: ByteArray, headers: Map<String, String>, offset: Int = 0, onProgress: (Long) -> Unit): JsonObject {
+    private suspend fun post(path: String, method: String, body: ByteArray, headers: Map<String, String>, offset: Int = 0, onProgress: (Long) -> Unit): JsonObject =
+        post(path, method, Counted(body, offset, onProgress), headers)
+
+    private suspend fun post(path: String, method: String, body: RequestBody, headers: Map<String, String>): JsonObject {
         val api = Nexa.api
-        val b = api.requestBuilder(path).method(method, Counted(body, offset, onProgress))
+        val b = api.requestBuilder(path).method(method, body)
         for ((k, v) in headers) b.header(k, v)
         val res = withContext(Dispatchers.IO) { api.execute(api.transfer, b.build(), true) }
         return res as? JsonObject ?: JsonObject(emptyMap())
@@ -752,7 +755,24 @@ object Uploads {
         return coroutineScope {
             val looked = async(Dispatchers.Default) { runCatching { look(st.file, st.type) }.getOrDefault(Look()) }
             val copied = async { looked.await().copy?.let { runCatching { sendCopy(path, it) }.getOrNull() } }
-            val res: JsonObject = if (total <= single) {
+            // A file big enough goes in parts the server streams on to
+            // storage when it offers that (relayed); otherwise one request up
+            // to the single-request limit, pieces through the server above it.
+            var opened: JsonObject? = null
+            var relayed: JsonObject? = null
+            if (total >= RELAY_MIN) {
+                val session = Nexa.api.request("POST", "/uploads", buildJsonObject {
+                    put("size", total)
+                    if (channelId != null) put("channel_id", channelId)
+                    put("relay", true)
+                }).jsonObject
+                when {
+                    session["relay"] is JsonObject -> relayed = relayed(session, st, key, baseIv) { onProgress(it.toDouble() / total) }
+                    total <= single -> runCatching { Nexa.api.request("DELETE", "/uploads/${(session["id"] as JsonPrimitive).content}") }
+                    else -> opened = session
+                }
+            }
+            val res: JsonObject = if (relayed != null) relayed else if (total <= single) {
                 val body = withContext(Dispatchers.Default) {
                     RandomAccessFile(st.file, "r").use { FileCrypto.encryptChunks(it, st.size, key, baseIv, 0, FileCrypto.chunkCount(st.size)) }
                 }
@@ -764,7 +784,7 @@ object Uploads {
                     onProgress(0.0)
                     post(path, "POST", body, emptyMap()) { onProgress(it.toDouble() / total) }
                 }
-            } else inPieces(st, key, baseIv, channelId) { onProgress(it.toDouble() / total) }
+            } else inPieces(st, key, baseIv, channelId, opened) { onProgress(it.toDouble() / total) }
             val blob = (res["blob_id"] as? JsonPrimitive)?.contentOrNull ?: throw ApiError(200, "bad_response", t("attachments.theServerSAnswerCouldNot"))
             val size = (res["size"] as? JsonPrimitive)?.longOrNull ?: total
             val seen = looked.await()
@@ -779,10 +799,10 @@ object Uploads {
         }
     }
 
-    private suspend fun inPieces(st: Staged, key: ByteArray, baseIv: ByteArray, channelId: String?, onProgress: (Long) -> Unit): JsonObject = coroutineScope {
+    private suspend fun inPieces(st: Staged, key: ByteArray, baseIv: ByteArray, channelId: String?, opened: JsonObject?, onProgress: (Long) -> Unit): JsonObject = coroutineScope {
         val total = FileCrypto.encryptedSize(st.size)
         val chunks = FileCrypto.chunkCount(st.size)
-        val session = Nexa.api.request("POST", "/uploads", buildJsonObject { put("size", total); if (channelId != null) put("channel_id", channelId) }).jsonObject
+        val session = opened ?: Nexa.api.request("POST", "/uploads", buildJsonObject { put("size", total); if (channelId != null) put("channel_id", channelId) }).jsonObject
         val id = (session["id"] as JsonPrimitive).content
         val limit = minOf((session["chunk_size"] as? JsonPrimitive)?.longOrNull ?: limits().third, limits().third)
         val perPiece = maxOf(1, ((limit - FileCrypto.HEADER_LEN) / FileCrypto.FRAME_LEN).toInt())
@@ -900,6 +920,107 @@ object Uploads {
             }
             if (sent != total) throw ApiError(0, "size", t("attachments.theUploadCameOutADifferentSize"))
             finishUpload(id)
+        } catch (e: Throwable) {
+            runCatching { withContext(kotlinx.coroutines.NonCancellable) { Nexa.api.request("DELETE", "/uploads/$id") } }
+            throw e
+        }
+    }
+
+    /** The smallest file sent in parts the server streams on to storage (api/upload_relay.go): R2's smallest part. */
+    private const val RELAY_MIN = 5L shl 20
+
+    /** How many parts of one file are on their way at once. */
+    private const val RELAY_LANES = 3
+
+    /**
+     * The ciphertext bytes [from, to) of the whole encrypted file, as the
+     * web's encryptBytes: storage wants every part but the last the same
+     * size, which whole chunks are not (the first carries the header).
+     * Returns the encrypted chunks and where the stretch starts in them.
+     */
+    internal fun encryptBytes(raf: RandomAccessFile, plainSize: Long, key: ByteArray, baseIv: ByteArray, from: Long, to: Long): Pair<ByteArray, Int> {
+        val chunks = FileCrypto.chunkCount(plainSize)
+        fun chunkAt(byte: Long): Int = if (byte < FileCrypto.HEADER_LEN) 0 else minOf(chunks - 1L, (byte - FileCrypto.HEADER_LEN) / FileCrypto.FRAME_LEN).toInt()
+        val first = chunkAt(from)
+        val last = chunkAt(to - 1)
+        val whole = FileCrypto.encryptChunks(raf, plainSize, key, baseIv, first, last - first + 1)
+        val base = if (first == 0) 0L else FileCrypto.frameOffset(first)
+        return whole to (from - base).toInt()
+    }
+
+    /** A part's body: the stretch [start, start + length) of data, counting what has gone. */
+    private class PartBody(private val data: ByteArray, private val start: Int, private val length: Int, private val onProgress: (Long) -> Unit) : RequestBody() {
+        override fun contentType() = OCTET
+        override fun contentLength() = length.toLong()
+        override fun writeTo(sink: BufferedSink) {
+            var off = 0
+            while (off < length) {
+                val n = minOf(64 * 1024, length - off)
+                sink.write(data, start + off, n)
+                off += n
+                onProgress(off.toLong())
+            }
+        }
+    }
+
+    /**
+     * Sends a file in equal parts that the server streams on to storage as
+     * they arrive, as the web's sendRelayed: a few parts at once, each an
+     * ordinary signed-in request to the server, then has the server check and
+     * join them. A part that fails goes again; an upload that cannot finish
+     * is thrown away, parts and all.
+     */
+    private suspend fun relayed(session: JsonObject, st: Staged, key: ByteArray, baseIv: ByteArray, onProgress: (Long) -> Unit): JsonObject {
+        val id = (session["id"] as JsonPrimitive).content
+        val total = (session["size"] as? JsonPrimitive)?.longOrNull ?: FileCrypto.encryptedSize(st.size)
+        val r = session["relay"] as JsonObject
+        val part = (r["part_size"] as? JsonPrimitive)?.longOrNull ?: 0L
+        val parts = (r["parts"] as? JsonPrimitive)?.longOrNull?.toInt() ?: 0
+        try {
+            if (part <= 0 || parts.toLong() != (total + part - 1) / part) throw ApiError(0, "bad_response", t("attachments.theServerSAnswerCouldNot"))
+            val next = java.util.concurrent.atomic.AtomicInteger(1)
+            val landed = java.util.concurrent.atomic.AtomicLong(0)
+            val inFlight = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+            val movedAt = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis())
+            fun report() = onProgress(landed.get() + inFlight.values.sum())
+            coroutineScope {
+                repeat(minOf(RELAY_LANES, parts)) {
+                    launch {
+                        while (true) {
+                            val n = next.getAndIncrement()
+                            if (n > parts) break
+                            val from = (n - 1) * part
+                            val to = minOf(total, n * part)
+                            val (data, start) = withContext(Dispatchers.Default) {
+                                RandomAccessFile(st.file, "r").use { encryptBytes(it, st.size, key, baseIv, from, to) }
+                            }
+                            var tries = 0
+                            while (true) {
+                                try {
+                                    post("/uploads/$id/parts/$n", "PUT", PartBody(data, start, (to - from).toInt()) { inFlight[n] = it; report() }, emptyMap())
+                                    inFlight.remove(n)
+                                    landed.addAndGet(to - from)
+                                    movedAt.set(System.currentTimeMillis())
+                                    report()
+                                    break
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: ApiError) {
+                                    inFlight.remove(n)
+                                    report()
+                                    val again = e.status == 0 || e.status >= 500 || e.status == 408 || e.code == "rate_limited"
+                                    if (!again) throw e
+                                    tries++
+                                    if (tries >= CHUNK_TRIES || System.currentTimeMillis() - movedAt.get() > STALL_MS) throw e
+                                    delay(e.retryAfter?.let { it * 1000L } ?: minOf(30_000L, 1000L shl tries))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (landed.get() != total) throw ApiError(0, "size", t("attachments.theUploadCameOutADifferentSize"))
+            return finishUpload(id)
         } catch (e: Throwable) {
             runCatching { withContext(kotlinx.coroutines.NonCancellable) { Nexa.api.request("DELETE", "/uploads/$id") } }
             throw e

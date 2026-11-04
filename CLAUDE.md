@@ -245,11 +245,10 @@ SFU calls, GIF search and the other keyed services stay off without their keys.
 
 To try attachments in R2, start the scratch chatd with the test bucket's settings in its environment
 (`set -a; . ~/.config/nexa/r2-test.env; set +a` first; the file holds `R2_*` for `nexa-media-test`,
-whose token reaches no other bucket). Never point a test at the live bucket, `nexa-media`. The mover
-takes held files a minute old every half minute. In Playwright, clear `e2e.Session`'s CF-Connecting-IP
-(`ctx.set_extra_http_headers({})`) before downloading from the bucket, since it follows the link there
-and asks for a preflight no real browser makes, and delete `window.showSaveFilePicker` in headless
-Chromium, which never answers it.
+whose token reaches no other bucket). Never point a test at the live bucket, `nexa-media`. Uploads
+stream straight there; the mover takes held files left on disk a minute old every half minute. Go
+tests use `objstore/memstore`, an in-memory bucket that refuses short streams as R2 does. In
+Playwright, delete `window.showSaveFilePicker` in headless Chromium, which never answers it.
 
 ### The dev instance (dev.nexa.fish)
 
@@ -429,8 +428,8 @@ SIGINT or SIGTERM.
 | `games`, `music`, `books`, `screen` | IGDB, Deezer, Open Library and TMDB for profile widgets; art kept, previews streamed through |
 | `gateway` | the WebSocket hub: connections, presence, typing, voice signalling, fan-out |
 | `ids` | snowflakes (41 bits of milliseconds, 10 of node, 12 of sequence), decimal strings in JSON |
-| `media` | blob storage, upload validation, sized variants, metadata scrub; moving attachments to the bucket (`remote.go`) |
-| `objstore` | a small S3 client for the R2 bucket (SigV4, multipart, ranged reads, presigned links), standard library only |
+| `media` | blob storage, upload validation, sized variants, metadata scrub; attachments in the bucket: streamed in and out, moved there (`remote.go`), relayed in parts (`relay.go`) |
+| `objstore` | a small S3 client for the R2 bucket (SigV4, multipart, streamed puts checked by ETag, ranged reads), standard library only; `objstore/memstore` is an in-memory bucket for tests |
 | `perms` | Discord's permission model and bit values |
 | `ratelimit` | keyed token buckets, optionally shared through Redis |
 | `realtime` | Cloudflare Realtime: the SFU client, the usage meter, analytics, TURN keys |
@@ -602,7 +601,7 @@ SIGINT or SIGTERM.
   `roles`, `member_roles`, `invites` (`vanity` for vanity links), `bans`, `audit_log`, `automod_rules`, `automod_events`), plans
   (`billing`, `server_boosts`, `plan_gifts`, `gift_links`, `users.plan`, `servers.boosts`), expressions
   (`emojis`, `sticker_packs`, `stickers`, `sticker_installs`, `recent_stickers`, `blocked_images`),
-  files (`blobs`, `uploads`, `remote_blobs`, `storage_usage`), calls (`guest_links`, `guests`, `realtime_usage`, `realtime_measurements`,
+  files (`blobs`, `uploads` with `remote_id` and `part_size` for relayed uploads, `remote_blobs`, `storage_usage`), calls (`guest_links`, `guests`, `realtime_usage`, `realtime_measurements`,
   `realtime_sessions`, `call_usage`, `turn_credentials`), integrations (`webhooks`, `discord_links`),
   notes (`notes`, `note_members`, `note_invites`, `note_links`, `note_files`, `note_versions`,
   `note_version_files`, `note_keys`, `note_updates`, `note_uploads`), Nexa and moderation (`mod_cases`,
@@ -690,26 +689,45 @@ as Discord holds it:
   the picture wins (`ChannelGlyph` on both clients, Android's in `ui/shell/Sidebars.kt`). The picker
   uploads at once and edits it as the value `picture`.
 - With an R2 bucket (`R2_*`), end-to-end encrypted attachments (kind `attachment`: message and note
-  files, sound pack recordings) move there once something holds them (`media/remote.go`). They land on
-  disk as always; every half minute `StartStorage` (`api/storage_budget.go`) copies held ones a minute
-  old to `attachments/<content name>`, checks the size with a HEAD, records them in `remote_blobs` and
-  only then deletes the file here. Reads prefer the disk. For a moved one `/media/attachments/{id}`
-  hands over an hour's presigned link (`Cache-Control: no-store`): as JSON (`media.LinkType`, `url` and
-  `expires_in`) when asked with `X-Nexa-Link: 1`, which the web app does and then fetches the link without
-  its token (`fetchAttachment` in `api/channels.ts`, `fetchCipher` in `download-sw.ts`, which keeps the
-  link for a job's later ranges), since R2 refuses a request carrying both and WebKit keeps the
-  Authorization header across a redirect; otherwise as a 302, which Android's OkHttp and older apps
-  follow, dropping the header. The bot CDN and reported-file reads stream from the bucket
-  (`objstore.Reader`). `Remove` marks a copy gone and the next pass deletes it. Pictures, private (bug, case, report) and webhook files never move, so the bucket holds
-  only ciphertext. Its CORS allows GET and HEAD with `range` from Nexa's origins (`nexa-media`; the
-  test bucket `nexa-media-test` allows any origin). Uploads still come through this server in pieces.
+  files, sound pack recordings) live there, not on this disk, and every byte to and from the bucket
+  passes through this server: apps are never handed a link to it (the owner's decision, 2026-11-04: a
+  link cannot be taken back and every use is billed, so every request to the bucket is this server's
+  own, counted and paced). A single-request upload with a Content-Length streams straight to
+  `attachments/<content name>` as it arrives (`PutEncrypted`, `putEncryptedRemote`: `objstore.PutStream`
+  with `UNSIGNED-PAYLOAD`, checked against R2's MD5 ETag, then a HEAD, then `remote_blobs` and the
+  blob). Files that did land on disk (pieces from older apps, uploads without a length, files from
+  before the bucket) are moved by the mover: every half minute `StartStorage` (`api/storage_budget.go`)
+  copies held ones a minute old, checks the size with a HEAD, records them in `remote_blobs` and only
+  then deletes the file here. Reads prefer the disk; otherwise `/media/attachments/{id}` streams the
+  bucket's bytes through (`serveFromBucket`, ranges included, cached by browsers as immutable),
+  paced per account by `limReads` (`media.Store.ReadOK`, 429 past it), as do the bot CDN and
+  reported-file reads (`objstore.Reader`). `Remove` marks a copy gone and the next pass deletes it.
+  Pictures, private (bug, case, report) and webhook files never move, so the bucket holds only
+  ciphertext. The bucket's CORS rule (GET and HEAD from Nexa's origins) is left from when apps read it
+  directly and is unused.
+- Relayed uploads (`api/upload_relay.go`, `media/relay.go`): an app creates an upload of at least
+  `relayMinBytes` (5 MiB, R2's smallest part) with `relay: true`; the answer's `relay` (`part_size`,
+  `parts`) says it may, else it goes in pieces to disk as before. The server opens a multipart upload at
+  the file's final key (`attachments/` plus `uploadName`, the name a spooled upload gets;
+  `uploads.remote_id` and `part_size`, migration 0050), parts are as equal as R2 demands
+  (`relayPartSize`, near 16 MiB), and `PUT /uploads/{id}/parts/{n}` takes a part only from the
+  upload's owner, for a number it has, at its exact Content-Length, at most `maxPartSends` (6) times,
+  at `limParts`' pace, streaming it on (`objstore.PutPartStream`, ETag-checked) without touching disk.
+  Opening one has `limRelay` (past it the upload lands here instead). Finish lists the parts, refuses
+  any of the wrong size or number, joins them, checks the whole size with a HEAD and only then writes
+  `remote_blobs` and the blob; a finish that keeps failing (`maxRelayFinishes`) or a damaged upload is
+  aborted, as are cancelled ones and those the hourly sweep finds idle (`AbortRelay`). Admission is the
+  same as for pieces (plan file size, 30-day allowance, unsent allowance, open cap, monthly limit)
+  except that relayed uploads need no disk room. Clients (web `sendRelayed` in `lib/attachments.ts`,
+  Android `relayed` in `data/Send.kt`) cut parts by bytes (`encryptBytes`; web `PieceJob.range`) and
+  send three at once. The bucket's lifecycle rule aborts multipart uploads left unfinished.
 - R2 has no spending cap, so Settings, Nexa Admin, File Storage sets a monthly limit (instance setting
   `storage_budget` in US cents, `PATCH /admin/settings` with `storage_budget`, null for none; web
   `FileStorage` in `settings/AdminPage.tsx`, Android `FileStorageSection` in `ui/settings/HelpPages.kt`;
   the meter is `storage` in `/admin/stats`). `storageCostCents` prices as R2 bills (checked 2026-11-04:
   $0.015 a GB-month, Class A and B requests, the free tiers, each rounded up) what the bucket holds plus
-  what waits here and is on its way, plus this month's requests (`storage_usage`, a presigned link
-  counting as its one read). An upload headed for the bucket (`reserveUpload`'s `remote`) that would
+  what waits here and is on its way, plus this month's requests (`storage_usage`, each request this server
+  makes, as the bucket client reports it). An upload headed for the bucket (`reserveUpload`'s `remote`) that would
   pass it answers 507 `storage_budget`, and the mover leaves files on disk rather than pass it. With an
   analytics token (`R2_ANALYTICS_TOKEN`, else `REALTIME_ANALYTICS_TOKEN` for the same account) the
   numbers are Cloudflare's: every five minutes `measureStorage` reads the bucket's measured size and
@@ -719,8 +737,9 @@ as Discord holds it:
   `noteCounts` recorded this server's own count, and adds that count's growth since. The size used is
   the larger of the measured one and `remote_blobs`; the meter's `measured_at` says when Cloudflare's
   numbers run to, and the admin page names which numbers it shows.
-- Small files go up in one request (`POST /channels/{id}/attachments`), big ones in pieces through
-  `/api/v1/uploads` (Cloudflare caps a request at 100 MB) within disk headroom and per-account caps
+- Small files go up in one request (`POST /channels/{id}/attachments`), big ones relayed in parts (above)
+  or, from apps that do not ask for that or without a bucket, in pieces through `/api/v1/uploads`
+  (Cloudflare caps a request at 100 MB) within disk headroom and per-account caps
   (`roomForUpload`). `reserveUpload` serializes admission and counts bodies still arriving until their
   records exist; temporary chunks have their own disk reservations (at most sixteen staged, two per
   transfer), so stalled retries cannot pile up copies of an offset. Reservations assume the one chatd

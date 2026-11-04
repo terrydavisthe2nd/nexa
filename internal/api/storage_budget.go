@@ -341,6 +341,7 @@ func (s *Server) StartStorage(ctx context.Context) {
 			s.flushStorageOps(ctx)
 			s.noteCounts(ctx)
 			s.measureStorage(ctx)
+			s.relay.prune()
 			if n, err := s.Media.SweepRemote(ctx, 500); err != nil && ctx.Err() == nil {
 				s.Log.Warn("storage: delete from the bucket", "err", err)
 			} else if n > 0 {

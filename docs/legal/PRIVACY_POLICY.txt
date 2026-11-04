@@ -397,17 +397,17 @@ calls.
   makes. Your messages, files, notes, and calls are already encrypted
   when they pass through it. Why: so the server is never reachable
   directly from the internet.
-- Cloudflare R2, for keeping files. Once sent, the files in messages
-  and notes, and the recordings in sound packs, are kept in R2,
-  Cloudflare's storage service, instead of on Nexa's server. They are
-  encrypted on your device before they leave it, so Cloudflare holds
-  only encrypted bytes and their sizes, never a key, and cannot read
-  them. Your app downloads them straight from R2 with a link the
-  server signs for an hour once it has checked you may see the file,
-  so Cloudflare sees your IP address then too. Public pictures, bug
-  report, case and report files, and files sent by webhooks and apps
-  stay on Nexa's server. Why: so files cost little to keep and
-  download quickly wherever you are.
+- Cloudflare R2, for keeping files. The files in messages and notes,
+  and the recordings in sound packs, are kept in R2, Cloudflare's
+  storage service, instead of on Nexa's server. They are encrypted on
+  your device before they leave it, so Cloudflare holds only encrypted
+  bytes and their sizes, never a key, and cannot read them. Your app
+  sends and downloads them through Nexa's server, which passes them on
+  to and from R2 as they go (a file an older app sends may wait on the
+  server for a minute or two first), so R2 never sees your device or
+  your IP address. Public pictures, bug report, case and report files,
+  and files sent by webhooks and apps stay on Nexa's server. Why: so
+  files cost little to keep.
 - Cloudflare Turnstile, for the captcha when you sign up, sign in,
   recover an account, send a friend request, invite someone to a
   note, create or join a server, or join a call as a guest. Your

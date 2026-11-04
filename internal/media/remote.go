@@ -2,7 +2,6 @@ package media
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,13 +14,14 @@ import (
 	"evilion.xyz/chat/internal/store"
 )
 
-// End-to-end encrypted attachments can live in a bucket (Cloudflare R2)
-// instead of on this machine's disk. They arrive here as always; once
-// something holds one (its message was sent), the mover copies it to the
-// bucket, checks the copy, records it in remote_blobs, and only then
-// removes the file here. Reads prefer the file here while it exists. Apps
-// are sent to the bucket with a short-lived signed link, so the bytes no
-// longer pass through this machine's connection. Only ciphertext goes:
+// End-to-end encrypted attachments live in a bucket (Cloudflare R2) instead
+// of on this machine's disk. Uploads stream through to it as they arrive
+// (PutEncrypted, relay.go). Files that did land here (from apps that send
+// pieces, or from before the bucket) are copied there by the mover once
+// something holds them (their message was sent): it checks the copy,
+// records it in remote_blobs, and only then removes the file here. Reads
+// prefer the file here while it exists, and otherwise stream from the
+// bucket through here. Only ciphertext goes:
 // pictures, bug report, case and report files, and webhook files stay here,
 // so the bucket holds nothing anyone there could read.
 
@@ -31,7 +31,13 @@ type ObjectStore interface {
 	Put(ctx context.Context, key string, f io.ReaderAt, size int64, contentType string) error
 	Head(ctx context.Context, key string) (int64, error)
 	Delete(ctx context.Context, key string) error
-	Presign(key string, ttl time.Duration) string
+	PutStream(ctx context.Context, key string, r io.Reader, size int64, contentType string) error
+	// for uploads relayed to the bucket (relay.go)
+	CreateMultipart(ctx context.Context, key, contentType string) (string, error)
+	PutPartStream(ctx context.Context, key, uploadID string, n int, r io.Reader, size int64) (objstore.Part, error)
+	ListParts(ctx context.Context, key, uploadID string) ([]objstore.Part, error)
+	CompleteMultipart(ctx context.Context, key, uploadID string, parts []objstore.Part) error
+	AbortMultipart(ctx context.Context, key, uploadID string) error
 }
 
 // File is a blob's bytes, on disk (*os.File) or in the bucket.
@@ -39,11 +45,6 @@ type File interface {
 	io.ReadSeekCloser
 	io.ReaderAt
 }
-
-// linkLife is how long a signed link to a file in the bucket works. Apps
-// ask this server again for every download and every stretch of a video,
-// so a link only has to outlast the start of one request.
-const linkLife = time.Hour
 
 // moveAfter is how old a held attachment is before it moves: the people in
 // a conversation fetch a new file at once, and do so from here.
@@ -73,37 +74,33 @@ func (m *Store) openBytes(ctx context.Context, b *store.Blob) (File, error) {
 	return nil, store.ErrNotFound
 }
 
-// LinkType marks the answer to a download asked for with X-Nexa-Link: 1
-// whose bytes are in the bucket: {"url", "expires_in"} rather than the bytes.
-const LinkType = "application/vnd.nexa.link+json"
-
-// sendToBucket answers a download whose bytes are in the bucket with a
-// signed link to them, which the app fetches without its token: the bucket
-// refuses a request carrying both, and has no business seeing it. The web
-// app asks for the link outright (X-Nexa-Link), because WebKit keeps the
-// Authorization header across a redirect to another origin; Android's
-// OkHttp and the apps from before follow a redirect, dropping the header
-// as it leaves this server.
-func (m *Store) sendToBucket(w http.ResponseWriter, r *http.Request, b *store.Blob) bool {
+// serveFromBucket answers a download whose bytes are in the bucket by
+// streaming them through here, ranges included. Apps are never handed a
+// link to the bucket: a link cannot be taken back, and every use of one is
+// a read the bucket bills, so every read is this server's own, counted and
+// paced per account (ReadOK). Attachments never change, so browsers keep
+// what they fetched instead of asking again.
+func (m *Store) serveFromBucket(w http.ResponseWriter, r *http.Request, b *store.Blob) bool {
 	if m.Remote == nil || !b.Encrypted {
 		return false
 	}
 	name := shaOf(b)
-	if _, ok, err := m.st.RemoteBlobSize(r.Context(), name); err != nil || !ok {
+	size, ok, err := m.st.RemoteBlobSize(r.Context(), name)
+	if err != nil || !ok {
 		return false
 	}
-	m.billed(objstore.ClassB) // the read the app makes with it
-	link := m.Remote.Presign(remoteKey(name), linkLife)
-	h := w.Header()
-	h.Set("Cache-Control", "private, no-store")
-	h.Set("Referrer-Policy", "no-referrer")
-	if r.Header.Get("X-Nexa-Link") == "1" {
-		h.Set("Content-Type", LinkType)
-		h.Set("X-Content-Type-Options", "nosniff")
-		_ = json.NewEncoder(w).Encode(map[string]any{"url": link, "expires_in": int(linkLife / time.Second)})
+	if m.ReadOK != nil && !m.ReadOK(r) {
+		w.Header().Set("Retry-After", "10")
+		http.Error(w, "too many downloads at once", http.StatusTooManyRequests)
 		return true
 	}
-	http.Redirect(w, r, link, http.StatusFound)
+	f := objstore.NewReader(r.Context(), m.Remote, remoteKey(name), size)
+	defer f.Close()
+	h := w.Header()
+	h.Set("Content-Type", "application/octet-stream")
+	h.Set("Cache-Control", "private, max-age=31536000, immutable")
+	h.Set("X-Content-Type-Options", "nosniff")
+	http.ServeContent(w, r, "", time.UnixMilli(b.CreatedAt), f)
 	return true
 }
 

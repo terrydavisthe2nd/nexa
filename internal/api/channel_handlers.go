@@ -611,7 +611,7 @@ func (s *Server) handleAttachmentUpload(w http.ResponseWriter, r *http.Request) 
 	}
 	defer release()
 	r.Body = http.MaxBytesReader(w, r.Body, limit+1)
-	b, err := s.Media.PutEncrypted(r.Context(), r.Body, limit, me.ID)
+	b, err := s.Media.PutEncrypted(r.Context(), r.Body, limit, r.ContentLength, me.ID)
 	if err != nil {
 		WriteError(w, err)
 		return

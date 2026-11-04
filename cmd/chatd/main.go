@@ -138,6 +138,8 @@ func main() {
 	if bucket != nil {
 		bucket.Billed = srv.StorageBilled
 		mediaStore.Billed = srv.StorageBilled
+		// reads from the bucket, paced per account (api/upload_relay.go)
+		mediaStore.ReadOK = srv.BucketReadOK
 		// the limit's numbers from Cloudflare's own measurements, not only this server's count
 		if token := cfg.R2Analytics(); token != "" && cfg.R2AccountID != "" {
 			srv.R2Analytics = objstore.NewAnalytics(cfg.R2AccountID, token)
@@ -341,9 +343,13 @@ func maintenance(ctx context.Context, log *slog.Logger, st *store.Store, m *medi
 		}
 		// transfers nobody came back to finish, and the bytes they left behind
 		if stale, err := st.StaleUploads(ctx, time.Now().Add(-24*time.Hour).UnixMilli()); err == nil && len(stale) > 0 {
-			for _, id := range stale {
-				m.DiscardSpool(id)
-				_ = st.DeleteUpload(ctx, id)
+			for _, up := range stale {
+				m.DiscardSpool(up.ID)
+				if up.RemoteID != "" {
+					// relayed to the bucket and never finished: its parts go too
+					m.AbortRelay(ctx, up.ID, up.RemoteID)
+				}
+				_ = st.DeleteUpload(ctx, up.ID)
 			}
 			log.Info("upload sweep", "removed", len(stale))
 		}

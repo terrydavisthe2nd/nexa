@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -41,6 +42,9 @@ type Store struct {
 	// monthly limit: the bucket client reports its own, and this store adds
 	// the read an app makes with each signed link it is given.
 	Billed func(class byte)
+	// ReadOK, when set, says whether a download may read from the bucket
+	// now; no answers 429 (api paces reads per account, each one billed).
+	ReadOK func(r *http.Request) bool
 	skipMu sync.Mutex
 	skips  map[string]bool
 }
@@ -274,7 +278,13 @@ func (m *Store) PutPublic(ctx context.Context, kind string, r io.Reader, lim Lim
 }
 
 // PutEncrypted stores opaque ciphertext as an unattached attachment (ref 0).
-func (m *Store) PutEncrypted(ctx context.Context, r io.Reader, max int64, owner ids.ID) (*store.Blob, error) {
+// declared is the request's Content-Length, or -1 when it did not say:
+// with a bucket and a declared size the bytes stream straight there as they
+// arrive and never touch this disk; otherwise they land here, for the mover.
+func (m *Store) PutEncrypted(ctx context.Context, r io.Reader, max, declared int64, owner ids.ID) (*store.Blob, error) {
+	if m.Remote != nil && declared > 0 && declared <= max {
+		return m.putEncryptedRemote(ctx, r, declared, owner)
+	}
 	tmp, sha, size, err := m.spool(r, max)
 	if err != nil {
 		return nil, err
@@ -386,7 +396,7 @@ func (m *Store) DiscardSpool(id ids.ID) {
 // had been renamed away, so every retry answered 404 and the person had to
 // send the whole file again.
 func (m *Store) FinishSpool(ctx context.Context, id ids.ID, owner ids.ID, size int64) (*store.Blob, error) {
-	name := hex.EncodeToString([]byte(id.String()))
+	name := uploadName(id)
 	if info, err := os.Stat(m.SpoolPath(id)); err == nil {
 		if info.Size() == 0 {
 			m.DiscardSpool(id)
@@ -414,6 +424,37 @@ func (m *Store) FinishSpool(ctx context.Context, id ids.ID, owner ids.ID, size i
 	}
 	return b, nil
 }
+
+// putEncryptedRemote streams size bytes of ciphertext to the bucket under a
+// name of their own, checks what the bucket holds, and only then records it.
+func (m *Store) putEncryptedRemote(ctx context.Context, r io.Reader, size int64, owner ids.ID) (*store.Blob, error) {
+	id := ids.New()
+	name := uploadName(id)
+	key := remoteKey(name)
+	if err := m.Remote.PutStream(ctx, key, r, size, "application/octet-stream"); err != nil {
+		return nil, fmt.Errorf("put %s: %w", name, err)
+	}
+	if got, err := m.Remote.Head(ctx, key); err != nil || got != size {
+		_ = m.Remote.Delete(context.WithoutCancel(ctx), key)
+		return nil, fmt.Errorf("put %s: the bucket holds %d of %d bytes (%v)", name, got, size, err)
+	}
+	unlock := m.lockContent(name)
+	defer unlock()
+	if err := m.st.AddRemoteBlob(ctx, name, size); err != nil {
+		return nil, err
+	}
+	ow := owner
+	b := &store.Blob{ID: id, SHA256: name, Size: size, Mime: "application/octet-stream", Kind: "attachment", Encrypted: true, RefCount: 0, OwnerID: &ow}
+	if err := m.st.InsertBlob(ctx, b); err != nil {
+		_ = m.st.MarkRemoteGone(context.WithoutCancel(ctx), name)
+		return nil, err
+	}
+	return b, nil
+}
+
+// uploadName is the content name of the file a transfer becomes, here or in
+// the bucket: from the upload's id alone, so finishing again finds it.
+func uploadName(id ids.ID) string { return hex.EncodeToString([]byte(id.String())) }
 
 // commit moves a spooled file into its content-addressed place.
 func (m *Store) commit(tmp, sha string) error {

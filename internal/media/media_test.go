@@ -162,15 +162,15 @@ func TestPutEncrypted(t *testing.T) {
 	ctx := context.Background()
 	owner := ids.New()
 	data := bytes.Repeat([]byte{0xAB}, 1000)
-	a, err := m.PutEncrypted(ctx, bytes.NewReader(data), 2000, owner)
+	a, err := m.PutEncrypted(ctx, bytes.NewReader(data), 2000, -1, owner)
 	if err != nil || a.RefCount != 0 || !a.Encrypted || a.Size != 1000 || *a.OwnerID != owner {
 		t.Fatalf("put: %v %+v", err, a)
 	}
-	b, err := m.PutEncrypted(ctx, bytes.NewReader(data), 2000, owner)
+	b, err := m.PutEncrypted(ctx, bytes.NewReader(data), 2000, -1, owner)
 	if err != nil || b.ID == a.ID {
 		t.Errorf("identical ciphertext must still be separate rows: %v", err)
 	}
-	if _, err := m.PutEncrypted(ctx, bytes.NewReader(data), 999, owner); !errors.Is(err, ErrTooLarge) {
+	if _, err := m.PutEncrypted(ctx, bytes.NewReader(data), 999, -1, owner); !errors.Is(err, ErrTooLarge) {
 		t.Errorf("too large: %v", err)
 	}
 	f, _, err := m.Open(ctx, a.ID)

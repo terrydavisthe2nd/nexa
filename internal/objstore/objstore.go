@@ -6,6 +6,7 @@ package objstore
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/xml"
@@ -44,7 +45,7 @@ func (e *Error) Is(target error) bool {
 
 // The two classes of request R2 bills. Deletes and aborted uploads are free.
 const (
-	ClassA byte = 'A' // writes: PutObject, CreateMultipartUpload, UploadPart, CompleteMultipartUpload
+	ClassA byte = 'A' // writes and lists: PutObject, CreateMultipartUpload, UploadPart, ListParts, CompleteMultipartUpload
 	ClassB byte = 'B' // reads: GetObject, HeadObject
 )
 
@@ -201,54 +202,165 @@ type completeUpload struct {
 	Parts   []completedPart `xml:"Part"`
 }
 
-func (c *Client) putParts(ctx context.Context, key string, f io.ReaderAt, size int64, contentType string) error {
+// CreateMultipart starts a multipart upload to key and returns its id.
+func (c *Client) CreateMultipart(ctx context.Context, key, contentType string) (string, error) {
 	resp, err := c.do(ctx, http.MethodPost, key, url.Values{"uploads": {""}}, nil, 0, emptySHA, map[string]string{"Content-Type": contentType}, ClassA)
 	if err != nil {
-		return err
+		return "", err
 	}
+	defer resp.Body.Close()
 	var start struct {
 		UploadID string `xml:"UploadId"`
 	}
-	err = xml.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&start)
-	resp.Body.Close()
-	if err != nil || start.UploadID == "" {
-		return fmt.Errorf("objstore: starting a multipart upload: %v", err)
+	if err := xml.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&start); err != nil || start.UploadID == "" {
+		return "", fmt.Errorf("objstore: starting a multipart upload: %v", err)
 	}
-	// Free, and best effort: the bucket's lifecycle rule clears what a
-	// failed abort leaves.
-	abort := func() {
-		actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-		defer cancel()
-		if r, err := c.do(actx, http.MethodDelete, key, url.Values{"uploadId": {start.UploadID}}, nil, 0, emptySHA, nil, 0); err == nil {
-			r.Body.Close()
-		}
+	return start.UploadID, nil
+}
+
+// AbortMultipart throws away an unfinished upload and every part it has.
+// Free; one already gone counts as aborted.
+func (c *Client) AbortMultipart(ctx context.Context, key, uploadID string) error {
+	resp, err := c.do(ctx, http.MethodDelete, key, url.Values{"uploadId": {uploadID}}, nil, 0, emptySHA, nil, 0)
+	if errors.Is(err, ErrNotFound) {
+		return nil
 	}
-	var parts []completedPart
-	for n, off := 1, int64(0); off < size; n, off = n+1, off+c.partSize {
-		etag, err := c.putPart(ctx, key, start.UploadID, n, f, off, min(c.partSize, size-off))
-		if err != nil {
-			abort()
-			return err
-		}
-		parts = append(parts, completedPart{Number: n, ETag: etag})
-	}
-	body, err := xml.Marshal(completeUpload{Parts: parts})
 	if err != nil {
-		abort()
+		return err
+	}
+	resp.Body.Close()
+	return nil
+}
+
+// errDamaged is a stream whose bytes the bucket took differently from how
+// they were read here.
+var errDamaged = errors.New("objstore: the bucket's checksum does not match what was sent")
+
+// putStream sends exactly size bytes from r with req's method, key and
+// query, as they are read, and checks the bucket took exactly those: its
+// ETag is their MD5. The body's hash cannot be known before it is read, so
+// it goes as UNSIGNED-PAYLOAD; TLS carries it, and the ETag checks it.
+func (c *Client) putStream(ctx context.Context, key string, q url.Values, r io.Reader, size int64, hdr map[string]string) (string, error) {
+	sum := md5.New()
+	body := io.TeeReader(io.LimitReader(r, size), sum)
+	resp, err := c.do(ctx, http.MethodPut, key, q, body, size, unsignedPayload, hdr, ClassA)
+	if err != nil {
+		return "", err
+	}
+	etag := resp.Header.Get("ETag")
+	resp.Body.Close()
+	if strings.Trim(etag, `"`) != hex.EncodeToString(sum.Sum(nil)) {
+		return "", errDamaged
+	}
+	return etag, nil
+}
+
+// PutStream stores exactly size bytes read from r under key as they arrive,
+// without holding them anywhere first. A reader that ends early fails the
+// request, and so stores nothing.
+func (c *Client) PutStream(ctx context.Context, key string, r io.Reader, size int64, contentType string) error {
+	_, err := c.putStream(ctx, key, nil, r, size, map[string]string{"Content-Type": contentType})
+	return err
+}
+
+// PutPartStream sends part n of a multipart upload, exactly size bytes read
+// from r as they arrive.
+func (c *Client) PutPartStream(ctx context.Context, key, uploadID string, n int, r io.Reader, size int64) (Part, error) {
+	etag, err := c.putStream(ctx, key, url.Values{"partNumber": {strconv.Itoa(n)}, "uploadId": {uploadID}}, r, size, nil)
+	if err != nil {
+		return Part{}, err
+	}
+	return Part{Number: n, ETag: etag, Size: size}, nil
+}
+
+// Part is a part the bucket holds of an unfinished upload.
+type Part struct {
+	Number int    `xml:"PartNumber"`
+	ETag   string `xml:"ETag"`
+	Size   int64  `xml:"Size"`
+}
+
+// ListParts lists every part an unfinished upload holds, in order. An
+// upload that is gone (finished or aborted) is ErrNotFound.
+func (c *Client) ListParts(ctx context.Context, key, uploadID string) ([]Part, error) {
+	var out []Part
+	marker := ""
+	for page := 0; page < 20; page++ {
+		q := url.Values{"uploadId": {uploadID}, "max-parts": {"1000"}}
+		if marker != "" {
+			q.Set("part-number-marker", marker)
+		}
+		resp, err := c.do(ctx, http.MethodGet, key, q, nil, 0, emptySHA, nil, ClassA)
+		if err != nil {
+			return nil, err
+		}
+		var res struct {
+			Parts      []Part `xml:"Part"`
+			Truncated  bool   `xml:"IsTruncated"`
+			NextMarker string `xml:"NextPartNumberMarker"`
+		}
+		err = xml.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&res)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("objstore: listing parts: %w", err)
+		}
+		out = append(out, res.Parts...)
+		if !res.Truncated || res.NextMarker == "" || res.NextMarker == marker {
+			return out, nil
+		}
+		marker = res.NextMarker
+	}
+	return nil, errors.New("objstore: too many parts")
+}
+
+// CompleteMultipart joins the parts into the object.
+func (c *Client) CompleteMultipart(ctx context.Context, key, uploadID string, parts []Part) error {
+	done := completeUpload{}
+	for _, p := range parts {
+		done.Parts = append(done.Parts, completedPart{Number: p.Number, ETag: p.ETag})
+	}
+	body, err := xml.Marshal(done)
+	if err != nil {
 		return err
 	}
 	sum := sha256.Sum256(body)
-	resp, err = c.do(ctx, http.MethodPost, key, url.Values{"uploadId": {start.UploadID}}, bytes.NewReader(body), int64(len(body)), hex.EncodeToString(sum[:]), map[string]string{"Content-Type": "application/xml"}, ClassA)
+	resp, err := c.do(ctx, http.MethodPost, key, url.Values{"uploadId": {uploadID}}, bytes.NewReader(body), int64(len(body)), hex.EncodeToString(sum[:]), map[string]string{"Content-Type": "application/xml"}, ClassA)
 	if err != nil {
-		abort()
 		return err
 	}
 	defer resp.Body.Close()
 	// S3 may answer 200 and still name an error in the body
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if bytes.Contains(raw, []byte("<Error>")) {
-		abort()
 		return parseError(resp.StatusCode, raw)
+	}
+	return nil
+}
+
+func (c *Client) putParts(ctx context.Context, key string, f io.ReaderAt, size int64, contentType string) error {
+	uploadID, err := c.CreateMultipart(ctx, key, contentType)
+	if err != nil {
+		return err
+	}
+	// Free, and best effort: the bucket's lifecycle rule clears what a
+	// failed abort leaves.
+	abort := func() {
+		actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		_ = c.AbortMultipart(actx, key, uploadID)
+	}
+	var parts []Part
+	for n, off := 1, int64(0); off < size; n, off = n+1, off+c.partSize {
+		etag, err := c.putPart(ctx, key, uploadID, n, f, off, min(c.partSize, size-off))
+		if err != nil {
+			abort()
+			return err
+		}
+		parts = append(parts, Part{Number: n, ETag: etag})
+	}
+	if err := c.CompleteMultipart(ctx, key, uploadID, parts); err != nil {
+		abort()
+		return err
 	}
 	return nil
 }

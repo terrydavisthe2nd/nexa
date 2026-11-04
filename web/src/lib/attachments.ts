@@ -1,5 +1,5 @@
 import { ApiError, api, errorFrom } from "@/api/client";
-import { uploads as uploadsApi } from "@/api/uploads";
+import { uploads as uploadsApi, type UploadSession } from "@/api/uploads";
 import { b64 } from "@/crypto/bytes";
 import { FRAME_LEN, HEADER_LEN, chunkCount, encryptChunks, encryptedSize, frameOffset, newBaseIv, newFileKey } from "@/crypto/fileChunks";
 import { MESSAGE_LIMITS, type AttachmentMeta, type AttachmentPreview } from "@/crypto/message";
@@ -89,7 +89,7 @@ export function fitName(name: string): string {
  * less the first `skip` bytes the server already has.
  */
 export interface PieceJob {
-  method: "POST" | "PATCH";
+  method: "POST" | "PATCH" | "PUT";
   path: string;
   headers?: Record<string, string>;
   file: Blob;
@@ -98,6 +98,8 @@ export interface PieceJob {
   first: number;
   count: number;
   skip: number;
+  /** For a part of a relayed upload: the ciphertext bytes [from, to) of the whole file, in place of whole chunks. */
+  range?: { from: number; to: number };
   /** Prepared while the previous request was in flight. Transferred to its sender once. */
   body?: Uint8Array<ArrayBuffer>;
 }
@@ -113,6 +115,7 @@ function cancelled(): ApiError {
 /** Encrypts the stretch a job describes: exactly the bytes its request carries. */
 async function bodyOf(job: PieceJob): Promise<Uint8Array<ArrayBuffer>> {
   if (job.body) return job.body;
+  if (job.range) return encryptBytes(job.file, job.key, job.baseIv, job.range.from, job.range.to);
   const whole = await encryptChunks(job.file, job.key, job.baseIv, job.first, job.count);
   return whole.subarray(job.skip);
 }
@@ -134,26 +137,29 @@ let workers = typeof Worker !== "undefined";
  */
 const WORKER_STALL_MS = 90_000;
 
+/** What a request sent from a worker came back with. */
+interface WorkerReply {
+  status: number;
+  text: string;
+  retryAfter: string | null;
+}
+
+/** The worker could not be started; the bytes may have gone with it, so make them again. */
+class NoWorker extends Error {}
+
 /**
- * Encrypts a stretch here, then hands the bytes to a worker of its own that
- * sends them and is ended once they have landed, so no finished request's
- * body outlives it (see upload.worker.ts).
+ * Hands a request's bytes to a worker of its own that sends them and is
+ * ended once they have landed, so no finished request's body outlives it
+ * (see upload.worker.ts). Rejects with NoWorker when the worker never got
+ * going, for the caller to send from the page instead.
  */
-export const sendInWorker: PieceSender = async (job, onProgress, signal) => {
-  if (!workers) return sendInPage(job, onProgress, signal);
-  if (signal?.aborted) throw cancelled();
-  const body = await bodyOf(job);
-  if (signal?.aborted) throw cancelled();
-  const headers: Record<string, string> = { "Content-Type": "application/octet-stream", ...job.headers };
-  const token = api.getToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+function inWorker(url: string, method: PieceRequest["method"], headers: Record<string, string>, body: Uint8Array<ArrayBuffer>, onProgress: (loaded: number) => void, signal?: AbortSignal): Promise<WorkerReply> {
   return new Promise((resolve, reject) => {
     let worker: Worker;
     try {
       worker = new Worker(new URL("./upload.worker.ts", import.meta.url), { type: "module" });
     } catch {
-      workers = false;
-      api.upload(job.path, body, { method: job.method, headers: job.headers ?? {}, onProgress, ...(signal ? { signal } : {}) }).then(resolve, reject);
+      reject(new NoWorker());
       return;
     }
     let heard = false;
@@ -194,16 +200,7 @@ export const sendInWorker: PieceSender = async (job, onProgress, signal) => {
         reject(new ApiError(0, "network", t("attachments.theUploadCouldNotReachThe")));
         return;
       }
-      if (reply.status >= 200 && reply.status < 300) {
-        try {
-          resolve(reply.text ? JSON.parse(reply.text) : undefined);
-        } catch {
-          reject(new ApiError(reply.status, "bad_response", t("attachments.theServerSAnswerCouldNot")));
-        }
-        return;
-      }
-      if (reply.status === 401) api.onUnauthorized?.();
-      reject(errorFrom(reply.status, reply.text, reply.retryAfter));
+      resolve(reply);
     };
     worker.onerror = (e) => {
       settled();
@@ -213,16 +210,46 @@ export const sendInWorker: PieceSender = async (job, onProgress, signal) => {
         return;
       }
       // It never got going (an older browser, or its script would not load).
-      // The body went to it, so make the stretch again and send it from here.
       e.preventDefault();
-      workers = false;
-      const { body: _body, ...unprepared } = job;
-      sendInPage(unprepared, onProgress, signal).then(resolve, reject);
+      reject(new NoWorker());
     };
-    const request: PieceRequest = { url: new URL(api.url(job.path), location.href).href, method: job.method, headers, body: body.buffer, offset: body.byteOffset, length: body.byteLength };
+    const request: PieceRequest = { url, method, headers, body: body.buffer, offset: body.byteOffset, length: body.byteLength };
     watch();
     worker.postMessage(request, [body.buffer]);
   });
+}
+
+/**
+ * Encrypts a stretch here, then sends it to this server from a worker of
+ * its own (inWorker).
+ */
+export const sendInWorker: PieceSender = async (job, onProgress, signal) => {
+  if (!workers) return sendInPage(job, onProgress, signal);
+  if (signal?.aborted) throw cancelled();
+  const body = await bodyOf(job);
+  if (signal?.aborted) throw cancelled();
+  const headers: Record<string, string> = { "Content-Type": "application/octet-stream", ...job.headers };
+  const token = api.getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  let reply: WorkerReply;
+  try {
+    reply = await inWorker(new URL(api.url(job.path), location.href).href, job.method, headers, body, onProgress, signal);
+  } catch (err) {
+    if (!(err instanceof NoWorker)) throw err;
+    // the body went to it, so make the stretch again and send it from here
+    workers = false;
+    const { body: _body, ...unprepared } = job;
+    return sendInPage(unprepared, onProgress, signal);
+  }
+  if (reply.status >= 200 && reply.status < 300) {
+    try {
+      return reply.text ? JSON.parse(reply.text) : undefined;
+    } catch {
+      throw new ApiError(reply.status, "bad_response", t("attachments.theServerSAnswerCouldNot"));
+    }
+  }
+  if (reply.status === 401) api.onUnauthorized?.();
+  throw errorFrom(reply.status, reply.text, reply.retryAfter);
 };
 
 /** A failure a second try might get past: the connection or the server, not the request itself. */
@@ -283,9 +310,21 @@ export async function uploadStaged(to: UploadPlace, st: Staged, onProgress: (p: 
   // a copy that does not make it up only leaves the picture to be shown at its full size
   const copied = look.then((found) => (found.copy ? sendCopy(to, found.copy, send, signal) : null)).catch(() => null);
   try {
-    // One request up to the server's single-request limit, pieces only above it:
-    // the owner chose fewer requests over resuming mid-file for files that fit in one.
-    if (total <= limits.single) {
+    // A file big enough goes in parts the server streams on to storage when
+    // it offers that (sendRelayed); otherwise one request up to the server's
+    // single-request limit, pieces only above it: the owner chose fewer
+    // requests over resuming mid-file for files that fit in one.
+    let session: UploadSession | undefined;
+    if (total >= RELAY_MIN) {
+      session = await uploadsApi.create(total, channelId, true);
+      if (!session.relay && total <= limits.single) {
+        await uploadsApi.cancel(session.id).catch(() => undefined);
+        session = undefined;
+      }
+    }
+    if (session?.relay) {
+      res = await sendRelayed(session, st.file, key, baseIv, (sent) => onProgress(sent / total), send, signal);
+    } else if (total <= limits.single) {
       const job: PieceJob = { method: "POST", path: placePath(to), file: st.file, key, baseIv, first: 0, count: chunkCount(st.file.size), skip: 0 };
       const once = async () => (await send(job, (loaded) => onProgress(loaded / total), signal)) as { blob_id: string; size: number };
       try {
@@ -300,7 +339,7 @@ export async function uploadStaged(to: UploadPlace, st: Staged, onProgress: (p: 
         res = await once();
       }
     } else {
-      res = await uploadInPieces(st.file, key, baseIv, (sent) => onProgress(sent / total), send, signal, channelId);
+      res = await uploadInPieces(st.file, key, baseIv, (sent) => onProgress(sent / total), send, signal, channelId, session);
     }
     [seen, copy] = await Promise.all([look, copied]);
   } catch (err) {
@@ -406,11 +445,11 @@ async function finishUpload(id: string): Promise<{ blob_id: string; size: number
  * that one piece rather than the whole transfer. Anything already spooled is
  * thrown away if the upload is abandoned.
  */
-export async function uploadInPieces(file: Blob, key: Uint8Array, baseIv: Uint8Array, onProgress: (sent: number) => void, send: PieceSender = sendInWorker, signal?: AbortSignal, channelId?: string): Promise<{ blob_id: string; size: number }> {
+export async function uploadInPieces(file: Blob, key: Uint8Array, baseIv: Uint8Array, onProgress: (sent: number) => void, send: PieceSender = sendInWorker, signal?: AbortSignal, channelId?: string, opened?: UploadSession): Promise<{ blob_id: string; size: number }> {
   const total = encryptedSize(file.size);
   const chunks = chunkCount(file.size);
   // the channel lets a boosted server take a bigger file
-  const session = await uploadsApi.create(total, channelId);
+  const session = opened ?? (await uploadsApi.create(total, channelId));
   const limit = Math.min(session.chunk_size || limits.chunk, limits.chunk);
   const perPiece = Math.max(1, Math.floor((limit - HEADER_LEN) / FRAME_LEN));
   let sent = 0;
@@ -533,4 +572,117 @@ export async function uploadInPieces(file: Blob, key: Uint8Array, baseIv: Uint8A
     await uploadsApi.cancel(session.id).catch(() => undefined);
     throw err;
   }
+}
+
+/** The smallest file sent in parts the server streams on to storage (api/upload_relay.go): R2's smallest part. */
+const RELAY_MIN = 5 * 1024 * 1024;
+
+/** How many parts of one file are on their way at once. */
+const RELAY_LANES = 3;
+
+/**
+ * The ciphertext bytes [from, to) of the whole encrypted file: the chunks
+ * they fall in, encrypted, then cut to the stretch. Storage wants every part
+ * but the last the same size, which a stretch of whole chunks is not (the
+ * first carries the header), so parts are cut by bytes.
+ */
+export async function encryptBytes(file: Blob, key: Uint8Array, baseIv: Uint8Array, from: number, to: number): Promise<Uint8Array<ArrayBuffer>> {
+  const chunks = chunkCount(file.size);
+  const chunkAt = (byte: number): number => (byte < HEADER_LEN ? 0 : Math.min(chunks - 1, Math.floor((byte - HEADER_LEN) / FRAME_LEN)));
+  const first = chunkAt(from);
+  const last = chunkAt(to - 1);
+  const whole = await encryptChunks(file, key, baseIv, first, last - first + 1);
+  const base = first === 0 ? 0 : frameOffset(first);
+  return whole.subarray(from - base, to - base);
+}
+
+/**
+ * Sends a file in equal parts that the server streams on to storage as they
+ * arrive, a few at once, then has the server check and join them. Each part
+ * is an ordinary signed-in request to the server; nothing here ever talks to
+ * storage. A part that fails goes again, so a dropped connection costs that
+ * part only. An upload that cannot finish is thrown away, parts and all.
+ */
+async function sendRelayed(session: UploadSession, file: Blob, key: Uint8Array, baseIv: Uint8Array, onProgress: (sent: number) => void, send: PieceSender, outer?: AbortSignal): Promise<{ blob_id: string; size: number }> {
+  const total = session.size;
+  const part = session.relay?.part_size ?? 0;
+  const parts = session.relay?.parts ?? 0;
+  if (!(part > 0) || parts !== Math.ceil(total / part)) {
+    await uploadsApi.cancel(session.id).catch(() => undefined);
+    throw new ApiError(0, "bad_response", t("attachments.theServerSAnswerCouldNot"));
+  }
+  // one part failing for good stops the others
+  const stop = new AbortController();
+  const onOuter = (): void => stop.abort();
+  outer?.addEventListener("abort", onOuter, { once: true });
+  const signal = stop.signal;
+  const inFlight = new Map<number, number>();
+  let landed = 0;
+  let movedAt = Date.now();
+  const report = (): void => {
+    let n = landed;
+    for (const v of inFlight.values()) n += v;
+    onProgress(n);
+  };
+  let next = 1;
+  const chunks = chunkCount(file.size);
+  const lane = async (): Promise<void> => {
+    for (;;) {
+      if (signal.aborted) throw cancelled();
+      const n = next++;
+      if (n > parts) return;
+      const from = (n - 1) * part;
+      const to = Math.min(total, n * part);
+      const job: PieceJob = { method: "PUT", path: `/uploads/${session.id}/parts/${n}`, file, key, baseIv, first: 0, count: chunks, skip: 0, range: { from, to } };
+      let tries = 0;
+      for (;;) {
+        try {
+          // A worker takes the bytes it sends, so each try makes them again.
+          await send({ ...job }, (loaded) => {
+            inFlight.set(n, loaded);
+            report();
+          }, signal);
+          inFlight.delete(n);
+          landed += to - from;
+          movedAt = Date.now();
+          report();
+          break;
+        } catch (err) {
+          inFlight.delete(n);
+          report();
+          if (signal.aborted) throw outer?.aborted ? cancelled() : err;
+          if (!(err instanceof ApiError)) throw err;
+          const again = err.status === 0 || err.status >= 500 || err.status === 408 || err.code === "rate_limited";
+          if (!again) throw err;
+          tries += 1;
+          if (tries >= CHUNK_TRIES || Date.now() - movedAt > STALL_MS) throw err;
+          await connectionBack(err.retryAfter ? err.retryAfter * 1000 : Math.min(30_000, 1000 * 2 ** tries), signal);
+        }
+      }
+    }
+  };
+  try {
+    const lanes = Array.from({ length: Math.min(RELAY_LANES, parts) }, () =>
+      lane().catch((err: unknown) => {
+        stop.abort();
+        throw err;
+      }),
+    );
+    const results = await Promise.allSettled(lanes);
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (failed) throw (outer?.aborted ? cancelled() : firstReal(results)) ?? failed.reason;
+    if (landed !== total) throw new Error(t("attachments.theUploadCameOutADifferentSize"));
+    return await finishUpload(session.id);
+  } catch (err) {
+    await uploadsApi.cancel(session.id).catch(() => undefined);
+    throw err;
+  } finally {
+    outer?.removeEventListener("abort", onOuter);
+  }
+}
+
+/** The failure that stopped the lanes, rather than the cancellation it caused in the others. */
+function firstReal(results: PromiseSettledResult<void>[]): unknown {
+  for (const r of results) if (r.status === "rejected" && !(r.reason instanceof ApiError && r.reason.code === "aborted")) return r.reason;
+  return undefined;
 }

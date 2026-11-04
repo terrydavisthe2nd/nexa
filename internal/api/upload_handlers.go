@@ -71,9 +71,15 @@ type uploadReservations struct {
 // remote says the file is an end-to-end encrypted attachment, which ends up
 // in the bucket when there is one, and so has to fit under the monthly limit.
 func (s *Server) reserveUpload(ctx context.Context, uid ids.ID, size int64, session, remote bool) (func(), error) {
+	return s.reserveUploadTo(ctx, uid, size, session, remote, true)
+}
+
+// reserveUploadTo is reserveUpload for bytes that land on this disk (disk),
+// or go straight to the bucket and so need no room here.
+func (s *Server) reserveUploadTo(ctx context.Context, uid ids.ID, size int64, session, remote, disk bool) (func(), error) {
 	s.uploads.Lock()
 	defer s.uploads.Unlock()
-	if err := s.uploadRoomLocked(ctx, uid, size, session, remote); err != nil {
+	if err := s.uploadRoomCheck(ctx, uid, size, session, remote, disk); err != nil {
 		return nil, err
 	}
 	if s.uploads.users == nil {
@@ -158,6 +164,10 @@ func (s *Server) roomForUpload(ctx context.Context, uid ids.ID, size int64, sess
 }
 
 func (s *Server) uploadRoomLocked(ctx context.Context, uid ids.ID, size int64, session, remote bool) error {
+	return s.uploadRoomCheck(ctx, uid, size, session, remote, true)
+}
+
+func (s *Server) uploadRoomCheck(ctx context.Context, uid ids.ID, size int64, session, remote, disk bool) error {
 	room, err := s.Store.UploadRoomFor(ctx, uid)
 	if err != nil {
 		return err
@@ -176,7 +186,9 @@ func (s *Server) uploadRoomLocked(ctx context.Context, uid ids.ID, size int64, s
 	} else if used+room.UserDeclared+inflight.bytes+size > limits.MonthUploadMax {
 		return errMonthFull
 	}
-	if free, err := freeSpace(s.Media.Dir); err != nil {
+	if !disk {
+		// nothing lands here
+	} else if free, err := freeSpace(s.Media.Dir); err != nil {
 		return err
 	} else if free-room.AllRemaining-s.uploads.bytes-s.uploads.stageBytes < size+diskHeadroom {
 		return errNoSpace
@@ -191,6 +203,7 @@ func (s *Server) uploadRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/uploads", s.authed(s.handleUploadCreate))
 	mux.Handle("GET /api/v1/uploads/{id}", s.authed(s.handleUploadStatus))
 	mux.Handle("PATCH /api/v1/uploads/{id}", s.authed(s.handleUploadChunk))
+	mux.Handle("PUT /api/v1/uploads/{id}/parts/{n}", s.authed(s.handleUploadPart))
 	mux.Handle("POST /api/v1/uploads/{id}/finish", s.authed(s.handleUploadFinish))
 	mux.Handle("DELETE /api/v1/uploads/{id}", s.authed(s.handleUploadCancel))
 }
@@ -212,7 +225,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) (*store.Upload, 
 }
 
 func uploadView(up *store.Upload) map[string]any {
-	return map[string]any{"id": up.ID, "size": up.Size, "received": up.Received, "chunk_size": MaxChunkBytes}
+	return relayView(up, map[string]any{"id": up.ID, "size": up.Size, "received": up.Received, "chunk_size": MaxChunkBytes})
 }
 
 func (s *Server) handleUploadCreate(w http.ResponseWriter, r *http.Request) {
@@ -222,6 +235,9 @@ func (s *Server) handleUploadCreate(w http.ResponseWriter, r *http.Request) {
 		// ChannelID is where the file is going, when that is a channel: a
 		// boosted server takes bigger files. Apps from before boosts leave it out.
 		ChannelID *ids.ID `json:"channel_id"`
+		// Relay asks to send the file in parts streamed on to the bucket
+		// (upload_relay.go); the answer's relay says whether it may.
+		Relay bool `json:"relay"`
 	}
 	if err := ReadJSON(w, r, &req, 4<<10); err != nil {
 		WriteError(w, err)
@@ -244,7 +260,12 @@ func (s *Server) handleUploadCreate(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ErrRateLimited)
 		return
 	}
-	release, err := s.reserveUpload(r.Context(), me.ID, req.Size, true, true)
+	relay := req.Relay && req.Size >= relayMinBytes && s.bucketOn()
+	if relay {
+		// opening one in the bucket is a billed write; past this it lands here
+		relay, _ = s.limRelay.Allow("d:" + me.ID.String())
+	}
+	release, err := s.reserveUploadTo(r.Context(), me.ID, req.Size, true, true, !relay)
 	if err != nil {
 		WriteError(w, err)
 		return
@@ -254,6 +275,14 @@ func (s *Server) handleUploadCreate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		WriteError(w, err)
 		return
+	}
+	if relay && !s.startRelay(r, up) {
+		// it comes through here after all, so it needs room here
+		if err := s.uploadRoomCheck(r.Context(), me.ID, 0, false, false, true); err != nil {
+			_ = s.Store.DeleteUpload(r.Context(), up.ID)
+			WriteError(w, err)
+			return
+		}
 	}
 	WriteJSON(w, http.StatusCreated, uploadView(up))
 }
@@ -275,6 +304,10 @@ func (s *Server) handleUploadStatus(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
 	up, _ := s.upload(w, r)
 	if up == nil {
+		return
+	}
+	if up.RemoteID != "" {
+		WriteError(w, E(http.StatusConflict, "relayed_upload", "This upload goes in parts."))
 		return
 	}
 	offset, err := strconv.ParseInt(r.Header.Get("Upload-Offset"), 10, 64)
@@ -400,6 +433,10 @@ func (s *Server) handleUploadFinish(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, http.StatusCreated, map[string]any{"blob_id": b.ID, "size": b.Size})
 		return
 	}
+	if up.RemoteID != "" {
+		s.finishRelay(w, r, up)
+		return
+	}
 	if up.Received != up.Size {
 		WriteError(w, E(http.StatusBadRequest, "incomplete", "Some of the file has not arrived yet."))
 		return
@@ -424,6 +461,11 @@ func (s *Server) handleUploadCancel(w http.ResponseWriter, r *http.Request) {
 	}
 	unlock := s.Media.LockUpload(up.ID)
 	defer unlock()
+	if up.RemoteID != "" && up.BlobID == nil {
+		s.dropRelay(r, up)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	s.Media.DiscardSpool(up.ID)
 	_ = s.Store.DeleteUpload(r.Context(), up.ID)
 	w.WriteHeader(http.StatusNoContent)

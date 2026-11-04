@@ -1,24 +1,12 @@
 package api
 
 import (
-	"context"
-	"io"
 	"testing"
 	"time"
 
 	"evilion.xyz/chat/internal/objstore"
+	"evilion.xyz/chat/internal/objstore/memstore"
 )
-
-// idleBucket is a bucket that is there and holds nothing.
-type idleBucket struct{}
-
-func (idleBucket) Get(context.Context, string, int64, int64) (io.ReadCloser, error) {
-	return nil, objstore.ErrNotFound
-}
-func (idleBucket) Put(context.Context, string, io.ReaderAt, int64, string) error { return nil }
-func (idleBucket) Head(context.Context, string) (int64, error)                   { return 0, objstore.ErrNotFound }
-func (idleBucket) Delete(context.Context, string) error                          { return nil }
-func (idleBucket) Presign(string, time.Duration) string                          { return "" }
 
 // The monthly limit refuses an attachment once keeping it would cost more
 // than the limit, and only then; Settings takes the limit in whole cents or
@@ -37,7 +25,7 @@ func TestStorageLimit(t *testing.T) {
 
 	srv, ts := newTestServer(t)
 	tok, _ := register(t, ts, "owner")
-	srv.Media.Remote = idleBucket{}
+	srv.Media.Remote = &memstore.Bucket{}
 	for _, bad := range []any{-1, 1.5, "500", 10_000_001} {
 		if res, body := do(t, ts, "PATCH", "/api/v1/admin/settings", tok, map[string]any{"storage_budget": bad}); res.StatusCode != 400 || errCode(body) != "invalid_value" {
 			t.Errorf("limit %v: %d %v", bad, res.StatusCode, body)

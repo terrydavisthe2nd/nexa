@@ -10,7 +10,8 @@
 
 export interface PieceRequest {
   url: string;
-  method: "POST" | "PATCH";
+  /** PUT is a part of a relayed upload (api/upload_relay.go). */
+  method: "POST" | "PATCH" | "PUT";
   headers: Record<string, string>;
   /** Transferred, not copied: the page no longer holds these bytes once sent here. */
   body: ArrayBuffer;
