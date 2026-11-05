@@ -8,6 +8,9 @@ its address fixed when it is built (NEXA_BUILD_URL). It is also a different app:
 "Nexa Dev", with its own bundle id and profile, so it installs beside the real
 Nexa, never over it, and shares no sign-in with it.
 
+Each build's version names when it was made (1.2.11-dev.11051430), and it keeps a
+log of what game detection did in its profile, test-build.log.
+
 It is not signed with the update key, which is for releases, so a test client
 does not update itself: its updater finds no signed feed and stays as it is.
 Install a newer one by hand. The release's own steps are not used:
@@ -45,7 +48,8 @@ def main() -> int:
 
     work = Path(args.work)
     shutil.rmtree(work, ignore_errors=True)
-    version = json.loads((DESKTOP / "package.json").read_text())["version"]
+    # every test build says which it is: two with one version cannot be told apart once installed
+    version = json.loads((DESKTOP / "package.json").read_text())["version"] + time.strftime("-dev.%m%d%H%M")
     print(f"desktop: building {version} for {args.url}")
     run("node", "build.mjs", cwd=DESKTOP, env=dict(os.environ, NEXA_BUILD_URL=args.url))
     identity = [
@@ -54,6 +58,7 @@ def main() -> int:
         "-c.appId=xyz.evilion.chat.dev",
         "-c.productName=Nexa Dev",
         "-c.extraMetadata.name=nexa-desktop-dev",
+        f"-c.extraMetadata.version={version}",
         "-c.extraMetadata.productName=Nexa Dev",
         f"-c.publish.url={args.url}/desktop/",
         "-c.nsis.shortcutName=Nexa Dev",
@@ -69,6 +74,9 @@ def main() -> int:
         run("node", "build.mjs", cwd=DESKTOP)
 
     to.mkdir(parents=True, exist_ok=True)
+    for old in to.iterdir():
+        if PATTERN.match(old.name):
+            old.unlink()
     files = []
     for p in sorted(work.iterdir()):
         m = PATTERN.match(p.name) if p.is_file() else None

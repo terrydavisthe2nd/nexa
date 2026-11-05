@@ -246,8 +246,17 @@ export class MacLister implements ProcessLister {
   /** Asking takes starting osascript, so it waits a little between looks. */
   readonly gameWindowsMs = 10_000;
 
-  async gameWindows(): Promise<Set<number> | null> {
-    return parseWindowOwners(await run("/usr/bin/osascript", ["-l", "JavaScript", "-e", WINDOWS_SCRIPT]));
+  constructor(private readonly log?: (msg: string, extra?: Record<string, unknown>) => void) {}
+
+  gameWindows(): Promise<Set<number> | null> {
+    return new Promise((resolve) => {
+      execFile("/usr/bin/osascript", ["-l", "JavaScript", "-e", WINDOWS_SCRIPT], { timeout: 2000, maxBuffer: 16 << 20 }, (err, stdout, stderr) => {
+        const owners = err ? null : parseWindowOwners(String(stdout));
+        // the game stays shown when this fails, so the reason has to be said somewhere
+        if (!owners) this.log?.("window check failed", { err: err ? String(err) : "", stdout: String(stdout).slice(0, 200), stderr: String(stderr).slice(0, 400) });
+        resolve(owners);
+      });
+    });
   }
 
   async list(): Promise<Proc[]> {

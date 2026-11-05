@@ -30,8 +30,25 @@ if (!settings.get("hardwareAcceleration")) app.disableHardwareAcceleration();
 if (process.platform === "linux") app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
 if (process.platform === "win32") app.setAppUserModelId(TEST_BUILD ? "xyz.evilion.chat.dev" : "xyz.evilion.chat");
 
+// a test build keeps its log in a file, since what goes wrong may only happen when opened the usual way, with no terminal
+const testLog = TEST_BUILD ? path.join(app.getPath("userData"), "test-build.log") : null;
+if (testLog) {
+  try {
+    fs.mkdirSync(path.dirname(testLog), { recursive: true });
+    fs.writeFileSync(testLog, `${app.getVersion()} started ${new Date().toISOString()}\n`);
+  } catch {
+    /* it only goes without a log */
+  }
+}
 const log = (msg: string, extra?: Record<string, unknown>) => {
   if (!app.isPackaged || process.env.EVILION_DEBUG) console.log(`[evilion] ${msg}`, extra ?? "");
+  if (testLog) {
+    try {
+      fs.appendFileSync(testLog, `${new Date().toISOString().slice(11, 19)} ${msg} ${extra ? JSON.stringify(extra) : ""}\n`);
+    } catch {
+      /* as above */
+    }
+  }
 };
 
 let win: BrowserWindow | null = null;

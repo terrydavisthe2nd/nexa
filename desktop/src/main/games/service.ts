@@ -70,7 +70,7 @@ const NAME_MAX = 128;
 
 export function platformLister(platform: NodeJS.Platform, log: GameServiceOptions["log"]): ProcessLister {
   if (platform === "win32") return new WindowsLister((m, e) => log?.(m, e));
-  if (platform === "darwin") return new MacLister();
+  if (platform === "darwin") return new MacLister(log);
   return new LinuxLister();
 }
 
@@ -134,6 +134,7 @@ export class GameService extends EventEmitter {
   private dismissed: Set<string>;
   private owners: Set<number> | null = null;
   private ownersAt = 0;
+  private windowsSaid = "";
   /** Games recognised at the last look, window or not, so a new one is checked at once. */
   private candidates = new Set<string>();
   /** Programs behaving like games, by what they run, and how many looks in a row. */
@@ -327,10 +328,17 @@ export class GameService extends EventEmitter {
       this.ownersAt = this.clock();
     }
     const owners = this.owners;
-    if (!owners) return;
-    for (const key of keys) {
-      const seen = found.get(key);
-      if (seen && ![...owners].some((owner) => startedBy(owner, seen.pids, parents))) found.delete(key);
+    const before = keys.map((k) => `${k}:${[...(found.get(k)?.pids ?? [])].join("+")}`);
+    if (owners) {
+      for (const key of keys) {
+        const seen = found.get(key);
+        if (seen && ![...owners].some((owner) => startedBy(owner, seen.pids, parents))) found.delete(key);
+      }
+    }
+    const said = JSON.stringify({ games: before, owners: owners ? owners.size : "no answer", kept: [...found.keys()] });
+    if (said !== this.windowsSaid) {
+      this.windowsSaid = said;
+      this.opts.log?.("window check", JSON.parse(said) as Record<string, unknown>);
     }
   }
 

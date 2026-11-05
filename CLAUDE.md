@@ -282,7 +282,9 @@ runs in the foreground, so start it in the background; stop it with `pkill -f bi
   its download page), publishing nothing live. Its address is fixed when built (`NEXA_BUILD_URL`, `__NEXA_BUILD_URL__`
   in `config.ts`, empty in a release), since an installed app ignores environment overrides. It installs as "Nexa Dev",
   with its own bundle id and profile, beside the real app and never over it. It is not signed with the update key, so
-  it never updates itself: install a newer one by hand. The tool refuses the live folder and the live addresses.
+  it never updates itself: install a newer one by hand. Each build's version says when it was made, and it logs what
+  game detection did to `test-build.log` in its profile (a release writes no such file). The tool refuses the live
+  folder and the live addresses.
 
 - `R2_BUCKET=off` (`make run-dev` sets it too) keeps it out of the live bucket `chatd.env` names: an empty
   variable does not override the file, and its uploads and deletions would land on live keys.
