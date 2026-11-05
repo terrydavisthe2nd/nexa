@@ -18,6 +18,14 @@ export interface ProcessLister {
   gpuBusy?(pids: number[]): Promise<Set<number>>;
   /** What a program calls itself, where its file says (Windows' version resource). */
   product?(path: string): Promise<string | null>;
+  /**
+   * Which processes own a normal window, minimised or on another desktop included, so a game
+   * sitting in the tray does not count as being played. Null when the system cannot say.
+   * A platform where this cannot be trusted has no such method, and nothing is held back there.
+   */
+  gameWindows?(): Promise<Set<number> | null>;
+  /** How long an answer from gameWindows stays good, where asking costs a process of its own. */
+  gameWindowsMs?: number;
   /** A system call never came back, so the process can only end by being ended. */
   stuck?: boolean;
 }
@@ -39,6 +47,19 @@ export function parseDrmFdinfo(text: string): { client: string; engineNs: number
   for (const m of text.matchAll(/^drm-engine-(?:render|gfx|graphics):\s*(\d+)\s*ns/gm)) engineNs += Number(m[1]);
   return { client, engineNs };
 }
+
+/** What the window check prints: a JSON list of process ids. Null when it printed anything else. */
+export function parseWindowOwners(text: string | null): Set<number> | null {
+  try {
+    const list = JSON.parse(text?.trim() || "null") as unknown;
+    return Array.isArray(list) ? new Set(list.filter((p): p is number => typeof p === "number")) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Smaller than this is an icon or a title strip, which Roblox keeps several of: a game's window is not. */
+export const GAME_WINDOW = { width: 200, height: 150 };
 
 /** The properties xprop prints for a window, down to what game detection needs. */
 export function parseXprop(text: string): { pid?: number; title?: string; fullscreen: boolean } {
@@ -222,6 +243,13 @@ export function parsePs(text: string, now: number): Proc[] {
 }
 
 export class MacLister implements ProcessLister {
+  /** Asking takes starting osascript, so it waits a little between looks. */
+  readonly gameWindowsMs = 10_000;
+
+  async gameWindows(): Promise<Set<number> | null> {
+    return parseWindowOwners(await run("/usr/bin/osascript", ["-l", "JavaScript", "-e", WINDOWS_SCRIPT]));
+  }
+
   async list(): Promise<Proc[]> {
     const text = await run("/bin/ps", ["-axww", "-o", "pid=,ppid=,etime=,comm="]);
     if (text === null) return [];
@@ -256,6 +284,9 @@ export class MacLister implements ProcessLister {
     }
   }
 }
+
+/** Every process with a normal window on the app layer, on screen or not. Reading a window's bounds needs no permission. */
+const WINDOWS_SCRIPT = `ObjC.import("CoreGraphics");function run(){const l=ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionAll,0)))||[];return JSON.stringify([...new Set(l.filter((w)=>w.kCGWindowLayer===0&&w.kCGWindowBounds.Width>=${GAME_WINDOW.width}&&w.kCGWindowBounds.Height>=${GAME_WINDOW.height}).map((w)=>w.kCGWindowOwnerPID))])}`;
 
 const FRONT_SCRIPT = `ObjC.import("AppKit");ObjC.import("CoreGraphics");function run(){const pid=$.NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier;const l=ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly|$.kCGWindowListExcludeDesktopElements,0)))||[];const w=l.find((x)=>x.kCGWindowOwnerPID===pid&&x.kCGWindowLayer===0);if(!w)return JSON.stringify({pid,fullscreen:false});const s=$.NSScreen.mainScreen.frame;return JSON.stringify({pid,fullscreen:w.kCGWindowBounds.Width>=s.size.width&&w.kCGWindowBounds.Height>=s.size.height})}`;
 

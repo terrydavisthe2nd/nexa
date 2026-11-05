@@ -209,14 +209,14 @@ function testBehaviour(): { lister?: ReturnType<typeof platformLister> } {
   const file = testHook("EVILION_TEST_GAME_BEHAVIOUR");
   if (!file) return {};
   const real = platformLister(process.platform, log);
-  const said = (): { foreground?: { pid: number; title?: string; fullscreen: boolean } | null; busy?: number[] } => {
+  const said = (): { foreground?: { pid: number; title?: string; fullscreen: boolean } | null; busy?: number[]; windows?: number[] } => {
     try {
       return JSON.parse(fs.readFileSync(file, "utf8"));
     } catch {
       return {};
     }
   };
-  return { lister: { list: () => real.list(), windows: () => real.windows(), foreground: async () => said().foreground ?? null, gpuBusy: async () => new Set(said().busy ?? []) } };
+  return { lister: { list: () => real.list(), windows: () => real.windows(), foreground: async () => said().foreground ?? null, gpuBusy: async () => new Set(said().busy ?? []), gameWindows: async () => { const w = said().windows; return w ? new Set(w) : null; } } };
 }
 
 /** This app's own processes, which must never count as a game someone is playing. */

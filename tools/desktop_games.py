@@ -10,6 +10,8 @@ run as the games:
 
   - a game Steam's manifests name, and its crash handler, which must not count
   - a game with Rich Presence, which wins over detecting it, by process id
+  - a known game with no window, as Roblox in the menu bar, which must not count
+    until it has one (a window manager cannot say here either, so the same hook does)
   - a program nothing knows, added by hand from the running apps, and shared
   - a program with a game's name that fills the screen, which asks first. No
     window manager can say what is in front here, so EVILION_TEST_GAME_BEHAVIOUR
@@ -92,6 +94,7 @@ def main():
         "balatro": steam / "common/Balatro/Balatro.x86_64",
         "indie": home / "games/Cool Indie Game/coolindie",
         "unknown": home / "apps/Copy/hk_game",
+        "roblox": home / "apps/Roblox/RobloxPlayer",
     }
     procs, running = [], {}
     for key, path in programs.items():
@@ -100,7 +103,11 @@ def main():
         running[key] = subprocess.Popen([str(path)])
         procs.append(running[key])
     behaviour = work / "behaviour.json"
-    behaviour.write_text(json.dumps({"foreground": {"pid": running["unknown"].pid, "title": "Hollow Knight v1.5.78", "fullscreen": True}}))
+    def say(windows):
+        behaviour.write_text(json.dumps({"foreground": {"pid": running["unknown"].pid, "title": "Hollow Knight v1.5.78", "fullscreen": True}, "windows": windows}))
+
+    with_window = [running[k].pid for k in ("hades", "balatro", "indie", "unknown")]
+    say(with_window)
     profile = work / "profile"
     profile.mkdir()
     (profile / "settings.json").write_text(json.dumps({"launchAtLogin": False, "rpcRelay": False}))
@@ -147,6 +154,10 @@ def main():
             check("a game's crash handler is no game of its own", names().count("Hades II") == 1)
             hades = next(a for a in acts() if a["name"] == "Hades II")
             check("carries the store's id", hades.get("store_id") == "1145350", hades)
+
+            check("a game with no window is not being played", "Roblox" not in names(), names())
+            say(with_window + [running["roblox"].pid])
+            check("and is once it has one", wait_for(lambda: "Roblox" in names(), 20), names())
 
             client = subprocess.Popen(["node", "-e", FRAME, str(running["balatro"].pid)], env=env)
             procs.append(client)

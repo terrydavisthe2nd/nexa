@@ -5,7 +5,7 @@ import { cleanKnownGames } from "../src/main/games/known";
 import { desktopProgram, installedGame, libraryFolders, parseBinaryVdf, parseDesktopEntry, parseUninstall, parseVdf, steamShortcuts } from "../src/main/games/library";
 import { plistValue } from "../src/main/games/markers";
 import { cleanName, emptyLibrary, entryOf, identify, norm, type Library, type Proc } from "../src/main/games/match";
-import { parseCmdline, parseDrmFdinfo, parsePs, parseStat, parseXprop, splitCommandLine } from "../src/main/games/processes";
+import { parseCmdline, parseDrmFdinfo, parseWindowOwners, parsePs, parseStat, parseXprop, splitCommandLine } from "../src/main/games/processes";
 import { GameService, pickable, type GameServiceOptions } from "../src/main/games/service";
 
 const proc = (path: string, args?: string[], pid = 100): Proc => ({ pid, ppid: 1, path, ...(args ? { args } : {}) });
@@ -295,17 +295,14 @@ describe("the service", () => {
     );
     await s.scan();
     expect(s.state().suggestions).toEqual([]); // one look is not enough
-    await s.scan();
-    await s.scan();
+    for (let i = 0; i < 6; i++) await s.scan();
     const [asked] = s.state().suggestions;
     expect(asked).toMatchObject({ name: "Nightfall Hollow", exe: "nf" });
     expect(s.activities()).toEqual([]);
     s.answer(asked!.id, false);
     expect(s.state().suggestions).toEqual([]);
     expect(JSON.stringify(saved)).toContain("nightfall hollow/nf");
-    await s.scan();
-    await s.scan();
-    await s.scan();
+    for (let i = 0; i < 13; i++) await s.scan();
     expect(s.state().suggestions).toEqual([]); // no means never asking again
     s.stop();
   });
@@ -319,6 +316,48 @@ describe("the service", () => {
     expect(s.shareInfo(id)).toEqual({ process: "mygame", os: "linux", name: "My Own Game" });
     s.markShared(id);
     expect(s.state().custom[0]?.shared).toBe(true);
+    s.stop();
+  });
+
+  it("counts a game only while it has a window, as Roblox in the menu bar has none", async () => {
+    const roblox: Proc = { pid: 80, ppid: 1, path: "/Applications/Roblox.app/Contents/MacOS/RobloxPlayer", startedAt: 1 };
+    let owners: Set<number> | null = new Set([999]);
+    const lister = { list: async () => [roblox, { pid: 81, ppid: 80, path: "/tmp/render" }, { pid: 70, ppid: 1, path: "/Steam/steam" }], windows: async () => new Map(), gameWindows: async () => owners };
+    const { s } = service({ list: [] }, { lister });
+    await s.scan();
+    expect(s.activities()).toEqual([]); // in the tray
+    owners = new Set([80]);
+    await s.scan();
+    expect(s.activities()).toMatchObject([{ name: "Roblox" }]); // in a game
+    owners = new Set([999]);
+    await s.scan();
+    await s.scan();
+    expect(s.activities()).toEqual([]); // back in the tray, after the one look of grace
+    owners = new Set([81]);
+    await s.scan();
+    expect(s.activities()).toHaveLength(1); // a window in something it started counts
+    owners = null;
+    await s.scan();
+    expect(s.activities()).toHaveLength(1); // the system not saying must never hide a game
+    s.stop();
+
+    // Steam started the game and owns a window: that window is not the game's
+    const game: Proc = { pid: 50, ppid: 70, path: "/g/steamapps/common/Counter-Strike Global Offensive/cs2" };
+    const steam = service({ list: [] }, { lister: { list: async () => [{ pid: 70, ppid: 1, path: "/Steam/steam" }, game], windows: async () => new Map(), gameWindows: async () => new Set([70]) } });
+    await steam.s.scan();
+    expect(steam.s.activities()).toEqual([]);
+    steam.s.stop();
+    expect(parseWindowOwners("[1,2]")).toEqual(new Set([1, 2]));
+    expect(parseWindowOwners("execution error")).toBeNull();
+  });
+
+  it("lets a game someone added count with no window", async () => {
+    const app: Proc = { pid: 60, ppid: 1, path: "/home/me/Tool/mytool" };
+    const { s } = service({ list: [app] }, { lister: { list: async () => [app], windows: async () => new Map([[60, "Tool"]]), gameWindows: async () => new Set<number>() } });
+    const [row] = await s.runningApps();
+    s.add(row!.id, "My Tool", null);
+    await s.scan();
+    expect(s.activities()).toMatchObject([{ name: "My Tool" }]);
     s.stop();
   });
 

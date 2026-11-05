@@ -11,7 +11,7 @@ import type { Proc } from "./match";
 import type { Foreground, ProcessLister } from "./processes";
 
 type Log = (msg: string, extra?: Record<string, unknown>) => void;
-type Method = "snapshot" | "windows" | "foreground" | "gpuBusy" | "product";
+type Method = "snapshot" | "windows" | "gameWindows" | "foreground" | "gpuBusy" | "product";
 
 const ANSWER_MS = 5000;
 const STRIKES = 2;
@@ -99,6 +99,11 @@ export class WindowsLister implements ProcessLister {
 
   windows(): Promise<Map<number, string>> {
     return this.call("windows", new Map<number, string>());
+  }
+
+  /** Null when the call could not be made: a game must not vanish because this failed. */
+  gameWindows(): Promise<Set<number> | null> {
+    return this.call<Set<number> | null>("gameWindows", null);
   }
 
   foreground(): Promise<Foreground | null> {

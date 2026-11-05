@@ -10,7 +10,7 @@
  * Presence, as they did before.
  */
 import { wantsArgs, type Proc } from "./match";
-import { GPU_BUSY, splitCommandLine, type Foreground } from "./processes";
+import { GAME_WINDOW, GPU_BUSY, splitCommandLine, type Foreground } from "./processes";
 
 const TH32CS_SNAPPROCESS = 0x2;
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
@@ -30,6 +30,7 @@ const FILETIME_UNIX = 11644473600000n;
 export interface WindowsApi {
   snapshot(): Proc[];
   windows(): Map<number, string>;
+  gameWindows(): Set<number>;
   foreground(): Foreground | null;
   gpuBusy(): Set<number>;
   product(file: string): string | null;
@@ -67,6 +68,7 @@ export function loadWindowsApi(log: (msg: string, extra?: Record<string, unknown
     const GetWindowTextW = user32.func("int __stdcall GetWindowTextW(intptr_t hWnd, _Out_ uint8_t *lpString, int nMaxCount)");
     const GetWindowThreadProcessId = user32.func("uint32_t __stdcall GetWindowThreadProcessId(intptr_t hWnd, _Out_ uint32_t *lpdwProcessId)");
 
+    const IsIconic = user32.func("int __stdcall IsIconic(intptr_t hWnd)");
     const GetForegroundWindow = user32.func("intptr_t __stdcall GetForegroundWindow()");
     const GetWindowRect = user32.func("int __stdcall GetWindowRect(intptr_t hWnd, _Out_ uint8_t *lpRect)");
     const MonitorFromWindow = user32.func("intptr_t __stdcall MonitorFromWindow(intptr_t hwnd, uint32_t dwFlags)");
@@ -235,6 +237,25 @@ export function loadWindowsApi(log: (msg: string, extra?: Record<string, unknown
           }
         }
         return null;
+      },
+      gameWindows() {
+        const out = new Set<number>();
+        const rect = Buffer.alloc(16);
+        const owner = [0];
+        const visit = (hwnd: unknown) => {
+          if (IsWindowVisible(hwnd) && !GetWindow(hwnd, GW_OWNER)) {
+            // a minimised window is moved off screen at a tiny size, and is still a game's window
+            const sized = GetWindowRect(hwnd, rect) && rect.readInt32LE(8) - rect.readInt32LE(0) >= GAME_WINDOW.width && rect.readInt32LE(12) - rect.readInt32LE(4) >= GAME_WINDOW.height;
+            if (sized || IsIconic(hwnd)) {
+              GetWindowThreadProcessId(hwnd, owner);
+              const pid = Number(owner[0] ?? 0);
+              if (pid) out.add(pid);
+            }
+          }
+          return 1;
+        };
+        EnumWindows(visit, 0);
+        return out;
       },
       windows() {
         const out = new Map<number, string>();

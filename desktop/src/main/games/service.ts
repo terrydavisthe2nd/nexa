@@ -56,12 +56,12 @@ interface Playing {
   missed: number;
 }
 
-const SCAN_MS = 15_000;
+const SCAN_MS = 5_000;
 /** A game gone is looked for once more this soon, so a restart or a launcher handing over shows nothing, and an exit is quick. */
-const RECHECK_MS = 4_000;
+const RECHECK_MS = 2_000;
 const LIBRARY_MS = 5 * 60_000;
 /** Which looks also check how programs behave: asking the system about windows and the graphics card costs more than listing processes. */
-const BEHAVIOUR_EVERY = 2;
+const BEHAVIOUR_EVERY = 6;
 /** Looks in a row a program must behave like a game, so a moment of it asks nothing. */
 const LOOKS_TO_ASK = 2;
 const LISTS_MS = 6 * 3600_000;
@@ -132,6 +132,10 @@ export class GameService extends EventEmitter {
   private stopped = true;
   private looks = 0;
   private dismissed: Set<string>;
+  private owners: Set<number> | null = null;
+  private ownersAt = 0;
+  /** Games recognised at the last look, window or not, so a new one is checked at once. */
+  private candidates = new Set<string>();
   /** Programs behaving like games, by what they run, and how many looks in a row. */
   private readonly watched = new Map<string, { name: string; exe: string; count: number }>();
   private suggested = new Map<string, GameSuggestion & { match: string }>();
@@ -261,6 +265,7 @@ export class GameService extends EventEmitter {
           found.set(match.key, { match, pids: new Set([p.pid]), ...(p.startedAt ? { startedAt: p.startedAt } : {}) });
         }
       }
+      await this.dropWindowless(found, parents);
       // a Steam folder its manifests do not list yet: just installed
       if (unlisted && this.clock() - this.libraryAt > 30_000) void this.loadLibrary();
 
@@ -301,6 +306,31 @@ export class GameService extends EventEmitter {
     } finally {
       this.scanning = false;
       this.schedule(recheck ? RECHECK_MS : SCAN_MS);
+    }
+  }
+
+  /**
+   * A game's program can run with no window at all: Roblox stays in the menu bar
+   * after a game ends, with the same process the game ran in. So what is
+   * recognised counts as being played only while it, or something it started, has a
+   * normal window. A game someone added is what they said it is, and where the
+   * system cannot say, nothing is held back: a game must not vanish because of this.
+   */
+  private async dropWindowless(found: Map<string, { match: Match; pids: Set<number> }>, parents: Parents): Promise<void> {
+    if (!this.lister.gameWindows) return;
+    const keys = [...found.keys()].filter((k) => found.get(k)?.match.source !== "custom");
+    const fresh = keys.some((k) => !this.candidates.has(k));
+    this.candidates = new Set(keys);
+    if (keys.length === 0) return;
+    if (fresh || this.clock() - this.ownersAt >= (this.lister.gameWindowsMs ?? 0)) {
+      this.owners = await this.lister.gameWindows().catch(() => null);
+      this.ownersAt = this.clock();
+    }
+    const owners = this.owners;
+    if (!owners) return;
+    for (const key of keys) {
+      const seen = found.get(key);
+      if (seen && ![...owners].some((owner) => startedBy(owner, seen.pids, parents))) found.delete(key);
     }
   }
 
@@ -529,6 +559,16 @@ export class GameService extends EventEmitter {
     this.emit("activities");
     this.schedule(0);
   }
+}
+
+/** Whether a process is one of these, or something one of them started. Only downwards: Steam's window is not its game's. */
+function startedBy(pid: number, pids: Set<number>, parents: Parents): boolean {
+  let at: number | undefined = pid;
+  for (let i = 0; i < 32 && at !== undefined && at > 1; i++) {
+    if (pids.has(at)) return true;
+    at = parents.get(at);
+  }
+  return false;
 }
 
 function validGameId(id: string | null): boolean {

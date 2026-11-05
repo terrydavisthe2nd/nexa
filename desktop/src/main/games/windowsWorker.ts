@@ -8,7 +8,7 @@ import { parentPort, workerData } from "node:worker_threads";
 
 interface Request {
   id: number;
-  method: "snapshot" | "windows" | "foreground" | "gpuBusy" | "product";
+  method: "snapshot" | "windows" | "gameWindows" | "foreground" | "gpuBusy" | "product";
   arg?: string;
 }
 
