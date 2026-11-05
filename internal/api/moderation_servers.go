@@ -17,8 +17,8 @@ import (
 // owner, who reads why in their Nexa conversation and can answer there.
 
 func (s *Server) modServerRoutes(mux *http.ServeMux) {
-	mux.Handle("GET /api/v1/moderation/servers", s.staff(rankAdmin, s.handleModServers))
-	mux.Handle("GET /api/v1/moderation/servers/{id}", s.staff(rankAdmin, s.handleModServer))
+	mux.Handle("GET /api/v1/moderation/servers", s.staff(rankMod, s.handleModServers))
+	mux.Handle("GET /api/v1/moderation/servers/{id}", s.staff(rankMod, s.handleModServer))
 	mux.Handle("POST /api/v1/moderation/servers/{id}/actions", s.staff(rankAdmin, s.handleModServerAction))
 	mux.Handle("DELETE /api/v1/moderation/servers/{id}/discovery-hold", s.staff(rankAdmin, s.handleModDiscoveryRestore))
 }

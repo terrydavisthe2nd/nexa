@@ -57,16 +57,16 @@ describe("groupMemberMenuItems", () => {
     expect(ids("me")).toEqual(["profile", "mention", "leave"]);
   });
 
-  it("gives a Nexa admin the owner's actions, short of removing the owner", () => {
+  it("gives Nexa's staff only a member's actions in someone else's group", () => {
     signIn(ADMIN);
-    expect(ids("bob")).toEqual(["profile", "mention", "message", "add-friend", "block", "owner", "remove", "copy-profile-link"]);
-    expect(ids("owner")).toEqual(["profile", "mention", "message", "add-friend", "block", "copy-profile-link"]);
+    expect(ids("bob")).toEqual(["profile", "mention", "message", "add-friend", "block", "copy-profile-link"]);
     const mine = groupMemberMenu.items({ channelId: "g", userId: "me", nav: vi.fn(), openModal: vi.fn() });
-    expect(mine.find((i) => i.id === "owner")?.label).toBe("Take Ownership");
+    expect(mine.find((i) => i.id === "owner")).toBeUndefined();
   });
 
   it("asks before removing anyone", () => {
-    signIn(ADMIN);
+    useChannels.setState({ byId: { g: { ...group, owner_id: "me" } } });
+    signIn();
     const openModal = vi.fn();
     groupMemberMenu.items({ channelId: "g", userId: "bob", nav: vi.fn(), openModal }).find((i) => i.id === "remove")!.onSelect!();
     expect(openModal).toHaveBeenCalledWith("confirm", expect.objectContaining({ danger: true }));

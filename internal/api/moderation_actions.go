@@ -124,10 +124,10 @@ func (s *Server) handleModAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch rank := s.rankOf(ctx, me); {
-	case req.Action == store.ActionDelete && rank < rankDeveloper:
-		WriteError(w, staffRankError(rankDeveloper))
+	case req.Action == store.ActionDelete && rank < rankAdmin:
+		WriteError(w, staffRankError(rankAdmin))
 		return
-	case rank == rankMod && !s.modMayRestrict(w, r, target, req):
+	case rank < rankAdmin && !s.modMayRestrict(w, r, target, req):
 		return
 	}
 	c := &store.ModCase{UserID: target.ID, ModeratorID: me.ID, Action: req.Action, Reason: reason, TargetUsername: target.Username, TargetDisplayName: target.DisplayName}
@@ -146,16 +146,19 @@ func (s *Server) handleModAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// modMayRestrict holds a mod to what their rank allows, and refuses
-// otherwise: a mute or a ban of at most a week, never permanent, and never in
-// place of one that would last longer (which would shorten it).
+// modMayRestrict holds a mod to what their rank allows: taking profile parts
+// down freely, and a mute or a ban of at most 30 days, never permanent, and
+// never in place of one that would last longer (which would shorten it).
 func (s *Server) modMayRestrict(w http.ResponseWriter, r *http.Request, target *store.User, req modActionReq) bool {
+	if req.Action == store.ActionAvatarRemove || req.Action == store.ActionFieldReset {
+		return true
+	}
 	if req.Action != store.ActionMute && req.Action != store.ActionBan {
-		WriteError(w, E(http.StatusForbidden, "mod_action", "Mods can only mute and ban, for at most a week."))
+		WriteError(w, E(http.StatusForbidden, "mod_action", "Mods can take content down, and mute and ban for at most 30 days."))
 		return false
 	}
 	if req.Permanent || req.DurationMS > modMaxDuration {
-		WriteError(w, E(http.StatusForbidden, "mod_duration", "Mods can mute and ban for at most a week."))
+		WriteError(w, E(http.StatusForbidden, "mod_duration", "Mods can mute and ban for at most 30 days."))
 		return false
 	}
 	now := time.Now().UnixMilli()
@@ -461,7 +464,7 @@ func (s *Server) emitCaseStaff(ctx context.Context, c *store.ModCase, lines ...*
 		last = m[c.ID]
 	}
 	counts, _ := s.Store.CountModCases(ctx, time.Now().UnixMilli())
-	s.emitStaff(ctx, rankMod, "mod_case", map[string]any{"case": toStaffCase(c, s.caseStateFor(ctx, c.UserID), last), "messages": lines, "people": s.people(ctx, who...), "counts": counts})
+	s.emitStaff(ctx, rankHelper, "mod_case", map[string]any{"case": toStaffCase(c, s.caseStateFor(ctx, c.UserID), last), "messages": lines, "people": s.people(ctx, who...), "counts": counts})
 	// what waits on the staff, and so what each of them has not read, may have changed
 	s.emitModUnreadAll(ctx)
 }

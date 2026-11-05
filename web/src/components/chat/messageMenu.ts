@@ -19,7 +19,7 @@ import { useSettings } from "@/stores/settings";
 import { useUI } from "@/stores/ui";
 import { about, button, defineMenu, type MenuButton } from "@/lib/contextMenus/registry";
 import { messageAppsItem } from "./apps/appMenus";
-import { canI, isInstanceAdmin, P, useServers } from "@/stores/servers";
+import { canI, P, useServers } from "@/stores/servers";
 import { useUsers } from "@/stores/users";
 import { mentionsMe } from "@/lib/mentionsMe";
 import { canStartThread } from "@/lib/threads";
@@ -35,8 +35,6 @@ export function canDelete(msg: DecryptedMessage): boolean {
   const me = useAuth.getState().me;
   if (!me) return false;
   if (msg.author_id === me.id) return true;
-  // whoever runs Nexa can take down any message
-  if (isInstanceAdmin(me.id)) return true;
   const ch = useChannels.getState().byId[msg.channel_id];
   if (!ch) return false;
   // Manage Messages lets moderators and the server owner remove anyone's message

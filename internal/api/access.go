@@ -127,9 +127,9 @@ func (s *Server) canAccess(r *http.Request, u *store.User, ch *store.Channel, ne
 }
 
 // managesGroup says whether someone may do what a group's owner does: the
-// owner, and whoever runs Nexa, as in any server they are part of.
+// owner alone, whatever their rank on Nexa.
 func managesGroup(ch *store.Channel, me *store.User) bool {
-	return ownsGroup(ch, me) || me.Flags&store.FlagAdmin != 0
+	return ownsGroup(ch, me)
 }
 
 func ownsGroup(ch *store.Channel, me *store.User) bool {

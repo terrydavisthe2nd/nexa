@@ -15,7 +15,7 @@ import { Tooltip } from "@/components/common/Tooltip";
 import { profileTheme } from "@/lib/avatarColor";
 import { describeError } from "@/lib/errors";
 import { FLAG_DISABLED, previewText, relativeTo } from "@/lib/moderation";
-import { atLeast, rankOf, STAFF_FLAGS, useMyRank, type StaffRank } from "@/lib/staffRank";
+import { can, rankOf, STAFF_FLAGS, useMyRank, type StaffRank } from "@/lib/staffRank";
 import { formatRelative } from "@/lib/time";
 import { useModEvents, useModeration } from "@/stores/moderation";
 import { usePresence } from "@/stores/presence";
@@ -51,7 +51,7 @@ const userGridMenu = defineMenu<UserGridMenuCtx>("userGrid", [
     }),
     // disabling sign-in takes a developer, and the owner for staff
     button("toggleAccountDisabled", ({ user: u, owner, mine, openModal, setAccess }) => {
-      if (u.blocked === "self" || owner || !atLeast(mine, (u.admin_flags & STAFF_FLAGS) !== 0 ? "owner" : "developer")) return null;
+      if (u.blocked === "self" || owner || !can(mine, (u.admin_flags & STAFF_FLAGS) !== 0 ? "ranks" : "closeAccounts")) return null;
       const disabled = (u.admin_flags & FLAG_DISABLED) !== 0;
       return {
         id: "disable",
@@ -299,7 +299,7 @@ export function UserGrid() {
             </Button>
           </>
         ) : (
-          <Button size="sm" variant="secondary" onClick={() => setPicking(true)} data-testid="grid-select">
+          <Button size="sm" variant="secondary" onClick={() => setPicking(true)} data-testid="grid-select" hidden={!can(mine, "bulkModerate")}>
             <ListChecks size={15} aria-hidden="true" /> {t("moderation.bulk.select")}
           </Button>
         )}
@@ -342,7 +342,7 @@ export function UserGrid() {
               onCases={() => nav(`/channels/@admin/users/${u.id}`)}
               onProfile={() => nav(`/channels/@admin/users/${u.id}`)}
               onMenu={(e) => menu(e, u)}
-              onAlts={atLeast(mine, "admin") ? () => setAltsOf(u) : undefined}
+              onAlts={can(mine, "seeAltsAndCalls") ? () => setAltsOf(u) : undefined}
               picking={picking}
               picked={picked.has(u.id)}
               onPick={pickable(u) ? () => togglePick(u) : undefined}
@@ -371,7 +371,7 @@ export function UserGrid() {
           <Button size="sm" variant="ghost" onClick={() => setPicked(new Map())} aria-label={t("moderation.bulk.clear")}>
             <X size={15} aria-hidden="true" /> {t("moderation.bulk.clear")}
           </Button>
-          {atLeast(mine, "developer") ? (
+          {can(mine, "closeAccounts") ? (
             <>
               <Button size="sm" variant="secondary" onClick={() => askBulkAccess(false)} loading={bulkBusy}>
                 <UserRoundCheck size={15} aria-hidden="true" /> {t("moderation.menu.enable")}

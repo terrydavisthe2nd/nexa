@@ -11,7 +11,6 @@ import { useChannels } from "@/stores/channels";
 import { useMessages } from "@/stores/messages";
 import { isUnread, useReadStates } from "@/stores/readStates";
 import { useRelationships } from "@/stores/relationships";
-import { isInstanceAdmin } from "@/stores/servers";
 import { useSettings } from "@/stores/settings";
 import { useUI, type ContextMenuItem } from "@/stores/ui";
 import { useUsers } from "@/stores/users";
@@ -70,11 +69,11 @@ export async function purgeDM(channelId: string, nav?: (p: string) => void): Pro
   }
 }
 
-/** Whether you may do what a group's owner does: you own it, or you run Nexa. */
+/** Whether you may do what a group's owner does: you own it. */
 export function managesGroup(ch: Channel | undefined): boolean {
   const me = useAuth.getState().me;
   if (!ch || ch.type !== "group_dm" || !me) return false;
-  return ch.owner_id === me.id || isInstanceAdmin(me.id);
+  return ch.owner_id === me.id;
 }
 
 export interface DMMenuCtx {

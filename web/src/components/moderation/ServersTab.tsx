@@ -1,4 +1,5 @@
 import { PersonName } from "@/components/common/PersonName";
+import { can, useMyRank } from "@/lib/staffRank";
 import { useMediaAnimation } from "@/lib/mediaAnimation";
 import { CalendarDays, Gavel, Hash, Search, Server, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -213,7 +214,9 @@ function ServerCard({ s, people, onModerate, onOpen, onOwner, discovery = false 
   useMediaAnimation();
   const banner = bannerUrl(s.banner_id, 320);
   const owner = people[s.owner_id];
-  const blocked = serverBlockedText(s.blocked);
+  const mine = useMyRank();
+  // taking a server down, or holding it from Discover, is an admin's
+  const blocked = serverBlockedText(s.blocked) || (can(mine, "takeDownServers") ? "" : t("staff.adminOnlyServers"));
   const moderate = (
     <Button size="sm" variant="primary" onClick={onModerate} disabled={!!blocked} data-testid="server-card-moderate">
       <Gavel size={15} aria-hidden="true" /> {discovery ? t(s.discovery_hidden ? "moderation.servers.discoveryShow" : "moderation.servers.discoveryHide") : t("moderation.moderate")}

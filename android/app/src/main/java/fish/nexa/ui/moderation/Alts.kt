@@ -42,7 +42,7 @@ import fish.nexa.ui.theme.Nx
 @Composable
 fun AltBadge(u: ModUser) {
     // alt accounts are for admins and above
-    if (u.altCount <= 0 || !fish.nexa.data.StaffRanks.mine().let { it != null && it.atLeast(fish.nexa.data.StaffRank.ADMIN) }) return
+    if (u.altCount <= 0 || !fish.nexa.data.StaffRanks.can(fish.nexa.data.StaffCan.SEE_ALTS_AND_CALLS)) return
     val label = t("moderation.alts.badge", "count" to u.altCount)
     Box(
         Modifier

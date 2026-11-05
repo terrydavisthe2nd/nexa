@@ -224,7 +224,8 @@ fun ServersTab(startListing: String = "") {
 private fun ServerCard(s: ModServer, discovery: Boolean = false, onModerate: () -> Unit) {
     val c = Nx.colors
     val owner = person(s.ownerId)
-    val blocked = serverBlockedText(s.blocked)
+    // taking a server down, or holding it from Discover, is an admin's
+    val blocked = serverBlockedText(s.blocked).ifEmpty { if (fish.nexa.data.StaffRanks.can(fish.nexa.data.StaffCan.TAKE_DOWN_SERVERS)) "" else t("staff.adminOnlyServers") }
     Box(Modifier.fillMaxWidth().modCard(c).pressable(remember { MutableInteractionSource() }) { goPanel("servers/${s.id}") }.semantics { contentDescription = s.name }) {
         Column(Modifier.fillMaxWidth()) {
             CardBanner(s.bannerId, profileBrush(null, null, s.id), 88.dp)
@@ -325,6 +326,8 @@ fun StaffServerPage(serverId: String) {
     val server = d.server
     val owner = person(server.ownerId)
     val blocked = serverBlockedText(server.blocked)
+    // a server's own parts are an admin's to take down; its emoji a mod's
+    val serverBlocked = blocked.ifEmpty { if (fish.nexa.data.StaffRanks.can(fish.nexa.data.StaffCan.TAKE_DOWN_SERVERS)) "" else t("staff.adminOnlyServers") }
     val density = LocalDensity.current.density
     Column(Modifier.fillMaxSize()) {
         PageHead(
@@ -333,7 +336,7 @@ fun StaffServerPage(serverId: String) {
             leading = { ServerIcon(server.id, server.iconId, server.name, 48.dp) },
             title = server.name,
             sub = listOf(t("moderation.servers.members", "count" to server.memberCount), t("moderation.servers.channels", "count" to server.channelCount), t("moderation.casesCount", "count" to d.cases.size)).joinToString(" · "),
-            actions = { NxButton(t("moderation.moderate"), { openModerateServer(server, null) { load() } }, size = ButtonSize.TOUCH, icon = "Gavel", enabled = blocked.isEmpty()) },
+            actions = { NxButton(t("moderation.moderate"), { openModerateServer(server, null) { load() } }, size = ButtonSize.TOUCH, icon = "Gavel", enabled = serverBlocked.isEmpty()) },
         )
         Box(Modifier.weight(1f).fillMaxWidth()) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PanelPad, verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -358,7 +361,7 @@ fun StaffServerPage(serverId: String) {
                     }
                 }
                 item("public") {
-                    SheetPanel(t("moderation.sheet.publicTitle"), blocked.ifEmpty { t("moderation.servers.publicHint") }) {
+                    SheetPanel(t("moderation.sheet.publicTitle"), serverBlocked.ifEmpty { t("moderation.servers.publicHint") }) {
                         for (f in SERVER_FIELDS) {
                             val empty = when (f) {
                                 "icon" -> server.iconId == null
@@ -376,7 +379,7 @@ fun StaffServerPage(serverId: String) {
                                 else -> t("moderation.sheet.reset") to "Eraser"
                             }
                             val act = if (f == "discovery" && server.discoveryHidden) ({ showOnDiscover(server) { load() } }) else ({ openModerateServer(server, listOf(f)) { load() } })
-                            FieldRowView(fieldLabel(f), empty, { NxButton(action, act, kind = ButtonKind.SECONDARY, size = ButtonSize.TOUCH, icon = icon, enabled = blocked.isEmpty() && !empty) }) {
+                            FieldRowView(fieldLabel(f), empty, { NxButton(action, act, kind = ButtonKind.SECONDARY, size = ButtonSize.TOUCH, icon = icon, enabled = serverBlocked.isEmpty() && !empty) }) {
                                 when {
                                     f == "icon" && server.iconId != null -> ServerIcon(server.id, server.iconId, server.name, 36.dp)
                                     f == "banner" && server.bannerId != null -> Box(Modifier.width(120.dp).aspectRatio(3f).clip(Radii.Xs).ring(Radii.Xs, c.borderSubtle)) {

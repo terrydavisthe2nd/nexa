@@ -160,22 +160,9 @@ func TestPermissionCacheFollowsEveryWrite(t *testing.T) {
 				t.Fatal(err)
 			}
 		}, false, false, false},
-		{"becoming a Nexa admin", func(t *testing.T, w *permWorld) {
+		// a Developer is an ordinary member of other people's servers
+		{"becoming a Developer", func(t *testing.T, w *permWorld) {
 			if _, err := w.s.ChangeUserFlags(ctx, w.bob.ID, FlagAdmin, 0); err != nil {
-				t.Fatal(err)
-			}
-		}, false, true, false},
-		{"an admin's account being disabled", func(t *testing.T, w *permWorld) {
-			_ = w.s.SetUserFlags(ctx, w.bob.ID, FlagAdmin)
-			w.sees(t, w.bob.ID, w.private)
-			if err := w.s.SetUserFlags(ctx, w.bob.ID, FlagAdmin|FlagDisabled); err != nil {
-				t.Fatal(err)
-			}
-		}, false, false, false},
-		{"an admin's account being deleted", func(t *testing.T, w *permWorld) {
-			_ = w.s.SetUserFlags(ctx, w.bob.ID, FlagAdmin)
-			w.sees(t, w.bob.ID, w.private)
-			if err := w.s.DeleteAccount(ctx, w.bob.ID); err != nil {
 				t.Fatal(err)
 			}
 		}, false, false, false},

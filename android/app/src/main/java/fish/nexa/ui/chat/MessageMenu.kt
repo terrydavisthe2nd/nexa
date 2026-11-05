@@ -51,7 +51,6 @@ fun mentionsMe(m: Message, meId: String): Boolean {
 fun canDelete(m: Message): Boolean {
     val me = Nexa.users.me.value ?: return false
     if (m.authorId == me.id) return true
-    if (Nexa.servers.isInstanceAdmin(me.id)) return true
     val ch = Nexa.channels.get(m.channelId) ?: return false
     if (ch.serverId != null) return Nexa.servers.canI(Nexa.servers.get(ch.serverId), P.MANAGE_MESSAGES, ch.id)
     return ch.type == "group_dm" && ch.ownerId == me.id

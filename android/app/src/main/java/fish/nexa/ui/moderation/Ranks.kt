@@ -35,7 +35,7 @@ import fish.nexa.ui.theme.Nx
 import kotlinx.coroutines.launch
 
 /** The ranks the owner gives, from the top of the ladder down, then none. */
-private val LADDER = listOf(StaffRank.DEVELOPER, StaffRank.ADMIN, StaffRank.MOD, null)
+private val LADDER = listOf(StaffRank.DEVELOPER, StaffRank.ADMIN, StaffRank.MOD, StaffRank.HELPER, null)
 
 /**
  * The web's RankModal: the owner's choice of someone's rank, the ladder of

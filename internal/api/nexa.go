@@ -285,7 +285,7 @@ func (s *Server) nexaState(ctx context.Context, u *store.User) (*nexaState, erro
 		if rc, err := s.Store.SafetyReportCounts(ctx); err == nil {
 			st.Staff.Reports = rc
 		}
-		if rank >= rankAdmin {
+		if rank >= rankHelper {
 			st.Staff.Bugs = s.bugCountsFor(ctx)
 		}
 	}
@@ -642,7 +642,7 @@ func (s *Server) handleNexaAck(w http.ResponseWriter, r *http.Request) {
 			last = m[c.ID]
 		}
 		counts, _ := s.Store.CountModCases(r.Context(), time.Now().UnixMilli())
-		s.emitStaff(r.Context(), rankMod, "mod_case", map[string]any{"case": toStaffCase(updated, cs, last), "messages": []*store.ModMessage{}, "people": s.people(r.Context(), casePeople(updated)...), "counts": counts})
+		s.emitStaff(r.Context(), rankHelper, "mod_case", map[string]any{"case": toStaffCase(updated, cs, last), "messages": []*store.ModMessage{}, "people": s.people(r.Context(), casePeople(updated)...), "counts": counts})
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

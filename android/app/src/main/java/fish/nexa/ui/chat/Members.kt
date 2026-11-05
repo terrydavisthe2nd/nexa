@@ -573,7 +573,6 @@ fun groupMemberMenuItems(channelId: String, userId: String): List<MenuItem.Actio
     val group = Names.channel(ch)
     val manage = DmArrange.managesGroup(ch)
     val isOwner = ch.ownerId == userId
-    val owner = ch.ownerId?.let { nameOf(it) } ?: t("chat.groupMemberMenu.itsCurrentOwner")
     val items = ArrayList<MenuItem.Action>()
     items += MenuItem.Action(t("profile.profile.profile")) { Profiles.openFull(userId) }
     items += MenuItem.Action(t("settings.notifications.mention"), disabled = user?.username.isNullOrEmpty()) { user?.username?.let(::mention) }
@@ -584,23 +583,16 @@ fun groupMemberMenuItems(channelId: String, userId: String): List<MenuItem.Actio
         items += people.dropLast(1)
         items += people.last().copy(separatorAfter = true)
     }
+    // only the group's owner hands it on: Nexa's staff are members like anyone else here
     if (manage && !isOwner) {
-        val label = if (self) t("chat.groupMemberMenu.takeOwnership") else t("chat.groupMemberMenu.transferOwnership")
+        val label = t("chat.groupMemberMenu.transferOwnership")
         items += MenuItem.Action(label) {
             confirm(
-                if (self) t("chat.groupMemberMenu.takeOwnershipOf", "group" to group) else t("chat.groupMemberMenu.transferOwnershipOf", "group" to group),
-                when {
-                    self -> t("chat.groupMemberMenu.youBecomeTheOwnerInPlaceOf", "owner" to owner)
-                    ch.ownerId == me.id -> t("chat.groupMemberMenu.theyBecomeTheOwnerAndYouAMember", "name" to name)
-                    else -> t("chat.groupMemberMenu.theyBecomeTheOwnerInPlaceOf", "name" to name, "owner" to owner)
-                },
+                t("chat.groupMemberMenu.transferOwnershipOf", "group" to group),
+                t("chat.groupMemberMenu.theyBecomeTheOwnerAndYouAMember", "name" to name),
                 label,
                 danger = false,
-                bodyWords = fish.nexa.ui.chat.PersonWords(when {
-                    self -> t("chat.groupMemberMenu.youBecomeTheOwnerInPlaceOf", "owner" to "\u0002")
-                    ch.ownerId == me.id -> t("chat.groupMemberMenu.theyBecomeTheOwnerAndYouAMember", "name" to fish.nexa.ui.chat.PERSON_SLOT)
-                    else -> t("chat.groupMemberMenu.theyBecomeTheOwnerInPlaceOf", "name" to fish.nexa.ui.chat.PERSON_SLOT, "owner" to "\u0002")
-                }, listOf(userId to name, ch.ownerId to owner)),
+                bodyWords = fish.nexa.ui.chat.PersonWords(t("chat.groupMemberMenu.theyBecomeTheOwnerAndYouAMember", "name" to fish.nexa.ui.chat.PERSON_SLOT), listOf(userId to name)),
             ) {
                 val res = Nexa.api.request("PATCH", "/channels/$channelId", buildJsonObject { put("owner_id", userId) })
                 runCatching { wireJson.decodeFromJsonElement(Channel.serializer(), res) }.getOrNull()?.let { Nexa.channels.upsert(listOf(it)) }

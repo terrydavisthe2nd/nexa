@@ -23,12 +23,12 @@ import (
 // in their Nexa conversation and can answer there.
 
 func (s *Server) modExpressionRoutes(mux *http.ServeMux) {
-	mux.Handle("GET /api/v1/moderation/packs", s.staff(rankAdmin, s.handleModPacks))
-	mux.Handle("GET /api/v1/moderation/packs/{id}", s.staff(rankAdmin, s.handleModPack))
-	mux.Handle("POST /api/v1/moderation/packs/{id}/actions", s.staff(rankAdmin, s.handleModPackAction))
+	mux.Handle("GET /api/v1/moderation/packs", s.staff(rankMod, s.handleModPacks))
+	mux.Handle("GET /api/v1/moderation/packs/{id}", s.staff(rankMod, s.handleModPack))
+	mux.Handle("POST /api/v1/moderation/packs/{id}/actions", s.staff(rankMod, s.handleModPackAction))
 	mux.Handle("POST /api/v1/moderation/packs/{id}/relist", s.staff(rankAdmin, s.handleModPackRelist))
-	mux.Handle("POST /api/v1/moderation/servers/{id}/emojis/actions", s.staff(rankAdmin, s.handleModEmojiAction))
-	mux.Handle("GET /api/v1/moderation/uploads", s.staff(rankAdmin, s.handleModUploads))
+	mux.Handle("POST /api/v1/moderation/servers/{id}/emojis/actions", s.staff(rankMod, s.handleModEmojiAction))
+	mux.Handle("GET /api/v1/moderation/uploads", s.staff(rankMod, s.handleModUploads))
 }
 
 // packPreview is how many of a pack's stickers come with it in a list.

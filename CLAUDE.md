@@ -995,22 +995,34 @@ as Discord holds it:
   `bugs`; missing means on) is Settings, Notifications, Staff (anchor `staffAlerts`, the sidebar's bell
   opens it). Urgent reasons play the mention sound. Quiet while the place they belong to is on screen.
 - Staff ranks (`api/staff.go`, web `lib/staffRank.ts`, Android `data/StaffRanks.kt`) are public user
-  flags, each holding everything below it. Mod (512): the panel's people, cases and log, mutes and bans
-  of at most a week (`modMaxDuration`; never permanent, never shortening a longer one), and lifting,
-  closing and reopening only their own cases. Admin (256): the rest of the panel (other actions,
-  permanent bans, servers, expressions, apps, bugs, alts, announcements), but not Disable Sign-In,
-  deleting accounts or rights in other people's servers. Developer (1, what admins always were: the
-  first account, or `ADMIN_USERNAME` while nobody has been admin): every right in every server they are
-  in, Disable Sign-In, deleting accounts, and the instance's settings, stats and crash reports. Owner,
-  the oldest Developer (`InstanceOwnerID`): the legal report, and the only one who gives and takes ranks
-  (`PATCH /admin/users/{id}` with `rank`; the old `admin` bool means Developer) or disables staff's
-  sign-in. Anyone holding a rank cannot be moderated. Routes state their least rank with
-  `s.staff(rank, h)`, as does `emitStaff` (bug events go to admins and up); changes log `rank_change`
-  with `from` and `to`. Badges (the owner's crown, a developer's CodeXml, an admin's hammer, a mod's
-  ShieldCheck, all in the accent): web `StaffMark`, `StaffBadge`, `RankMark` in
+  flags, each holding everything below it; the owner's rule (2026-11-04) is that each rank's powers fit
+  its job, and that no rank gives rights in other people's servers or group chats. Helper (1024):
+  support and triage: the report queue (claim, notes, dismiss; never Action Taken), bug reports, and
+  reading people, cases and the log; acts on nobody. Mod (512): takes reported content down (messages,
+  profile parts, stickers, emoji, packs), mutes and bans for at most 30 days (`modMaxDuration`; never
+  permanent, never shortening a longer one), replies in cases and lifts, closes and reopens the ones
+  they opened, browses Servers and Stickers & Emoji. Admin (256): restrictions of any length, anyone's
+  cases, server and Discover takedowns and pack relisting, alt accounts, call usage, apps,
+  announcements, badges, bulk moderation, disabling sign-in and deleting accounts of people who are not
+  staff. Developer (1, the first account, or `ADMIN_USERNAME` while nobody has been one): the
+  instance's settings, stats and crash reports. Owner, the oldest Developer (`InstanceOwnerID`): the
+  legal report, and the only one who gives and takes ranks (`PATCH /admin/users/{id}` with `rank`:
+  `developer`, `admin`, `mod`, `helper` or empty; the old `admin` bool means Developer) or disables
+  and deletes staff. Anyone holding a rank cannot be moderated. Routes state their least rank with
+  `s.staff(rank, h)`, as does `emitStaff` (reports, cases, bugs and the log go to every rank); changes
+  log `rank_change` with `from` and `to`. The apps ask `can(rank, capability)` (web `STAFF_CAN`,
+  Android `StaffCan`), one table naming the least rank of each thing staff do, kept equal to the
+  routes. Badges (the owner's crown, a developer's CodeXml, an admin's hammer, a mod's ShieldCheck, a
+  helper's LifeBuoy, all in the accent): web `StaffMark`, `StaffBadge`, `RankMark` in
   `components/common/OwnerBadge.tsx`, `RankPill`, the Set Rank dialog `moderation/RankModal.tsx`;
   Android `OwnerMarks` in `ui/shell/DmList.kt`, `RankBadge`, `openRankSheet` in
   `ui/moderation/Ranks.kt`.
+- Staff are ordinary members of the servers and group chats they join: only a server's owner holds
+  every permission there (`serverSnapshot.privileged`; web `serverPerms`, Android `Servers.serverPerms`),
+  only a group's owner manages it (`managesGroup` on all three), and staff delete other people's
+  messages only through a report's Take Action. Until 2026-11-04 Developers held every permission in
+  every server they were in, private channels and their keys included; keys handed out then stay with
+  them until those channels' keys rotate.
 - Staff act on accounts (mutes, bans, purges, removing pictures, resetting fields), servers (Discovery
   holds included), sticker packs, emoji and uploads (`moderation_actions.go` and the other
   `moderation_*` files), logged in `mod_log`; an action on an account comes with a case (`mod_cases`)
@@ -1052,7 +1064,7 @@ as Discord holds it:
   detail (plus `related` reports about the same item or account, their reporters among `people`, `reporter_stats` and `subject`, the
   account's standing) and version-checked review (`resolve_related` closes the other active reports
   about the same item the same way, `reporter_message` is what the reporter is told). `POST
-  /{id}/remove-message` (Admin and up) removes exactly the reported message without joining its
+  /{id}/remove-message` (Mod and up) removes exactly the reported message without joining its
   conversation or granting keys, opening a case and logging in the same transaction, and closes it and
   every other active report about the message as Action Taken. Every staff rank can review reports;
   rank limits still govern other actions, and `staff` keeps the required rank immutable across requests,
@@ -1109,8 +1121,9 @@ as Discord holds it:
   then what every reporter of that item said, the other reports about the account, the account's
   standing and the reporter's record, and the history folded away with Add Note and the captured
   snapshot. Take Action opens in place: what to take down (picked from the reported part: the
-  message; profile fields; server fields; the pack, or making it private; the sticker; the emoji; admins
-  and up only), Leave It, Mute or Ban with a duration (mods within a week), one reason (the report's
+  message; profile fields; server fields; the pack, or making it private; the sticker; the emoji; mods
+  and up, a server's own parts admins and up; a helper sees only Dismiss), Leave It, Mute or Ban with a
+  duration (mods within 30 days), one reason (the report's
   reason prefilled), an optional message to the reporter, closing the other reports about the item, and
   a list of what will happen. It runs the existing audited calls in turn (`remove-message`, which
   closes the report itself, then the account, server, pack or emoji actions), then closes the report as
@@ -1426,9 +1439,9 @@ payments (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_API_URL` for a f
 - Tests against live services run only with their variables set (`UNFURL_LIVE`, `REALTIME_LIVE`,
   `TELEGRAM_LIVE_TOKEN`, `DISCORD_BOT_TOKEN`, and `OBJSTORE_LIVE` with the test bucket's `R2_*`, which
   refuses any bucket not named for tests); the Discord tests otherwise use `fakediscord`.
-- The TURN tests (`turn_test.go`, `TestGuestTURN...`, `TestCloudflareTURNCredentials`) fail now and then
-  when the whole package runs, at HEAD of 2026-11-04 too; they pass alone. A failure there alone is
-  that, not a regression.
+- The TURN tests (`turn_test.go`, `TestGuestTURN...`, `TestCloudflareTURNCredentials`) fail when run
+  together (the whole package, or `-run 'TURN'`), at the commit before 2026-11-04's staff rework too;
+  each passes alone (`-run '^TestName$'`). A failure there alone is that, not a regression.
 
 ## End-to-end encryption
 

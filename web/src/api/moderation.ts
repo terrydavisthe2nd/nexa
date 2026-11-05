@@ -614,7 +614,7 @@ export const moderation = {
     return api.request("PUT", `/moderation/users/${id}/badges`, { badges });
   },
   /** Gives or takes a staff rank ("" for none; the owner alone), or disables or restores sign-in, with an optional reason for the log. */
-  access(id: Snowflake, body: { rank?: "developer" | "admin" | "mod" | ""; disabled?: boolean; reason?: string }): Promise<{ flags: number }> {
+  access(id: Snowflake, body: { rank?: "developer" | "admin" | "mod" | "helper" | ""; disabled?: boolean; reason?: string }): Promise<{ flags: number }> {
     return api.request("PATCH", `/admin/users/${id}`, body);
   },
 };

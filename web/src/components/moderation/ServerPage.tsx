@@ -1,4 +1,5 @@
 import { useReportNavigation } from "@/lib/reportNavigation";
+import { can, useMyRank } from "@/lib/staffRank";
 import { PersonName } from "@/components/common/PersonName";
 import { useMediaAnimation } from "@/lib/mediaAnimation";
 import { CalendarDays, ChevronLeft, ChevronRight, Compass, Copy, Eraser, Eye, FolderOpen, Gavel, Hash, ImageOff, Smile, Users } from "lucide-react";
@@ -34,6 +35,7 @@ import x from "./Expressions.module.css";
  * said inside it is never shown: the panel has no way to see it.
  */
 export function ServerPage() {
+  const mine = useMyRank();
   useMediaAnimation();
   const { serverId = "" } = useParams();
   const {nav,back,returnTo} = useReportNavigation();
@@ -95,6 +97,8 @@ export function ServerPage() {
   }
   const owner = people[server.owner_id];
   const blocked = serverBlockedText(server.blocked);
+  // a server's own parts are an admin's to take down; its emoji a mod's
+  const serverBlocked = blocked || (can(mine, "takeDownServers") ? "" : t("staff.adminOnlyServers"));
   const banner = bannerUrl(server.banner_id, 680);
   // a server the staff hid from Discover is shown again here; one its owner lists is hidden through the case dialog
   const showOnDiscover = (sv: ModServer) =>
@@ -165,7 +169,7 @@ export function ServerPage() {
           </div>
         </div>
         <div className={m.userActions}>
-          <Button size="sm" onClick={() => setModerating([])} disabled={!!blocked} title={blocked || undefined} data-testid="server-moderate">
+          <Button size="sm" onClick={() => setModerating([])} disabled={!!serverBlocked} title={serverBlocked || undefined} data-testid="server-moderate">
             <Gavel size={15} aria-hidden="true" /> {t("moderation.moderate")}
           </Button>
         </div>
@@ -201,14 +205,14 @@ export function ServerPage() {
             <section className={p.panel} aria-labelledby="server-public">
               <header className={p.panelHead}>
                 <h3 id="server-public" className={p.panelTitle}>{t("moderation.sheet.publicTitle")}</h3>
-                <p className={p.panelHint}>{blocked || t("moderation.servers.publicHint")}</p>
+                <p className={p.panelHint}>{serverBlocked || t("moderation.servers.publicHint")}</p>
               </header>
               <ul className={p.rows}>
                 {rows.map((r) => (
                   <li key={r.field} className={p.row} data-empty={r.empty || undefined} onMouseEnter={() => setHl(r.field)} onMouseLeave={() => setHl(null)} onFocus={() => setHl(r.field)} onBlur={() => setHl(null)}>
                     <span className={p.rowLabel}>{fieldLabel(r.field)}</span>
                     <span className={p.rowValue}>{r.value}</span>
-                    <Button size="sm" variant="secondary" className={p.rowAction} disabled={!!blocked || r.empty} onClick={r.onAction ?? (() => setModerating([r.field]))} data-testid={`server-sheet-${r.field}`} aria-label={`${r.action}: ${fieldLabel(r.field)}`}>
+                    <Button size="sm" variant="secondary" className={p.rowAction} disabled={!!serverBlocked || r.empty} onClick={r.onAction ?? (() => setModerating([r.field]))} data-testid={`server-sheet-${r.field}`} aria-label={`${r.action}: ${fieldLabel(r.field)}`}>
                       {r.icon} {r.action}
                     </Button>
                   </li>

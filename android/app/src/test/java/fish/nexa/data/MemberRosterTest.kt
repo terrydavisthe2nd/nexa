@@ -8,13 +8,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class MemberRosterTest {
-    @Test fun filtersPrivateChannelsWhileKeepingOwnersAdminsAndAllowedRoles() {
+    // Nexa's Developers (flag 1) are ordinary members: a private channel hides them like anyone
+    @Test fun filtersPrivateChannelsToTheOwnerAndAllowedRoles() {
         val members = listOf("owner", "admin", "allowed", "hidden", "me").associateWith { Member("s", it, roleIds = if (it == "allowed") listOf("r") else emptyList()) }
         val st = ServerState(Server("s", ownerId = "owner"), persistentHashMapOf("s" to Role("s", permissions = P.DEFAULT_EVERYONE.toString()), "r" to Role("r")), members.toPersistentHashMap(), 5, members["me"]!!, 0, true)
         val users = mapOf("admin" to PublicUser("admin", flags = 1))
         val ow = listOf(Overwrite(targetId = "s", targetType = "role", deny = P.VIEW_CHANNEL.toString()), Overwrite(targetId = "r", targetType = "role", allow = P.VIEW_CHANNEL.toString()))
         val shown = MemberRoster.sorted(st, users, ow, true, "me", 1, "You", "Unknown", Locale.ENGLISH)
-        assertEquals(setOf("owner", "admin", "allowed", "me"), shown.map { it.first.userId }.toSet())
+        assertEquals(setOf("owner", "allowed"), shown.map { it.first.userId }.toSet())
         assertEquals(5, MemberRoster.sorted(st, users, ow, false, "me", 0, "You", "Unknown", Locale.ENGLISH).size)
     }
 

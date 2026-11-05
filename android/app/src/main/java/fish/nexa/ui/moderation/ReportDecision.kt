@@ -138,9 +138,11 @@ fun ActionPanel(d: SafetyReportDetail, others: Int, onCancel: () -> Unit, onDone
     val v = d.report
     val meUser by Nexa.users.me.collectAsState()
     val rank = StaffRanks.of(meUser?.id, meUser?.flags ?: 0L)
-    val admin = rank?.atLeast(StaffRank.ADMIN) == true
+    val admin = StaffRanks.can(rank, StaffCan.RESTRICT_ANY_LENGTH)
+    // mods take content down; a server's own parts are an admin's
+    val removes = StaffRanks.can(rank, if (v.targetKind == "server") StaffCan.TAKE_DOWN_SERVERS else StaffCan.TAKE_DOWN_CONTENT)
     val removals = remember(v.id) { removalsFor(d) }
-    var picked by remember(v.id) { mutableStateOf(if (admin) removals.picked.toSet() else emptySet()) }
+    var picked by remember(v.id) { mutableStateOf(if (removes) removals.picked.toSet() else emptySet()) }
     val subject = d.subject
     val canRestrict = subject != null && subject.blocked.isEmpty()
     var restrict by remember(v.id) { mutableStateOf("none") }
@@ -250,7 +252,7 @@ fun ActionPanel(d: SafetyReportDetail, others: Int, onCancel: () -> Unit, onDone
             DecideLabel(t("reports.act.takeDown"))
             when {
                 removals.options.isEmpty() -> Txt(t("reports.act.nothingToRemove"), style = Nx.type.bodySmall, color = c.textMuted)
-                !admin -> Txt(t("reports.act.adminOnly"), style = Nx.type.bodySmall, color = c.textMuted)
+                !removes -> Txt(t("reports.act.adminOnly"), style = Nx.type.bodySmall, color = c.textMuted)
                 else -> FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     removals.options.forEach { o ->
                         Pick(o.label, o.id in picked, danger = true, enabled = !busy) {
@@ -277,7 +279,8 @@ fun ActionPanel(d: SafetyReportDetail, others: Int, onCancel: () -> Unit, onDone
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         spansFor(restrict).forEach { ms -> Pick(if (ms > 0) formatSpan(ms) else t("reports.act.permanent"), span == ms, radio = true, enabled = !busy) { span = ms } }
                     }
-                if (banned || muted) Txt(t(if (banned) "reports.act.alreadyBanned" else "reports.act.alreadyMuted"), style = Nx.type.bodySmall, color = c.textMuted)
+                // what they already have of the kind being chosen, which the new one replaces
+                if ((restrict == "ban" && banned) || (restrict == "mute" && muted)) Txt(t(if (restrict == "ban") "reports.act.alreadyBanned" else "reports.act.alreadyMuted"), style = Nx.type.bodySmall, color = c.textMuted)
             }
         NxTextField(reason, { if (it.length <= 1000) reason = it }, label = t("moderation.form.reason"), hint = if (doing) t("moderation.form.reasonVisible") else t("reports.act.reasonNoteOnly"), singleLine = false, minLines = 2, enabled = !busy, capitalize = true, autoCorrect = true)
         if (telling)

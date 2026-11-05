@@ -7,8 +7,7 @@ import { removeFavoriteGifs, toggleFavoriteGif, type FavoriteGif } from "@/lib/g
 import { attachmentObjectURL } from "@/lib/mediaCache";
 import { BLANK_IMAGE, mediaKey, useMediaLinks } from "@/lib/mediaLinks";
 import { useExpressions } from "@/stores/expressions";
-import { useAuth } from "@/stores/auth";
-import { isInstanceAdmin } from "@/stores/servers";
+import { atLeast, useMyRank } from "@/lib/staffRank";
 import { useSettings } from "@/stores/settings";
 import { favoriteGifMenu, gifResultMenu } from "./pickerMenus";
 import { GifGrid, type GifTileData } from "./GifGrid";
@@ -31,8 +30,8 @@ interface FavoriteTile extends GifTileData {
 export function GifPicker({ onPick }: { onPick: Pick }) {
   const favs = useSettings((st) => st.settings.favoriteGifs);
   const enabled = useExpressions((x) => x.gifEnabled);
-  const meId = useAuth((a) => a.me?.id);
-  const admin = !!meId && isInstanceAdmin(meId);
+  // the GIF key is the instance's, so its Developers are told how to set it up
+  const admin = atLeast(useMyRank(), "developer");
   const setEnabled = useExpressions((x) => x.setGifEnabled);
   const [tab, setTab] = useState<"favorites" | "search">("favorites");
   const [q, setQ] = useState("");

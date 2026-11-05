@@ -887,8 +887,8 @@ func (s *Server) handleMessageBulkDelete(w http.ResponseWriter, r *http.Request)
 }
 
 // canDeleteOthers says whether the caller may remove messages other people
-// wrote in a channel: a group DM's owner, anyone with Manage Messages in a
-// server channel, and whoever runs Nexa.
+// wrote in a channel: a group DM's owner, and anyone with Manage Messages in a
+// server channel. Staff take messages down through reports, never here.
 func (s *Server) canDeleteOthers(r *http.Request, ch *store.Channel, me *store.User) bool {
 	if ch.Type == "group_dm" && ownsGroup(ch, me) {
 		return true
@@ -898,7 +898,7 @@ func (s *Server) canDeleteOthers(r *http.Request, ch *store.Channel, me *store.U
 			return true
 		}
 	}
-	return me.Flags&store.FlagAdmin != 0
+	return false
 }
 
 func (s *Server) handleAck(w http.ResponseWriter, r *http.Request) {

@@ -21,14 +21,16 @@ func TestStaffRanks(t *testing.T) {
 	devTok, devID := register(t, ts, "dev")
 	admTok, admID := register(t, ts, "adm")
 	modTok, modID := register(t, ts, "moddy")
-	_, memID := register(t, ts, "member")
+	helpTok, helpID := register(t, ts, "helper")
+	memTok, memID := register(t, ts, "member")
 	_, mem2ID := register(t, ts, "member2")
 	setRank(t, ts, ownTok, devID, "developer")
 	setRank(t, ts, ownTok, admID, "admin")
 	setRank(t, ts, ownTok, modID, "mod")
+	setRank(t, ts, ownTok, helpID, "helper")
 
 	// ranks are public, as their badges are
-	for id, bit := range map[string]int64{devID: store.FlagAdmin, admID: store.FlagStaffAdmin, modID: store.FlagStaffMod} {
+	for id, bit := range map[string]int64{devID: store.FlagAdmin, admID: store.FlagStaffAdmin, modID: store.FlagStaffMod, helpID: store.FlagStaffHelper} {
 		_, pub := do(t, ts, "GET", "/api/v1/users/"+id, ownTok, nil)
 		if f := int64(pub["flags"].(float64)); f&store.StaffFlags != bit {
 			t.Errorf("%s public flags %d, want rank bit %d", id, f, bit)
@@ -36,7 +38,7 @@ func TestStaffRanks(t *testing.T) {
 	}
 
 	// only the owner gives or takes ranks, the old admin switch included
-	for _, tok := range []string{devTok, admTok, modTok} {
+	for _, tok := range []string{devTok, admTok, modTok, helpTok} {
 		if res, body := do(t, ts, "PATCH", "/api/v1/admin/users/"+memID, tok, map[string]any{"rank": "mod"}); res.StatusCode != 403 || errCode(body) != "owner_only" {
 			t.Errorf("non-owner gives a rank: %d %v", res.StatusCode, body)
 		}
@@ -48,24 +50,24 @@ func TestStaffRanks(t *testing.T) {
 		t.Errorf("owner is not grantable: %d %v", res.StatusCode, body)
 	}
 
-	// what each rank reaches
+	// what each rank reaches: the edges of each rank, not every route
 	for _, c := range []struct {
 		method, path string
 		tok          string
 		want         int
 	}{
-		{"GET", "/api/v1/moderation/users", modTok, 200},
-		{"GET", "/api/v1/moderation/cases", modTok, 200},
-		{"GET", "/api/v1/moderation/log", modTok, 200},
-		{"GET", "/api/v1/moderation/servers", modTok, 403},
-		{"GET", "/api/v1/moderation/bugs", modTok, 403},
+		{"GET", "/api/v1/moderation/reports", memTok, 403},
+		{"GET", "/api/v1/moderation/reports", helpTok, 200},
+		{"GET", "/api/v1/moderation/bugs", helpTok, 200},
+		{"GET", "/api/v1/moderation/cases", helpTok, 200},
+		{"GET", "/api/v1/moderation/servers", helpTok, 403},
+		{"GET", "/api/v1/moderation/servers", modTok, 200},
+		{"GET", "/api/v1/moderation/packs", modTok, 200},
 		{"GET", "/api/v1/moderation/announcements", modTok, 403},
 		{"GET", "/api/v1/moderation/users/" + memID + "/alts", modTok, 403},
-		{"GET", "/api/v1/moderation/servers", admTok, 200},
-		{"GET", "/api/v1/moderation/bugs", admTok, 200},
 		{"GET", "/api/v1/moderation/users/" + memID + "/alts", admTok, 200},
+		{"GET", "/api/v1/moderation/users/" + memID + "/purge-preview", admTok, 200},
 		{"GET", "/api/v1/admin/stats", admTok, 403},
-		{"GET", "/api/v1/moderation/users/" + memID + "/purge-preview", admTok, 403},
 		{"GET", "/api/v1/admin/stats", devTok, 200},
 		{"GET", "/api/v1/admin/errors", devTok, 200},
 		{"GET", "/api/v1/admin/legal-report?user=member", devTok, 403},
@@ -75,19 +77,27 @@ func TestStaffRanks(t *testing.T) {
 		}
 	}
 
-	// a mod mutes and bans for a week at most, and does nothing else
-	week := int64(7 * 24 * 3600 * 1000)
+	// a helper acts on nobody
+	if res, out := modAct(t, ts, helpTok, memID, map[string]any{"action": "mute", "reason": "a mute", "duration_ms": 3600000}); res.StatusCode != 403 {
+		t.Errorf("helper mutes: %d %v", res.StatusCode, out)
+	}
+
+	// a mod takes profile parts down, and mutes and bans for 30 days at most
+	month := int64(30 * 24 * 3600 * 1000)
+	if res, out := do(t, ts, "PATCH", "/api/v1/users/@me", memTok, map[string]any{"pronouns": "bad/words"}); res.StatusCode != 200 {
+		t.Fatalf("set pronouns: %d %v", res.StatusCode, out)
+	}
+	mustAct(t, ts, modTok, memID, map[string]any{"action": "field_reset", "reason": "a field", "fields": []string{"pronouns"}})
 	for _, body := range []map[string]any{
-		{"action": "mute", "reason": "too long", "duration_ms": week + 1},
+		{"action": "mute", "reason": "too long", "duration_ms": month + 1},
 		{"action": "ban", "reason": "for ever", "permanent": true},
-		{"action": "field_reset", "reason": "a field", "fields": []string{"about_me"}},
 		{"action": "delete", "reason": "gone", "confirm": "member"},
 	} {
 		if res, out := modAct(t, ts, modTok, memID, body); res.StatusCode != 403 {
 			t.Errorf("mod %v: %d %v", body["action"], res.StatusCode, out)
 		}
 	}
-	modCase := mustAct(t, ts, modTok, memID, map[string]any{"action": "mute", "reason": "a week", "duration_ms": week})
+	modCase := mustAct(t, ts, modTok, memID, map[string]any{"action": "mute", "reason": "a month", "duration_ms": month})
 	// an admin's longer ban stands: a mod cannot shorten it
 	admCase := mustAct(t, ts, admTok, mem2ID, map[string]any{"action": "ban", "reason": "for good", "permanent": true})
 	if res, out := modAct(t, ts, modTok, mem2ID, map[string]any{"action": "ban", "reason": "shorter", "duration_ms": 3600000}); res.StatusCode != 403 || errCode(out) != "mod_shortens" {
@@ -102,18 +112,15 @@ func TestStaffRanks(t *testing.T) {
 		t.Errorf("mod lifts their own mute: %d %v", res.StatusCode, out)
 	}
 
-	// an admin cannot disable sign-in or delete; a developer can, but not for staff
-	if res, out := do(t, ts, "PATCH", "/api/v1/admin/users/"+memID, admTok, map[string]any{"disabled": true}); res.StatusCode != 403 {
-		t.Errorf("admin disables sign-in: %d %v", res.StatusCode, out)
+	// a mod cannot disable sign-in; an admin can for members, never for staff
+	if res, out := do(t, ts, "PATCH", "/api/v1/admin/users/"+memID, modTok, map[string]any{"disabled": true}); res.StatusCode != 403 {
+		t.Errorf("mod disables sign-in: %d %v", res.StatusCode, out)
 	}
-	if res, out := modAct(t, ts, admTok, memID, map[string]any{"action": "delete", "reason": "gone", "confirm": "member"}); res.StatusCode != 403 {
-		t.Errorf("admin deletes: %d %v", res.StatusCode, out)
+	if res, out := do(t, ts, "PATCH", "/api/v1/admin/users/"+modID, admTok, map[string]any{"disabled": true}); res.StatusCode != 403 || errCode(out) != "owner_only" {
+		t.Errorf("admin disables a mod: %d %v", res.StatusCode, out)
 	}
-	if res, out := do(t, ts, "PATCH", "/api/v1/admin/users/"+modID, devTok, map[string]any{"disabled": true}); res.StatusCode != 403 || errCode(out) != "owner_only" {
-		t.Errorf("developer disables a mod: %d %v", res.StatusCode, out)
-	}
-	if res, out := do(t, ts, "PATCH", "/api/v1/admin/users/"+memID, devTok, map[string]any{"disabled": true}); res.StatusCode != 200 {
-		t.Errorf("developer disables a member: %d %v", res.StatusCode, out)
+	if res, out := do(t, ts, "PATCH", "/api/v1/admin/users/"+memID, admTok, map[string]any{"disabled": true}); res.StatusCode != 200 {
+		t.Errorf("admin disables a member: %d %v", res.StatusCode, out)
 	}
 
 	// staff of every rank are out of reach until the owner takes the rank away

@@ -1,6 +1,6 @@
 import { MEMBER_QUARANTINED, type User } from "@/api/types";
 import { has, P } from "@/lib/perms";
-import { isInstanceAdmin, serverPerms, type ServerState } from "@/stores/servers";
+import { serverPerms, type ServerState } from "@/stores/servers";
 
 /**
  * Why someone cannot talk in a server right now, beyond a channel's
@@ -10,7 +10,7 @@ import { isInstanceAdmin, serverPerms, type ServerState } from "@/stores/servers
 export type TalkGate = { kind: "timeout"; until: number } | { kind: "quarantine" } | { kind: "verify"; until: number } | null;
 
 export function talkGate(st: ServerState | undefined, me: Pick<User, "id" | "created_at"> | null | undefined, now = Date.now()): TalkGate {
-  if (!st || !me || st.server.owner_id === me.id || isInstanceAdmin(me.id)) return null;
+  if (!st || !me || st.server.owner_id === me.id) return null;
   const m = st.members[me.id] ?? (st.me.user_id === me.id ? st.me : undefined);
   if (!m) return null;
   const p = serverPerms(st, me.id);

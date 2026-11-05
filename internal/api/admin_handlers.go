@@ -16,8 +16,8 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/instance", s.handleInstanceInfo)
 	mux.Handle("GET /api/v1/admin/stats", s.staff(rankDeveloper, s.handleAdminStats))
 	mux.Handle("GET /api/v1/admin/users", s.staff(rankDeveloper, s.handleAdminUsers))
-	mux.Handle("PATCH /api/v1/admin/users/{id}", s.staff(rankMod, s.handleAdminUserPatch))
-	mux.Handle("DELETE /api/v1/admin/users/{id}", s.staff(rankDeveloper, s.handleAdminUserDelete))
+	mux.Handle("PATCH /api/v1/admin/users/{id}", s.staff(rankHelper, s.handleAdminUserPatch))
+	mux.Handle("DELETE /api/v1/admin/users/{id}", s.staff(rankAdmin, s.handleAdminUserDelete))
 	mux.Handle("GET /api/v1/admin/settings", s.staff(rankDeveloper, s.handleAdminSettings))
 	mux.Handle("PATCH /api/v1/admin/settings", s.staff(rankDeveloper, s.handleAdminSettingsPatch))
 }
@@ -112,7 +112,7 @@ func (s *Server) handleAdminUserPatch(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Disabled *bool `json:"disabled"`
-		// Rank is "developer", "admin", "mod" or "" for none.
+		// Rank is "developer", "admin", "mod", "helper" or "" for none.
 		Rank *string `json:"rank"`
 		// Admin is what apps before ranks send: true for Developer, false for none.
 		Admin  *bool  `json:"admin"`
@@ -138,7 +138,7 @@ func (s *Server) handleAdminUserPatch(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !found {
-			WriteError(w, E(http.StatusBadRequest, "invalid_value", "rank must be developer, admin, mod or empty."))
+			WriteError(w, E(http.StatusBadRequest, "invalid_value", "rank must be developer, admin, mod, helper or empty."))
 			return
 		}
 	}
@@ -167,7 +167,8 @@ func (s *Server) handleAdminUserPatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Disabled != nil {
-		need := rankDeveloper
+		// disabling sign-in is an admin's, and the owner's for staff
+		need := rankAdmin
 		if u.Flags&store.StaffFlags != 0 {
 			need = rankOwner
 		}
@@ -196,28 +197,6 @@ func (s *Server) handleAdminUserPatch(w http.ResponseWriter, r *http.Request) {
 		set |= rankBits[want]
 		clear &^= set
 	}
-	// Developers see every private channel of the servers they are in, so
-	// gaining or losing that changes their view (and who holds the keys)
-	isDev := func(f int64) bool { return f&store.FlagAdmin != 0 && f&(store.FlagDisabled|store.FlagDeleted) == 0 }
-	var servers []*store.Server
-	var before []visibility
-	if isDev(u.Flags) != isDev((u.Flags|set)&^clear) {
-		// The snapshots come first: taken after the write they would show the
-		// new view as though it had always been there, and a failed one would
-		// make every channel look newly visible to every member.
-		if servers, err = s.Store.ServersForUser(ctx, id); err != nil {
-			WriteError(w, err)
-			return
-		}
-		for _, srv := range servers {
-			vis, err := s.snapshotVisibility(ctx, srv.ID)
-			if err != nil {
-				WriteError(w, err)
-				return
-			}
-			before = append(before, vis)
-		}
-	}
 	flags, err := s.Store.ChangeUserFlags(ctx, id, set, clear)
 	if err != nil {
 		WriteError(w, err)
@@ -242,9 +221,6 @@ func (s *Server) handleAdminUserPatch(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		s.emitLog(ctx, entry)
-	}
-	for i, srv := range servers {
-		s.syncVisibility(ctx, srv.ID, before[i])
 	}
 	if flags != u.Flags {
 		// everyone who sees them sees the new rank on their profile

@@ -1,4 +1,5 @@
 import { useReportNavigation } from "@/lib/reportNavigation";
+import { can, useMyRank } from "@/lib/staffRank";
 import { PersonName } from "@/components/common/PersonName";
 import { CalendarDays, ChevronLeft, ChevronRight, Copy, Download, Eraser, EyeOff, FolderOpen, Gavel, LockOpen, Smile, Sticker as StickerIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -28,6 +29,7 @@ import x from "./Expressions.module.css";
  * answers for it, and the cases about it.
  */
 export function PackPage() {
+  const mine = useMyRank();
   const { packId = "" } = useParams();
   const {nav,back,returnTo} = useReportNavigation();
   const mergePeople = useModeration((s) => s.mergePeople);
@@ -128,7 +130,8 @@ export function PackPage() {
       value: pack.discover_blocked ? t("moderation.packs.listingKeptPrivate") : pack.public ? t("moderation.packs.listingPublic") : t("moderation.packs.listingPrivate"),
       empty: !pack.public && !pack.discover_blocked,
       action: pack.discover_blocked ? (
-        <Button size="sm" variant="secondary" className={p.rowAction} onClick={() => void relist()} data-testid="pack-sheet-relist">
+        // letting a pack the staff kept private be public again is an admin's
+        <Button size="sm" variant="secondary" className={p.rowAction} onClick={() => void relist()} disabled={!can(mine, "takeDownServers")} data-testid="pack-sheet-relist">
           <LockOpen size={15} aria-hidden="true" /> {t("moderation.packs.allowPublic")}
         </Button>
       ) : (

@@ -254,6 +254,8 @@ func TestSafetyReportRemovalIsScopedAndAudited(t *testing.T) {
 	b, bid := register(t, ts, "bob")
 	mod, modID := register(t, ts, "moddy")
 	setRank(t, ts, staff, modID, "mod")
+	helper, helperID := register(t, ts, "helper")
+	setRank(t, ts, staff, helperID, "helper")
 	_, dm := do(t, ts, "POST", "/api/v1/users/@me/channels", a, map[string]any{"recipient_ids": []string{bid}})
 	cid := dm["id"].(string)
 	createEpoch(t, ts, a, cid)
@@ -265,17 +267,21 @@ func TestSafetyReportRemovalIsScopedAndAudited(t *testing.T) {
 	id := v["id"].(string)
 	path := "/api/v1/moderation/reports/" + id + "/remove-message"
 	body := map[string]any{"version": 1, "reason": "The reported message violates the rules."}
-	for _, tok := range []string{a, b, mod} {
+	// a helper triages but takes nothing down, nor closes a report as Action Taken
+	for _, tok := range []string{a, b, helper} {
 		if res, _ := do(t, ts, "POST", path, tok, body); res.StatusCode != 403 {
-			t.Fatalf("non-admin removal: %d", res.StatusCode)
+			t.Fatalf("removal below mod: %d", res.StatusCode)
 		}
+	}
+	if res, out := do(t, ts, "PATCH", "/api/v1/moderation/reports/"+id, helper, map[string]any{"version": 1, "status": "actioned", "note": "done it"}); res.StatusCode != 403 {
+		t.Fatalf("helper closes as actioned: %d %v", res.StatusCode, out)
 	}
 	if res, _ := do(t, ts, "GET", "/api/v1/channels/"+cid, staff, nil); res.StatusCode != 404 {
 		t.Fatal("staff unexpectedly joined private conversation")
 	}
-	res, action := do(t, ts, "POST", path, staff, body)
+	res, action := do(t, ts, "POST", path, mod, body)
 	if res.StatusCode != 201 {
-		t.Fatalf("remove: %d %v", res.StatusCode, action)
+		t.Fatalf("mod removes: %d %v", res.StatusCode, action)
 	}
 	caseView := action["case"].(map[string]any)
 	if caseView["user_id"] != aid || caseView["action"] != "message_remove" {
@@ -305,7 +311,7 @@ func TestStaffGateDoesNotChangeAfterRefusals(t *testing.T) {
 	b, _ := register(t, ts, "bob")
 	mod, mid := register(t, ts, "moddy")
 	setRank(t, ts, owner, mid, "mod")
-	for _, path := range []string{"/api/v1/moderation/reports", "/api/v1/moderation/users", "/api/v1/moderation/servers", "/api/v1/admin/stats"} {
+	for _, path := range []string{"/api/v1/moderation/reports", "/api/v1/moderation/users", "/api/v1/moderation/announcements", "/api/v1/admin/stats"} {
 		for i := 0; i < 3; i++ {
 			for _, tok := range []string{a, b} {
 				if res, _ := do(t, ts, "GET", path, tok, nil); res.StatusCode != 403 {
@@ -314,7 +320,7 @@ func TestStaffGateDoesNotChangeAfterRefusals(t *testing.T) {
 			}
 		}
 	}
-	if res, _ := do(t, ts, "GET", "/api/v1/moderation/servers", mod, nil); res.StatusCode != 403 {
+	if res, _ := do(t, ts, "GET", "/api/v1/moderation/announcements", mod, nil); res.StatusCode != 403 {
 		t.Error("mod gained admin rights after rejection")
 	}
 }

@@ -17,7 +17,7 @@ import { useModEvents, useModeration } from "@/stores/moderation";
 import { usePresence } from "@/stores/presence";
 import { useUI } from "@/stores/ui";
 import { t, Tr } from "@/i18n";
-import { atLeast, useMyRank } from "@/lib/staffRank";
+import { can, useMyRank } from "@/lib/staffRank";
 import { useAuth } from "@/stores/auth";
 import { ModerateModal } from "./ModerateModal";
 import { modStatus, StatusSummary } from "./ModStatus";
@@ -202,8 +202,9 @@ export function StaffCasePane({ caseId, onBack, onChanged, showMember = true }: 
   const target = data.people[c.user_id];
   const gone = !target || target.deleted;
   const Icon = actionIcon(c.action);
-  // a mod lifts, closes and reopens only the cases they opened; admins and above any
-  const handles = atLeast(rank, "admin") || c.moderator_id === meId;
+  // a mod lifts, closes and reopens only the cases they opened, admins and above any; a helper reads
+  const handles = can(rank, "handleAnyCase") || (can(rank, "handleOwnCases") && c.moderator_id === meId);
+  const replies = can(rank, "handleOwnCases");
   return (
     <>
       <div className={m.paneHeader}>
@@ -253,7 +254,7 @@ export function StaffCasePane({ caseId, onBack, onChanged, showMember = true }: 
         opener={{ from: "nexa", at: c.created_at, body: <NoticeCard c={c} people={data.people} perspective="staff" /> }}
         // a closed case is closed to staff too, until one of them opens it again
         onSend={
-          gone || c.status === "closed"
+          gone || c.status === "closed" || !replies
             ? undefined
             : async (body, files) => {
                 const r = await modApi.reply(caseId, body, files);
@@ -262,7 +263,7 @@ export function StaffCasePane({ caseId, onBack, onChanged, showMember = true }: 
         }
         upload={modApi.upload}
         placeholder={t("moderation.case.replyPlaceholder")}
-        note={gone || c.status === "closed" ? undefined : <Tr id="moderation.case.replyNote" values={{ name: <PersonName userId={c.user_id} user={target}>{personName(target)}</PersonName> }} />}
+        note={gone || c.status === "closed" || !replies ? undefined : <Tr id="moderation.case.replyNote" values={{ name: <PersonName userId={c.user_id} user={target}>{personName(target)}</PersonName> }} />}
         dropName={t("nexa.notice.caseNumber", { number: c.number })}
         onSeen={(lastId) => useModeration.getState().readThread("case", caseId, lastId)}
         locked={

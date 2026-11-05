@@ -6,7 +6,7 @@ import { Button } from "@/components/common/Button";
 import { TextArea } from "@/components/common/TextInput";
 import { describeError } from "@/lib/errors";
 import { formatSpan, SPAN } from "@/lib/moderation";
-import { atLeast, MOD_MAX_MS, useMyRank } from "@/lib/staffRank";
+import { can, MOD_MAX_MS, useMyRank } from "@/lib/staffRank";
 import { useAuth } from "@/stores/auth";
 import { useUI } from "@/stores/ui";
 import { t } from "@/i18n";
@@ -81,9 +81,11 @@ export function ActionPanel({ detail, others, onCancel, onDone, onChanged }: { d
   const v = detail.report;
   const rank = useMyRank();
   const me = useAuth((a) => a.me?.id ?? "0");
-  const admin = atLeast(rank, "admin");
+  // mods take content down; a server's own parts are an admin's
+  const admin = can(rank, "restrictAnyLength");
+  const removes = can(rank, v.target_kind === "server" ? "takeDownServers" : "takeDownContent");
   const removals = removalsFor(detail);
-  const [picked, setPicked] = useState<Set<string>>(() => new Set(admin ? removals.picked : []));
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(removes ? removals.picked : []));
   const subject = detail.subject;
   const canRestrict = !!subject && !subject.blocked;
   const [restrict, setRestrict] = useState<Restrict>("none");
@@ -203,7 +205,7 @@ export function ActionPanel({ detail, others, onCancel, onDone, onChanged }: { d
         <legend>{t("reports.act.takeDown")}</legend>
         {removals.options.length === 0 ? (
           <p className={s.muted}>{t("reports.act.nothingToRemove")}</p>
-        ) : !admin ? (
+        ) : !removes ? (
           <p className={s.muted}>{t("reports.act.adminOnly")}</p>
         ) : (
           <div className={s.pickRow}>
@@ -236,7 +238,8 @@ export function ActionPanel({ detail, others, onCancel, onDone, onChanged }: { d
               ))}
             </div>
           ) : null}
-          {subject?.ban || subject?.mute ? <p className={s.muted}>{subject.ban ? t("reports.act.alreadyBanned") : t("reports.act.alreadyMuted")}</p> : null}
+          {/* what they already have of the kind being chosen, which the new one replaces */}
+          {restrict === "ban" && subject?.ban ? <p className={s.muted}>{t("reports.act.alreadyBanned")}</p> : restrict === "mute" && subject?.mute ? <p className={s.muted}>{t("reports.act.alreadyMuted")}</p> : null}
         </fieldset>
       ) : null}
 

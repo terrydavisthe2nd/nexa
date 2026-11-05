@@ -21,6 +21,7 @@ import { TextArea } from "@/components/common/TextInput";
 import { describeError } from "@/lib/errors";
 import { fullDate, personName, relativeTo } from "@/lib/moderation";
 import { reasonTone, worstReason } from "@/lib/reportReasons";
+import { can, useMyRank } from "@/lib/staffRank";
 import { useAuth } from "@/stores/auth";
 import { useModeration, useModEvents } from "@/stores/moderation";
 import { useUI } from "@/stores/ui";
@@ -381,6 +382,7 @@ function ReportWorkspace({ id, onBack, onOpen, onDecided }: { id: string; onBack
   const location = useLocation();
   const related = (path: string) => nav(path, { state: { reportReturnTo: location.pathname + location.search } });
   const me = useAuth((st) => st.me?.id);
+  const rank = useMyRank();
   const [detail, setDetail] = useState<ReportDetail | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -573,9 +575,12 @@ function ReportWorkspace({ id, onBack, onOpen, onDecided }: { id: string; onBack
         <section className={s.decideBox} aria-label={t("reports.decision.title")} data-testid="report-decision">
           {deciding === "none" ? (
             <div className={s.decideBar}>
-              <Button variant="danger" onClick={() => setDeciding("act")} disabled={busy} data-testid="report-act">
-                <Gavel size={16} aria-hidden="true" /> {t("reports.act.takeAction")}
-              </Button>
+              {/* a helper triages and dismisses; taking action is a mod's */}
+              {can(rank, "takeDownContent") ? (
+                <Button variant="danger" onClick={() => setDeciding("act")} disabled={busy} data-testid="report-act">
+                  <Gavel size={16} aria-hidden="true" /> {t("reports.act.takeAction")}
+                </Button>
+              ) : null}
               <Button variant="secondary" onClick={() => setDeciding("dismiss")} disabled={busy} data-testid="report-dismiss">
                 <ThumbsDown size={16} aria-hidden="true" /> {t("reports.act.dismiss")}
               </Button>

@@ -231,6 +231,8 @@ func legalFlags(f int64) string {
 		on = append(on, "Nexa staff, rank Admin")
 	case f&store.FlagStaffMod != 0:
 		on = append(on, "Nexa staff, rank Mod")
+	case f&store.FlagStaffHelper != 0:
+		on = append(on, "Nexa staff, rank Helper")
 	}
 	if f&store.FlagDisabled != 0 {
 		on = append(on, "disabled by an administrator")

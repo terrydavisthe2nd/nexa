@@ -212,13 +212,6 @@ class ServersStore(private val users: UsersStore, private val channels: Channels
         _order.value = emptyList()
     }
 
-    /** Whether an account runs Nexa: like the owner, it holds every permission in a server it is in. */
-    fun isInstanceAdmin(userId: String): Boolean {
-        val me = users.me.value
-        val flags = if (me?.id == userId) me.flags else users.get(userId)?.flags ?: 0L
-        return flags and 1L != 0L
-    }
-
     /**
      * View Server as Role: a preview, on this device only, of a server as one
      * role sees it (with @everyone). Only this account's own permissions are
@@ -247,7 +240,8 @@ class ServersStore(private val users: UsersStore, private val channels: Channels
 
     fun serverPerms(st: ServerState, userId: String): Long {
         viewingAs(st, userId)?.let { return Perms.base(st.server.id, st.permissionRoles, PermMember(userId, it, false), false) }
-        if (st.server.ownerId == userId || isInstanceAdmin(userId)) return P.ALL
+        // only the server's owner holds everything: Nexa's staff are ordinary members here
+        if (st.server.ownerId == userId) return P.ALL
         return Perms.base(st.server.id, st.permissionRoles, Perms.member(st.members[userId], userId), false)
     }
 
@@ -257,7 +251,7 @@ class ServersStore(private val users: UsersStore, private val channels: Channels
     fun channelPerms(st: ServerState, channelId: String, userId: String): Long {
         val ch = channels.get(channelId)
         val preview = viewingAs(st, userId)
-        val isOwner = preview == null && (st.server.ownerId == userId || isInstanceAdmin(userId))
+        val isOwner = preview == null && st.server.ownerId == userId
         val member = if (preview != null) PermMember(userId, preview, false) else Perms.member(st.members[userId], userId)
         // a thread answers to its channel
         if (ch != null && ch.isThread && ch.parentId != null) {
@@ -281,7 +275,6 @@ class ServersStore(private val users: UsersStore, private val channels: Channels
     fun memberHighest(st: ServerState, userId: String): Pair<Int, Boolean> {
         viewingAs(st, userId)?.let { return Perms.highestPosition(st.permissionRoles, PermMember(userId, it, false)) to false }
         val isOwner = st.server.ownerId == userId
-        if (!isOwner && isInstanceAdmin(userId)) return (1 shl 30) - 1 to false
         return Perms.highestPosition(st.permissionRoles, Perms.member(st.members[userId], userId)) to isOwner
     }
 

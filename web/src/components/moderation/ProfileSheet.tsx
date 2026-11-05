@@ -21,7 +21,7 @@ import { Markdown } from "@/markdown";
 import { usePresence } from "@/stores/presence";
 import { t } from "@/i18n";
 import { modStatus } from "./ModStatus";
-import { atLeast, RANK_ICON, rankName, rankOf, useMyRank, type StaffRank } from "@/lib/staffRank";
+import { can, RANK_ICON, rankName, rankOf, useMyRank, type StaffRank } from "@/lib/staffRank";
 import type { ModerateIntent } from "./PersonPage";
 import p from "./Sheet.module.css";
 import { PackRows } from "./ExpressionsTab";
@@ -75,7 +75,7 @@ export function ProfileSheet({ user, servers, owner, onModerate, onOpenServer, p
   const deleted = (user.admin_flags & FLAG_DELETED) !== 0;
   // taking down part of a profile is for admins and above; a mod mutes and bans
   const mine = useMyRank();
-  const blocked = deleted ? t("moderation.user.deleted") : blockedText(user.blocked) || (atLeast(mine, "admin") ? "" : t("staff.modOnlyRestricts"));
+  const blocked = deleted ? t("moderation.user.deleted") : blockedText(user.blocked) || (can(mine, "takeDownContent") ? "" : t("staff.helperReadOnly"));
   const locked = !!blocked;
   const reset = (f: ResetField) => onModerate({ action: "field_reset", preset: { fields: [f] } });
   const status = [statusEmojiText(user.status_emoji), user.status_text].filter(Boolean).join(" ");
@@ -337,7 +337,7 @@ export function ProfileSheet({ user, servers, owner, onModerate, onOpenServer, p
           </section>
 
           {/* what their calls used, for catching anyone running the allowance down */}
-          {atLeast(mine, "admin") && !deleted ? <CallUsagePanel userId={user.id} /> : null}
+          {can(mine, "seeAltsAndCalls") && !deleted ? <CallUsagePanel userId={user.id} /> : null}
         </div>
       </div>
     </div>

@@ -66,11 +66,11 @@ func (s *Server) bugRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/bugs/{id}/read", s.authed(s.handleBugRead))
 	mux.Handle("GET /media/bugs/{id}", s.authed(s.handleBugFile))
 
-	mux.Handle("POST /api/v1/moderation/bugs/attachments", s.staff(rankAdmin, s.handleBugUpload))
-	mux.Handle("GET /api/v1/moderation/bugs", s.staff(rankAdmin, s.handleModBugs))
-	mux.Handle("GET /api/v1/moderation/bugs/{id}", s.staff(rankAdmin, s.handleModBug))
-	mux.Handle("POST /api/v1/moderation/bugs/{id}/messages", s.staff(rankAdmin, s.handleModBugReply))
-	mux.Handle("POST /api/v1/moderation/bugs/{id}/status", s.staff(rankAdmin, s.handleModBugStatus))
+	mux.Handle("POST /api/v1/moderation/bugs/attachments", s.staff(rankHelper, s.handleBugUpload))
+	mux.Handle("GET /api/v1/moderation/bugs", s.staff(rankHelper, s.handleModBugs))
+	mux.Handle("GET /api/v1/moderation/bugs/{id}", s.staff(rankHelper, s.handleModBug))
+	mux.Handle("POST /api/v1/moderation/bugs/{id}/messages", s.staff(rankHelper, s.handleModBugReply))
+	mux.Handle("POST /api/v1/moderation/bugs/{id}/status", s.staff(rankHelper, s.handleModBugStatus))
 }
 
 const (
@@ -223,7 +223,7 @@ func (s *Server) emitBug(ctx context.Context, r *store.BugReport, lines ...*stor
 	}
 	if view, err := s.staffBugView(ctx, r, last); err == nil {
 		counts, _ := s.Store.CountBugReports(ctx)
-		s.emitStaff(ctx, rankAdmin, "mod_bug", map[string]any{"report": view, "messages": lines, "people": people, "counts": counts})
+		s.emitStaff(ctx, rankHelper, "mod_bug", map[string]any{"report": view, "messages": lines, "people": people, "counts": counts})
 	}
 	// what waits on the staff, and so what each of them has not read, may have changed
 	s.emitModUnreadAll(ctx)
@@ -579,7 +579,7 @@ func (s *Server) handleBugFile(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	staff := s.rankOf(r.Context(), me) >= rankAdmin && sent
+	staff := s.rankOf(r.Context(), me) >= rankHelper && sent
 	if owner != me.ID && !staff {
 		http.NotFound(w, r)
 		return

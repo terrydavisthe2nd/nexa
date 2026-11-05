@@ -527,7 +527,8 @@ private fun ReportWorkspace(id: String, onDecided: (String) -> Unit) {
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                NxButton(t("reports.act.takeAction"), { deciding = Deciding.ACT }, Modifier.weight(1f), kind = ButtonKind.DANGER, icon = "Gavel", enabled = !busy)
+                                // a helper triages and dismisses; taking action is a mod's
+                                if (StaffRanks.can(StaffCan.TAKE_DOWN_CONTENT)) NxButton(t("reports.act.takeAction"), { deciding = Deciding.ACT }, Modifier.weight(1f), kind = ButtonKind.DANGER, icon = "Gavel", enabled = !busy)
                                 NxButton(t("reports.act.dismiss"), { deciding = Deciding.DISMISS }, Modifier.weight(1f), kind = ButtonKind.SECONDARY, icon = "ThumbsDown", enabled = !busy)
                             }
                             if (v.subjectId != "0") NxButton(t("reports.openAccount"), { openReportTarget("users/${v.subjectId}", v.id) }, kind = ButtonKind.GHOST, icon = "UserRound", size = ButtonSize.TOUCH, block = true)

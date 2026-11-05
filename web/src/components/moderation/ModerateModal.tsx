@@ -25,7 +25,7 @@ import { usePresence } from "@/stores/presence";
 import { useUI } from "@/stores/ui";
 import { t, Tr } from "@/i18n";
 import { modStatus } from "./ModStatus";
-import { atLeast, MOD_MAX_MS, useMyRank, type StaffRank } from "@/lib/staffRank";
+import { can, MOD_MAX_MS, useMyRank, type StaffRank } from "@/lib/staffRank";
 import m from "./Moderation.module.css";
 
 const MAX_REASON = 1000;
@@ -37,11 +37,11 @@ const MAX_BAN = 5 * 365 * SPAN.DAY;
 
 const ACTIONS: ModAction[] = ["avatar_remove", "field_reset", "mute", "ban", "delete"];
 
-/** The actions a rank may take: a mod mutes and bans, an admin does all but delete. */
+/** The actions a rank may take: a mod takes profile parts down, mutes and bans; an admin deletes too. */
 function actionsFor(rank: StaffRank | null): ModAction[] {
-  if (atLeast(rank, "developer")) return ACTIONS;
-  if (atLeast(rank, "admin")) return ACTIONS.filter((a) => a !== "delete");
-  return ["mute", "ban"];
+  if (can(rank, "closeAccounts")) return ACTIONS;
+  if (can(rank, "restrict")) return ACTIONS.filter((a) => a !== "delete");
+  return [];
 }
 /** The fields a reset empties rather than writing MODERATOR_REMOVED_ in. */
 const CLEARED: ResetField[] = ["status", "nicknames", "server_profiles", "typing_style", "name_style", "widgets", "server_tag"];
@@ -171,9 +171,9 @@ export function ModerateModal({ user, onClose, onDone, initial, preset, servers,
   const live = usePresence((p) => p.byUser[user.id]);
   const presence = modStatus(user, live);
   const mine = useMyRank();
-  const isMod = !atLeast(mine, "admin");
+  const isMod = !can(mine, "restrictAnyLength");
   const offered = actionsFor(mine);
-  // a mod mutes and bans for a week at most, and never for good
+  // a mod mutes and bans for 30 days at most, and never for good
   const maxMute = isMod ? MOD_MAX_MS : MAX_MUTE;
   const maxBan = isMod ? MOD_MAX_MS : MAX_BAN;
   const [action, setAction] = useState<ModAction | null>(initial && offered.includes(initial) ? initial : null);

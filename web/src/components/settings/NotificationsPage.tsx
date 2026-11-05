@@ -8,7 +8,7 @@ import { previewSound, soundTrouble, type SoundName } from "@/lib/sounds";
 import { useSettings, type NotificationPreview } from "@/stores/settings";
 import { useUI } from "@/stores/ui";
 import { staffAlerts } from "@/lib/staffAlerts";
-import { atLeast, useMyRank } from "@/lib/staffRank";
+import { useMyRank } from "@/lib/staffRank";
 import s from "./Settings.module.css";
 
 import { t } from "@/i18n";
@@ -26,7 +26,7 @@ function previewChoices(): { value: NotificationPreview; label: string; desc: st
  * urgent ones, or none), members writing in cases, and bug reports; they still
  * count on the badges either way.
  */
-function StaffAlertSettings({ admin }: { admin: boolean }) {
+function StaffAlertSettings() {
   const st = useSettings((x) => x.settings);
   const patch = useSettings((x) => x.patch);
   const now = staffAlerts(st);
@@ -47,7 +47,7 @@ function StaffAlertSettings({ admin }: { admin: boolean }) {
         </label>
       ))}
       <Toggle checked={now.cases} onChange={(v) => set({ cases: v })} label={t("settings.notifications.staffCases")} description={t("settings.notifications.staffCasesHint")} />
-      {admin ? <Toggle checked={now.bugs} onChange={(v) => set({ bugs: v })} label={t("settings.notifications.staffBugs")} description={t("settings.notifications.staffBugsHint")} /> : null}
+      <Toggle checked={now.bugs} onChange={(v) => set({ bugs: v })} label={t("settings.notifications.staffBugs")} description={t("settings.notifications.staffBugsHint")} />
     </>
   );
 }
@@ -107,7 +107,7 @@ export default function NotificationsPage({ onSounds }: { onSounds?: () => void 
           <span className={s.radioText}><span className={s.radioLabel}>{o.label}</span><span className={s.radioDesc}>{o.desc}</span></span>
         </label>
       ))}
-      {rank ? <StaffAlertSettings admin={atLeast(rank, "admin")} /> : null}
+      {rank ? <StaffAlertSettings /> : null}
       <h3 className={s.h5}>{t("settings.notifications.test")}</h3>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Button size="sm" variant="secondary" onClick={() => void testSound("message")}>{t("profile.profileCard.message")}</Button>

@@ -171,10 +171,10 @@ private const val MAX_MUTE = 365 * DAY
 private const val MAX_BAN = 5 * 365 * DAY
 private val ACTIONS = listOf("avatar_remove", "field_reset", "mute", "ban", "delete")
 
-/** The actions a rank may take: a mod mutes and bans, an admin does all but delete. */
+/** The actions a rank may take: a mod takes profile parts down, mutes and bans; an admin deletes too. */
 private fun actionsFor(rank: fish.nexa.data.StaffRank?): List<String> = when {
-    rank == null || !rank.atLeast(fish.nexa.data.StaffRank.ADMIN) -> listOf("mute", "ban")
-    !rank.atLeast(fish.nexa.data.StaffRank.DEVELOPER) -> ACTIONS - "delete"
+    !fish.nexa.data.StaffRanks.can(rank, fish.nexa.data.StaffCan.RESTRICT) -> emptyList()
+    !fish.nexa.data.StaffRanks.can(rank, fish.nexa.data.StaffCan.CLOSE_ACCOUNTS) -> ACTIONS - "delete"
     else -> ACTIONS
 }
 private val RESET_FIELDS = listOf("username", "display_name", "about_me", "pronouns", "status", "nicknames", "server_profiles", "typing_style", "name_style", "widgets", "server_tag")
@@ -302,7 +302,7 @@ fun openModerate(u: ModUser, servers: List<ModMembership>?, initial: String? = n
     // everyone the action is for when it is more than one account (u is the first); each gets a case of their own
     val many = bulk?.takeIf { it.size > 1 }
     val mine = fish.nexa.data.StaffRanks.mine()
-    val isMod = mine == null || !mine.atLeast(fish.nexa.data.StaffRank.ADMIN)
+    val isMod = !fish.nexa.data.StaffRanks.can(mine, fish.nexa.data.StaffCan.RESTRICT_ANY_LENGTH)
     val offered = actionsFor(mine)
     // a mod mutes and bans for a week at most, and never for good
     val maxMute = if (isMod) fish.nexa.data.StaffRanks.MOD_MAX_MS else MAX_MUTE

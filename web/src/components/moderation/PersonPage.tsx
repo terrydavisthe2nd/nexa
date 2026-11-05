@@ -11,7 +11,7 @@ import { promptText } from "@/components/modals/PromptModal";
 import { describeError } from "@/lib/errors";
 import { copyAndSay } from "@/lib/copyText";
 import { FLAG_DELETED, relativeTo } from "@/lib/moderation";
-import { atLeast, rankOf, useMyRank } from "@/lib/staffRank";
+import { can, rankOf, useMyRank } from "@/lib/staffRank";
 import { useModEvents, useModeration } from "@/stores/moderation";
 import { usePresence } from "@/stores/presence";
 import { useUI } from "@/stores/ui";
@@ -109,7 +109,8 @@ export function PersonPage() {
   const rank = rankOf(user.id, user.admin_flags, ownerId ?? undefined);
   const st = modStatus(user, live);
   const base = `/channels/@admin/users/${userId}`;
-  const actable = !user.blocked && !deleted;
+  // a helper reads; a mod and above act
+  const actable = !user.blocked && !deleted && can(mine, "restrict");
   // lifting asks why, as it does from the case, then the account is read again
   const lift = async (r: NonNullable<ModUser["mute"]>) => {
     const what = r.kind === "ban" ? t("moderation.case.liftBan") : t("moderation.case.liftMute");
@@ -146,7 +147,7 @@ export function PersonPage() {
           <div className={m.userNames}>
             <span className={m.userName}>
               <PersonName userId={deleted ? null : user.id} user={deleted ? null : user}>{deleted ? t("nexa.deletedUser") : user.display_name}</PersonName>
-              {atLeast(mine, "admin") ? <AltBadge user={user} onOpen={() => setAltsOpen(true)} /> : null}
+              {can(mine, "seeAltsAndCalls") ? <AltBadge user={user} onOpen={() => setAltsOpen(true)} /> : null}
               {rank ? <RankPill rank={rank} /> : null}
             </span>
             <span className={m.userSub}>
@@ -197,7 +198,7 @@ export function PersonPage() {
           </Button>
         ) : null}
         {/* admins give Contributor and custom badges by hand; bots hold none */}
-        {atLeast(mine, "admin") && !deleted && !isBot({ flags: user.admin_flags }) ? (
+        {can(mine, "runNexa") && !deleted && !isBot({ flags: user.admin_flags }) ? (
           <Button size="sm" variant="ghost" onClick={() => setBadging(true)} data-testid="user-badges">
             <Award size={15} aria-hidden="true" /> {t("badges.staff.giveMenu")}
           </Button>
@@ -205,7 +206,7 @@ export function PersonPage() {
         <Button size="sm" variant="ghost" onClick={() => copyAndSay(user.id, t("moderation.copied"))}>
           <Copy size={15} aria-hidden="true" /> {t("moderation.menu.copyId")}
         </Button>
-        {actable && atLeast(mine, "developer") ? (
+        {actable && can(mine, "closeAccounts") ? (
           <Button size="sm" variant="ghost" className={m.dangerGhost} onClick={() => setModerating({ action: "delete" })} data-testid="user-delete">
             <Trash2 size={15} aria-hidden="true" /> {t("moderation.act.deleteTitle")}
           </Button>

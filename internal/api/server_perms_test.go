@@ -184,33 +184,3 @@ func TestOneUseInviteUnderConcurrentJoins(t *testing.T) {
 	}
 }
 
-func TestAdminAccessChangesChannelsLive(t *testing.T) {
-	_, ts := newTestServer(t)
-	tokA, _ := register(t, ts, "alice")
-	tokB, _ := register(t, ts, "bob")
-	tokC, idC := register(t, ts, "carol")
-	view := createServer(t, ts, tokB, "Private")
-	sid := view["id"].(string)
-	join(t, ts, tokC, inviteFor(t, ts, tokB, channelNamed(view, "general")["id"].(string)))
-	res, body := do(t, ts, "POST", "/api/v1/servers/"+sid+"/channels", tokB, map[string]any{"type": "text", "name": "staff"})
-	if res.StatusCode != 201 {
-		t.Fatal(body)
-	}
-	staff := body["id"].(string)
-	if res, body = do(t, ts, "PUT", "/api/v1/channels/"+staff+"/permissions/"+sid, tokB, map[string]any{"type": "role", "deny": permStr(perms.ViewChannel)}); res.StatusCode != 200 {
-		t.Fatalf("overwrite: %d %v", res.StatusCode, body)
-	}
-	gc := connectGW(t, ts, tokC)
-	if res, _ := do(t, ts, "PATCH", "/api/v1/admin/users/"+idC, tokA, map[string]any{"admin": true}); res.StatusCode != 200 {
-		t.Fatalf("promote: %d", res.StatusCode)
-	}
-	if ev := gc.next("channel_create", 3*time.Second); ev == nil || ev["id"] != staff {
-		t.Errorf("a new admin sees the private channel: %v", ev)
-	}
-	if res, _ := do(t, ts, "PATCH", "/api/v1/admin/users/"+idC, tokA, map[string]any{"admin": false}); res.StatusCode != 200 {
-		t.Fatalf("demote: %d", res.StatusCode)
-	}
-	if ev := gc.next("channel_delete", 3*time.Second); ev == nil || ev["id"] != staff {
-		t.Errorf("a demoted admin loses the private channel: %v", ev)
-	}
-}

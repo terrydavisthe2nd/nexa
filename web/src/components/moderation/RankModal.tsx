@@ -12,7 +12,7 @@ import { t, Tr } from "@/i18n";
 import r from "./RankModal.module.css";
 
 /** The ranks from the top of the ladder down, then none. */
-const LADDER: (GrantableRank | null)[] = ["developer", "admin", "mod", null];
+const LADDER: (GrantableRank | null)[] = ["developer", "admin", "mod", "helper", null];
 
 /**
  * The owner's choice of someone's rank: the ladder of what can be given, each

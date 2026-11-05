@@ -117,7 +117,8 @@ fun PersonPage(userId: String, caseId: String?) {
     )
     val base = "users/$userId"
     val mine = fish.nexa.data.StaffRanks.mine()
-    val actable = user.blocked.isEmpty() && !deleted
+    // a helper reads; a mod and above act
+    val actable = user.blocked.isEmpty() && !deleted && fish.nexa.data.StaffRanks.can(mine, fish.nexa.data.StaffCan.RESTRICT)
     fun moderate(action: String? = null, preset: ModeratePreset? = null) = openModerate(user, d.servers, action, preset) { load() }
     // lifting asks why, as it does from the case, then the account is read again
     fun lift(r: fish.nexa.data.Restriction) {
@@ -174,14 +175,14 @@ fun PersonPage(userId: String, caseId: String?) {
             NxButton(t("moderation.person.reports"), { fish.nexa.ui.moderation.ReportSearch.query = user.id; goPanel("reports") }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "Flag")
             if (mine == fish.nexa.data.StaffRank.OWNER && user.blocked != "self" && user.blocked != "owner" && !deleted)
                 NxButton(t("staff.rankModal.menu"), { openRankSheet(user) { load() } }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "ShieldCheck")
-            if (mine?.atLeast(fish.nexa.data.StaffRank.ADMIN) == true && !deleted && user.adminFlags and 64L == 0L)
+            if (fish.nexa.data.StaffRanks.can(mine, fish.nexa.data.StaffCan.RUN_NEXA) && !deleted && user.adminFlags and 64L == 0L)
                 NxButton(t("badges.staff.giveMenu"), { openGiveBadgesSheet(user) }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "Award")
             NxButton(t("moderation.menu.copyId"), {
                 val cm = Nexa.app.getSystemService(android.content.ClipboardManager::class.java)
                 cm?.setPrimaryClip(android.content.ClipData.newPlainText("id", user.id))
                 Nexa.ui.toast(t("moderation.copied"), "success")
             }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "Copy")
-            if (actable && mine?.atLeast(fish.nexa.data.StaffRank.DEVELOPER) == true)
+            if (actable && fish.nexa.data.StaffRanks.can(mine, fish.nexa.data.StaffCan.CLOSE_ACCOUNTS))
                 NxButton(t("moderation.act.deleteTitle"), { moderate("delete") }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "Trash2")
         }
         Rule()
@@ -203,7 +204,7 @@ private fun ProfileSheet(user: ModUser, servers: List<ModMembership>, packs: Lis
     val deleted = user.isDeleted
     // taking down part of a profile is for admins and above; a mod mutes and bans
     val mine = fish.nexa.data.StaffRanks.mine()
-    val blocked = if (deleted) t("moderation.user.deleted") else blockedText(user.blocked).ifEmpty { if (mine != null && mine.atLeast(fish.nexa.data.StaffRank.ADMIN)) "" else t("staff.modOnlyRestricts") }
+    val blocked = if (deleted) t("moderation.user.deleted") else blockedText(user.blocked).ifEmpty { if (fish.nexa.data.StaffRanks.can(mine, fish.nexa.data.StaffCan.TAKE_DOWN_CONTENT)) "" else t("staff.helperReadOnly") }
     val locked = blocked.isNotEmpty()
     fun reset(f: String) = onModerate("field_reset", ModeratePreset(fields = listOf(f)))
     val status = listOf(statusEmojiText(user.statusEmoji), user.statusText).filter { it.isNotEmpty() }.joinToString(" ")
@@ -301,7 +302,7 @@ private fun ProfileSheet(user: ModUser, servers: List<ModMembership>, packs: Lis
             }
         }
         // what their calls used, for catching anyone running the allowance down
-        if (mine != null && mine.atLeast(fish.nexa.data.StaffRank.ADMIN) && !deleted) item("calls") { CallUsagePanel(user.id) }
+        if (fish.nexa.data.StaffRanks.can(mine, fish.nexa.data.StaffCan.SEE_ALTS_AND_CALLS) && !deleted) item("calls") { CallUsagePanel(user.id) }
     }
 }
 

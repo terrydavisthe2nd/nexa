@@ -568,7 +568,8 @@ fun PackPage(packId: String) {
                         FieldValue(pack.description.ifEmpty { t("moderation.sheet.notSet") }, pack.description.isEmpty())
                     }
                     FieldRowView(packFieldLabel("public"), !pack.public && !pack.discoverBlocked, {
-                        if (pack.discoverBlocked) NxButton(t("moderation.packs.allowPublic"), ::relist, kind = ButtonKind.SECONDARY, size = ButtonSize.TOUCH, icon = "LockOpen")
+                        // letting a pack the staff kept private be public again is an admin's
+                        if (pack.discoverBlocked) NxButton(t("moderation.packs.allowPublic"), ::relist, kind = ButtonKind.SECONDARY, size = ButtonSize.TOUCH, icon = "LockOpen", enabled = fish.nexa.data.StaffRanks.can(fish.nexa.data.StaffCan.TAKE_DOWN_SERVERS))
                         else NxButton(t("moderation.packs.makePrivateShort"), { moderate(PackPreset(fields = listOf("public"))) }, kind = ButtonKind.SECONDARY, size = ButtonSize.TOUCH, icon = "EyeOff", enabled = blocked.isEmpty() && pack.public)
                     }) {
                         FieldValue(if (pack.discoverBlocked) t("moderation.packs.listingKeptPrivate") else if (pack.public) t("moderation.packs.listingPublic") else t("moderation.packs.listingPrivate"), !pack.public && !pack.discoverBlocked)

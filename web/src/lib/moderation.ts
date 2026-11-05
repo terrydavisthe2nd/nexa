@@ -405,7 +405,7 @@ export function logDetail(e: ModLogEntry): string {
     }
     case "rank_change": {
       const r = e.details as { from?: string; to?: string };
-      const name = (x: string | undefined) => (x === "developer" || x === "admin" || x === "mod" ? rankName(x) : t("staff.rankModal.none"));
+      const name = (x: string | undefined) => (x === "developer" || x === "admin" || x === "mod" || x === "helper" ? rankName(x) : t("staff.rankModal.none"));
       return t("staff.log.fromTo", { from: name(r.from), to: name(r.to) });
     }
     default:

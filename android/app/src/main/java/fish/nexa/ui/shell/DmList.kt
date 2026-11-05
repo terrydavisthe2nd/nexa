@@ -155,7 +155,7 @@ object DmArrange {
     fun managesGroup(ch: Channel?): Boolean {
         val me = Nexa.users.me.value ?: return false
         if (ch == null || ch.type != "group_dm") return false
-        return ch.ownerId == me.id || Nexa.servers.isInstanceAdmin(me.id)
+        return ch.ownerId == me.id
     }
 
     fun markRead(id: String) {

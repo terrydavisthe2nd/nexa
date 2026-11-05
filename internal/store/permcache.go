@@ -21,8 +21,7 @@ import (
 // the largest server rather than with anything its sender did.
 //
 // So each server's permission inputs — owner, roles, members with their roles
-// and timeouts, overwrites by channel, which channels exist, and the Nexa
-// admins — are loaded once into a snapshot and answered from memory. Every
+// and timeouts, overwrites by channel, and which channels exist — are loaded once into a snapshot and answered from memory. Every
 // write that could change an answer goes through this package and bumps a
 // version once it commits; a snapshot built against an older version is never
 // used, and one being built while a write lands is not kept. Snapshots also
@@ -73,10 +72,6 @@ type serverSnapshot struct {
 	threadMembers map[ids.ID]map[ids.ID]bool
 	// archived threads, which ready leaves out of the read states it sends
 	archived map[ids.ID]bool
-	// admins are the Nexa admins as of the same version: an admin holds
-	// every permission its owner does in any server it is a member of
-	admins map[ids.ID]bool
-
 	version  uint64
 	loadedAt time.Time
 	lastUsed time.Time
@@ -91,18 +86,13 @@ type serverSnapshot struct {
 // permCache holds the snapshots.
 type permCache struct {
 	mu sync.Mutex
-	// global is bumped by writes that reach past one server (Nexa admins,
-	// an account's deletion); servers[id] by writes to one server. A snapshot's
+	// global is bumped by writes that reach past one server (an account's
+	// flags or deletion); servers[id] by writes to one server. A snapshot's
 	// version is their sum, and both only grow, so any write changes it.
 	global  uint64
 	servers map[ids.ID]uint64
 	snaps   map[ids.ID]*serverSnapshot
 	loading map[ids.ID]*permLoad
-
-	admins        map[ids.ID]bool
-	adminsVersion uint64
-	adminsAt      time.Time
-	adminsLoading *permLoad
 }
 
 type permLoad struct {
@@ -133,14 +123,13 @@ func (s *Store) serverChanged(serverID ids.ID) {
 	c.mu.Unlock()
 }
 
-// everythingChanged invalidates every snapshot and the admin set: for writes
+// everythingChanged invalidates every snapshot: for writes
 // whose reach is not one server, such as an account's flags or deletion.
 func (s *Store) everythingChanged() {
 	c := s.perm
 	c.mu.Lock()
 	c.global++
 	clear(c.snaps)
-	c.admins = nil
 	c.mu.Unlock()
 }
 
@@ -247,10 +236,6 @@ func (s *Store) loadSnapshot(ctx context.Context, serverID ids.ID, version uint6
 		channels: map[ids.ID]string{}, threads: map[ids.ID]ids.ID{}, threadMembers: map[ids.ID]map[ids.ID]bool{}, archived: map[ids.ID]bool{},
 		version: version, loadedAt: time.Now(), viewers: map[ids.ID][]ids.ID{}}
 	snap.lastUsed = snap.loadedAt
-	var err error
-	if snap.admins, err = s.admins(ctx); err != nil {
-		return nil, err
-	}
 	if err := s.db.R.QueryRowContext(ctx, `SELECT owner_id FROM servers WHERE id = ?`, int64(serverID)).Scan(&snap.ownerID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -354,55 +339,6 @@ func (s *Store) loadSnapshot(ctx context.Context, serverID ids.ID, version uint6
 	return snap, rows.Err()
 }
 
-// admins returns the Nexa admins, from memory while no write has changed
-// them. The map is shared: callers must not change it.
-func (s *Store) admins(ctx context.Context) (map[ids.ID]bool, error) {
-	c := s.perm
-	for {
-		c.mu.Lock()
-		now := time.Now()
-		if c.admins != nil && c.adminsVersion == c.global && now.Sub(c.adminsAt) < permSnapshotTTL {
-			a := c.admins
-			c.mu.Unlock()
-			return a, nil
-		}
-		if l := c.adminsLoading; l != nil {
-			c.mu.Unlock()
-			select {
-			case <-l.done:
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-			if l.err != nil {
-				return nil, l.err
-			}
-			c.mu.Lock()
-			fresh := l.version == c.global
-			c.mu.Unlock()
-			if fresh {
-				return l.adm, nil
-			}
-			// a write landed while it loaded: ask again
-			continue
-		}
-		want := c.global
-		l := &permLoad{done: make(chan struct{}), version: want}
-		c.adminsLoading = l
-		c.mu.Unlock()
-
-		adm, err := s.instanceAdmins(ctx)
-		c.mu.Lock()
-		c.adminsLoading = nil
-		if err == nil && c.global == want {
-			c.admins, c.adminsVersion, c.adminsAt = adm, want, time.Now()
-		}
-		c.mu.Unlock()
-		l.adm, l.err = adm, err
-		close(l.done)
-		return adm, err
-	}
-}
-
 // member returns uid's membership as perms needs it, and whether there is one.
 func (snap *serverSnapshot) member(uid ids.ID, now int64) (perms.Member, bool) {
 	m := snap.members[uid]
@@ -413,9 +349,11 @@ func (snap *serverSnapshot) member(uid ids.ID, now int64) (perms.Member, bool) {
 }
 
 // privileged reports whether uid holds every permission in this server: its
-// owner, or a Nexa admin.
+// owner alone. Nexa's staff, Developers included, are ordinary members of the
+// servers they join (the owner's rule, 2026-11-04: rights in other people's
+// servers were a privacy invasion).
 func (snap *serverSnapshot) privileged(uid ids.ID) bool {
-	return snap.ownerID == uid || snap.admins[uid]
+	return snap.ownerID == uid
 }
 
 // channelPerms is what uid may do in one of the server's channels: 0 for

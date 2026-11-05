@@ -18,7 +18,7 @@ import { StatusLine } from "@/components/activity/StatusLine";
 import { useChannels } from "@/stores/channels";
 import { isThread, useThreads } from "@/stores/threads";
 import { threads as threadsApi } from "@/api/threads";
-import { isInstanceAdmin, permRolesOf, rolesByPosition, useServers } from "@/stores/servers";
+import { permRolesOf, rolesByPosition, useServers } from "@/stores/servers";
 import { useUI } from "@/stores/ui";
 import { useUsers } from "@/stores/users";
 import { openProfilePopout } from "@/stores/profilePopout";
@@ -146,7 +146,7 @@ export function MemberList({ serverId, channelId, drawer, open, entering, onEnte
     const now = Date.now();
     return Object.values(st.members).filter((m) => {
       if (threadIds && !threadIds.has(m.user_id)) return false;
-      const isOwner = st.server.owner_id === m.user_id || isInstanceAdmin(m.user_id);
+      const isOwner = st.server.owner_id === m.user_id;
       return has(compute(serverId, roles, toPermMember(m, m.user_id, now), isOwner, overwrites), P.VIEW_CHANNEL);
     });
   }, [st, serverId, overwrites, inThread, threadIds]);

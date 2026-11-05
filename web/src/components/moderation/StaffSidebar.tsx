@@ -27,25 +27,25 @@ export const STAFF_GROUPS: { id: string; label: () => string; places: StaffPlace
     id: "attention",
     label: () => t("moderation.nav.attention"),
     places: [
-      { id: "reports", label: () => t("reports.title"), icon: Flag, rank: "mod" },
-      { id: "cases", label: () => t("moderation.tabs.cases"), icon: FolderOpen, rank: "mod" },
-      { id: "bugs", label: () => t("moderation.tabs.bugs"), icon: Bug, rank: "admin" },
+      { id: "reports", label: () => t("reports.title"), icon: Flag, rank: "helper" },
+      { id: "cases", label: () => t("moderation.tabs.cases"), icon: FolderOpen, rank: "helper" },
+      { id: "bugs", label: () => t("moderation.tabs.bugs"), icon: Bug, rank: "helper" },
     ],
   },
   {
     id: "lookUp",
     label: () => t("moderation.nav.lookUp"),
     places: [
-      { id: "users", label: () => t("moderation.tabs.users"), icon: Users, rank: "mod" },
-      { id: "servers", label: () => t("moderation.tabs.servers"), icon: Server, rank: "admin" },
-      { id: "expressions", label: () => t("moderation.tabs.expressions"), icon: Sticker, rank: "admin" },
+      { id: "users", label: () => t("moderation.tabs.users"), icon: Users, rank: "helper" },
+      { id: "servers", label: () => t("moderation.tabs.servers"), icon: Server, rank: "mod" },
+      { id: "expressions", label: () => t("moderation.tabs.expressions"), icon: Sticker, rank: "mod" },
       { id: "bots", label: () => t("moderation.tabs.bots"), icon: Bot, rank: "admin" },
     ],
   },
   {
     id: "records",
     label: () => t("moderation.nav.records"),
-    places: [{ id: "logs", label: () => t("moderation.tabs.logs"), icon: ScrollText, rank: "mod" }],
+    places: [{ id: "logs", label: () => t("moderation.tabs.logs"), icon: ScrollText, rank: "helper" }],
   },
   {
     id: "running",

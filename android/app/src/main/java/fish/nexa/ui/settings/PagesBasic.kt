@@ -398,7 +398,7 @@ fun NotificationsPage(openPage: (String, String?) -> Unit) {
             Triple("off", "settings.notifications.staffReportsOff", "settings.notifications.staffReportsOffHint"),
         )) RadioCard(t(label), staff.reports == value, { setStaff(reports = value) }, t(hint))
         ToggleRow(t("settings.notifications.staffCases"), staff.cases, { setStaff(cases = it) }, t("settings.notifications.staffCasesHint"))
-        if (rank.atLeast(fish.nexa.data.StaffRank.ADMIN)) ToggleRow(t("settings.notifications.staffBugs"), staff.bugs, { setStaff(bugs = it) }, t("settings.notifications.staffBugsHint"))
+        ToggleRow(t("settings.notifications.staffBugs"), staff.bugs, { setStaff(bugs = it) }, t("settings.notifications.staffBugsHint"))
     }
 
     SectionHeading(t("settings.notifications.test"))

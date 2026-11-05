@@ -56,10 +56,10 @@ func (s *Server) reportRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/reports", s.authed(s.handleReportsMine))
 	mux.Handle("POST /api/v1/reports/attachments", s.authed(s.handleReportUpload))
 	mux.Handle("GET /media/reports/{id}", s.authed(s.handleReportFile))
-	mux.Handle("GET /api/v1/moderation/reports", s.staff(rankMod, s.handleModReports))
-	mux.Handle("GET /api/v1/moderation/reports/{id}", s.staff(rankMod, s.handleModReport))
-	mux.Handle("POST /api/v1/moderation/reports/{id}/remove-message", s.staff(rankAdmin, s.handleReportRemoveMessage))
-	mux.Handle("PATCH /api/v1/moderation/reports/{id}", s.staff(rankMod, s.handleModReportReview))
+	mux.Handle("GET /api/v1/moderation/reports", s.staff(rankHelper, s.handleModReports))
+	mux.Handle("GET /api/v1/moderation/reports/{id}", s.staff(rankHelper, s.handleModReport))
+	mux.Handle("POST /api/v1/moderation/reports/{id}/remove-message", s.staff(rankMod, s.handleReportRemoveMessage))
+	mux.Handle("PATCH /api/v1/moderation/reports/{id}", s.staff(rankHelper, s.handleModReportReview))
 }
 
 type reportTarget struct {
@@ -464,7 +464,7 @@ func (s *Server) emitReportChanges(ctx context.Context, statusChanged, fresh boo
 	}
 	_ = s.Store.FillReportDuplicates(ctx, views)
 	// "new" marks a report just sent, which the apps tell staff about
-	s.emitStaff(ctx, rankMod, gateway.EvModReport, map[string]any{"reports": views, "counts": counts, "people": s.people(ctx, who...), "new": fresh})
+	s.emitStaff(ctx, rankHelper, gateway.EvModReport, map[string]any{"reports": views, "counts": counts, "people": s.people(ctx, who...), "new": fresh})
 	told := map[ids.ID]bool{}
 	for i, v := range list {
 		if i > 0 || statusChanged {
@@ -660,6 +660,11 @@ func (s *Server) handleModReportReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	me := auth.UserFrom(r.Context())
+	// a helper triages: claims, notes and dismissals, never Action Taken
+	if req.Status == "actioned" && req.Status != v.Status && s.rankOf(r.Context(), me) < rankMod {
+		WriteError(w, staffRankError(rankMod))
+		return
+	}
 	if req.Assigned != 0 && req.Assigned != me.ID && req.Assigned != v.AssignedTo {
 		WriteError(w, E(403, "bad_assignment", "You can claim a report for yourself or return it to the queue."))
 		return
@@ -728,12 +733,12 @@ func (s *Server) handleReportFile(w http.ResponseWriter, r *http.Request) {
 	}
 	if blob.Kind == store.ReportBlobKind {
 		owner, sent, err := s.Store.SafetyReportFileOwner(r.Context(), id)
-		if err != nil || (owner != me.ID && !(sent && s.rankOf(r.Context(), me) >= rankMod)) {
+		if err != nil || (owner != me.ID && !(sent && s.rankOf(r.Context(), me) >= rankHelper)) {
 			http.NotFound(w, r)
 			return
 		}
 	} else {
-		if s.rankOf(r.Context(), me) < rankMod {
+		if s.rankOf(r.Context(), me) < rankHelper {
 			http.NotFound(w, r)
 			return
 		}
@@ -744,7 +749,7 @@ func (s *Server) handleReportFile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if blob.Kind == "attachment" {
-		if s.rankOf(r.Context(), me) < rankMod {
+		if s.rankOf(r.Context(), me) < rankHelper {
 			http.NotFound(w, r)
 			return
 		}

@@ -1585,10 +1585,6 @@ func (s *Server) actorHighest(ctx context.Context, srv *store.Server, uid ids.ID
 	if srv.OwnerID == uid {
 		return 1 << 30, true
 	}
-	if s.Store.IsInstanceAdmin(ctx, uid) {
-		// above every role, but still answerable to the server's owner
-		return 1<<30 - 1, false
-	}
 	m, err := s.Store.Member(ctx, srv.ID, uid)
 	if err != nil {
 		return 0, false

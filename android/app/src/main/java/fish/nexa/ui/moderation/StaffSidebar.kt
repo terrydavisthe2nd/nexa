@@ -41,18 +41,18 @@ data class StaffPlace(val id: String, val labelKey: String, val icon: String, va
  */
 val STAFF_GROUPS: List<Pair<String, List<StaffPlace>>> = listOf(
     "moderation.nav.attention" to listOf(
-        StaffPlace("reports", "reports.title", "Flag", StaffRank.MOD),
-        StaffPlace("cases", "moderation.tabs.cases", "FolderOpen", StaffRank.MOD),
-        StaffPlace("bugs", "moderation.tabs.bugs", "Bug", StaffRank.ADMIN),
+        StaffPlace("reports", "reports.title", "Flag", StaffRank.HELPER),
+        StaffPlace("cases", "moderation.tabs.cases", "FolderOpen", StaffRank.HELPER),
+        StaffPlace("bugs", "moderation.tabs.bugs", "Bug", StaffRank.HELPER),
     ),
     "moderation.nav.lookUp" to listOf(
-        StaffPlace("users", "moderation.tabs.users", "Users", StaffRank.MOD),
-        StaffPlace("servers", "moderation.tabs.servers", "Server", StaffRank.ADMIN),
-        StaffPlace("expressions", "moderation.tabs.expressions", "Sticker", StaffRank.ADMIN),
+        StaffPlace("users", "moderation.tabs.users", "Users", StaffRank.HELPER),
+        StaffPlace("servers", "moderation.tabs.servers", "Server", StaffRank.MOD),
+        StaffPlace("expressions", "moderation.tabs.expressions", "Sticker", StaffRank.MOD),
         StaffPlace("bots", "moderation.tabs.bots", "Bot", StaffRank.ADMIN),
     ),
     "moderation.nav.records" to listOf(
-        StaffPlace("logs", "moderation.tabs.logs", "ScrollText", StaffRank.MOD),
+        StaffPlace("logs", "moderation.tabs.logs", "ScrollText", StaffRank.HELPER),
     ),
     "moderation.nav.running" to listOf(
         StaffPlace("announcements", "moderation.tabs.announcements", "Megaphone", StaffRank.ADMIN),

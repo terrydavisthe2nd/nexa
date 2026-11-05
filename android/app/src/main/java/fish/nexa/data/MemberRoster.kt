@@ -23,7 +23,7 @@ object MemberRoster {
         val order = Collator.getInstance(locale).apply { strength = Collator.SECONDARY }
         return st.members.values.asSequence().filter { m ->
             val flags = if (m.userId == meId) meFlags else users[m.userId]?.flags ?: 0L
-            val owner = st.server.ownerId == m.userId || flags and 1L != 0L
+            val owner = st.server.ownerId == m.userId
             !filterChannel || P.has(Perms.compute(st.server.id, st.permissionRoles, Perms.member(m, m.userId, now), owner, overwrites), P.VIEW_CHANNEL)
         }.map { m ->
             val user = users[m.userId]

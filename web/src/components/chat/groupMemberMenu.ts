@@ -1,4 +1,4 @@
-import { personText, personNode } from "@/lib/personText";
+import { personText } from "@/lib/personText";
 import { dmOpenError } from "@/lib/errors";
 import { channels as channelsApi } from "@/api/channels";
 import { closeDM, managesGroup } from "@/components/sidebar/dmMenu";
@@ -66,9 +66,8 @@ function about(channelId: string, userId: string) {
 /**
  * Context menu for someone in a group's member list, or shown in a group or
  * one-to-one conversation (personMenu): profile, mention and message for
- * everyone, and for whoever manages the group (its owner or an Nexa admin)
- * handing ownership on and removing people. The owner outranks a Nexa
- * admin, so is never offered for removal.
+ * everyone, and for the group's owner handing ownership on and removing
+ * people. Nexa's staff are members like anyone else here.
  */
 export const groupMemberMenu = defineMenu<GroupMemberMenuRowCtx>("groupMember", [
   [
@@ -90,19 +89,15 @@ export const groupMemberMenu = defineMenu<GroupMemberMenuRowCtx>("groupMember", 
     button("transferGroupOwnership", ({ channelId, userId, openModal }) => {
       const a = about(channelId, userId);
       if (!a || !a.manage || a.isOwner) return null;
-      const { self, group, owner, name, ch, me } = a;
+      const { group, name } = a;
       return {
         id: "owner",
-        label: self ? t("chat.groupMemberMenu.takeOwnership") : t("chat.groupMemberMenu.transferOwnership"),
+        label: t("chat.groupMemberMenu.transferOwnership"),
         onSelect: () =>
           openModal("confirm", {
-            title: self ? t("chat.groupMemberMenu.takeOwnershipOf", { group }) : t("chat.groupMemberMenu.transferOwnershipOf", { group }),
-            body: self
-              ? personText("chat.groupMemberMenu.youBecomeTheOwnerInPlaceOf", null, null, { owner: personNode(ch.owner_id, owner) })
-              : ch.owner_id === me.id
-                ? personText("chat.groupMemberMenu.theyBecomeTheOwnerAndYouAMember", userId, name)
-                : personText("chat.groupMemberMenu.theyBecomeTheOwnerInPlaceOf", userId, name, { owner: personNode(ch.owner_id, owner) }),
-            confirmLabel: self ? t("chat.groupMemberMenu.takeOwnership") : t("chat.groupMemberMenu.transferOwnership"),
+            title: t("chat.groupMemberMenu.transferOwnershipOf", { group }),
+            body: personText("chat.groupMemberMenu.theyBecomeTheOwnerAndYouAMember", userId, name),
+            confirmLabel: t("chat.groupMemberMenu.transferOwnership"),
             onConfirm: () => channelsApi.patch(channelId, { owner_id: userId }),
           }),
       };

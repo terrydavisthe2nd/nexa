@@ -49,6 +49,7 @@ import fish.nexa.Nexa
 import fish.nexa.data.ModEvent
 import fish.nexa.data.ModUser
 import fish.nexa.data.Moderation
+import fish.nexa.data.StaffCan
 import fish.nexa.data.StaffRank
 import fish.nexa.data.StaffRanks
 import fish.nexa.data.atLeast
@@ -240,8 +241,8 @@ fun UsersTab() {
         picked.toList(), bulkBusy, Modifier.align(Alignment.BottomCenter),
         onClear = { picked.clear() },
         // disabling sign-in takes a developer
-        onEnable = if (StaffRanks.mine().atLeast(StaffRank.DEVELOPER)) ({ bulkAccess(false) }) else null,
-        onDisable = if (!StaffRanks.mine().atLeast(StaffRank.DEVELOPER)) null else ({ confirm(t("moderation.bulk.disableTitle", "count" to picked.size), t("moderation.menu.disableBody"), t("moderation.menu.disable")) { bulkAccess(true) } }),
+        onEnable = if (StaffRanks.can(StaffCan.CLOSE_ACCOUNTS)) ({ bulkAccess(false) }) else null,
+        onDisable = if (!StaffRanks.can(StaffCan.CLOSE_ACCOUNTS)) null else ({ confirm(t("moderation.bulk.disableTitle", "count" to picked.size), t("moderation.menu.disableBody"), t("moderation.menu.disable")) { bulkAccess(true) } }),
         onModerate = {
             val list = picked.toList()
             openModerate(list.first(), null, bulk = list) { cs ->
@@ -308,7 +309,7 @@ fun userMenu(u: ModUser, onChanged: () -> Unit) {
         // only the owner gives and takes ranks
         if (mine == StaffRank.OWNER) items += MenuItem.Action(t("staff.rankModal.menu")) { openRankSheet(u, onChanged) }
         // disabling sign-in takes a developer, and the owner for staff
-        if (mine.atLeast(if (u.isStaff) StaffRank.OWNER else StaffRank.DEVELOPER)) items += MenuItem.Action(if (disabled) t("moderation.menu.enable") else t("moderation.menu.disable"), danger = !disabled) {
+        if (StaffRanks.can(mine, if (u.isStaff) StaffCan.RANKS else StaffCan.CLOSE_ACCOUNTS)) items += MenuItem.Action(if (disabled) t("moderation.menu.enable") else t("moderation.menu.disable"), danger = !disabled) {
             if (disabled) set(disabledTo = false)
             else confirm(t("moderation.menu.disableTitle", "name" to u.displayName), t("moderation.menu.disableBody"), t("moderation.menu.disable"), titleWords = fish.nexa.ui.chat.PersonWords(t("moderation.menu.disableTitle", "name" to fish.nexa.ui.chat.PERSON_SLOT), listOf(u.id to u.displayName))) {
                 Moderation.access(u.id, disabled = true)

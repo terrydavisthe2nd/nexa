@@ -33,17 +33,18 @@ const (
 	// so the server can decrypt what it sees to hand it over; everyone in
 	// those servers is told. Other bots read only what is addressed to them.
 	FlagBotReadsAll int64 = 128
-	// FlagStaffAdmin and FlagStaffMod are the two lower ranks of Nexa's
-	// staff (internal/api/staff.go). FlagAdmin is the rank above them,
+	// FlagStaffAdmin, FlagStaffMod and FlagStaffHelper are the lower ranks of
+	// Nexa's staff (internal/api/staff.go). FlagAdmin is the rank above them,
 	// Developer, and the oldest account holding it is the Owner. An account
-	// holds at most one of the three.
-	FlagStaffAdmin int64 = 256
-	FlagStaffMod   int64 = 512
+	// holds at most one of the four.
+	FlagStaffAdmin  int64 = 256
+	FlagStaffMod    int64 = 512
+	FlagStaffHelper int64 = 1024
 )
 
 // StaffFlags are the bits of every staff rank: whoever holds one can open the
 // moderation panel.
-const StaffFlags = FlagAdmin | FlagStaffAdmin | FlagStaffMod
+const StaffFlags = FlagAdmin | FlagStaffAdmin | FlagStaffMod | FlagStaffHelper
 
 // NotPeople are the flags of accounts no person holds: Nexa's and the
 // webhooks'. Anything that counts or lists people leaves them out.

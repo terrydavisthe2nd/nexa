@@ -7,9 +7,12 @@ import (
 	"evilion.xyz/chat/internal/store"
 )
 
-func TestInstanceAdminRunsEveryServerTheyAreIn(t *testing.T) {
+// Nexa's staff, Developers included, are ordinary members of other people's
+// servers and group chats: no permissions, private channels or ownership the
+// owner did not give them (the owner's rule, 2026-11-04).
+func TestStaffHaveNoRightsInOthersServersOrGroups(t *testing.T) {
 	_, ts := newTestServer(t)
-	tokA, idA := register(t, ts, "alice") // first account is the admin
+	tokA, idA := register(t, ts, "alice") // the first account: owner and Developer
 	tokB, idB := register(t, ts, "bob")
 	tokC, idC := register(t, ts, "carol")
 
@@ -20,47 +23,48 @@ func TestInstanceAdminRunsEveryServerTheyAreIn(t *testing.T) {
 	join(t, ts, tokA, code)
 	join(t, ts, tokC, code)
 	epoch := createEpoch(t, ts, tokB, sid)
-
-	// no role says so, but she holds every permission
-	res, body := do(t, ts, "GET", "/api/v1/servers/"+sid, tokA, nil)
-	if res.StatusCode != 200 || body["server"].(map[string]any)["my_permissions"] != permStr(perms.All) {
-		t.Fatalf("admin permissions: %d %v", res.StatusCode, body["server"])
+	res, body := do(t, ts, "POST", "/api/v1/servers/"+sid+"/channels", tokB, map[string]any{"type": "text", "name": "secret"})
+	if res.StatusCode != 201 {
+		t.Fatal(body)
 	}
-	if _, body = do(t, ts, "GET", "/api/v1/servers/"+sid, tokC, nil); body["server"].(map[string]any)["my_permissions"] == permStr(perms.All) {
-		t.Fatal("an ordinary member must not hold every permission")
+	secret := body["id"].(string)
+	if res, body = do(t, ts, "PUT", "/api/v1/channels/"+secret+"/permissions/"+sid, tokB, map[string]any{"type": "role", "deny": permStr(perms.ViewChannel)}); res.StatusCode != 200 {
+		t.Fatalf("overwrite: %d %v", res.StatusCode, body)
 	}
 
-	// she can take down someone else's message; an ordinary member cannot
+	// her permissions are @everyone's, and the private channel stays private
+	if _, body = do(t, ts, "GET", "/api/v1/servers/"+sid, tokA, nil); body["server"].(map[string]any)["my_permissions"] == permStr(perms.All) {
+		t.Error("a Developer holds every permission in someone else's server")
+	}
+	if res, _ = do(t, ts, "GET", "/api/v1/channels/"+secret+"/messages", tokA, nil); res.StatusCode != 403 && res.StatusCode != 404 {
+		t.Errorf("a Developer reads a private channel: %d", res.StatusCode)
+	}
+
+	// she cannot take down someone else's message or remove anyone
 	res, body = sendMsg(t, ts, tokC, general, sid, epoch, "carol's", "", nil)
 	if res.StatusCode != 201 {
 		t.Fatalf("send: %d %v", res.StatusCode, body)
 	}
-	carols := body["id"].(string)
-	res, body = sendMsg(t, ts, tokA, general, sid, epoch, "alice's", "", nil)
-	if res.StatusCode != 201 {
-		t.Fatalf("send: %d %v", res.StatusCode, body)
+	if res, _ = do(t, ts, "DELETE", "/api/v1/channels/"+general+"/messages/"+body["id"].(string), tokA, nil); res.StatusCode != 403 {
+		t.Errorf("a Developer deletes another's message: %d", res.StatusCode)
 	}
-	alices := body["id"].(string)
-	if res, _ = do(t, ts, "DELETE", "/api/v1/channels/"+general+"/messages/"+alices, tokC, nil); res.StatusCode != 403 {
-		t.Errorf("member deleting another's message: %d", res.StatusCode)
-	}
-	if res, body = do(t, ts, "DELETE", "/api/v1/channels/"+general+"/messages/"+carols, tokA, nil); res.StatusCode != 204 {
-		t.Errorf("admin deleting a message: %d %v", res.StatusCode, body)
+	if res, _ = do(t, ts, "DELETE", "/api/v1/servers/"+sid+"/members/"+idC, tokA, nil); res.StatusCode != 403 {
+		t.Errorf("a Developer kicks a member: %d", res.StatusCode)
 	}
 
-	// she outranks every member, but not the owner, who can still remove her
-	if res, body = do(t, ts, "DELETE", "/api/v1/servers/"+sid+"/members/"+idB, tokA, nil); res.StatusCode != 403 || errCode(body) != "role_hierarchy" {
-		t.Errorf("admin kicking the owner: %d %v", res.StatusCode, body)
+	// in a group chat she is a member like any other
+	friend(t, ts, tokB, "alice", tokA, idB)
+	friend(t, ts, tokB, "carol", tokC, idB)
+	res, body = do(t, ts, "POST", "/api/v1/users/@me/channels", tokB, map[string]any{"recipient_ids": []string{idA, idC}, "name": "bob's"})
+	if res.StatusCode != 201 {
+		t.Fatalf("group: %d %v", res.StatusCode, body)
 	}
-	if res, body = do(t, ts, "DELETE", "/api/v1/servers/"+sid+"/members/"+idC, tokA, nil); res.StatusCode != 204 {
-		t.Errorf("admin kicking a member: %d %v", res.StatusCode, body)
+	g := body["id"].(string)
+	if res, body = do(t, ts, "DELETE", "/api/v1/channels/"+g+"/recipients/"+idC, tokA, nil); res.StatusCode != 403 || errCode(body) != "not_owner" {
+		t.Errorf("a Developer removes a group member: %d %v", res.StatusCode, body)
 	}
-	if res, body = do(t, ts, "DELETE", "/api/v1/servers/"+sid+"/members/"+idA, tokB, nil); res.StatusCode != 204 {
-		t.Errorf("owner removing the admin: %d %v", res.StatusCode, body)
-	}
-	// outside a server she is not in, she has nothing
-	if res, _ = do(t, ts, "GET", "/api/v1/servers/"+sid, tokA, nil); res.StatusCode != 404 {
-		t.Errorf("admin outside the server: %d", res.StatusCode)
+	if res, body = do(t, ts, "PATCH", "/api/v1/channels/"+g, tokA, map[string]any{"owner_id": idA}); res.StatusCode != 403 {
+		t.Errorf("a Developer takes a group: %d %v", res.StatusCode, body)
 	}
 }
 
@@ -124,76 +128,6 @@ func TestAdminDeletesAnAccount(t *testing.T) {
 	}
 }
 
-func TestInstanceAdminManagesGroupsTheyAreIn(t *testing.T) {
-	_, ts := newTestServer(t)
-	tokA, idA := register(t, ts, "alice") // first account is the admin
-	tokB, idB := register(t, ts, "bob")
-	tokC, idC := register(t, ts, "carol")
-	tokD, idD := register(t, ts, "dave")
-	friend(t, ts, tokB, "alice", tokA, idB)
-	friend(t, ts, tokB, "carol", tokC, idB)
-	friend(t, ts, tokB, "dave", tokD, idB)
-	res, body := do(t, ts, "POST", "/api/v1/users/@me/channels", tokB, map[string]any{"recipient_ids": []string{idA, idC, idD}, "name": "bob's"})
-	if res.StatusCode != 201 || body["owner_id"] != idB {
-		t.Fatalf("group: %d %v", res.StatusCode, body)
-	}
-	g := body["id"].(string)
-
-	// an ordinary member can do none of what the owner does to others
-	if res, body = do(t, ts, "DELETE", "/api/v1/channels/"+g+"/recipients/"+idD, tokC, nil); res.StatusCode != 403 || errCode(body) != "not_owner" {
-		t.Errorf("member removing another: %d %v", res.StatusCode, body)
-	}
-	if res, body = do(t, ts, "PATCH", "/api/v1/channels/"+g, tokC, map[string]any{"owner_id": idC}); res.StatusCode != 403 {
-		t.Errorf("member taking ownership: %d %v", res.StatusCode, body)
-	}
-
-	// the admin removes members, but not the owner, who outranks her as in a server
-	if res, body = do(t, ts, "DELETE", "/api/v1/channels/"+g+"/recipients/"+idD, tokA, nil); res.StatusCode != 204 {
-		t.Errorf("admin removing a member: %d %v", res.StatusCode, body)
-	}
-	if res, body = do(t, ts, "DELETE", "/api/v1/channels/"+g+"/recipients/"+idB, tokA, nil); res.StatusCode != 403 || errCode(body) != "is_owner" {
-		t.Errorf("admin removing the owner: %d %v", res.StatusCode, body)
-	}
-
-	// she can hand the group on, after which the old owner is a member like any other
-	if res, body = do(t, ts, "PATCH", "/api/v1/channels/"+g, tokA, map[string]any{"owner_id": idC}); res.StatusCode != 200 || body["owner_id"] != idC {
-		t.Fatalf("admin transferring ownership: %d %v", res.StatusCode, body)
-	}
-	if res, body = do(t, ts, "DELETE", "/api/v1/channels/"+g+"/recipients/"+idB, tokA, nil); res.StatusCode != 204 {
-		t.Errorf("admin removing the former owner: %d %v", res.StatusCode, body)
-	}
-
-	// subchats in the group are hers to rename, and the group hers to delete
-	res, body = do(t, ts, "POST", "/api/v1/channels/"+g+"/subchats", tokC, map[string]any{"name": "carol's corner"})
-	if res.StatusCode != 201 {
-		t.Fatalf("subchat: %d %v", res.StatusCode, body)
-	}
-	sub := body["id"].(string)
-	if res, body = do(t, ts, "PATCH", "/api/v1/channels/"+sub, tokA, map[string]any{"name": "renamed"}); res.StatusCode != 200 || body["name"] != "renamed" {
-		t.Errorf("admin renaming a subchat: %d %v", res.StatusCode, body)
-	}
-	if res, body = do(t, ts, "DELETE", "/api/v1/channels/"+g+"?purge=true", tokA, nil); res.StatusCode != 204 {
-		t.Errorf("admin deleting the group: %d %v", res.StatusCode, body)
-	}
-	if res, _ = do(t, ts, "GET", "/api/v1/channels/"+g, tokC, nil); res.StatusCode != 404 {
-		t.Errorf("the group is gone for its owner too: %d", res.StatusCode)
-	}
-
-	// a group she is not in stays out of reach
-	friend(t, ts, tokC, "dave", tokD, idC)
-	res, body = do(t, ts, "POST", "/api/v1/users/@me/channels", tokC, map[string]any{"recipient_ids": []string{idB, idD}})
-	if res.StatusCode != 201 {
-		t.Fatalf("second group: %d %v", res.StatusCode, body)
-	}
-	other := body["id"].(string)
-	if res, _ = do(t, ts, "DELETE", "/api/v1/channels/"+other+"/recipients/"+idD, tokA, nil); res.StatusCode != 404 {
-		t.Errorf("admin outside the group: %d", res.StatusCode)
-	}
-}
-
-// The configured admin username sets Nexa up; once it has an admin,
-// the name is an ordinary one — freed by a rename, it cannot be registered
-// into admin powers.
 func TestTheConfiguredAdminNameIsOnlyForSettingUp(t *testing.T) {
 	srv, ts := newTestServer(t)
 	srv.Cfg.AdminUsername = "boss"

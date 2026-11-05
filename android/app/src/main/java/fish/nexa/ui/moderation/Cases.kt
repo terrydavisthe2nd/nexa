@@ -327,7 +327,9 @@ fun StaffCasePane(caseId: String, showMember: Boolean, onBack: () -> Unit, onCha
     val targetName = target?.let { nameOf(it) } ?: cs.targetDisplayName
     // a mod lifts, closes and reopens only the cases they opened; admins and above any
     val mine = fish.nexa.data.StaffRanks.mine()
-    val handles = (mine != null && mine.atLeast(fish.nexa.data.StaffRank.ADMIN)) || cs.moderatorId == Nexa.users.me.value?.id
+    // a mod lifts, closes and reopens the cases they opened, admins and above any; a helper reads
+    val handles = fish.nexa.data.StaffRanks.can(mine, fish.nexa.data.StaffCan.HANDLE_ANY_CASE) || (fish.nexa.data.StaffRanks.can(mine, fish.nexa.data.StaffCan.HANDLE_OWN_CASES) && cs.moderatorId == Nexa.users.me.value?.id)
+    val replies = fish.nexa.data.StaffRanks.can(mine, fish.nexa.data.StaffCan.HANDLE_OWN_CASES)
     Column(Modifier.fillMaxSize()) {
         PaneHeader(
             onBack,
@@ -358,7 +360,7 @@ fun StaffCasePane(caseId: String, showMember: Boolean, onBack: () -> Unit, onCha
             },
             opener = ThreadOpener("nexa", cs.createdAt) { NoticeCard(cs.asMember(), staff = cs) },
             // a closed case is closed to staff too, until one of them opens it again
-            onSend = if (gone || cs.status == "closed") null else ({ body, files ->
+            onSend = if (gone || cs.status == "closed" || !replies) null else ({ body, files ->
                 val r = Moderation.reply(caseId, body, files)
                 apply(r.case, r.messages)
             }),

@@ -9,27 +9,34 @@ import (
 	"evilion.xyz/chat/internal/store"
 )
 
-// Nexa's staff come in four ranks, each holding everything the ranks below it
-// hold:
+// Nexa's staff come in five ranks, each holding everything the ranks below it
+// hold (reworked 2026-11-04 so each rank's powers fit its job):
 //
-//   - Mod: the moderation panel's people, cases and log, and mutes and bans of
-//     at most a week (modMaxDuration). A mod lifts only the cases they opened.
-//   - Admin: the rest of the panel (every other action, permanent bans,
-//     servers, expressions, apps, bug reports, alt accounts, announcements),
-//     but not disabling sign-in or deleting accounts, and no rights in other
-//     people's servers.
-//   - Developer: what Nexa admins have always had (store.FlagAdmin): every
-//     right in every server they are in, disabling sign-in, deleting
-//     accounts, and the instance's own settings, stats and crash reports.
-//   - Owner: the oldest Developer. Only the owner gives and takes ranks, and
-//     disables the sign-in of staff.
+//   - Helper: support and triage. The report queue (claiming, notes, and
+//     dismissing, never Action Taken), bug reports, and reading people, cases
+//     and the log. No action on any account or content.
+//   - Mod: a moderator. Takes reported content down (messages, profile
+//     parts, stickers, emoji, packs), mutes and bans for at most 30 days
+//     (modMaxDuration; never permanent, never shortening a longer one),
+//     replies in cases, and lifts, closes and reopens the cases they opened.
+//     Browses servers and packs.
+//   - Admin: everything else in the panel: restrictions of any length,
+//     anyone's cases, server and Discover takedowns, alt accounts, call
+//     usage, apps, announcements and badges, disabling sign-in and deleting
+//     accounts of people who are not staff.
+//   - Developer: the instance itself: its settings, stats and crash reports.
+//     A Developer has no rights in other people's servers or group chats.
+//   - Owner: the oldest Developer. Only the owner gives and takes ranks, sees
+//     the legal report, and disables or deletes staff.
 //
 // A rank is a public flag bit, so every app can draw it. Staff of any rank
-// cannot be moderated until the owner takes their rank away.
+// cannot be moderated until the owner takes their rank away. The apps hold
+// the same table (web lib/staffRank.ts, Android data/StaffRanks.kt).
 type staffRank int
 
 const (
 	rankNone staffRank = iota
+	rankHelper
 	rankMod
 	rankAdmin
 	rankDeveloper
@@ -37,14 +44,14 @@ const (
 )
 
 // modMaxDuration is the longest mute or ban a mod can give.
-const modMaxDuration = int64(7 * 24 * time.Hour / time.Millisecond)
+const modMaxDuration = int64(30 * 24 * time.Hour / time.Millisecond)
 
 // rankNames are the ranks as the API spells them; "" is no rank.
-var rankNames = map[staffRank]string{rankNone: "", rankMod: "mod", rankAdmin: "admin", rankDeveloper: "developer", rankOwner: "owner"}
+var rankNames = map[staffRank]string{rankNone: "", rankHelper: "helper", rankMod: "mod", rankAdmin: "admin", rankDeveloper: "developer", rankOwner: "owner"}
 
 // rankBits is the flag bit each grantable rank is stored as. The owner is
 // not granted: it is the oldest Developer.
-var rankBits = map[staffRank]int64{rankMod: store.FlagStaffMod, rankAdmin: store.FlagStaffAdmin, rankDeveloper: store.FlagAdmin}
+var rankBits = map[staffRank]int64{rankHelper: store.FlagStaffHelper, rankMod: store.FlagStaffMod, rankAdmin: store.FlagStaffAdmin, rankDeveloper: store.FlagAdmin}
 
 // rankFromFlags reads a rank from an account's flags, given whether it is the
 // owner's account.
@@ -58,6 +65,8 @@ func rankFromFlags(flags int64, owner bool) staffRank {
 		return rankAdmin
 	case flags&store.FlagStaffMod != 0:
 		return rankMod
+	case flags&store.FlagStaffHelper != 0:
+		return rankHelper
 	}
 	return rankNone
 }
@@ -82,6 +91,8 @@ func staffRankError(need staffRank) *Error {
 		return E(http.StatusForbidden, "developer_only", "Only Nexa developers and the owner can do that.")
 	case rankAdmin:
 		return E(http.StatusForbidden, "staff_admin_only", "Only Nexa admins and above can do that.")
+	case rankMod:
+		return E(http.StatusForbidden, "staff_mod_only", "Only Nexa mods and above can do that.")
 	}
 	return E(http.StatusForbidden, "admin_only", "Only Nexa staff can do that.")
 }

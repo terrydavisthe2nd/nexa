@@ -21,21 +21,21 @@ import (
 // are in moderation_actions.go.
 
 func (s *Server) moderationRoutes(mux *http.ServeMux) {
-	mux.Handle("GET /api/v1/moderation/summary", s.staff(rankMod, s.handleModSummary))
-	mux.Handle("GET /api/v1/moderation/users", s.staff(rankMod, s.handleModUsers))
-	mux.Handle("GET /api/v1/moderation/users/{id}", s.staff(rankMod, s.handleModUser))
+	mux.Handle("GET /api/v1/moderation/summary", s.staff(rankHelper, s.handleModSummary))
+	mux.Handle("GET /api/v1/moderation/users", s.staff(rankHelper, s.handleModUsers))
+	mux.Handle("GET /api/v1/moderation/users/{id}", s.staff(rankHelper, s.handleModUser))
 	mux.Handle("GET /api/v1/moderation/users/{id}/alts", s.staff(rankAdmin, s.handleModAlts))
 	mux.Handle("GET /api/v1/moderation/users/{id}/calls", s.staff(rankAdmin, s.handleModUserCalls))
 	mux.Handle("GET /api/v1/moderation/calls", s.staff(rankAdmin, s.handleModCalls))
-	mux.Handle("GET /api/v1/moderation/users/{id}/purge-preview", s.staff(rankDeveloper, s.handleModPurgePreview))
+	mux.Handle("GET /api/v1/moderation/users/{id}/purge-preview", s.staff(rankAdmin, s.handleModPurgePreview))
 	mux.Handle("POST /api/v1/moderation/users/{id}/actions", s.staff(rankMod, s.handleModAction))
-	mux.Handle("GET /api/v1/moderation/cases", s.staff(rankMod, s.handleModCases))
-	mux.Handle("GET /api/v1/moderation/cases/{id}", s.staff(rankMod, s.handleModCase))
+	mux.Handle("GET /api/v1/moderation/cases", s.staff(rankHelper, s.handleModCases))
+	mux.Handle("GET /api/v1/moderation/cases/{id}", s.staff(rankHelper, s.handleModCase))
 	mux.Handle("POST /api/v1/moderation/cases/{id}/messages", s.staff(rankMod, s.handleModReply))
 	mux.Handle("POST /api/v1/moderation/cases/{id}/lift", s.staff(rankMod, s.handleModLift))
 	mux.Handle("POST /api/v1/moderation/cases/{id}/close", s.staff(rankMod, s.handleModClose(true)))
 	mux.Handle("POST /api/v1/moderation/cases/{id}/reopen", s.staff(rankMod, s.handleModClose(false)))
-	mux.Handle("GET /api/v1/moderation/log", s.staff(rankMod, s.handleModLog))
+	mux.Handle("GET /api/v1/moderation/log", s.staff(rankHelper, s.handleModLog))
 	mux.Handle("GET /api/v1/moderation/announcements", s.staff(rankAdmin, s.handleModAnnouncements))
 	mux.Handle("POST /api/v1/moderation/announcements", s.staff(rankAdmin, s.handleModAnnounce))
 	mux.Handle("DELETE /api/v1/moderation/announcements/{id}", s.staff(rankAdmin, s.handleModAnnouncementDelete))
@@ -106,7 +106,7 @@ func (s *Server) handleModSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	me := auth.UserFrom(ctx)
 	var bugs *store.BugCounts
-	if s.rankOf(ctx, me) >= rankAdmin {
+	if s.rankOf(ctx, me) >= rankHelper {
 		bugs = s.bugCountsFor(ctx)
 	}
 	reports, err := s.Store.SafetyReportCounts(ctx)
@@ -569,7 +569,7 @@ func (s *Server) emitLog(ctx context.Context, e *store.ModLogEntry) {
 	if e.TargetID != nil {
 		who = append(who, *e.TargetID)
 	}
-	s.emitStaff(ctx, rankMod, "mod_log", map[string]any{"entry": e, "people": s.people(ctx, who...)})
+	s.emitStaff(ctx, rankHelper, "mod_log", map[string]any{"entry": e, "people": s.people(ctx, who...)})
 }
 
 func (s *Server) handleModLog(w http.ResponseWriter, r *http.Request) {
