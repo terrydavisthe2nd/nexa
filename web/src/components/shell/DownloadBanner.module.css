@@ -29,3 +29,8 @@
 .banner a.download { color: var(--brand); }
 .size { opacity: 0.7; }
 @media (max-width: 480px) { .size { display: none; } }
+
+/* the other answer to a question: unlike the offer's other platforms, it can never go when the row is tight */
+.answer { flex: none; color: var(--on-brand); font-size: 13px; font-weight: 500; opacity: 0.9; white-space: nowrap; }
+.answer:hover { opacity: 1; text-decoration: underline; }
+.answer:focus-visible { outline: 2px solid var(--on-brand); outline-offset: 2px; border-radius: 4px; }

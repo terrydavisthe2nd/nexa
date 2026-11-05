@@ -14,6 +14,7 @@ import m from "@/components/moderation/Moderation.module.css";
 // the tabs, routed in routes.tsx and loaded with the panel
 export { AnnouncementsTab } from "@/components/moderation/AnnouncementsTab";
 export { BadgesTab } from "@/components/moderation/BadgesTab";
+export { GamesTab } from "@/components/moderation/GamesTab";
 export { BugsTab } from "@/components/moderation/BugsTab";
 export { BotsTab } from "@/components/moderation/BotsTab";
 export { CallsTab } from "@/components/moderation/CallsTab";

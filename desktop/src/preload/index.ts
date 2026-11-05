@@ -4,7 +4,7 @@
  * web/src/lib/desktopBridge.ts describes this object to the page.
  */
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import { IPC, type DesktopSettings, type DisplaySourceRequest, type Identity, type NativeStrings, type RpcActivity, type RpcState, type UpdateState, type WindowState } from "../shared/bridge";
+import { IPC, type DesktopSettings, type DisplaySourceRequest, type GameShare, type GamesState, type Identity, type NativeStrings, type RunningApp, type RpcActivity, type RpcState, type UpdateState, type WindowState } from "../shared/bridge";
 
 const arg = (name: string): string => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3) ?? "";
 const origin = arg("evilion-origin");
@@ -38,6 +38,20 @@ if (origin && location.origin === origin) {
       onState: listen<RpcState>(IPC.rpcState),
     },
     onActivities: listen<RpcActivity[]>(IPC.activities),
+    getActivities: (): Promise<RpcActivity[]> => ipcRenderer.invoke(IPC.activitiesGet),
+    games: {
+      getState: (): Promise<GamesState> => ipcRenderer.invoke(IPC.gamesGetState),
+      onState: listen<GamesState>(IPC.gamesState),
+      setEnabled: (on: boolean): Promise<GamesState> => ipcRenderer.invoke(IPC.gamesSetEnabled, !!on),
+      setHidden: (key: string, name: string, hidden: boolean): Promise<GamesState> => ipcRenderer.invoke(IPC.gamesSetHidden, String(key), String(name), !!hidden),
+      runningApps: (): Promise<RunningApp[]> => ipcRenderer.invoke(IPC.gamesRunningApps),
+      add: (appId: string, name: string, gameId: string | null): Promise<GamesState> => ipcRenderer.invoke(IPC.gamesAdd, String(appId), String(name), gameId === null ? null : String(gameId)),
+      update: (id: string, name: string, gameId: string | null): Promise<GamesState> => ipcRenderer.invoke(IPC.gamesUpdate, String(id), String(name), gameId === null ? null : String(gameId)),
+      remove: (id: string): Promise<GamesState> => ipcRenderer.invoke(IPC.gamesRemove, String(id)),
+      answer: (id: string, isGame: boolean): Promise<GamesState> => ipcRenderer.invoke(IPC.gamesAnswer, String(id), !!isGame),
+      shareInfo: (id: string): Promise<GameShare | null> => ipcRenderer.invoke(IPC.gamesShareInfo, String(id)),
+      markShared: (id: string): Promise<GamesState> => ipcRenderer.invoke(IPC.gamesMarkShared, String(id)),
+    },
     setIdentity: (user: Identity | null): void => ipcRenderer.send(IPC.setIdentity, user ? { id: String(user.id), username: String(user.username), global_name: String(user.global_name), avatar: user.avatar ? String(user.avatar) : null } : null),
     updates: {
       getState: (): Promise<UpdateState> => ipcRenderer.invoke(IPC.updateGetState),

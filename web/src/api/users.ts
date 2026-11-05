@@ -97,6 +97,14 @@ export const users = {
   searchGames(q: string): Promise<{ games: { id: string; name: string; cover?: string; year?: number }[]; ready: boolean }> {
     return api.request("GET", `/games/search?q=${encodeURIComponent(q)}`);
   },
+  /** Shares a game with staff: a program's file name and what it is called, for the list every desktop app gets. */
+  shareGame(body: { process: string; os: string; name: string; game_id?: string }): Promise<void> {
+    return api.request("POST", "/games/shared", body);
+  },
+  /** What this account has shared that staff have not reviewed yet, for its data export. */
+  mySharedGames(): Promise<{ games: { process: string; os: string; name: string; game_id?: string; shared_at: number }[] }> {
+    return api.request("GET", "/games/shared");
+  },
   /**
    * Artists, albums or songs on Deezer, found by this server from a name, a
    * song or an album, best first; `ready` is false where music search is off.

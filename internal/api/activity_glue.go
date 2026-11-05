@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 
 	"evilion.xyz/chat/internal/gateway"
 	"evilion.xyz/chat/internal/rpcapps"
@@ -20,7 +22,29 @@ func (s *Server) WireActivities(hub *gateway.Hub) {
 	}
 	hub.ProxyURL = s.ProxyURL
 	hub.Apps = s.Apps
+	hub.IdentifyGame = s.identifyGame
 	s.activityHub = hub
+}
+
+// identifyGame finds a game the desktop app recognised on IGDB. Its picture is
+// the cover this server keeps, which viewers fetch from here (handleGameCover).
+// A failure only means the card goes without; viewers can still ask by name.
+func (s *Server) identifyGame(ctx context.Context, name, store, storeID, gameID string) (string, string) {
+	if !s.Games.On() {
+		return "", ""
+	}
+	g, err := s.Games.Identify(ctx, name, store, storeID, gameID)
+	if err != nil {
+		s.Log.Warn("igdb identify", "err", err)
+		return "", ""
+	}
+	if g == nil {
+		return "", ""
+	}
+	if g.Cover == "" {
+		return g.ID, ""
+	}
+	return g.ID, "/media/game/" + url.PathEscape(g.Cover) + "?size=s"
 }
 
 func (s *Server) activityRoutes(mux *http.ServeMux) {

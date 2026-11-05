@@ -30,7 +30,7 @@ export interface SessionDeps {
   /** The user named in a READY this server gives itself. */
   readyUser(): Record<string, unknown>;
   /** The program's activity changed (null: cleared). */
-  onActivity(sessionId: string, clientId: string, activity: RpcActivity | null): void;
+  onActivity(sessionId: string, clientId: string, activity: RpcActivity | null, pid?: number): void;
   /** The session reached or lost Discord. */
   onRelayChange(): void;
   log(msg: string, extra?: Record<string, unknown>): void;
@@ -49,6 +49,7 @@ export class RpcSession {
   private updateTimes: number[] = [];
   private pending: { activity: RpcActivity | null } | null = null;
   private pendingTimer: ReturnType<typeof setTimeout> | null = null;
+  private pid: number | undefined;
 
   constructor(
     readonly conn: AppConnection,
@@ -157,11 +158,14 @@ export class RpcSession {
 
   private readActivity(args: Record<string, unknown> | undefined): void {
     const activity = args && "activity" in args ? normalizeActivity(this.clientId, args.activity) : null;
+    // the libraries say which process is playing, which ties this to the game running (main/games)
+    const pid = typeof args?.pid === "number" && Number.isInteger(args.pid) && args.pid > 1 ? args.pid : undefined;
+    if (pid !== undefined) this.pid = pid;
     const now = Date.now();
     this.updateTimes = this.updateTimes.filter((t) => now - t < WINDOW_MS);
     if (this.updateTimes.length < UPDATES && !this.pendingTimer) {
       this.updateTimes.push(now);
-      this.deps.onActivity(this.conn.id, this.clientId, activity);
+      this.deps.onActivity(this.conn.id, this.clientId, activity, this.pid);
       return;
     }
     // over the limit: the latest waits for the window to open, earlier ones are dropped
@@ -174,7 +178,7 @@ export class RpcSession {
       this.pending = null;
       if (!p || this.ended) return;
       this.updateTimes.push(Date.now());
-      this.deps.onActivity(this.conn.id, this.clientId, p.activity);
+      this.deps.onActivity(this.conn.id, this.clientId, p.activity, this.pid);
     }, wait);
   }
 

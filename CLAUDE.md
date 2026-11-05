@@ -35,12 +35,24 @@ start chatd from the repository root either (`make run`, `go run ./cmd/chatd`): 
 and `./data` and migrates the database before it listens, so an unreleased build would migrate the live
 database. Deploy only when the owner says "deploy" (see Deploying).
 
-### All UI design goes through the frontend-design skill
+### Anything touching UI goes through the frontend-design skill, in full. Never cut corners on UI
 
-Before any UI design work, however small (a new screen or component, a redesign, a change to layout, spacing,
-colour, type or motion, on the web, the desktop app or Android), invoke the `frontend-design:frontend-design`
-skill and follow it. No exceptions. `android/DESIGN.md` is that process applied to Android; read it too before
-Android UI work.
+The owner's rule (2026-11-05): ANYTHING relating to UI, however small, on the web, the desktop app or Android:
+a screen, a dialog, a settings section or row, a component, a toast, an empty state, words on screen, an icon,
+or any change to layout, spacing, colour, type or motion. Before the first line of such code, invoke the
+`frontend-design:frontend-design` skill, then follow all of it. No exceptions, however large the rest of the
+task, however small the UI seems, and in autonomous runs too.
+
+Loading the skill is not following it. Every step is required:
+
+1. Write the whole plan: colour, type, layout with wireframes and alignment, and principles. Working inside
+   Nexa's design means naming the actual tokens and their values, not saying "existing tokens".
+2. Review the plan against the brief, and say what changed and why.
+3. Build it.
+4. Critique it from real screenshots at both sizes, and fix what they show.
+
+A few lines of plan, a skipped review or no screenshots is cutting corners, and the UI is not done.
+`android/DESIGN.md` is this process applied to Android; read it too before Android UI work.
 
 ### Web and mobile: both implemented, both tested
 
@@ -356,6 +368,8 @@ is muted, the scripts mute Electron and Firefox, and the emulator runs with `-no
 - `tools/share_quality.py`: a hard-motion share through Cloudflare, timed frame by frame; the sharer is
   Chromium, Firefox or the desktop app's Electron; `--up-kbps`, `--loss`, `--down-loss` shape the links;
   results in `tools/out/share-quality`.
+- `tools/desktop_games.py`: game detection in the desktop app's own build, with a made-up Steam install and small
+  stand-in programs as games; `--behaviour` adds the fullscreen check, which needs IGDB's keys and the name index.
 - `tools/desktop_idle.py`: the desktop app's own build (muted, no tray icon, no system-wide keys, Rich
   Presence off, its own profile) checked to sleep when hidden or in the tray, stay at full speed in a call and
   still notify; `--long 330` adds Chromium's deeper throttling after five minutes.
@@ -407,7 +421,7 @@ serves until SIGINT or SIGTERM.
 | `db` | SQLite or Postgres pools (`W` single writer, `R` readers), `Tx`, dialect helpers, embedded forward-only migrations |
 | `discordsync` | Discord activity sync (a bot in a small Discord server reads linked members' presence); `fakediscord` for tests |
 | `egress` | the SOCKS5 proxy (WARP) for every request a person can point the server at; fails closed |
-| `games`, `music`, `books`, `screen` | IGDB, Deezer, Open Library and TMDB for profile widgets; art kept, previews streamed through |
+| `games`, `music`, `books`, `screen` | IGDB, Deezer, Open Library and TMDB for profile widgets; art kept, previews streamed through. `games` also holds the hand-written known game list and builds the hashed name index (Desktop app, Game detection) |
 | `gateway` | the WebSocket hub: connections, presence, typing, voice signalling, fan-out |
 | `ids` | snowflakes (41 bits of milliseconds, 10 of node, 12 of sequence), decimal strings in JSON |
 | `media` | blob storage, upload validation, sized variants, metadata scrub; bucket attachments (`remote.go`, `relay.go`) |
@@ -534,7 +548,7 @@ serves until SIGINT or SIGTERM.
   `key_flags`), servers (`servers`, `server_members`, `roles`, `member_roles`, `invites`, `bans`, `audit_log`,
   `automod_rules`, `automod_events`), plans (`billing`, `server_boosts`, `plan_gifts`, `gift_links`,
   `users.plan`, `servers.boosts`), expressions (`emojis`, `sticker_packs`, `stickers`, `sticker_installs`,
-  `recent_stickers`, `blocked_images`), files (`blobs`, `uploads`, `remote_blobs`, `storage_usage`), calls
+  `recent_stickers`, `blocked_images`), games people share (`game_submissions`, `known_games`), files (`blobs`, `uploads`, `remote_blobs`, `storage_usage`), calls
   (`guest_links`, `guests`, `realtime_usage`, `realtime_measurements`, `realtime_sessions`, `call_usage`,
   `turn_credentials`), integrations (`webhooks`, `discord_links`), notes (`notes`, `note_members`,
   `note_invites`, `note_links`, `note_files`, `note_versions`, `note_version_files`, `note_keys`,
@@ -942,7 +956,8 @@ lucide-react and Android's `lucide.json` have.
 ### Game pages (`internal/games/details.go`, `api/widgets.go`)
 
 `GET /api/v1/games/{id}` is a game's page from IGDB, kept a day in memory; `GET /api/v1/games/match?name=`
-finds the id for activities, which carry none. Both under `limSearch`. `/media/game/{id}` serves pictures at
+finds the id for activities that carry none (a detected game comes with `game_id`). Both under `limSearch`. Of
+several games with exactly one name, the most rated wins (`mostRated`): IGDB lists "Hollow Knight" twice. `/media/game/{id}` serves pictures at
 `t` and `b` only for image ids a fetched page named. Web `components/games/GamePage.tsx`, Android
 `ui/profile/GamePage.kt`. Store links confirm first.
 
@@ -1344,6 +1359,46 @@ and must stay in step and compatible with installed apps (anything new is option
   window for a moment, transparent and unfocused, until the page has been hidden once (`putToSleep`; not on
   Linux). The web helps: `restsWhenIdle`, `voice/videoShown.ts`, `gateOpen`, and only a call listens for
   `devicechange`, which would wake the browser's media services.
+- Game detection (from 1.2.11; `src/main/games/`, Settings, Activity, on by default and off with the Rich Presence
+  switch): what is running stays on the computer; only the name of a game found, and the store's id that names it
+  exactly, leaves it, as an activity with `detected: true`. A look every 15 s; a game gone is looked for once more
+  after 4 s. Evidence, best first (`match.ts`): a game the person added; exact programs (Steam's non-Steam shortcuts,
+  Heroic's added games); Steam's own launch line; Steam's manifests; records of what launchers installed (Epic,
+  Legendary and Heroic, Windows' uninstall list for Battle.net, EA, Ubisoft, Riot, Rockstar and Amazon); store folder
+  layouts; what the system lists as a game (Linux desktop entries, Lutris, a Mac app's `LSApplicationCategoryType`);
+  the known list; then what sits beside the program (`markers.ts`: GOG and itch notes, `MicrosoftGame.config`, engine
+  files). Helpers and launchers (`HELPER`) and Steam's tools (`STEAM_TOOLS`) never count.
+- Discord's detectable applications list is not used: the owner's condition (2026-10-02) was to use IGDB unless it was
+  within Discord's terms, and Discord's terms forbid scraping without written consent. Do not add it without that
+  consent. Steam's PICS catalogue is left out too, since nothing from Valve allows it.
+- Rich Presence wins (`GameService.reported`): by process, since libraries send `pid` with `SET_ACTIVITY`, family
+  included (hidden programs count, so hiding one cannot show the game again); and on the server by name
+  (`identifyDetected`, since only it knows an application's name). A detected game also gives way to a linked Discord
+  account's copy of it that says more (`mergeActivities`).
+- The known list is `internal/games/known_games.json`, written by hand and read by both sides: the server adds what
+  staff accepted at public `GET /api/v1/games/known` (ETag), and the app bundles a copy for a first run offline and
+  asks at start and every six hours (`known.ts`, `lists.ts`). So it changes with a deploy, without a release. Keep
+  file names on it specific; `commonProcesses` in `api/game_lists.go` refuses the shared ones.
+- Games by behaviour (`candidates.ts`): a program filling the screen or busy on the graphics card whose name is a
+  game's. To check that without sending any program's name anywhere, the server builds a hashed index of IGDB's names
+  weekly (`games/nameindex.go`; rated and unrated tiers, `GET /api/v1/games/name-index`, about 2.4 MB) and the app
+  looks on the device. Names go through `nameVariants`; `judge` scores behaviour, tier and agreement, and `NEVER_A_GAME`
+  and `isWebApp` rule things out. The hashes must match: `internal/games/testdata/fold_vectors.json` holds Go and
+  TypeScript to the same `FoldName` and hash. What passes is only asked about (`GameSuggestionBanner`), since a wrong
+  guess would go on someone's status; yes makes it an added game, no never asks about that program again, and no cover
+  shows before the yes because fetching one would send the name.
+- Windows' calls run on a worker thread (`windows.ts`, `windowsApi.ts`, `windowsWorker.ts`, loaded from text so it runs
+  inside the archive): under Wine `GetForegroundWindow` never returned, which on the main thread would freeze the app.
+  A call that does not answer in 5 s costs the thread; one that hangs twice is not asked again; a thread stuck for good
+  makes `will-quit` end the process itself. Checked under Wine with a Windows Node: listing, windows, version resources
+  and `reg query`. Not checked on real Windows: `ProcessCommandLineInformation` (which Wine lacks, and Java games
+  need), `GetForegroundWindow` and the GPU counters. On a Mac: all of it.
+- Sharing: someone may share a game they added, with or without an IGDB game (`POST /api/v1/games/shared`, `limGameShare`,
+  closed to muted accounts). It sends a file name, the OS, a name and any IGDB id, never a path. Each row stays until
+  staff review that program or the account goes, and appears in the person's export and the legal report. The panel's
+  Games page (web `moderation/GamesTab.tsx`, Android `ui/moderation/Games.kt`, rank Admin, `mod_games` carries the
+  count) shows the program, the game, and how many shared it, never who. Staff set the name and IGDB game before adding;
+  a turned-down program is not asked about again until Allow Again. Web `games/GameChooser.tsx` is the box art shelf.
 - Open Original (from 1.2.10; `originals.ts`) hands decrypted images and videos to the default browser through
   a temporary listener on 127.0.0.1 that accepts only exact random-token paths and Host headers, serves inert
   types with no-store and a sandbox CSP, and expires each original after ten minutes. Files stay in memory,
@@ -1362,6 +1417,8 @@ talks to the server as deployed, so it never depends on unreleased server change
 - `Nexa.kt` is the object graph; `data/State.kt` keeps each store as an immutable StateFlow snapshot,
   mirroring the web's stores; `data/Session.kt` handles gateway events. Packages: `crypto`, `net`, `data`
   (stores and logic ported from the web), `media`, `notes`, `search`, `voice`, `notify`, `ui/...`.
+- A panel page needs its name in `Route.Admin.TABS` (`ui/nav/Nav.kt`), or tapping it goes nowhere. Activity images and
+  other addresses of this server come without a host, so they go through `Media.absolute`.
 - Compose redraws only for state it collected: `Nexa.settings`' getters and stores' `get(...)` are plain
   reads, so read what a composable shows with `collectAsState()` (or `ui.shell.settingOn(key)`) in that
   composable. Hot rows use `collectEntryAsState` (`ui/StoreState.kt`), so unrelated gateway updates do not

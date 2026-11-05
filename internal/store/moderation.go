@@ -52,6 +52,9 @@ const (
 	LogBadgeCreate = "badge_create"
 	LogBadgeEdit   = "badge_edit"
 	LogBadgeDelete = "badge_delete"
+	LogGameList    = "game_list"
+	LogGameReject  = "game_reject"
+	LogGameForget  = "game_forget"
 )
 
 // The restrictions a case can put in force.

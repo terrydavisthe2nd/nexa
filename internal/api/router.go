@@ -180,8 +180,12 @@ type Server struct {
 	limSearch  *ratelimit.Limiter
 	limLookup  *ratelimit.Limiter
 	limBuild   *ratelimit.Limiter
-	stepLookup *stepUp // limLookup, extended by a captcha
-	stepBuild  *stepUp // limBuild, extended by a captcha
+	// games people share with staff, and the two lists desktop apps download
+	limGameShare *ratelimit.Limiter
+	limGameLists *ratelimit.Limiter
+	knownGames   knownGamesCache
+	stepLookup   *stepUp // limLookup, extended by a captcha
+	stepBuild    *stepUp // limBuild, extended by a captcha
 	// botHTTP, when set, is the client interactions go to applications'
 	// endpoints with (tests); otherwise endpointClient builds a guarded one
 	botHTTP *http.Client
@@ -422,7 +426,9 @@ func NewServer(cfg config.Config, st *store.Store, log *slog.Logger, bc Broadcas
 		limLookup: ratelimit.New(ratelimit.Every(60, time.Minute), 30, 10*time.Minute),
 		// channels, roles, invites and sticker packs made, per account,
 		// before a captcha is asked for (stepBuild)
-		limBuild: ratelimit.New(ratelimit.Every(60, time.Hour), 30, 2*time.Hour),
+		limBuild:     ratelimit.New(ratelimit.Every(60, time.Hour), 30, 2*time.Hour),
+		limGameShare: ratelimit.New(ratelimit.Every(20, 24*time.Hour), 20, 25*time.Hour),
+		limGameLists: ratelimit.New(ratelimit.Every(120, time.Hour), 60, 2*time.Hour),
 	}
 	// past the free allowance a captcha buys a batch more: 100 lookups for
 	// ten minutes, ten captchas an hour from one address; 30 more made in
@@ -445,7 +451,7 @@ func (s *Server) limiters() map[string]*ratelimit.Limiter {
 		"automod": s.limAutomod, "publish": s.limPublish, "thread": s.limThread, "discover": s.limDiscover,
 		"note": s.limNote, "note-save": s.limNoteSave, "note-update": s.limNoteUpdate, "note-invite": s.limNoteInvite, "note-link": s.limNoteLink, "note-presence": s.limNotePresence,
 		"apps": s.limApps, "interact": s.limInteract,
-		"react": s.limReact, "message-all": s.limMsgAll, "forward": s.limForward, "search": s.limSearch, "lookup": s.limLookup, "build": s.limBuild,
+		"react": s.limReact, "message-all": s.limMsgAll, "forward": s.limForward, "search": s.limSearch, "lookup": s.limLookup, "build": s.limBuild, "game-share": s.limGameShare, "game-lists": s.limGameLists,
 		"lookup-captcha": s.stepLookup.solves, "build-captcha": s.stepBuild.solves,
 	}
 	for name, l := range s.botLim.all() {

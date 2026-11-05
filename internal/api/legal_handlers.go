@@ -308,6 +308,7 @@ func (s *Server) renderLegalReport(rec *store.AccountRecord, by *store.User) str
 	legalKeys(d, rec)
 	legalCrashes(d, rec)
 	legalBugReports(d, rec)
+	legalSharedGames(d, rec)
 	legalUnavailable(d)
 	legalNotCollected(d)
 	s.legalProvenance(d, rec, by)
@@ -912,6 +913,21 @@ func legalCrashes(d *legalDoc, rec *store.AccountRecord) {
 	d.note("code it happened and which build it was. No conversation, message or file is")
 	d.note("ever part of such a report, and the log is cleared by the operator at will.")
 	d.blank()
+}
+
+func legalSharedGames(d *legalDoc, rec *store.AccountRecord) {
+	d.head("GAMES SHARED", "game_submissions")
+	if len(rec.SharedGames) == 0 {
+		d.empty("No shared games from this account are waiting for review.")
+		return
+	}
+	for _, g := range rec.SharedGames {
+		d.item(legalText(g.Process) + " on " + legalTime(g.At) + ", from " + legalText(g.OS))
+		d.cont(legalText(g.Name))
+	}
+	d.capped(len(rec.SharedGames))
+	d.note("A shared game is a program file name and a game name the member chose to")
+	d.note("send from the desktop app. It goes once staff have reviewed that program.")
 }
 
 func legalBugReports(d *legalDoc, rec *store.AccountRecord) {

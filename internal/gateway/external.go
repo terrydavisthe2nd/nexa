@@ -36,7 +36,7 @@ func (h *Hub) AttachExternal(ctx context.Context, u *store.User, sessionID ids.I
 		send: make(chan ServerFrame, 1), closed: make(chan struct{}), typing: map[ids.ID]time.Time{},
 		ops: rate.NewLimiter(opRate, opBurst), presence: rate.NewLimiter(rate.Every(presenceEvery), presenceBurst),
 		signalBytes: rate.NewLimiter(signalBytesRate, signalBytesBurst), cursors: rate.NewLimiter(noteCursorRate, noteCursorBurst),
-		noteSeen: map[ids.ID]noteAudience{}, actLimit: rate.NewLimiter(rate.Every(activityEvery), activityBurst),
+		noteSeen: map[ids.ID]noteAudience{}, actLimit: rate.NewLimiter(rate.Every(activityEvery), activityBurst), gameLimit: newGameLimit(),
 		deliver: deliver, external: x}
 	c.user.Store(u)
 	c.beat.Store(time.Now().UnixMilli())

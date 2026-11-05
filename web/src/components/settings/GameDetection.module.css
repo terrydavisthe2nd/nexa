@@ -1,0 +1,33 @@
+/* Settings → Activity: games recognised, added and hidden, and choosing one from what is running */
+.listLabel { margin-bottom: 8px; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.head p { margin: 0; }
+.head button { flex: none; }
+.rows { display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; align-items: center; gap: 6px; padding-block: 8px; padding-inline: 12px 8px; border-radius: var(--radius-sm); background: var(--bg-surface); }
+.rowText { flex: 1; min-width: 0; display: flex; flex-direction: column; margin-inline-end: 6px; }
+.exe { align-self: flex-start; max-width: 100%; min-width: 0; font-size: 12.5px; line-height: 16px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the first step: what is running */
+.pickHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.pickHead p { margin: 0; }
+.pickHead button { flex: none; }
+.note { margin: 12px 0 0; font-size: 14px; color: var(--text-muted); }
+.apps { list-style: none; margin: 10px 0 0; padding: 4px; max-height: min(46vh, 380px); overflow-y: auto; overscroll-behavior: contain; border-radius: var(--radius-md); background: color-mix(in oklab, var(--bg-input) 70%, transparent); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.pick { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 6px 8px; border-radius: 10px; text-align: start; transition: background var(--transition); }
+.pick:hover, .pick:focus-visible { background: var(--bg-hover); }
+.pick:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.icon { flex: none; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: var(--radius-xs); object-fit: contain; color: var(--icon); background: var(--bg-active); }
+img.icon { background: none; }
+.pickText { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pickName { align-self: flex-start; max-width: 100%; min-width: 0; font-size: 14.5px; font-weight: 600; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag { flex: none; max-width: 42%; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--text-subtle); background: var(--bg-active); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the second step: the program chosen stays in sight while it is named */
+.picked { display: flex; align-items: center; gap: 12px; padding-block: 8px; padding-inline: 10px 8px; margin-bottom: 16px; border-radius: var(--radius-sm); background: var(--bg-surface); }
+.picked button { flex: none; }
+.shareBox { margin-top: 14px; }
+/* the last thing before the dialog's footer needs no settings row's rule under it */
+.shareBox > label { border-bottom: 0; padding-bottom: 0; }
+.rowIcon { flex: none; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin-inline-end: 6px; border-radius: var(--radius-xs); color: var(--icon); background: var(--bg-active); }
+.row .tag { margin-inline-end: 2px; }

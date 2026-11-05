@@ -32,6 +32,15 @@ interface Entry {
   activity: RpcActivity | null;
   connectedAt: number;
   updatedAt: number;
+  pid?: number;
+}
+
+/** A program reporting something, for telling whether a detected game is already covered (main/games). */
+export interface RpcClaim {
+  pid?: number;
+  name?: string;
+  /** It reports a game, rather than a song or a video. */
+  game: boolean;
 }
 
 export declare interface RpcService {
@@ -139,7 +148,7 @@ export class RpcService extends EventEmitter {
     const session = new RpcSession(conn, clientId, {
       discordEndpoints: async () => (this.relay ? this.locator.endpoints(this.ipc?.path ?? null) : []),
       readyUser: () => this.readyUser(),
-      onActivity: (id, _clientId, activity) => this.setActivity(id, activity),
+      onActivity: (id, _clientId, activity, pid) => this.setActivity(id, activity, pid),
       onRelayChange: () => this.changed(),
       log: (m, e) => this.log(m, e),
     });
@@ -158,11 +167,12 @@ export class RpcService extends EventEmitter {
     };
   }
 
-  private setActivity(sessionId: string, activity: RpcActivity | null): void {
+  private setActivity(sessionId: string, activity: RpcActivity | null, pid?: number): void {
     const e = this.entries.get(sessionId);
     if (!e) return;
     e.activity = activity;
     e.updatedAt = Date.now();
+    if (pid !== undefined) e.pid = pid;
     this.changed();
   }
 
@@ -188,6 +198,17 @@ export class RpcService extends EventEmitter {
       .filter((e) => e.activity && !this.hidden.has(e.clientId))
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .map((e) => e.activity!);
+  }
+
+  /**
+   * Every program reporting something, hidden ones too: hiding a game's Rich
+   * Presence must not let the same game show again as a detected one.
+   */
+  claims(): RpcClaim[] {
+    if (!this.enabled) return [];
+    return [...this.entries.values()]
+      .filter((e) => e.activity)
+      .map((e) => ({ ...(e.pid !== undefined ? { pid: e.pid } : {}), ...(e.activity?.name ? { name: e.activity.name } : {}), game: e.activity?.type === 0 || e.activity?.type === 5 }));
   }
 
   state(): RpcState {

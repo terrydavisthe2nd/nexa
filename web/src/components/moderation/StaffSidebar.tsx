@@ -1,5 +1,7 @@
-import { Award, BellRing, Bot, Bug, Flag, FolderOpen, Megaphone, Phone, ScrollText, Server, Shield, Sticker, Users, type LucideIcon } from "lucide-react";
+import { Award, BellRing, Bot, Bug, Flag, FolderOpen, Gamepad2, Megaphone, Phone, ScrollText, Server, Shield, Sticker, Users, type LucideIcon } from "lucide-react";
+import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { moderation as modApi } from "@/api/moderation";
 import { atLeast, useMyRank, type StaffRank } from "@/lib/staffRank";
 import { useModeration } from "@/stores/moderation";
 import { useUI } from "@/stores/ui";
@@ -53,6 +55,7 @@ export const STAFF_GROUPS: { id: string; label: () => string; places: StaffPlace
     places: [
       { id: "announcements", label: () => t("moderation.tabs.announcements"), icon: Megaphone, rank: "admin" },
       { id: "badges", label: () => t("moderation.tabs.badges"), icon: Award, rank: "admin" },
+      { id: "games", label: () => t("moderation.tabs.games"), icon: Gamepad2, rank: "admin" },
       { id: "calls", label: () => t("moderation.tabs.calls"), icon: Phone, rank: "admin" },
     ],
   },
@@ -83,11 +86,18 @@ export function StaffSidebar() {
   const unread = useModeration((x) => x.unread);
   const reportCounts = useModeration((x) => x.reportCounts);
   const openModal = useUI((u) => u.openModal);
+  const gamesWaiting = useModeration((x) => x.gamesWaiting);
+  const mayReviewGames = atLeast(rank, "admin");
+  useEffect(() => {
+    if (!mayReviewGames) return;
+    void modApi.gamesWaiting().then((r) => useModeration.getState().setGamesWaiting(r.waiting)).catch(() => undefined);
+  }, [mayReviewGames]);
   const waitingReports = (reportCounts?.open ?? 0) + (reportCounts?.in_review ?? 0);
   const counts: Record<string, { n: number; label: string } | undefined> = {
     reports: waitingReports ? { n: waitingReports, label: t("reports.waitingCount", { count: waitingReports }) } : undefined,
     cases: unread.cases.length ? { n: unread.cases.length, label: t("moderation.needsReplyCount", { count: unread.cases.length }) } : undefined,
     bugs: unread.bugs.length ? { n: unread.bugs.length, label: t("bugs.staff.waitingCount", { count: unread.bugs.length }) } : undefined,
+    games: gamesWaiting ? { n: gamesWaiting, label: t("moderation.games.waitingCount", { count: gamesWaiting }) } : undefined,
   };
   // picking a place closes the phone drawer, even the page already open
   const go = (id: string) => {

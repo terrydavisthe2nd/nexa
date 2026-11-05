@@ -1,7 +1,7 @@
 NEXA - PRIVACY POLICY
 Site: nexa.fish (also at mathtest.lol, and formerly chat.evilion.xyz)
 Contact the owner (nora) here: evilionx3@proton.me
-Effective: 2026-11-04
+Effective: 2026-11-05
 
 This policy lists exactly what Nexa holds. It is written against the
 actual database, so if something is not listed here, there is no place
@@ -227,8 +227,24 @@ h) Day to day running: unfinished upload progress (expected and
 i) Activity and a linked Discord account (optional): what the
    desktop app or a linked Discord account says you are doing, such
    as a game or a song, goes to the people who can see your status
-   while it lasts and is kept in memory only, never written down. If
-   you link a Discord account (Settings → Activity), Nexa keeps its
+   while it lasts and is kept in memory only, never written down. To
+   recognise games, the desktop app looks at the programs running on
+   your computer and the game stores' files there. That list stays on
+   your computer. Only the name of a game it recognised, or one you
+   added, leaves it, along with the store's id for that game, so the
+   server can find it on IGDB. Games you add are kept on that computer.
+   To recognise a game no list names, the app also checks whether a
+   program filling the screen or using the graphics card has a game's
+   name, against a list of hashed names it downloads, so nothing about
+   the program is sent to check. It then asks you, and nothing is sent
+   unless you say yes. If you share a game you added, Nexa keeps its
+   file name, your operating system, the name you gave it, any IGDB
+   game you chose, and that it was you, so each person counts once,
+   until staff review that program. Staff see how many people shared
+   it, not who. What staff accept goes on a list every desktop app
+   downloads, with none of that attached. You can turn detection off,
+   or hide any one game, in Settings → Activity.
+   If you link a Discord account (Settings → Activity), Nexa keeps its
    Discord ID, username, display name, and picture, when you linked
    it, which kinds of activity you chose to show, whether it is in the
    small Discord server Nexa's bot reads activity in, and Discord's
@@ -439,8 +455,9 @@ calls.
   server and WARP, never from Klipy to your device.
 - IGDB, for the games on profile widgets and game pages. The server
   sends it the words you search for, asks it about the games people
-  show and the game pages people open (matching a game you are
-  playing by its name), through WARP, and keeps the game covers and
+  show, the game pages people open and the games the desktop app
+  recognises or you add (matching a game by its store's id or its
+  name), through WARP, and keeps the game covers and
   screenshots it shows. Trailers on a game page play through the
   server like other YouTube videos.
 - Deezer, for the music on profile widgets. The server sends it the

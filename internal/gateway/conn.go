@@ -158,7 +158,10 @@ type conn struct {
 	actPending *[]json.RawMessage
 	actBusy    bool
 	actLimit   *rate.Limiter
-	actTimer   *time.Timer
+	// gameLimit holds how many new detected games this connection may have
+	// looked up on IGDB, whose allowance every account shares
+	gameLimit *rate.Limiter
+	actTimer  *time.Timer
 
 	// Until ready is queued the connection is registered but not live: events
 	// wait in pending, so nothing emitted while ready is built is lost or
@@ -394,7 +397,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := &conn{id: ids.New(), hub: h, ws: ws, userID: user.ID, ip: ip, session: session, guest: guest, send: make(chan ServerFrame, h.sendBuffer), closed: make(chan struct{}), typing: map[ids.ID]time.Time{},
 		ops: rate.NewLimiter(opRate, opBurst), presence: rate.NewLimiter(rate.Every(presenceEvery), presenceBurst), signalBytes: rate.NewLimiter(signalBytesRate, signalBytesBurst),
 		cursors: rate.NewLimiter(noteCursorRate, noteCursorBurst), noteSeen: map[ids.ID]noteAudience{},
-		actLimit: rate.NewLimiter(rate.Every(activityEvery), activityBurst)}
+		actLimit: rate.NewLimiter(rate.Every(activityEvery), activityBurst), gameLimit: newGameLimit()}
 	c.user.Store(user)
 	c.beat.Store(time.Now().UnixMilli())
 

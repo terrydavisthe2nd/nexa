@@ -888,6 +888,9 @@ data class Activity(
     val buttons: List<ActivityButton>? = null,
     val instance: Boolean = false,
     @SerialName("icon_url") val iconUrl: String? = null,
+    /** A game the desktop app recognised running, and IGDB's id for it when the server found one. */
+    val detected: Boolean = false,
+    @SerialName("game_id") val gameId: String? = null,
     val source: String? = null,
     @SerialName("created_at") val createdAt: Long = 0,
 )

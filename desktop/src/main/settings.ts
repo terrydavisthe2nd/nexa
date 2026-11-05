@@ -5,7 +5,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Moved } from "./rpc/discord";
-import type { NativeStrings } from "../shared/bridge";
+import type { HiddenGame, NativeStrings } from "../shared/bridge";
+import type { StoredGame } from "./games/service";
 
 export interface Stored {
   launchAtLogin: boolean;
@@ -15,6 +16,14 @@ export interface Stored {
   rpcEnabled: boolean;
   rpcRelay: boolean;
   hiddenApps: string[];
+  /** Recognising games from what is running (main/games). */
+  gameDetection: boolean;
+  /** Games added from the running apps, on this computer only: they name its paths. */
+  customGames: StoredGame[];
+  /** Games kept off the person's profile. */
+  hiddenGames: HiddenGame[];
+  /** Programs someone said are not games when asked. */
+  dismissedGames: string[];
   bounds: { x?: number; y?: number; width: number; height: number; maximized?: boolean } | null;
   /** Discord's socket, while this app has it moved (undone on a clean quit). */
   movedSocket: Moved | null;
@@ -34,6 +43,10 @@ export const DEFAULTS: Stored = {
   rpcEnabled: true,
   rpcRelay: true,
   hiddenApps: [],
+  gameDetection: true,
+  customGames: [],
+  hiddenGames: [],
+  dismissedGames: [],
   bounds: null,
   movedSocket: null,
   lastUpdateSeen: null,
@@ -57,6 +70,11 @@ export class SettingsStore {
       if (raw.strings && typeof raw.strings === "object") this.data.strings = raw.strings;
       if (typeof raw.declinedMove === "string") this.data.declinedMove = raw.declinedMove;
       if (!Array.isArray(this.data.hiddenApps)) this.data.hiddenApps = [];
+      if (!Array.isArray(this.data.customGames)) this.data.customGames = [];
+      this.data.customGames = this.data.customGames.filter((g) => typeof g?.id === "string" && typeof g.name === "string" && typeof g.match === "string" && typeof g.exe === "string");
+      if (!Array.isArray(this.data.hiddenGames)) this.data.hiddenGames = [];
+      this.data.hiddenGames = this.data.hiddenGames.filter((g) => typeof g?.key === "string" && typeof g.name === "string");
+      if (!Array.isArray(this.data.dismissedGames)) this.data.dismissedGames = [];
     } catch {
       /* first run, or a damaged file: defaults */
     }

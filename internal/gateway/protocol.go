@@ -148,6 +148,8 @@ const (
 	// to every member of staff; EvReportUpdate carries a report's receipt (its new
 	// status, never staff notes) to the person who sent it.
 	EvModReport    = "mod_report"
+	// EvModGames tells admins how many shared games wait on them.
+	EvModGames = "mod_games"
 	EvReportUpdate = "report_update"
 	// Nexa's note to someone a friend put in a group directly, and its
 	// dismissal on another of their devices. Only that person is sent either.

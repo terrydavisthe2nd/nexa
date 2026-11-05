@@ -375,6 +375,8 @@ sealed interface ModEvent {
     data class News(val announcement: Announcement) : ModEvent
     data class NewsGone(val id: String) : ModEvent
     data class Bug(val report: StaffBug, val messages: List<BugMessage>) : ModEvent
+    /** Someone shared a game, or staff decided about one. */
+    data object Games : ModEvent
 }
 
 object Moderation {
@@ -384,6 +386,8 @@ object Moderation {
     const val FLAG_DELETED = 4L
 
     val counts = MutableStateFlow<CaseCounts?>(null)
+    /** Shared games waiting on an admin. */
+    val gamesWaiting = MutableStateFlow(0)
     val bugCounts = MutableStateFlow<BugCounts?>(null)
     private val _unread = MutableStateFlow(ModUnread())
     /** What the badges on the drawer, the Moderation row and the panel's tabs count. */
@@ -427,6 +431,10 @@ object Moderation {
         try {
             when (type) {
                 "mod_unread" -> decode(ModUnread.serializer(), d)?.let { _unread.value = it }
+                "mod_games" -> {
+                    (o?.get("waiting") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()?.let { gamesWaiting.value = it }
+                    _events.tryEmit(ModEvent.Games)
+                }
                 "mod_case" -> {
                     o ?: return
                     people(o["people"])
@@ -489,6 +497,7 @@ object Moderation {
 
     fun reset() {
         counts.value = null
+        gamesWaiting.value = 0
         bugCounts.value = null
         _unread.value = ModUnread()
         ownerId.value = null

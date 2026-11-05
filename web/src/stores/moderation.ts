@@ -18,7 +18,8 @@ export type ModEvent =
   | { type: "announcement"; announcement: Announcement; people: People }
   | { type: "announcement_gone"; id: string }
   | { type: "bug"; report: StaffBug; messages: BugMessage[]; people: People }
-  | { type: "report"; reports: SafetyReport[]; people: People };
+  | { type: "report"; reports: SafetyReport[]; people: People }
+  | { type: "games" };
 
 interface ModerationStore {
   counts: CaseCounts | null;
@@ -26,6 +27,9 @@ interface ModerationStore {
   bugCounts: BugCounts | null;
   /** How many safety reports hold each status: the Reports tab's badge. */
   reportCounts: Record<string, number> | null;
+  /** Shared games waiting on an admin. */
+  gamesWaiting: number;
+  setGamesWaiting: (n: number) => void;
   setReportCounts: (c: Record<string, number> | null | undefined) => void;
   /**
    * The case threads and bug reports waiting on the staff that this person
@@ -67,6 +71,8 @@ export const useModeration = create<ModerationStore>()((set, get) => ({
   bugCounts: null,
   reportCounts: null,
   setReportCounts: (reportCounts) => reportCounts && set({ reportCounts }),
+  gamesWaiting: 0,
+  setGamesWaiting: (gamesWaiting) => set({ gamesWaiting }),
   unread: NONE,
   ownerId: null,
   people: {},
@@ -94,14 +100,14 @@ export const useModeration = create<ModerationStore>()((set, get) => ({
   },
   setOwner: (id) => id && set({ ownerId: id }),
   mergePeople: (p) => p && set((s) => ({ people: { ...s.people, ...p } })),
-  reset: () => set({ counts: null, bugCounts: null, reportCounts: null, unread: NONE, ownerId: null, people: {} }),
+  reset: () => set({ counts: null, bugCounts: null, reportCounts: null, gamesWaiting: 0, unread: NONE, ownerId: null, people: {} }),
 }));
 
 const listeners = new Set<(e: ModEvent) => void>();
 
 /** Hands a moderation event to every open view that listens. */
 export function emitModEvent(e: ModEvent): void {
-  if (e.type !== "announcement_gone") useModeration.getState().mergePeople(e.people);
+  if (e.type !== "announcement_gone" && e.type !== "games") useModeration.getState().mergePeople(e.people);
   for (const l of [...listeners]) l(e);
 }
 

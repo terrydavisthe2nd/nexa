@@ -1,0 +1,28 @@
+/* The panel's Games page: programs people shared, led by the program, since that is what is being decided */
+.hint { margin: 0 0 12px; max-width: 72ch; font-size: 14px; line-height: 1.4; color: var(--text-muted); }
+.views { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.count { margin-inline-start: 6px; font-variant-numeric: tabular-nums; opacity: 0.75; }
+.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-surface); box-shadow: inset 0 1px 0 var(--edge-light); }
+.cover { flex: none; width: 52px; border-radius: 6px; }
+.text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+/* a file name reads left to right, but belongs at the start of the row in either direction */
+.process { align-self: flex-start; max-width: 100%; min-width: 0; font-size: 15px; font-weight: 600; color: var(--text-strong); overflow-wrap: anywhere; }
+.game { align-self: flex-start; max-width: 100%; min-width: 0; font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link { font-size: 12.5px; line-height: 16px; color: var(--text-muted); }
+.side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.aside { font-size: 12.5px; line-height: 16px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.actions { display: flex; gap: 6px; }
+.emptyText { margin: 0; max-width: 44ch; text-align: center; font-size: 14px; color: var(--text-muted); }
+
+.program { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; margin-bottom: 16px; border-radius: var(--radius-sm); background: var(--bg-surface); }
+.programLabel { font-size: 12.5px; line-height: 16px; color: var(--text-muted); }
+.others { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.othersLabel { font-size: 13px; color: var(--text-muted); margin-inline-end: 2px; }
+/* what ends the review the other way sits apart from what finishes it */
+.footerStart { margin-inline-end: auto; }
+
+@container panel (max-width: 560px) {
+  .row { flex-wrap: wrap; }
+  .side { flex-basis: 100%; flex-direction: row; align-items: center; justify-content: space-between; }
+}

@@ -156,6 +156,7 @@ fun AdminPanel(route: Route.Admin) {
                 "logs" -> LogsTab()
                 "announcements" -> AnnouncementsTab()
                 "badges" -> BadgesTab()
+                "games" -> GamesTab()
             }
         }
     }

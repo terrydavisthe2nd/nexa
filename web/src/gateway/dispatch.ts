@@ -758,6 +758,10 @@ export async function applyEvent(e: GatewayEvent): Promise<void> {
     case "mod_unread":
       useModeration.getState().setUnread(e.d);
       return;
+    case "mod_games":
+      useModeration.getState().setGamesWaiting(e.d.waiting);
+      emitModEvent({ type: "games" });
+      return;
     case "mod_report":
       useModeration.getState().setReportCounts(e.d.counts);
       emitModEvent({ type: "report", reports: e.d.reports, people: e.d.people });

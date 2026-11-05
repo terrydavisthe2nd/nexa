@@ -33,11 +33,14 @@ function Linked({ href, className, title, children }: { href?: string | undefine
 }
 
 /**
- * IGDB's id for the game an activity is playing, once the server has found
- * one with exactly its name; null until then, and for anything else.
+ * IGDB's id for the game an activity is playing: the one it came with, or once
+ * the server has found one with exactly its name. Null until then, and for
+ * anything else.
  */
 function useGameMatch(a: Activity): string | null {
-  const game = (a.type === 0 || a.type === 5) && canOpenGames() ? a.name.trim() : "";
+  // a detected game comes with its id, so nothing has to be asked
+  const given = a.game_id && canOpenGames() ? a.game_id : null;
+  const game = !given && (a.type === 0 || a.type === 5) && canOpenGames() ? a.name.trim() : "";
   const [id, setId] = useState<string | null>(null);
   useEffect(() => {
     setId(null);
@@ -50,7 +53,7 @@ function useGameMatch(a: Activity): string | null {
       alive = false;
     };
   }, [game]);
-  return id;
+  return given ?? id;
 }
 
 /** The picture for a kind of activity: a song, a stream, a video, a match, or a game. */

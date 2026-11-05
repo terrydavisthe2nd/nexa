@@ -214,6 +214,7 @@ func main() {
 	// of what calls used, and the clearing out of old call records
 	srv.StartRealtime(ctx)
 	srv.StartStorage(ctx)
+	srv.Games.StartNameIndex(ctx)
 	if warp != nil {
 		go func() {
 			if err := warp.Ensure(ctx); err != nil {

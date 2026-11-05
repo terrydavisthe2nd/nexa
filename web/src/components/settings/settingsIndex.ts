@@ -113,6 +113,7 @@ export function settingsIndex(opts: { pageLabels: Record<string, string> }): Set
     e("activity", t("settings.activity.status"), "activityStatus"),
     e("activity", t("settings.activity.discord"), "discord"),
     e("activity", t("settings.desktop.richPresence"), "richPresence"),
+    e("activity", t("settings.games.title"), "gameDetection"),
     e("desktop", t("settings.desktop.openNexaWhenISignIn"), "startup"),
     e("desktop", t("settings.desktop.hardwareAcceleration"), "startup"),
     e("desktop", t("settings.desktop.updates"), "updates"),

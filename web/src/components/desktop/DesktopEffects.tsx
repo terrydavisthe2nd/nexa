@@ -18,7 +18,7 @@ import { DisplayPicker } from "./DisplayPicker";
 
 /**
  * Everything the page does for the desktop app while it runs inside it: sends
- * Rich Presence activities to chatd, tells the app who is signed in, how many
+ * Rich Presence activities and detected games to chatd, tells the app who is signed in, how many
  * messages wait and whether a call is on, answers the tray's Mute and Deafen,
  * holds the keybinds system-wide, and shows the screen picker. Renders nothing
  * in a browser.
@@ -80,10 +80,20 @@ export function DesktopEffects() {
     );
     void bridge.rpc.getState().then((state) => {
       useDesktop.getState().setRpc(state);
+      // an app before 1.2.11 cannot say what it has found, and has only these
+      if (bridge.getActivities) return;
       latest = state.apps.filter((a) => a.activity && !a.hidden).map((a) => a.activity!);
       if (latest.length) send();
     });
+    void bridge.getActivities?.().then((list) => {
+      latest = list;
+      if (latest.length) send();
+    });
     offs.push(bridge.rpc.onState((state) => useDesktop.getState().setRpc(state)));
+    if (bridge.games) {
+      void bridge.games.getState().then((g) => useDesktop.getState().setGames(g));
+      offs.push(bridge.games.onState((g) => useDesktop.getState().setGames(g)));
+    }
     offs.push(
       useUI.subscribe((s, prev) => {
         if (s.connection === "open" && prev.connection !== "open") send(true);

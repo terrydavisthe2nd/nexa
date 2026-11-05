@@ -102,6 +102,8 @@ type Client struct {
 	// are fetched at PictureSizes
 	pictures map[string]bool
 	matches  map[string]matchHit
+
+	index nameIndexState
 }
 
 type searchHit struct {

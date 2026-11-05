@@ -90,6 +90,8 @@ type AccountRecord struct {
 	BugReports     []LegalBugReport // bug_reports, user_id = them, with bug_attachments
 	BugThreadLines int              // bug_messages in their reports
 
+	SharedGames []SharedGame // game_submissions, user_id = them
+
 	Discord *LegalDiscord // discord_links, user_id = them
 
 	CallDays     []CallUsageDay // call_usage, user_id = them, newest first
@@ -995,6 +997,11 @@ func (s *Store) legalCrashes(ctx context.Context, rec *AccountRecord, uid int64)
 }
 
 func (s *Store) legalBugReports(ctx context.Context, rec *AccountRecord, uid int64) error {
+	shared, err := s.MySharedGames(ctx, ids.ID(uid))
+	if err != nil {
+		return err
+	}
+	rec.SharedGames = shared
 	rows, err := s.db.R.QueryContext(ctx, `SELECT id, number, subject, status, attachment_count, created_at FROM bug_reports WHERE user_id = ? ORDER BY id DESC LIMIT ?`, uid, LegalListCap)
 	if err != nil {
 		return err

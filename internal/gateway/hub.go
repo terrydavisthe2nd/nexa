@@ -124,6 +124,9 @@ type Hub struct {
 	ProxyURL func(raw string) string
 	// Apps names Discord Rich Presence applications and their art (nil: activities show as sent).
 	Apps AppLookup
+	// IdentifyGame finds a detected game on IGDB: its id and a picture for its
+	// card, or nothing (nil: detected games show as sent).
+	IdentifyGame func(ctx context.Context, name, store, storeID, gameID string) (id, art string)
 	// Restricted reports an account's moderation restrictions: a banned one
 	// is refused at identify, and a muted one cannot type or set a status.
 	Restricted func(ctx context.Context, uid ids.ID) (muted, banned bool)

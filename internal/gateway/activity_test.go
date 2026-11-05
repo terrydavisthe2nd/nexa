@@ -372,3 +372,46 @@ func TestNormalizeKeepsStreaming(t *testing.T) {
 		t.Fatalf("stream: %+v %v", a, ok)
 	}
 }
+
+func TestRichPresenceWinsOverADetectedGame(t *testing.T) {
+	asked := []string{}
+	h := &Hub{IdentifyGame: func(_ context.Context, name, store, id, _ string) (string, string) {
+		asked = append(asked, name+"/"+store+"/"+id)
+		return "77", "/media/game/abcdef?size=s"
+	}}
+	raw := func(s string) json.RawMessage { return json.RawMessage(s) }
+	list := h.resolveActivities([]json.RawMessage{
+		raw(`{"name":"Hades II","type":0,"details":"In the Underworld"}`),
+		raw(`{"name":"HADES II\u2122","type":0,"detected":true,"store":"steam","store_id":"1145350"}`),
+		raw(`{"name":"Balatro","type":0,"detected":true,"store":"steam","store_id":"2379780"}`),
+	}, nil, nil)
+	if len(list) != 2 || list[0].Details == "" || list[1].Name != "Balatro" {
+		t.Fatalf("the game's own report should replace its detected copy: %+v", list)
+	}
+	if list[1].GameID != "77" || list[1].IconURL == "" || !list[1].Detected {
+		t.Fatalf("a detected game should carry its IGDB id and cover: %+v", list[1])
+	}
+	if len(asked) != 1 || asked[0] != "Balatro/steam/2379780" {
+		t.Fatalf("only the game still shown is looked up, by its store's id: %v", asked)
+	}
+
+	// a game that carries on is not asked about again, and an empty allowance stops new ones
+	again := h.resolveActivities([]json.RawMessage{
+		raw(`{"name":"Balatro","type":0,"detected":true,"store":"steam","store_id":"2379780"}`),
+		raw(`{"name":"Celeste","type":0,"detected":true}`),
+	}, list, func() bool { return false })
+	if len(asked) != 1 || again[0].GameID != "77" || again[1].GameID != "" {
+		t.Fatalf("lookups past the allowance: %v %+v", asked, again)
+	}
+
+	// Discord's copy replaces a detected game only when it says more
+	detected := Activity{Name: "Balatro", Detected: true}
+	bare := Activity{Name: "balatro", Source: "discord"}
+	rich := Activity{Name: "balatro", Source: "discord", Details: "Ante 8"}
+	if got := mergeActivities([]Activity{detected}, []Activity{bare}); len(got) != 1 || !got[0].Detected {
+		t.Fatalf("a bare Discord copy adds nothing: %+v", got)
+	}
+	if got := mergeActivities([]Activity{detected}, []Activity{rich}); len(got) != 1 || got[0].Details != "Ante 8" {
+		t.Fatalf("Discord's fuller copy should win: %+v", got)
+	}
+}

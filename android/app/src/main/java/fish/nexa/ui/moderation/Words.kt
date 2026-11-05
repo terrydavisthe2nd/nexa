@@ -38,6 +38,9 @@ fun actionLabel(action: String): String = when (action) {
     "badge_create" -> t("badges.log.create")
     "badge_edit" -> t("badges.log.edit")
     "badge_delete" -> t("badges.log.delete")
+    "game_list" -> t("moderation.games.logList")
+    "game_reject" -> t("moderation.games.logReject")
+    "game_forget" -> t("moderation.games.logForget")
     "admin_grant" -> t("moderation.action.adminGrant")
     "admin_revoke" -> t("moderation.action.adminRevoke")
     "account_disable" -> t("moderation.action.accountDisable")
@@ -66,6 +69,7 @@ fun logIcon(action: String): String = when (action) {
     "admin_grant", "rank_change" -> "ShieldPlus"
     "admin_revoke" -> "ShieldMinus"
     "badge_change", "badge_create", "badge_edit", "badge_delete" -> "Award"
+    "game_list", "game_reject", "game_forget" -> "Gamepad2"
     "account_disable" -> "Lock"
     else -> "KeyRound"
 }
@@ -77,6 +81,7 @@ val LOG_GROUPS: Map<String, List<String>> = mapOf(
     "announcements" to listOf("announcement", "announcement_delete"),
     "access" to listOf("rank_change", "admin_grant", "admin_revoke", "account_disable", "account_enable"),
     "badges" to listOf("badge_change", "badge_create", "badge_edit", "badge_delete"),
+    "games" to listOf("game_list", "game_reject", "game_forget"),
 )
 
 private fun JsonObject.str(k: String) = (this[k] as? JsonPrimitive)?.contentOrNull
@@ -124,6 +129,8 @@ fun logDetail(e: ModLogEntry): String {
             ).joinToString("; ")
         }
         "badge_create", "badge_delete" -> d.str("name")?.let { "“$it”" } ?: ""
+        "game_list", "game_reject" -> d.str("process")?.let { "$it: “${d.str("name") ?: ""}”" } ?: ""
+        "game_forget" -> d.str("process") ?: ""
         "badge_edit" -> {
             val from = d.str("from")
             val to = d.str("name")

@@ -1012,6 +1012,10 @@ export interface Activity {
   buttons?: { label: string; url: string }[];
   instance?: boolean;
   icon_url?: string;
+  /** A game the desktop app recognised running, rather than one reporting itself. */
+  detected?: boolean;
+  /** IGDB's id for it, when the server found one. */
+  game_id?: string;
   /** "discord" for what the person's linked Discord account says, rather than the desktop app. */
   source?: "discord";
   created_at: number;

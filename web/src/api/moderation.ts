@@ -19,6 +19,31 @@ export type ServerField = "icon" | "banner" | "name" | "description" | "tag" | "
 /** What an expression_takedown can take back of a pack: its name, its description, its public listing. */
 export type PackField = "name" | "description" | "public";
 
+/** A program people shared, waiting on staff: how many, never who. */
+export interface WaitingGame {
+  process: string;
+  name: string;
+  game_id?: string;
+  other_names?: string[];
+  os: string[];
+  count: number;
+  first_at: number;
+}
+
+export interface DecidedGame {
+  process: string;
+  name: string;
+  game_id?: string;
+  status: "listed" | "rejected";
+  decided_at: number;
+}
+
+export interface StaffGames {
+  waiting: WaitingGame[];
+  decided: DecidedGame[];
+  games: Record<string, { id: string; name: string; cover?: string; year?: number }>;
+}
+
 /** As much of an account as the moderation views draw: a name, an avatar, a way to the profile. */
 export interface Person {
   id: Snowflake;
@@ -592,6 +617,22 @@ export const moderation = {
   },
   retract(id: Snowflake): Promise<void> {
     return api.request("DELETE", `/moderation/announcements/${id}`);
+  },
+  /** Games people shared and what staff decided, with the games IGDB named. */
+  games(): Promise<StaffGames> {
+    return api.request("GET", "/moderation/games");
+  },
+  gamesWaiting(): Promise<{ waiting: number }> {
+    return api.request("GET", "/moderation/games/count");
+  },
+  listGame(b: { process: string; name: string; game_id?: string }): Promise<void> {
+    return api.request("POST", "/moderation/games/list", b);
+  },
+  rejectGame(b: { process: string; name: string }): Promise<void> {
+    return api.request("POST", "/moderation/games/reject", b);
+  },
+  forgetGame(process: string): Promise<void> {
+    return api.request("POST", "/moderation/games/forget", { process });
   },
   /** The event badges staff made, and how many hold Contributor. */
   badges(): Promise<{ badges: BadgeDef[]; contributors: number }> {

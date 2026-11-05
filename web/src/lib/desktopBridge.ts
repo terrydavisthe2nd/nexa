@@ -47,6 +47,79 @@ export interface RpcActivity {
   party?: { id?: string; size?: [number, number] };
   buttons?: { label: string; url: string }[];
   instance?: boolean;
+  /** A game recognised running, which said nothing about itself (app 1.2.11 and later). */
+  detected?: boolean;
+  store?: string;
+  store_id?: string;
+  game_id?: string;
+}
+
+/** How a game was recognised. */
+export type GameSource = "steam" | "epic" | "gog" | "xbox" | "itch" | "store" | "system" | "known" | "engine" | "custom";
+
+/** A game running now. */
+export interface DetectedGame {
+  key: string;
+  name: string;
+  source: GameSource;
+  startedAt: number;
+  /** Kept off the person's profile. */
+  hidden: boolean;
+  /** A program reports this game through Rich Presence, and that is what shows. */
+  reporting: boolean;
+  activity: RpcActivity;
+}
+
+/** A game the person added from their running apps. */
+export interface CustomGame {
+  id: string;
+  name: string;
+  /** The program's file name, to tell it by. */
+  exe: string;
+  /** IGDB's id, when they chose the game there. */
+  gameId?: string;
+  /** They shared it with staff for the list everyone gets. */
+  shared?: boolean;
+}
+
+/** A program that behaves like a game and has a game's name, waiting for the person to say. Nothing about it has left the computer. */
+export interface GameSuggestion {
+  id: string;
+  name: string;
+  exe: string;
+}
+
+/** What sharing a game sends: never a path. */
+export interface GameShare {
+  process: string;
+  os: string;
+  name: string;
+  game_id?: string;
+}
+
+export interface HiddenGame {
+  key: string;
+  name: string;
+}
+
+export interface GamesState {
+  enabled: boolean;
+  running: DetectedGame[];
+  custom: CustomGame[];
+  hidden: HiddenGame[];
+  suggestions: GameSuggestion[];
+}
+
+/** A program with a window, for choosing a game by hand. It carries no path: the app keeps those. */
+export interface RunningApp {
+  id: string;
+  name: string;
+  exe: string;
+  /** data: URL of its icon, when there is one. */
+  icon?: string;
+  /** What it is already recognised as, when it is. */
+  detectedAs?: string;
+  added: boolean;
 }
 
 /** One program connected to the desktop app's Rich Presence server. */
@@ -145,8 +218,28 @@ export interface EvilionDesktop {
     restartDiscord(): Promise<boolean>;
     onState(cb: (state: RpcState) => void): () => void;
   };
-  /** The activities to show, newest first, hidden programs left out. */
+  /** The activities to show, newest first, hidden programs left out; from app 1.2.11, games recognised running follow them. */
   onActivities(cb: (list: RpcActivity[]) => void): () => void;
+  /** The same list, asked for when the page starts (app 1.2.11 and later). */
+  getActivities?(): Promise<RpcActivity[]>;
+  /** Recognising games from what is running on this computer (app 1.2.11 and later). */
+  games?: {
+    getState(): Promise<GamesState>;
+    onState(cb: (state: GamesState) => void): () => void;
+    setEnabled(on: boolean): Promise<GamesState>;
+    setHidden(key: string, name: string, hidden: boolean): Promise<GamesState>;
+    /** The programs with a window right now, asked for only while someone is choosing a game. */
+    runningApps(): Promise<RunningApp[]>;
+    /** Adds a program from the last list. */
+    add(appId: string, name: string, gameId: string | null): Promise<GamesState>;
+    update(id: string, name: string, gameId: string | null): Promise<GamesState>;
+    remove(id: string): Promise<GamesState>;
+    /** Says whether a program the app asked about is a game; no never asks about it again. */
+    answer(id: string, isGame: boolean): Promise<GamesState>;
+    /** What sharing a game would send. */
+    shareInfo(id: string): Promise<GameShare | null>;
+    markShared(id: string): Promise<GamesState>;
+  };
   /** Who is signed in, so programs that ask get this user rather than nobody. */
   setIdentity(user: { id: string; username: string; global_name: string; avatar: string | null } | null): void;
   updates: {

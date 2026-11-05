@@ -19,6 +19,8 @@ const common = {
 };
 await Promise.all([
   build({ ...common, entryPoints: ["src/main/index.ts"], outfile: "dist-app/main.js" }),
+  // Windows' process and window calls, on a thread of their own (main/games/windows.ts)
+  build({ ...common, entryPoints: ["src/main/games/windowsWorker.ts"], outfile: "dist-app/gamesWorker.js" }),
   // a sandboxed preload may only require electron itself, so it is bundled whole
   build({ ...common, entryPoints: ["src/preload/index.ts"], outfile: "dist-app/preload.js" }),
   // The screen-share picker: its own window, its own preload, and a page that

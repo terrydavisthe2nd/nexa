@@ -3,7 +3,7 @@
  * the ban screen and the staff's panel all describe the same action the same
  * way — in the reader's language.
  */
-import { Award, Ban, Eraser, ImageOff, KeyRound, Lock, LockOpen, Megaphone, MessageSquareOff, ServerCog, ShieldMinus, ShieldPlus, Sticker, UserX, type LucideIcon } from "lucide-react";
+import { Award, Ban, Eraser, Gamepad2, ImageOff, KeyRound, Lock, LockOpen, Megaphone, MessageSquareOff, ServerCog, ShieldMinus, ShieldPlus, Sticker, UserX, type LucideIcon } from "lucide-react";
 import type { CaseDetails, CaseMessage, MemberCase, ModAction, ModLogEntry, PackField, People, Person, ResetField, ServerField } from "@/api/moderation";
 import type { BugStatus } from "@/api/bugs";
 import { bugStatusLabel } from "@/lib/bugs";
@@ -78,6 +78,10 @@ export function actionIcon(action: string): LucideIcon {
     case "badge_edit":
     case "badge_delete":
       return Award;
+    case "game_list":
+    case "game_reject":
+    case "game_forget":
+      return Gamepad2;
     case "account_disable":
       return Lock;
     default:
@@ -128,6 +132,12 @@ export function actionLabel(action: string): string {
       return t("badges.log.edit");
     case "badge_delete":
       return t("badges.log.delete");
+    case "game_list":
+      return t("moderation.games.logList");
+    case "game_reject":
+      return t("moderation.games.logReject");
+    case "game_forget":
+      return t("moderation.games.logForget");
     case "message_remove":
       return t("reports.messageRemoved");
     case "report_review":
@@ -403,6 +413,13 @@ export function logDetail(e: ModLogEntry): string {
       const d = e.details as { name?: string; from?: string };
       return d.from && d.from !== d.name ? t("staff.log.fromTo", { from: d.from, to: d.name ?? "" }) : d.name ? `“${d.name}”` : "";
     }
+    case "game_list":
+    case "game_reject": {
+      const d = e.details as { process?: string; name?: string };
+      return d.process ? `${d.process}: “${d.name ?? ""}”` : "";
+    }
+    case "game_forget":
+      return (e.details as { process?: string }).process ?? "";
     case "rank_change": {
       const r = e.details as { from?: string; to?: string };
       const name = (x: string | undefined) => (x === "developer" || x === "admin" || x === "mod" || x === "helper" ? rankName(x) : t("staff.rankModal.none"));
@@ -431,6 +448,7 @@ export const LOG_GROUPS: Record<string, string[]> = {
   announcements: ["announcement", "announcement_delete"],
   access: ["rank_change", "admin_grant", "admin_revoke", "account_disable", "account_enable"],
   badges: ["badge_change", "badge_create", "badge_edit", "badge_delete"],
+  games: ["game_list", "game_reject", "game_forget"],
 };
 
 /** Why a muted account cannot do something, in a sentence for a toast. */

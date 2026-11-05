@@ -2,13 +2,15 @@
  * Nexa for the desktop: one window on the live site, a tray icon, the
  * Rich Presence server, and updates.
  */
-import { app, BrowserWindow, globalShortcut, ipcMain, nativeImage, powerMonitor, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, globalShortcut, ipcMain, nativeImage, net, powerMonitor, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import { IPC, type DesktopSettings, type Identity, type WindowState } from "../shared/bridge";
+import { IPC, type DesktopSettings, type Identity, type RpcActivity, type WindowState } from "../shared/bridge";
 import { BASE, ORIGIN, isAppUrl, testHook } from "./config";
 import { chooseDisplaySource, handleDisplayMedia, lockPermissions, openScreenSettings, resetScreenAccess, restartApp, screenAccess, shareAudioFailed } from "./permissions";
 import { RpcService } from "./rpc/service";
+import { GameLists } from "./games/lists";
+import { GameService, platformLister } from "./games/service";
 import { Originals } from "./originals";
 import { PasteGate } from "./pasteGate";
 import { applyShortcuts, cleanRequests } from "./shortcuts";
@@ -38,6 +40,7 @@ let tray: Electron.Tray | null = null;
 let trayActions: TrayActions | null = null;
 let identity: Identity | null = null;
 let rpc: RpcService | null = null;
+let games: GameService | null = null;
 let updater: Updater | null = null;
 /** Whether the page is in a call, which keeps it at full speed while hidden (applyThrottling). */
 let inCall = false;
@@ -149,8 +152,41 @@ async function start(): Promise<void> {
     log,
   });
   rpc.on("state", (state) => toPage(IPC.rpcState, state));
-  rpc.on("activities", (list) => toPage(IPC.activities, list));
+  rpc.on("activities", () => {
+    games?.rpcChanged();
+    toPage(IPC.activities, activities());
+  });
   void rpc.start().catch((err) => log("rpc start failed", { err: String(err) }));
+
+  games = new GameService({
+    // the switch that shows what someone is playing covers detected games too
+    enabled: settings.get("gameDetection") && settings.get("rpcEnabled"),
+    custom: settings.get("customGames"),
+    hidden: settings.get("hiddenGames"),
+    ownPids,
+    claims: () => rpc?.claims() ?? [],
+    iconOf: async (file) => {
+      if (!path.isAbsolute(file)) return undefined;
+      const icon = await app.getFileIcon(file, { size: "normal" });
+      return icon.isEmpty() ? undefined : icon.toDataURL();
+    },
+    save: ({ custom, hidden, dismissed }) => settings.set({ ...(custom ? { customGames: custom } : {}), ...(hidden ? { hiddenGames: hidden } : {}), ...(dismissed ? { dismissedGames: dismissed } : {}) }),
+    dismissed: settings.get("dismissedGames"),
+    lists: new GameLists({
+      base: BASE.toString(),
+      dir: path.join(app.getPath("userData"), "games"),
+      get: async (url, etag) => {
+        const res = await net.fetch(url, { cache: "no-store", ...(etag ? { headers: { "If-None-Match": etag } } : {}) });
+        return { status: res.status, etag: res.headers.get("etag"), bytes: res.status === 200 ? Buffer.from(await res.arrayBuffer()) : Buffer.alloc(0) };
+      },
+      log,
+    }),
+    ...testBehaviour(),
+    log,
+  });
+  games.on("state", (state) => toPage(IPC.gamesState, state));
+  games.on("activities", () => toPage(IPC.activities, activities()));
+  games.start();
 
   updater = new Updater(new URL("/desktop/", BASE).toString(), new URL("/download", BASE).toString(), quitForUpdate, log);
   updater.on("state", (s) => toPage(IPC.updateState, s));
@@ -161,6 +197,37 @@ async function start(): Promise<void> {
 
   registerIpc();
   log("started", { origin: ORIGIN });
+}
+
+/** What the person is doing, as the page sends it on: programs reporting themselves first, then games recognised running. */
+function activities(): RpcActivity[] {
+  return [...(rpc?.activities() ?? []), ...(games?.activities() ?? [])];
+}
+
+/** Tests say what is in front and drawing, which a screen with no window manager or graphics card cannot. */
+function testBehaviour(): { lister?: ReturnType<typeof platformLister> } {
+  const file = testHook("EVILION_TEST_GAME_BEHAVIOUR");
+  if (!file) return {};
+  const real = platformLister(process.platform, log);
+  const said = (): { foreground?: { pid: number; title?: string; fullscreen: boolean } | null; busy?: number[] } => {
+    try {
+      return JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch {
+      return {};
+    }
+  };
+  return { lister: { list: () => real.list(), windows: () => real.windows(), foreground: async () => said().foreground ?? null, gpuBusy: async () => new Set(said().busy ?? []) } };
+}
+
+/** This app's own processes, which must never count as a game someone is playing. */
+function ownPids(): Set<number> {
+  const pids = new Set<number>([process.pid]);
+  try {
+    for (const m of app.getAppMetrics()) pids.add(m.pid);
+  } catch {
+    /* only the main process then */
+  }
+  return pids;
 }
 
 /** The panel behind "About Nexa" on macOS, which is otherwise the bare name. */
@@ -190,6 +257,7 @@ function registerIpc(): void {
   handle(IPC.rpcSetEnabled, async (enabled: boolean) => {
     settings.set({ rpcEnabled: !!enabled });
     await rpc!.setEnabled(!!enabled);
+    games?.setEnabled(!!enabled && settings.get("gameDetection"));
   });
   handle(IPC.rpcSetRelay, (relay: boolean) => {
     settings.set({ rpcRelay: !!relay });
@@ -201,6 +269,40 @@ function registerIpc(): void {
     settings.set({ hiddenApps: rpc!.hiddenApps() });
   });
   handle(IPC.rpcRestartDiscord, () => rpc!.restartDiscord());
+  handle(IPC.activitiesGet, () => activities());
+
+  handle(IPC.gamesGetState, () => games!.state());
+  handle(IPC.gamesSetEnabled, (on: boolean) => {
+    settings.set({ gameDetection: !!on });
+    games!.setEnabled(!!on && settings.get("rpcEnabled"));
+    return games!.state();
+  });
+  handle(IPC.gamesSetHidden, (key: string, name: string, hidden: boolean) => {
+    games!.setHidden(String(key).slice(0, 256), String(name), !!hidden);
+    return games!.state();
+  });
+  handle(IPC.gamesRunningApps, () => games!.runningApps());
+  handle(IPC.gamesAdd, (appId: string, name: string, gameId: string | null) => {
+    games!.add(String(appId), String(name), gameId);
+    return games!.state();
+  });
+  handle(IPC.gamesUpdate, (id: string, name: string, gameId: string | null) => {
+    games!.update(String(id), String(name), gameId);
+    return games!.state();
+  });
+  handle(IPC.gamesRemove, (id: string) => {
+    games!.remove(String(id));
+    return games!.state();
+  });
+  handle(IPC.gamesAnswer, (id: string, isGame: boolean) => {
+    games!.answer(String(id), !!isGame);
+    return games!.state();
+  });
+  handle(IPC.gamesShareInfo, (id: string) => games!.shareInfo(String(id)));
+  handle(IPC.gamesMarkShared, (id: string) => {
+    games!.markShared(String(id));
+    return games!.state();
+  });
   on(IPC.setIdentity, (user: Identity | null) => {
     // This is the one piece of the signed-in person that crosses outward: it
     // goes verbatim into the READY payload every local RPC program receives.
@@ -363,6 +465,7 @@ function setBadge(count: number): void {
  * a kill), and the app stayed running.
  */
 function stopRpc(): void {
+  games?.stop();
   const stopping = rpc;
   rpc = null;
   try {
@@ -387,8 +490,11 @@ app.on("before-quit", () => {
 app.on("will-quit", () => {
   originals.dispose();
   globalShortcut.unregisterAll();
+  const stuck = games?.stuck;
   stopRpc();
   settings.flush();
+  // everything is saved and let go; a thread stuck in a system call would keep the process from ever ending
+  if (stuck) process.kill(process.pid);
 });
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

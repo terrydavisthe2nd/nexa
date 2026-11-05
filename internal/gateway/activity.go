@@ -10,6 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"golang.org/x/time/rate"
+
+	"evilion.xyz/chat/internal/games"
 	"evilion.xyz/chat/internal/ids"
 	"evilion.xyz/chat/internal/textutil"
 )
@@ -33,6 +36,11 @@ type Activity struct {
 	Buttons           []ActivityButton    `json:"buttons,omitempty"`
 	Instance          bool                `json:"instance,omitempty"`
 	IconURL           string              `json:"icon_url,omitempty"`
+	// Detected marks a game the desktop app recognised running, which said
+	// nothing about itself; GameID is IGDB's id for it when one was found, so
+	// every viewer opens the same game's page without asking.
+	Detected bool   `json:"detected,omitempty"`
+	GameID   string `json:"game_id,omitempty"`
 	// Source is "discord" for an activity heard from the person's linked
 	// Discord account rather than from the desktop app.
 	Source    string `json:"source,omitempty"`
@@ -76,7 +84,13 @@ type activityInput struct {
 	State             string `json:"state"`
 	StateURL          string `json:"state_url"`
 	Instance          bool   `json:"instance"`
-	Timestamps        *struct {
+	// A detected game: the store that knows it and its id there, or the IGDB
+	// game someone chose for a game they added.
+	Detected   bool   `json:"detected"`
+	Store      string `json:"store"`
+	StoreID    string `json:"store_id"`
+	GameID     string `json:"game_id"`
+	Timestamps *struct {
 		Start *float64 `json:"start"`
 		End   *float64 `json:"end"`
 	} `json:"timestamps"`
@@ -117,6 +131,11 @@ const (
 	activityWindow   = 10 * 365 * 24 * time.Hour
 )
 
+// newGameLimit lets a connection have a few games looked up at once, as a
+// computer that has just started does, and few after: nobody starts a new game
+// every minute for long.
+func newGameLimit() *rate.Limiter { return rate.NewLimiter(rate.Every(time.Minute), 8) }
+
 var (
 	appIDPattern     = regexp.MustCompile(`^[0-9]{17,20}$`)
 	spotifyIDPattern = regexp.MustCompile(`^[A-Za-z0-9]{1,64}$`)
@@ -155,6 +174,7 @@ func normalizeActivity(in activityInput, app *appInfo, now time.Time, proxy func
 	out.DetailsURL = cleanLink(in.DetailsURL, maxActivityLink)
 	out.StateURL = cleanLink(in.StateURL, maxActivityLink)
 	out.Instance = in.Instance
+	out.Detected = in.Detected
 
 	if ts := in.Timestamps; ts != nil {
 		start, end := activityTime(ts.Start, now), activityTime(ts.End, now)
@@ -356,7 +376,7 @@ func (c *conn) resolveLoop() {
 		prev := c.acts
 		c.actMu.Unlock()
 
-		list := c.hub.resolveActivities(*p, prev)
+		list := c.hub.resolveActivities(*p, prev, c.gameLimit.Allow)
 
 		select {
 		case <-c.closed:
@@ -393,17 +413,21 @@ func (h *Hub) ResolveActivities(raw []json.RawMessage) []Activity {
 	if len(raw) > maxActivities {
 		raw = raw[:maxActivities]
 	}
-	return h.resolveActivities(raw, nil)
+	return h.resolveActivities(raw, nil, nil)
 }
 
 // resolveActivities cleans a set of activities, naming their applications and
 // resolving their art. Something that carries on (the same application and
-// name) keeps the time it began.
-func (h *Hub) resolveActivities(raw []json.RawMessage, prev []Activity) []Activity {
+// name) keeps the time it began. A detected game gives way to a program
+// reporting that game itself, and what is left of them is looked up on IGDB
+// for its page and cover; identify says whether one more may be, nil meaning
+// always (the caller holds its own limit).
+func (h *Hub) resolveActivities(raw []json.RawMessage, prev []Activity, identify func() bool) []Activity {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	now := time.Now()
 	out := make([]Activity, 0, len(raw))
+	wanted := map[int]activityInput{}
 	for _, r := range raw {
 		if len(r) > maxActivityBytes {
 			continue
@@ -428,12 +452,68 @@ func (h *Hub) resolveActivities(raw []json.RawMessage, prev []Activity) []Activi
 				break
 			}
 		}
+		if a.Detected {
+			wanted[len(out)] = in
+		}
 		out = append(out, a)
 		if len(out) == maxActivities {
 			break
 		}
 	}
+	return h.identifyDetected(ctx, out, wanted, prev, identify)
+}
+
+// selfReported says whether an activity is a program telling us about the game itself.
+func selfReported(a Activity) bool {
+	return !a.Detected && (a.Type == 0 || a.Type == 5)
+}
+
+// identifyDetected drops the detected games a program already reports, and
+// finds the rest on IGDB. Only the server knows what an application is called,
+// so this is where a game's own Rich Presence wins by name; the desktop app
+// has already let it win where it could tell by process.
+func (h *Hub) identifyDetected(ctx context.Context, list []Activity, wanted map[int]activityInput, prev []Activity, identify func() bool) []Activity {
+	if len(wanted) == 0 {
+		return list
+	}
+	reported := map[string]bool{}
+	for _, a := range list {
+		if selfReported(a) {
+			reported[games.FoldName(a.Name)] = true
+		}
+	}
+	out := make([]Activity, 0, len(list))
+	for i, a := range list {
+		in, detected := wanted[i]
+		if !detected {
+			out = append(out, a)
+			continue
+		}
+		if reported[games.FoldName(a.Name)] {
+			continue
+		}
+		a.Type = 0
+		if p, ok := sameDetected(prev, a); ok && (in.GameID == "" || in.GameID == p.GameID) {
+			// a game carrying on is not looked up again every time something else changes
+			a.GameID, a.IconURL = p.GameID, p.IconURL
+		} else if h.IdentifyGame != nil && (identify == nil || identify()) {
+			// its own allowance of time, so a slow answer never holds the rest back for long
+			idCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			a.GameID, a.IconURL = h.IdentifyGame(idCtx, a.Name, in.Store, in.StoreID, in.GameID)
+			cancel()
+		}
+		out = append(out, a)
+	}
 	return out
+}
+
+func sameDetected(prev []Activity, a Activity) (Activity, bool) {
+	for _, p := range prev {
+		if p.Detected && p.Name == a.Name && p.GameID != "" {
+			return p, true
+		}
+	}
+	return Activity{}, false
 }
 
 // activitiesChanged tells the user's co-members, no more often than the
@@ -488,11 +568,20 @@ func (h *Hub) activitiesOf(uid ids.ID) []Activity {
 // desktop app's, less what the desktop app already shows: the same
 // application, or the same name and kind. A program the desktop app hears
 // also reaches Discord through its relay, so both report it; the desktop
-// app's copy is kept while it lasts, and Discord's shows once it is gone.
+// app's copy is kept while it lasts, and Discord's shows once it is gone. The
+// one exception is a game the desktop app only recognised running, which gives
+// way to Discord's copy when that says more about what is going on.
 func mergeActivities(own, linked []Activity) []Activity {
 	if len(linked) == 0 {
 		return own
 	}
+	kept := make([]Activity, 0, len(own))
+	for _, o := range own {
+		if !o.Detected || !saysMore(linked, o) {
+			kept = append(kept, o)
+		}
+	}
+	own = kept
 	out := make([]Activity, 0, min(maxActivities, len(own)+len(linked)))
 	out = append(out, own...)
 	for _, l := range linked {
@@ -513,6 +602,16 @@ func mergeActivities(own, linked []Activity) []Activity {
 	return out
 }
 
+// saysMore finds a linked activity for the same game that carries more than the game's name.
+func saysMore(linked []Activity, o Activity) bool {
+	for _, l := range linked {
+		if l.Type == o.Type && games.FoldName(l.Name) == games.FoldName(o.Name) && (l.Details != "" || l.State != "" || l.Assets != nil) {
+			return true
+		}
+	}
+	return false
+}
+
 // SetLinkedActivities replaces what a person's linked Discord account says
 // they are doing. They are cleaned and resolved exactly as the desktop app's
 // are, and everyone who sees the person hears of a change, no more than once
@@ -526,7 +625,7 @@ func (h *Hub) SetLinkedActivities(uid ids.ID, raw []json.RawMessage) {
 	h.linkedMu.Unlock()
 	var list []Activity
 	if len(raw) > 0 {
-		list = h.resolveActivities(raw, prev)
+		list = h.resolveActivities(raw, prev, nil)
 		for i := range list {
 			list[i].Source = "discord"
 		}

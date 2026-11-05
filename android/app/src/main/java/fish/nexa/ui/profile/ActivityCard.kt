@@ -100,7 +100,8 @@ private fun ActivityCardBody(a: Activity) {
         }
     }
     val clock = if (timed) Activities.progress(a, now) else null
-    val large = a.assets?.largeImage ?: a.iconUrl
+    // the server's own addresses (the media proxy, game covers) come without a host
+    val large = (a.assets?.largeImage ?: a.iconUrl)?.let(Media::absolute)
     val media = a.type == 1 || a.type == 2 || a.type == 3
     val title = if (media) a.details?.ifEmpty { null } ?: a.name else a.name
     data class Line(val text: String, val muted: Boolean = false)
@@ -117,9 +118,9 @@ private fun ActivityCardBody(a: Activity) {
     }
     val green = Activities.green(c.isLight)
     val shape = Radii.Md
-    // IGDB's id for the game being played, once the server has found one with exactly its name
-    val game = if (a.type == 0 || a.type == 5) a.name.trim() else ""
-    var gameId by remember(game) { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    // IGDB's id for the game being played: the one it came with, or once the server has found one with exactly its name
+    val game = if (a.gameId == null && (a.type == 0 || a.type == 5)) a.name.trim() else ""
+    var gameId by remember(game, a.gameId) { androidx.compose.runtime.mutableStateOf(a.gameId) }
     LaunchedEffect(game) {
         if (game.isNotEmpty()) gameId = try { fish.nexa.data.Games.match(game) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Throwable) { null }
     }
@@ -161,7 +162,7 @@ private fun ActivityCardBody(a: Activity) {
                     ) { Icon(Activities.icon(a.type), c.textSubtle, size = 32.dp) }
                     a.assets?.smallImage?.let { small ->
                         AsyncImage(
-                            small, a.assets.smallText ?: "", Media.loader,
+                            Media.absolute(small), a.assets.smallText ?: "", Media.loader,
                             Modifier.align(Alignment.BottomEnd).offset(6.dp, 6.dp).size(30.dp).clip(CircleShape).background(Color(10, 6, 20).copy(alpha = 0.6f)).padding(2.dp).clip(CircleShape).linked(a.assets.smallUrl),
                             contentScale = ContentScale.Crop,
                         )

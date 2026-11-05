@@ -368,9 +368,9 @@ func sortLinks(l []Link) {
 	}
 }
 
-// foldName is a game's name as names are compared: case folded, without
+// FoldName is a game's name as names are compared: case folded, without
 // trademark signs, punctuation or extra spaces.
-func foldName(s string) string {
+func FoldName(s string) string {
 	var b strings.Builder
 	space := false
 	for _, r := range strings.ToLower(s) {
@@ -392,7 +392,7 @@ func foldName(s string) string {
 // signs and punctuation aside), or "" when none is. Activities name their
 // game but carry no IGDB id. Answers, misses too, are kept for a day.
 func (c *Client) Match(ctx context.Context, name string) (string, error) {
-	key := foldName(name)
+	key := FoldName(name)
 	if key == "" || len(name) > 120 {
 		return "", nil
 	}
@@ -406,13 +406,13 @@ func (c *Client) Match(ctx context.Context, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	id := ""
+	var exact []string
 	for _, g := range list {
-		if foldName(g.Name) == key {
-			id = g.ID
-			break
+		if FoldName(g.Name) == key {
+			exact = append(exact, g.ID)
 		}
 	}
+	id := c.mostRated(ctx, exact)
 	c.detailMu.Lock()
 	if len(c.matches) >= maxDetails*4 {
 		c.matches = map[string]matchHit{}
@@ -420,4 +420,118 @@ func (c *Client) Match(ctx context.Context, name string) (string, error) {
 	c.matches[key] = matchHit{at: time.Now(), id: id}
 	c.detailMu.Unlock()
 	return id, nil
+}
+
+// mostRated picks among games sharing a name: IGDB lists "Hollow Knight" twice,
+// and its first was a 2023 entry almost nobody knows, not the game. The one most
+// people rated is the one a name means. When IGDB will not say, it keeps to
+// IGDB's own order.
+func (c *Client) mostRated(ctx context.Context, ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	if len(ids) == 1 {
+		return ids[0]
+	}
+	raw, err := c.post(ctx, "games", "fields total_rating_count; where id = ("+strings.Join(ids, ",")+"); limit 30;")
+	if err != nil {
+		return ids[0]
+	}
+	var in []struct {
+		ID    int64 `json:"id"`
+		Count int   `json:"total_rating_count"`
+	}
+	if json.Unmarshal(raw, &in) != nil {
+		return ids[0]
+	}
+	best, most := ids[0], 0
+	for _, g := range in {
+		if g.Count > most {
+			best, most = strconv.FormatInt(g.ID, 10), g.Count
+		}
+	}
+	return best
+}
+
+// storeSources are the stores whose own game ids IGDB can be asked about, by
+// the ids its external_game_sources gives them. The desktop app learns these
+// ids from the store's files on the player's computer, so they name exactly
+// the game being played, where a name might name several.
+var storeSources = map[string]int{"steam": 1, "gog": 5}
+
+var storeIDPattern = regexp.MustCompile(`^[0-9]{1,20}$`)
+
+// MatchStore is IGDB's id for the game a store knows by this id, or "" when
+// IGDB does not list it. Answers, misses too, are kept for a day.
+func (c *Client) MatchStore(ctx context.Context, store, id string) (string, error) {
+	source, ok := storeSources[store]
+	if !ok || !storeIDPattern.MatchString(id) {
+		return "", nil
+	}
+	key := "\x00" + store + ":" + id
+	c.detailMu.Lock()
+	if hit, ok := c.matches[key]; ok && time.Since(hit.at) < detailTTL {
+		c.detailMu.Unlock()
+		return hit.id, nil
+	}
+	c.detailMu.Unlock()
+	raw, err := c.post(ctx, "external_games", "fields game; where uid = "+quote(id)+" & external_game_source = "+strconv.Itoa(source)+"; limit 1;")
+	if err != nil {
+		return "", err
+	}
+	var in []struct {
+		Game int64 `json:"game"`
+	}
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return "", err
+	}
+	found := ""
+	if len(in) > 0 && in[0].Game > 0 {
+		found = strconv.FormatInt(in[0].Game, 10)
+	}
+	c.detailMu.Lock()
+	if len(c.matches) >= maxDetails*4 {
+		c.matches = map[string]matchHit{}
+	}
+	c.matches[key] = matchHit{at: time.Now(), id: found}
+	c.detailMu.Unlock()
+	return found, nil
+}
+
+// Identify is the game a detected game is: the one someone chose, the one its
+// store's id names, or else the one with exactly its name. Nil when IGDB has
+// none of those, or is off.
+func (c *Client) Identify(ctx context.Context, name, store, storeID, gameID string) (*Game, error) {
+	if !c.On() {
+		return nil, nil
+	}
+	id := ""
+	if IDPattern.MatchString(gameID) {
+		id = gameID
+	}
+	if id == "" {
+		found, err := c.MatchStore(ctx, store, storeID)
+		if err != nil {
+			return nil, err
+		}
+		id = found
+	}
+	if id == "" {
+		found, err := c.Match(ctx, name)
+		if err != nil {
+			return nil, err
+		}
+		id = found
+	}
+	if id == "" {
+		return nil, nil
+	}
+	known, err := c.Lookup(ctx, []string{id})
+	if err != nil {
+		return nil, err
+	}
+	if g, ok := known[id]; ok {
+		return &g, nil
+	}
+	return nil, nil
 }

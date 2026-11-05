@@ -18,13 +18,14 @@ import { awaitDiscordLink, useDiscord } from "@/stores/discord";
 import { usePresence } from "@/stores/presence";
 import { useSettings } from "@/stores/settings";
 import { useUI } from "@/stores/ui";
+import { GameDetectionSection } from "./GameDetection";
 import a from "./Activity.module.css";
 import st from "./Settings.module.css";
 
 /**
  * User settings → Activity: whether what you are doing shows under your name,
  * the Discord account it can come from, and, in the desktop app, the programs
- * it hears through Rich Presence.
+ * it hears through Rich Presence and the games it recognises running.
  */
 export default function ActivityPage() {
   const share = useSettings((x) => x.settings.shareActivity !== false);
@@ -43,8 +44,14 @@ export default function ActivityPage() {
       <h3 data-setting="discord" className={st.h5}>{t("settings.activity.discord")}</h3>
       <DiscordSection share={share} />
       {inApp ? <RichPresenceSection share={share} /> : null}
+      {inApp ? <GameDetectionForActivity share={share} /> : null}
     </>
   );
+}
+
+function GameDetectionForActivity({ share }: { share: boolean }) {
+  const rpcOn = useDesktop((x) => !!x.rpc?.enabled);
+  return <GameDetectionSection share={share} rpcOn={rpcOn} />;
 }
 
 /** Says how linking went, once, when Discord has sent the person back here. */

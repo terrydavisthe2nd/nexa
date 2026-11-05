@@ -228,6 +228,7 @@ export async function exportMyData(onProgress: (text: string) => void): Promise<
   entries.push({ name: "settings.json", data: json(settings) });
   onProgress(t("export.readingFriends"));
   entries.push({ name: "relationships.json", data: json(await relationshipsApi.list()) });
+  entries.push({ name: "shared-games.json", data: json((await usersApi.mySharedGames()).games) });
   const dms: Channel[] = await channelsApi.listDMs();
   const serverChannels = Object.values(useChannels.getState().byId).filter((c) => c.server_id && c.type === "text");
   entries.push({ name: "servers.json", data: json(Object.values(useServers.getState().byId).map((s) => ({ ...s.server, roles: Object.values(s.roles), me: s.me }))) });

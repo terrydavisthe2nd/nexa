@@ -346,7 +346,7 @@ class Session(private val nx: Nexa) {
                 NexaInbox.onEvent(e.t, d)
                 Moderation.onEvent(e.t, d)
             }
-            "mod_case", "mod_log", "mod_bug", "mod_unread" -> Moderation.onEvent(e.t, d)
+            "mod_case", "mod_log", "mod_bug", "mod_unread", "mod_games" -> Moderation.onEvent(e.t, d)
             "mod_report" -> Reports.onStaffEvent(d)
             "report_update" -> runCatching { wireJson.decodeFromJsonElement(ReportReceipt.serializer(), d!!) }.getOrNull()?.let { r ->
                 val before = Reports.mine.value?.firstOrNull { it.id == r.id }

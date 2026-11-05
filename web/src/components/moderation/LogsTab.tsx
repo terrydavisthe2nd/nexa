@@ -78,6 +78,7 @@ export function LogsTab() {
     { id: "announcements", label: t("moderation.logs.announcements") },
     { id: "access", label: t("moderation.logs.access") },
     { id: "badges", label: t("moderation.logs.badges") },
+    { id: "games", label: t("moderation.tabs.games") },
   ];
 
   const target = (e: ModLogEntry) =>

@@ -57,6 +57,7 @@ val STAFF_GROUPS: List<Pair<String, List<StaffPlace>>> = listOf(
     "moderation.nav.running" to listOf(
         StaffPlace("announcements", "moderation.tabs.announcements", "Megaphone", StaffRank.ADMIN),
         StaffPlace("badges", "moderation.tabs.badges", "Award", StaffRank.ADMIN),
+        StaffPlace("games", "moderation.tabs.games", "Gamepad2", StaffRank.ADMIN),
         StaffPlace("calls", "moderation.tabs.calls", "Phone", StaffRank.ADMIN),
     ),
 )
@@ -92,10 +93,16 @@ fun StaffSidebar(route: Route.Admin) {
     val unread by Moderation.unread.collectAsState()
     val counts by Reports.counts.collectAsState()
     val waitingReports = (counts?.get("open") ?: 0) + (counts?.get("in_review") ?: 0)
+    val gamesWaiting by Moderation.gamesWaiting.collectAsState()
+    val mayReviewGames = rank?.atLeast(StaffRank.ADMIN) == true
+    LaunchedEffect(mayReviewGames) {
+        if (mayReviewGames) runCatching { Moderation.gamesWaiting.value = fish.nexa.data.GameLists.waitingCount() }
+    }
     fun badge(id: String): Pair<Int, String>? = when (id) {
         "reports" -> if (waitingReports > 0) waitingReports to t("reports.waitingCount", "count" to waitingReports) else null
         "cases" -> if (unread.cases.isNotEmpty()) unread.cases.size to t("moderation.needsReplyCount", "count" to unread.cases.size) else null
         "bugs" -> if (unread.bugs.isNotEmpty()) unread.bugs.size to t("bugs.staff.waitingCount", "count" to unread.bugs.size) else null
+        "games" -> if (gamesWaiting > 0) gamesWaiting to t("moderation.games.waitingCount", "count" to gamesWaiting) else null
         else -> null
     }
     Column(Modifier.fillMaxSize()) {

@@ -12,6 +12,7 @@ import { lazyPage } from "@/lib/lazyChunk";
 import { DownloadBanner } from "@/components/shell/DownloadBanner";
 import { MaintenanceBanner } from "./MaintenanceBanner";
 import { ViewAsBanner } from "./ViewAsBanner";
+import { GameSuggestionBanner } from "@/components/shell/GameSuggestionBanner";
 import { RpcBanner } from "@/components/shell/RpcBanner";
 import { isTypingField } from "@/lib/keyboardInset";
 import { rowSwipeActive } from "@/lib/swipeReply";
@@ -300,6 +301,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <ViewAsBanner />
         {!isDemo && <UpdatePrompt />}
         <RpcBanner />
+        <GameSuggestionBanner />
         <DiscordBanner />
         {!isDemo && <DownloadBanner />}
         <Tabs />
