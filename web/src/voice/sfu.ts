@@ -11,7 +11,7 @@ import { voice as voiceApi, type SfuDescription } from "@/api/voice";
 import type { VoiceState } from "@/api/types";
 import { FrameCrypto, voiceKeysFor, voiceKeysVersion, type VoiceKeys } from "./e2ee";
 import { CopyPlanner, LOSS_ONE_COPY } from "./copyPlanner";
-import { tunedLocal, tunedRemote } from "./opus";
+import { tunedLocal, tunedRemote, VOICE_STEREO_BITRATE } from "./opus";
 import { ExtmapHistory } from "./extmaps";
 import { Playback } from "./playback";
 import { MAX_SHARE_BPS, MIN_SHARE_BPS } from "./shareQuality";
@@ -213,6 +213,7 @@ export class SfuTransport implements VoiceTransport {
   private connecting = false;
 
   private audioTrack: MediaStreamTrack | null = null;
+  private voiceStereo = false;
   private videoTrack: MediaStreamTrack | null = null;
   private screen: MediaStream | null = null;
   private screenBitrate = 6_000_000;
@@ -599,12 +600,12 @@ export class SfuTransport implements VoiceTransport {
         pc.restartIce();
         const offer = await pc.createOffer({ iceRestart: true });
         this.live(pc);
-        await this.setLocal(pc, tunedLocal(offer, this.streamMids()));
+        await this.setLocal(pc, this.tuneLocal(offer));
         this.live(pc);
         const res = await voiceApi.sfuRestart({ session_id: session, offer: description(pc.localDescription), mid, kind: anchor }, timeout());
         this.live(pc);
         if (!res.answer) throw new Error("no answer to the ICE restart");
-        await this.setRemote(pc, tunedRemote(res.answer, this.streamMids()));
+        await this.setRemote(pc, this.tuneRemote(res.answer));
         this.iceRestarts++;
       } catch (err) {
         if (err instanceof Stale) throw err;
@@ -690,19 +691,19 @@ export class SfuTransport implements VoiceTransport {
     try {
       const offer = await pc.createOffer();
       this.live(pc);
-      await this.setLocal(pc, tunedLocal(offer, this.streamMids()));
+      await this.setLocal(pc, this.tuneLocal(offer));
       this.live(pc);
       const res = await voiceApi.sfuPublish(
         {
           session_id: session,
           offer: description(pc.localDescription),
-          tracks: fresh.map((kind) => ({ mid: this.senders[kind]!.mid!, kind, ...(kind === "screen" ? { bitrate: this.screenBitrate } : {}) })),
+          tracks: fresh.map((kind) => ({ mid: this.senders[kind]!.mid!, kind, ...(kind === "screen" ? { bitrate: this.screenBitrate } : kind === "audio" && this.voiceStereo ? { bitrate: VOICE_STEREO_BITRATE } : {}) })),
         },
         timeout(),
       );
       this.live(pc);
       if (!res.answer) throw new Error("no answer to the offer");
-      await this.setRemote(pc, tunedRemote(res.answer, this.streamMids()));
+      await this.setRemote(pc, this.tuneRemote(res.answer));
       this.live(pc);
       failed = res.failed;
     } catch (err) {
@@ -769,6 +770,26 @@ export class SfuTransport implements VoiceTransport {
     return mids;
   }
 
+  /**
+   * Every voice this device pulls plays in stereo whenever its sender sends
+   * it, and this device's own says so while it does.
+   */
+  private listenMids(): Set<string> {
+    const mids = new Set<string>();
+    for (const p of this.pulled.values()) if (p.kind === "audio") mids.add(p.mid);
+    const own = this.senders.audio?.mid;
+    if (own && this.voiceStereo) mids.add(own);
+    return mids;
+  }
+
+  private tuneLocal(desc: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
+    return tunedLocal(desc, this.streamMids(), this.listenMids());
+  }
+
+  private tuneRemote<D extends { type?: RTCSdpType | string; sdp?: string | null }>(desc: D): D {
+    return tunedRemote(desc, this.streamMids(), this.voiceStereo);
+  }
+
   /** Takes a published track back from the SFU; publishing it again gives it a new name everyone pulls afresh. */
   private async unpublishNow(kind: PubKind): Promise<void> {
     const session = this.sessionId;
@@ -782,13 +803,28 @@ export class SfuTransport implements VoiceTransport {
     if (!mid) return;
     const offer = await pc.createOffer();
     this.live(pc);
-    await this.setLocal(pc, tunedLocal(offer, this.streamMids()));
+    await this.setLocal(pc, this.tuneLocal(offer));
     this.live(pc);
     const res = await voiceApi.sfuClose({ session_id: session, mids: [mid], offer: description(pc.localDescription) }, timeout());
     this.live(pc);
     if (!res.answer) throw new Error("no answer to closing a track");
-    await this.setRemote(pc, tunedRemote(res.answer, this.streamMids()));
+    await this.setRemote(pc, this.tuneRemote(res.answer));
     this.live(pc);
+  }
+
+  /**
+   * An encoder takes its channels from the description, so a voice that changes
+   * is published again, as a share changing codec is: everyone pulls it afresh.
+   */
+  setVoiceStereo(on: boolean): void {
+    if (on === this.voiceStereo) return;
+    this.voiceStereo = on;
+    if (!this.sessionId || !this.published.has("audio")) return;
+    void this.enqueue(async () => {
+      await this.unpublishNow("audio");
+      if (this.trackFor("audio") && this.mayPublish("audio")) await this.publishNow(["audio"]);
+      this.scheduleSync();
+    });
   }
 
   setLocalAudio(track: MediaStreamTrack | null): void {
@@ -1063,11 +1099,11 @@ export class SfuTransport implements VoiceTransport {
       this.byMid.set(p.mid, p);
     }
     if (res.offer) {
-      await this.setRemote(pc, tunedRemote(res.offer, this.streamMids()));
+      await this.setRemote(pc, this.tuneRemote(res.offer));
       this.live(pc);
       const answer = await pc.createAnswer();
       this.live(pc);
-      await this.setLocal(pc, tunedLocal(answer, this.streamMids()));
+      await this.setLocal(pc, this.tuneLocal(answer));
       this.live(pc);
       await voiceApi.sfuRenegotiate({ session_id: session, description: description(pc.localDescription) }, timeout());
       this.live(pc);
@@ -1091,12 +1127,12 @@ export class SfuTransport implements VoiceTransport {
     this.present();
     const offer = await pc.createOffer();
     this.live(pc);
-    await this.setLocal(pc, tunedLocal(offer, this.streamMids()));
+    await this.setLocal(pc, this.tuneLocal(offer));
     this.live(pc);
     const res = await voiceApi.sfuClose({ session_id: session, mids: list.map((p) => p.mid), offer: description(pc.localDescription) }, timeout());
     this.live(pc);
     if (!res.answer) throw new Error("no answer to closing tracks");
-    await this.setRemote(pc, tunedRemote(res.answer, this.streamMids()));
+    await this.setRemote(pc, this.tuneRemote(res.answer));
     this.live(pc);
   }
 

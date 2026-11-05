@@ -89,6 +89,7 @@ class SfuTransport(
     private var ops: Job? = null
 
     private var audioTrack: AudioTrack? = null
+    @Volatile private var voiceStereo = false
     private var videoTrack: VideoTrack? = null
     private var screenTrack: VideoTrack? = null
     private var screenBitrate = 6_000_000
@@ -254,10 +255,18 @@ class SfuTransport(
         return job
     }
 
+    /** Every sound this device pulls plays in stereo whenever it is sent that way, and its own voice says so while it does. */
+    private fun listenMids(): Set<String> {
+        val mids = HashSet<String>()
+        for (p in pulled.values) if (!p.kind.video) mids += p.mid
+        if (voiceStereo) senders[PubKind.AUDIO]?.let { tr -> runCatching { tr.mid }.getOrNull()?.let { mids += it } }
+        return mids
+    }
+
     /** Stops a step that waited while its connection was replaced or closed. */
     /** Applies this device's own description, noting the extension ids it gives each mid. */
     private suspend fun setLocal(of: PeerConnection, desc: SessionDescription) {
-        WebRtc.setLocal(of, desc)
+        WebRtc.setLocal(of, Sdp.tunedLocal(desc, listenMids()))
         if (of === pc) extmaps.note(runCatching { of.localDescription }.getOrNull()?.description ?: desc.description)
     }
 
@@ -530,7 +539,7 @@ class SfuTransport(
                         val res = VoiceApi.sfuRestart(session, offer, mid, anchor.wire)
                         live(of)
                         val answer = res.answer?.toWebRtc() ?: throw IllegalStateException("no answer to the ICE restart")
-                        setRemote(of, Sdp.tunedRemote(answer))
+                        setRemote(of, Sdp.tunedRemote(answer, voiceStereo))
                         iceRestarts++
                     } catch (e: Stale) {
                         throw e
@@ -619,10 +628,10 @@ class SfuTransport(
             setLocal(of, offer)
             live(of)
             val local = of.localDescription ?: offer
-            val res = VoiceApi.sfuPublish(session, local, fresh.map { Triple(senders[it]!!.mid, it.wire, if (it == PubKind.SCREEN) screenBitrate else 0) })
+            val res = VoiceApi.sfuPublish(session, local, fresh.map { Triple(senders[it]!!.mid, it.wire, if (it == PubKind.SCREEN) screenBitrate else if (it == PubKind.AUDIO && voiceStereo) Sdp.VOICE_STEREO_BITRATE else 0) })
             live(of)
             val answer = res.answer?.toWebRtc() ?: throw IllegalStateException("no answer to the offer")
-            setRemote(of, Sdp.tunedRemote(answer))
+            setRemote(of, Sdp.tunedRemote(answer, voiceStereo))
             live(of)
             failed = res.failed
         } catch (e: Throwable) {
@@ -682,8 +691,23 @@ class SfuTransport(
         val res = VoiceApi.sfuClose(session, listOf(mid), of.localDescription ?: offer)
         live(of)
         val answer = res.answer?.toWebRtc() ?: throw IllegalStateException("no answer to closing a track")
-        setRemote(of, Sdp.tunedRemote(answer))
+        setRemote(of, Sdp.tunedRemote(answer, voiceStereo))
         live(of)
+    }
+
+    /**
+     * An encoder takes its channels from the description, so a voice that changes
+     * is published again, as a share changing codec is: everyone pulls it afresh.
+     */
+    override fun setVoiceStereo(on: Boolean) {
+        if (on == voiceStereo) return
+        voiceStereo = on
+        if (sessionId == null || PubKind.AUDIO !in published) return
+        enqueue {
+            unpublishNow(PubKind.AUDIO)
+            if (audioTrack != null) publishNow(listOf(PubKind.AUDIO))
+            scheduleSync()
+        }
     }
 
     override fun setLocalAudio(track: AudioTrack?) {
@@ -873,7 +897,7 @@ class SfuTransport(
         }
         val offer = res.offer?.toWebRtc()
         if (offer != null) {
-            setRemote(of, Sdp.tunedRemote(offer))
+            setRemote(of, Sdp.tunedRemote(offer, voiceStereo))
             live(of)
             val answer = WebRtc.createAnswer(of)
             live(of)
@@ -911,7 +935,7 @@ class SfuTransport(
         val res = VoiceApi.sfuClose(session, list.map { it.mid }, of.localDescription ?: offer)
         live(of)
         val answer = res.answer?.toWebRtc() ?: throw IllegalStateException("no answer to closing tracks")
-        setRemote(of, Sdp.tunedRemote(answer))
+        setRemote(of, Sdp.tunedRemote(answer, voiceStereo))
         live(of)
     }
 

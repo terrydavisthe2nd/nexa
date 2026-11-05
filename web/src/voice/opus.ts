@@ -28,7 +28,17 @@ export const VOICE_BITRATE = 48_000;
  */
 export const STREAM_AUDIO_BITRATE = 128_000;
 
+/**
+ * The bitrate a voice is sent at in Dual Mono and True Stereo (channels.ts). The
+ * same as a share's sound, and what the SFU meter charges for it.
+ */
+export const VOICE_STEREO_BITRATE = 128_000;
+
 const VOICE: Record<string, string> = { usedtx: "1", maxaveragebitrate: String(VOICE_BITRATE) };
+/** A voice in two channels. DTX stays: a shut microphone still sends next to nothing. */
+const VOICE_STEREO: Record<string, string> = { usedtx: "1", maxaveragebitrate: String(VOICE_STEREO_BITRATE), stereo: "1", "sprop-stereo": "1" };
+/** What a side says to play a section in stereo. Sound sent in one channel plays in both ears as it always did. */
+const LISTEN: Record<string, string> = { stereo: "1" };
 /** A share's sound: in stereo, and without DTX, which would gate the quiet passages of music. */
 const STREAM: Record<string, string> = { usedtx: "0", maxaveragebitrate: String(STREAM_AUDIO_BITRATE), stereo: "1", "sprop-stereo": "1" };
 
@@ -77,15 +87,8 @@ function tuneSection(lines: string[], wanted: Record<string, string>): string[] 
   return out;
 }
 
-/**
- * A description with every Opus payload type of every audio section asking
- * for DTX and the voice bitrate, except the sections whose mid is in
- * `streamMids` (a screen share's sound), which ask for stereo at the stream
- * bitrate instead. With `voices` false the other sections are left as they
- * are: for this device's own descriptions, where only a share's sound needs
- * saying (its decoder plays stereo only when the local side asks for it).
- */
-export function tuneOpus(sdp: string, streamMids: ReadonlySet<string> = new Set(), voices = true): string {
+/** A description with each Opus section tuned as `wanted` says from its mid; null leaves one as it is. */
+function tuneSections(sdp: string, wanted: (mid: string | undefined) => Record<string, string> | null): string {
   if (!/opus\/48000/i.test(sdp)) return sdp;
   const eol = sdp.includes("\r\n") ? "\r\n" : "\n";
   const lines = sdp.split(eol);
@@ -95,8 +98,8 @@ export function tuneOpus(sdp: string, streamMids: ReadonlySet<string> = new Set(
   let section: string[] = [];
   const flush = () => {
     const mid = section.find((l) => l.startsWith("a=mid:"))?.slice(6).trim();
-    const stream = mid !== undefined && streamMids.has(mid);
-    out.push(...(section[0]?.startsWith("m=") && (stream || voices) ? tuneSection(section, stream ? STREAM : VOICE) : section));
+    const tune = section[0]?.startsWith("m=") ? wanted(mid) : null;
+    out.push(...(tune ? tuneSection(section, tune) : section));
     section = [];
   };
   for (const line of lines) {
@@ -108,14 +111,32 @@ export function tuneOpus(sdp: string, streamMids: ReadonlySet<string> = new Set(
   return out.join(eol);
 }
 
-/** A description to apply as the remote one, tuned. Rollbacks and empty ones pass as they are. */
-export function tunedRemote<D extends { type?: RTCSdpType | string; sdp?: string | null }>(desc: D, streamMids?: ReadonlySet<string>): D {
-  if (!desc || !desc.sdp || desc.type === "rollback") return desc;
-  return { ...desc, sdp: tuneOpus(desc.sdp, streamMids) };
+/**
+ * A description with every Opus payload type of every audio section asking
+ * for DTX and the voice bitrate, except the sections whose mid is in
+ * `streamMids` (a screen share's sound), which ask for stereo at the stream
+ * bitrate instead. With `voices` false the other sections are left as they
+ * are. `stereoVoice` sends this device's voice in two channels (channels.ts).
+ */
+export function tuneOpus(sdp: string, streamMids: ReadonlySet<string> = new Set(), voices = true, stereoVoice = false): string {
+  return tuneSections(sdp, (mid) => (mid !== undefined && streamMids.has(mid) ? STREAM : voices ? (stereoVoice ? VOICE_STEREO : VOICE) : null));
 }
 
-/** This device's own description, its share-sound sections asking for stereo; anything else passes as it is. */
-export function tunedLocal<D extends { type?: RTCSdpType | string; sdp?: string | null }>(desc: D, streamMids: ReadonlySet<string>): D {
-  if (!desc || !desc.sdp || desc.type === "rollback" || streamMids.size === 0) return desc;
-  return { ...desc, sdp: tuneOpus(desc.sdp, streamMids, false) };
+/** A description to apply as the remote one, tuned. Rollbacks and empty ones pass as they are. */
+export function tunedRemote<D extends { type?: RTCSdpType | string; sdp?: string | null }>(desc: D, streamMids?: ReadonlySet<string>, stereoVoice = false): D {
+  if (!desc || !desc.sdp || desc.type === "rollback") return desc;
+  return { ...desc, sdp: tuneOpus(desc.sdp, streamMids, true, stereoVoice) };
+}
+
+/**
+ * This device's own description. A decoder plays stereo only when the local
+ * side asks for it, so a share's sound asks here too, and so does every voice
+ * in `listen` (a set of mids, or "all" for each audio section), whether its
+ * sender uses two channels or not: nobody can say in advance who will.
+ * Anything else passes as it is.
+ */
+export function tunedLocal<D extends { type?: RTCSdpType | string; sdp?: string | null }>(desc: D, streamMids: ReadonlySet<string>, listen: ReadonlySet<string> | "all" = new Set()): D {
+  if (!desc || !desc.sdp || desc.type === "rollback") return desc;
+  if (streamMids.size === 0 && listen !== "all" && listen.size === 0) return desc;
+  return { ...desc, sdp: tuneSections(desc.sdp, (mid) => (mid !== undefined && streamMids.has(mid) ? STREAM : listen === "all" || (mid !== undefined && listen.has(mid)) ? LISTEN : null)) };
 }

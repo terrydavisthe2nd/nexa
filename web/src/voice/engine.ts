@@ -28,6 +28,7 @@ import { pushToTalkOn } from "./callPerms";
 import { SfuTransport } from "./sfu";
 import { type SharePlan, sharePlan } from "./shareQuality";
 import { shareAllowance } from "@/lib/plans";
+import { keepsChannelsApart, sendsTwoChannels } from "./channels";
 import { makeDenoiser, prepareDenoiser, releaseDenoiser } from "./denoise";
 import { AUDIBLE_LEVEL, SpeakingGate } from "./speaking";
 import type { TransportEvents, VoiceTransport } from "./transport";
@@ -63,6 +64,8 @@ interface Session {
   screenPending: boolean;
   /** Asking for the microphone again after it was refused; one ask at a time. */
   micRetrying: boolean;
+  micSwap: Promise<void> | null;
+  micSwapAgain: boolean;
   noiseFloor: number;
   pttHeld: boolean;
   /** The Priority Speaker key is held: the mic is open, as with push to talk, and everyone else is turned down. */
@@ -247,10 +250,10 @@ export function priorityHeld(): boolean {
 export function applyInputGain(): void {
   const s = session;
   if (!s?.micRaw) return;
-  const volume = useSettings.getState().settings.voice.inputVolume;
+  const { inputVolume: volume, voiceChannels } = useSettings.getState().settings.voice;
   if (s.inputGain) {
-    // moving back to 100% takes the extra stage out of the way again, unless RNNoise needs the graph anyway
-    if (volume === 100 && !s.denoiser) void rebuildInput(s);
+    // moving back to 100% takes the extra stage out of the way again, unless RNNoise or Dual Mono needs the graph anyway
+    if (volume === 100 && !s.denoiser && voiceChannels !== "dual") void rebuildInput(s);
     else s.inputGain.gain.value = volume / 100;
     return;
   }
@@ -262,7 +265,7 @@ async function rebuildInput(s: Session): Promise<void> {
   const raw = s.micRaw;
   if (!raw) return;
   const gen = ++s.inputGen;
-  const denoiser = s.rnnoise ? await makeDenoiser(audioContext()) : null;
+  const denoiser = s.rnnoise ? await newDenoiser() : null;
   // overtaken while RNNoise was being made: a newer graph, a new microphone, or the call ended
   if (gen !== s.inputGen || session !== s || s.micRaw !== raw) {
     releaseDenoiser(denoiser);
@@ -285,8 +288,17 @@ async function rebuildInput(s: Session): Promise<void> {
  * the browser's own, and says so once.
  */
 async function noisePlan(s: Session): Promise<{ rnnoise: boolean; browserNoise: boolean }> {
-  const mode = useSettings.getState().settings.voice.noiseMode;
+  const { noiseMode: mode, voiceChannels } = useSettings.getState().settings.voice;
   if (mode === "off") return { rnnoise: false, browserNoise: false };
+  // True Stereo has only RNNoise: the browser's own would make the microphone one channel
+  if (keepsChannelsApart(voiceChannels)) {
+    if (await prepareDenoiser(audioContext())) return { rnnoise: true, browserNoise: false };
+    if (!s.noiseNoticed && session === s) {
+      s.noiseNoticed = true;
+      useUI.getState().toast(tr_("voice.channels.noNoise"), "info");
+    }
+    return { rnnoise: false, browserNoise: false };
+  }
   if (mode === "standard") return { rnnoise: false, browserNoise: true };
   if (await prepareDenoiser(audioContext())) return { rnnoise: true, browserNoise: false };
   if (!s.noiseNoticed && session === s) {
@@ -357,7 +369,7 @@ export async function join(channelId: string, ice: { servers: RTCIceServer[]; sf
     },
   };
   const transport: VoiceTransport = ice.sfu ? new SfuTransport(myId, channelId, ice.servers, events) : new MeshTransport(myId, ice.servers, events);
-  s = { channelId, transport, mic: null, micRaw: null, send: new VoiceSend(), inputGain: null, inputSource: null, denoiser: null, rnnoise: false, noiseNoticed: false, inputGen: 0, meter: null, meterTimer: null, camera: null, screen: null, cameraPending: false, screenPending: false, micRetrying: false, noiseFloor: 0.01, pttHeld: false, priorityHeld: false, vadOpen: false, vadHoldUntil: 0, speaking: new SpeakingGate(), announced: false, iceTimer: null, cleanups: [] };
+  s = { channelId, transport, mic: null, micRaw: null, send: new VoiceSend(), inputGain: null, inputSource: null, denoiser: null, rnnoise: false, noiseNoticed: false, inputGen: 0, meter: null, meterTimer: null, camera: null, screen: null, cameraPending: false, screenPending: false, micRetrying: false, micSwap: null, micSwapAgain: false, noiseFloor: 0.01, pttHeld: false, priorityHeld: false, vadOpen: false, vadHoldUntil: 0, speaking: new SpeakingGate(), announced: false, iceTimer: null, cleanups: [] };
   session = s;
   useVoice.getState().setConnection("connecting");
   releaseCall ??= holdReload("call");
@@ -368,10 +380,10 @@ export async function join(channelId: string, ice: { servers: RTCIceServer[]; sf
     const plan = await noisePlan(s);
     s.rnnoise = plan.rnnoise;
     mic = await getMic(useSettings.getState().settings.voice, { browserNoise: plan.browserNoise });
-    if (plan.rnnoise) denoiser = await makeDenoiser(audioContext());
+    if (plan.rnnoise) denoiser = await newDenoiser();
     if (plan.rnnoise && !denoiser) {
       s.rnnoise = false;
-      await mic.getAudioTracks()[0]?.applyConstraints({ noiseSuppression: true });
+      await browserNoiseInstead(mic);
     }
     useVoice.getState().setMicBlocked(false);
   } catch (err) {
@@ -393,6 +405,7 @@ export async function join(channelId: string, ice: { servers: RTCIceServer[]; sf
     s.micRaw = mic;
     s.mic = buildInput(s, mic, denoiser);
     watchMic(s);
+    transport.setVoiceStereo(sendsTwoChannels(useSettings.getState().settings.voice.voiceChannels));
     if (lastInputChoice() === "missing") {
       // Better to say so than to carry a microphone nobody is talking into.
       useUI.getState().toast(tr_("session.theMicrophoneYouPickedIsNot"), "error");
@@ -520,8 +533,20 @@ export function stats(): Promise<{ rtt: number; loss: number }> | null {
  * microphone's own track is sent instead: a graph that produces silence on
  * some devices is not worth inserting for no change in level.
  */
+/** The RNNoise stage for how the voice is sent now. */
+function newDenoiser(): Promise<AudioNode | null> {
+  return makeDenoiser(audioContext(), keepsChannelsApart(useSettings.getState().settings.voice.voiceChannels) ? 2 : 1);
+}
+
+/** RNNoise would not start: the browser's own takes over, except where it would make the microphone one channel. */
+async function browserNoiseInstead(mic: MediaStream): Promise<void> {
+  if (keepsChannelsApart(useSettings.getState().settings.voice.voiceChannels)) return;
+  await mic.getAudioTracks()[0]?.applyConstraints({ noiseSuppression: true });
+}
+
 function buildInput(s: Session, raw: MediaStream, denoiser: AudioNode | null): MediaStream {
-  const { stream, gain, source } = sentStream(audioContext(), raw, useSettings.getState().settings.voice.inputVolume, denoiser);
+  const { inputVolume, voiceChannels } = useSettings.getState().settings.voice;
+  const { stream, gain, source } = sentStream(audioContext(), raw, inputVolume, denoiser, voiceChannels);
   // a graph that could not be built sends the microphone as it is
   if (denoiser && !source) releaseDenoiser(denoiser);
   s.inputGain = gain;
@@ -609,12 +634,32 @@ function stopMeter(s: Session): void {
  * Opens the microphone again and puts it in the call in place of whatever was
  * there. `failure` is what to say when that does not work; null says nothing.
  */
-async function swapMic(s: Session, failure: string | null): Promise<void> {
+function swapMic(s: Session, failure: string | null): Promise<void> {
+  // Settings that change together ask more than once. One swap runs at a time and
+  // the last request runs after it, so what ends up in the call is the newest settings.
+  if (s.micSwap) {
+    s.micSwapAgain = true;
+    return s.micSwap;
+  }
+  s.micSwap = (async () => {
+    try {
+      do {
+        s.micSwapAgain = false;
+        await swapMicOnce(s, failure);
+      } while (s.micSwapAgain && session === s);
+    } finally {
+      s.micSwap = null;
+    }
+  })();
+  return s.micSwap;
+}
+
+async function swapMicOnce(s: Session, failure: string | null): Promise<void> {
   try {
     const plan = await noisePlan(s);
     const next = await getMic(useSettings.getState().settings.voice, { browserNoise: plan.browserNoise });
-    const denoiser = plan.rnnoise ? await makeDenoiser(audioContext()) : null;
-    if (plan.rnnoise && !denoiser) await next.getAudioTracks()[0]?.applyConstraints({ noiseSuppression: true });
+    const denoiser = plan.rnnoise ? await newDenoiser() : null;
+    if (plan.rnnoise && !denoiser) await browserNoiseInstead(next);
     if (session !== s) {
       next.getTracks().forEach((t) => t.stop());
       releaseDenoiser(denoiser);
@@ -633,6 +678,7 @@ async function swapMic(s: Session, failure: string | null): Promise<void> {
     s.micRaw = next;
     s.mic = buildInput(s, next, denoiser);
     watchMic(s);
+    s.transport.setVoiceStereo(sendsTwoChannels(useSettings.getState().settings.voice.voiceChannels));
     s.transport.setLocalAudio(s.send.track(s.mic.getAudioTracks()[0] ?? null));
     startMeter(s);
     applyTransmit();

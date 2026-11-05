@@ -2,6 +2,7 @@ package fish.nexa.voice
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.MediaRecorder
 import android.util.Log
 import fish.nexa.net.IceServer
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -25,7 +26,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * The WebRTC stack for this process: one factory, one EGL context, one audio
+ * The WebRTC stack for this process: a factory, one EGL context, an audio
  * device module with the phone's echo canceller, and the capture hook RNNoise
  * runs in. Made on the first call, never before.
  */
@@ -42,29 +43,51 @@ object WebRtc {
 
     val eglBase: EglBase by lazy { EglBase.create() }
 
-    private val processing: ExternalAudioProcessingFactory by lazy {
-        ExternalAudioProcessingFactory().also { it.setCapturePostProcessing(Denoise) }
-    }
-
-    lateinit var adm: JavaAudioDeviceModule
-        private set
-
     /**
      * Debug builds only: encoders to use in place of the phone's own, set
      * before the first call (CallTestHooks SOFTAVC), so an emulator, which
      * has no hardware encoder, can share its screen in H.264 as a phone does.
      */
+    @Volatile var testPlayback: JavaAudioDeviceModule.PlaybackSamplesReadyCallback? = null
+
     @Volatile var testEncoders: ((EglBase.Context) -> org.webrtc.VideoEncoderFactory)? = null
 
-    val factory: PeerConnectionFactory by lazy {
+    private val initialized by lazy {
         PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(app).createInitializationOptions())
-        adm = JavaAudioDeviceModule.builder(app)
+    }
+    private val factories = HashMap<Boolean, PeerConnectionFactory>()
+
+    /**
+     * Whether calls capture two channels. An audio device module opens the
+     * microphone one way for its whole life, and phones are safest with the mono
+     * voice path, so True Stereo has a factory of its own, chosen as a call starts
+     * (Engine.join) and kept: closing one under a connection still shutting down
+     * is not safe, and one not in a call holds no microphone.
+     */
+    @Volatile var stereoInput = false
+        private set
+
+    /** Only between calls. */
+    fun useStereoInput(on: Boolean) {
+        stereoInput = on
+    }
+
+    val factory: PeerConnectionFactory
+        @Synchronized get() = factories.getOrPut(stereoInput) { build(stereoInput) }
+
+    private fun build(stereo: Boolean): PeerConnectionFactory {
+        initialized
+        val adm = JavaAudioDeviceModule.builder(app)
             // Use WebRTC AEC3 with its playback reference, rather than a vendor effect
             // whose quality and interaction with capture processing vary by phone.
             .setUseHardwareAcousticEchoCanceler(false)
             .setUseHardwareNoiseSuppressor(false)
-            // a share's sound arrives in stereo; voices are mono either way
+            // voices and a share's sound can arrive in stereo
             .setUseStereoOutput(true)
+            .setUseStereoInput(stereo)
+            .setAudioBufferCallback(StereoInput)
+            .apply { testPlayback?.let { setPlaybackSamplesReadyCallback(it) } }
+            .apply { if (stereo) setAudioSource(MediaRecorder.AudioSource.MIC) }
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
@@ -77,9 +100,9 @@ object WebRtc {
                 override fun onWebRtcAudioRecordError(errorMessage: String?) = micError(errorMessage)
             })
             .createAudioDeviceModule()
-        PeerConnectionFactory.builder()
+        return PeerConnectionFactory.builder()
             .setAudioDeviceModule(adm)
-            .setAudioProcessingFactory(processing)
+            .setAudioProcessingFactory(ExternalAudioProcessingFactory().also { it.setCapturePostProcessing(Denoise) })
             .setVideoEncoderFactory(testEncoders?.invoke(eglBase.eglBaseContext) ?: DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
             .createPeerConnectionFactory()

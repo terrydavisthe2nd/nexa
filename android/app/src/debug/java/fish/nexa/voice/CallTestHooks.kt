@@ -14,7 +14,9 @@ import org.json.JSONObject
  *
  *   am broadcast -a fish.nexa.debug.CALL --es channel ID [--ez video true]
  *   am broadcast -a fish.nexa.debug.LEAVE
- *   am broadcast -a fish.nexa.debug.TONE --ei mode 0..3      (the microphone replaced: 1 tone, 2 tone in phrases, 3 noise)
+ *   am broadcast -a fish.nexa.debug.TONE --ei mode 0..4      (the microphone replaced: 1 tone, 2 tone in phrases, 3 noise, 4 a tone on each side)
+ *   am broadcast -a fish.nexa.debug.MUTE
+ *   am broadcast -a fish.nexa.debug.LISTEN                   (before the first call: each second, what plays on each side at 440 and 1500 Hz, logged)
  *   am broadcast -a fish.nexa.debug.CAMERA
  *   am broadcast -a fish.nexa.debug.WATCH --es user ID --ez on true
  *   am broadcast -a fish.nexa.debug.STATS [--es nonce X]     (logged as NexaCallTest, with the nonce)
@@ -30,7 +32,13 @@ class CallTestHooks : BroadcastReceiver() {
         when (intent.action) {
             "fish.nexa.debug.CALL" -> intent.getStringExtra("channel")?.let { Calls.join(it, intent.getBooleanExtra("video", false)) }
             "fish.nexa.debug.LEAVE" -> Calls.leave()
-            "fish.nexa.debug.TONE" -> Denoise.tone = intent.getIntExtra("mode", 0)
+            "fish.nexa.debug.TONE" -> {
+                val mode = intent.getIntExtra("mode", 0)
+                Denoise.tone = mode
+                StereoInput.test = mode
+            }
+            "fish.nexa.debug.MUTE" -> VoiceLocal.toggleMute()
+            "fish.nexa.debug.LISTEN" -> WebRtc.testPlayback = org.webrtc.audio.JavaAudioDeviceModule.PlaybackSamplesReadyCallback { s -> heard(s) }
             "fish.nexa.debug.CAMERA" -> Calls.toggleCamera()
             "fish.nexa.debug.SHARE" -> Nexa.scope.launch {
                 val permission = ScreenConsent.ask() ?: return@launch
@@ -52,6 +60,24 @@ class CallTestHooks : BroadcastReceiver() {
             "fish.nexa.debug.RTP" -> Calls.scope.launch { Log.i(TAG, "rtp " + rtp()) }
             "fish.nexa.debug.WRONGKEY" -> Calls.scope.launch { Log.i(TAG, "wrongkey " + wrongKeys(intent.getBooleanExtra("on", true))) }
         }
+    }
+
+    private val played = Array(2) { ArrayList<Short>() }
+
+    /** What the speakers are given, each channel on its own. */
+    private fun heard(s: org.webrtc.audio.JavaAudioDeviceModule.AudioSamples) {
+        val pcm = java.nio.ByteBuffer.wrap(s.data).order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        if (s.channelCount != 2) { Log.i(TAG, "playing ${s.channelCount} channel(s)"); return }
+        while (pcm.remaining() >= 2) { played[0] += pcm.get(); played[1] += pcm.get() }
+        if (played[0].size < s.sampleRate) return
+        fun size(b: List<Short>, f: Double): Double {
+            val c = 2 * Math.cos(2 * Math.PI * f / s.sampleRate)
+            var x = 0.0; var y = 0.0
+            for (v in b) { val t = v / 32768.0 + c * x - y; y = x; x = t }
+            return Math.sqrt(Math.max(0.0, x * x + y * y - c * x * y)) / b.size * 2
+        }
+        Log.i(TAG, "playing L440=%.4f L1500=%.4f R440=%.4f R1500=%.4f".format(size(played[0], 440.0), size(played[0], 1500.0), size(played[1], 440.0), size(played[1], 1500.0)))
+        played[0].clear(); played[1].clear()
     }
 
     private suspend fun stats(): JSONObject {

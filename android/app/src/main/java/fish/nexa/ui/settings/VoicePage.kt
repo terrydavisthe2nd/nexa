@@ -147,7 +147,11 @@ fun VoicePage() {
     val doc = settingsDoc()
     val voice = doc.obj("voice") ?: JsonObject(emptyMap())
     val mode = (voice["mode"] as? JsonPrimitive)?.contentOrNull ?: "vad"
-    val noise = (voice["noiseMode"] as? JsonPrimitive)?.contentOrNull ?: "enhanced"
+    val channels = (voice["voiceChannels"] as? JsonPrimitive)?.contentOrNull.takeIf { it == "dual" || it == "stereo" } ?: "mono"
+    val apart = channels == "stereo"
+    val inCall = fish.nexa.voice.Voice.state.collectAsState().value.mine != null
+    // True Stereo has no Standard noise suppression (web voice/channels.ts): what is saved comes back when it ends
+    val noise = ((voice["noiseMode"] as? JsonPrimitive)?.contentOrNull ?: "enhanced").let { if (apart && it == "standard") "enhanced" else it }
     val auto = voice.voiceBool("autoSensitivity", true)
     val sensitivity = voice.voiceInt("sensitivity", -50).coerceIn(-60, 0)
     val inputVolume = voice.voiceInt("inputVolume", 100)
@@ -198,14 +202,19 @@ fun VoicePage() {
         if (!auto) SensitivityBar(sensitivity)
     }
 
+    SectionHeading(t("voice.channels.title"), Modifier.settingAnchor("voiceStereo"))
+    for (m in listOf("mono", "dual", "stereo")) RadioCard(t("voice.channels.$m"), channels == m, { patchVoice("voiceChannels" to JsonPrimitive(m)) }, t("voice.channels.${m}Hint"))
+    if (apart) Hint(t("voice.channels.stereoNote"))
+    if (inCall && apart != fish.nexa.voice.WebRtc.stereoInput) Hint(t("android.voice.channelsNextCall"))
+
     SectionHeading(t("voice.noise.title"), Modifier.settingAnchor("noiseSuppression"))
     RadioCard(t("voice.noise.enhanced"), noise == "enhanced", { noiseModePatch("enhanced") }, t("voice.noise.enhancedHint"))
-    RadioCard(t("voice.noise.standard"), noise == "standard", { noiseModePatch("standard") }, t("voice.noise.standardHint"))
+    RadioCard(t("voice.noise.standard"), noise == "standard", { noiseModePatch("standard") }, t("voice.noise.standardHint"), enabled = !apart)
     RadioCard(t("voice.noise.off"), noise == "off", { noiseModePatch("off") }, t("voice.noise.offHint"))
 
     SectionHeading(t("settings.voice.voiceProcessing"), Modifier.settingAnchor("voiceProcessing"))
-    ToggleRow(t("settings.voice.echoCancellation"), voice.voiceBool("echoCancellation", true), { patchVoice("echoCancellation" to JsonPrimitive(it)) })
-    ToggleRow(t("settings.voice.automaticGainControl"), voice.voiceBool("autoGain", true), { patchVoice("autoGain" to JsonPrimitive(it)) }, divider = false)
+    ToggleRow(t("settings.voice.echoCancellation"), !apart && voice.voiceBool("echoCancellation", true), { patchVoice("echoCancellation" to JsonPrimitive(it)) }, enabled = !apart)
+    ToggleRow(t("settings.voice.automaticGainControl"), !apart && voice.voiceBool("autoGain", true), { patchVoice("autoGain" to JsonPrimitive(it)) }, enabled = !apart, divider = false)
 
     PeopleVolumes()
 }

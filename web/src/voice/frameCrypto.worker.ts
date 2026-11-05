@@ -12,7 +12,7 @@
 import { FIRST_FRAME_COUNTER, MAX_FRAME_COUNTER, clearBytes, frameIv, importFrameKey, newSalt, nextCounter, openFrame, openH264Frame, sealFrame, sealH264Frame, type FrameKind } from "./frameCrypto";
 import { H264, SizeGuard } from "./frameSize";
 import { isAnnexB } from "./h264";
-import { CopyHistory, Mender, unwrapCopies, wrapCopies, type Mended } from "./redundancy";
+import { CopyHistory, Mender, copiesThatFit, unwrapCopies, wrapCopies, type Mended } from "./redundancy";
 
 type Op = "encrypt" | "decrypt" | "inspect";
 
@@ -221,7 +221,7 @@ function transformer({ op, kind, id, voice = false, codec }: StreamOptions): Tra
           const ts = history ? frame.getMetadata?.().rtpTimestamp : undefined;
           if (history && ts !== undefined) {
             const copies = history.take(ts, data);
-            if (redundancy > 0) plain = wrapCopies(data, copies.slice(0, redundancy)) ?? data;
+            if (redundancy > 0) plain = wrapCopies(data, copiesThatFit(data.length, copies.slice(0, redundancy))) ?? data;
           }
           if (kind === "video" && isH264(frame, plain, codec)) {
             let sealed: Uint8Array | null = null;

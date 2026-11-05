@@ -12,6 +12,8 @@
                 <action android:name="fish.nexa.debug.LEAVE" />
                 <action android:name="fish.nexa.debug.TONE" />
                 <action android:name="fish.nexa.debug.CAMERA" />
+                <action android:name="fish.nexa.debug.MUTE" />
+                <action android:name="fish.nexa.debug.LISTEN" />
                 <action android:name="fish.nexa.debug.WATCH" />
                 <action android:name="fish.nexa.debug.STATS" />
                 <action android:name="fish.nexa.debug.SEAL" />

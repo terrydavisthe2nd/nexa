@@ -4,6 +4,7 @@ import { mediaKey } from "@/lib/mediaLinks";
 import { users as usersApi } from "@/api/users";
 import { ApiError } from "@/api/client";
 import { decryptSettings, encryptSettings } from "@/lib/settingsCrypto";
+import { isVoiceChannels, type VoiceChannels } from "@/voice/channels";
 import { fromStreamQuality, isShareFps, isShareResolution, shareModeOf } from "@/voice/shareQuality";
 import { sanitizeRail, type RailLayout } from "@/lib/railLayout";
 import { EMPTY_DM_LIST, sanitizeDMList, type DMListLayout } from "@/lib/dmLayout";
@@ -57,6 +58,8 @@ export interface VoiceSettings {
   noiseSuppression: boolean;
   echoCancellation: boolean;
   autoGain: boolean;
+  /** How this device's voice is sent: one channel, one channel in both ears, or the microphone's own left and right (voice/channels.ts). */
+  voiceChannels: VoiceChannels;
   /** Which way a share is tuned (voice/shareQuality.ts sharePlan); the share dialog starts from the last one used. */
   shareMode: ShareMode;
   /** A Custom share's size and frame rate. */
@@ -306,6 +309,7 @@ export const DEFAULT_SETTINGS: Settings = {
     noiseSuppression: true,
     echoCancellation: true,
     autoGain: true,
+    voiceChannels: "mono",
     shareMode: "performance",
     shareResolution: "1080p",
     shareFps: 30,
@@ -513,6 +517,7 @@ function mergeVoice(base: VoiceSettings, incoming: Partial<VoiceSettings> | unde
   if (voice.noiseSuppression === false) voice.noiseMode = "off";
   else if (voice.noiseSuppression === true && voice.noiseMode === "off") voice.noiseMode = "enhanced";
   voice.noiseSuppression = voice.noiseMode !== "off";
+  if (!isVoiceChannels(voice.voiceChannels)) voice.voiceChannels = "mono";
   return voice;
 }
 

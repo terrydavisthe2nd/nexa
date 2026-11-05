@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COPIES_FRESH_MS, CopyHistory, MAX_COPY_AGE, Mender, joinFrames, packetSamples, unwrapCopies, wrapCopies, type Copy } from "./redundancy";
+import { COPIES_FRESH_MS, CopyHistory, MAX_COPY_AGE, MAX_PACKET_WITH_COPIES, Mender, copiesThatFit, joinFrames, packetSamples, unwrapCopies, wrapCopies, type Copy } from "./redundancy";
 
 /** A code 0 Opus packet: a TOC byte (SILK wideband 20 ms here) and a frame. */
 const opus = (len: number, seed = 1) => Uint8Array.from({ length: len }, (_, i) => (i === 0 ? 0x48 : (i * 31 + seed) & 0xff));
@@ -205,5 +205,14 @@ describe("lost frames played from copies", () => {
     const later = at + COPIES_FRESH_MS + 1;
     expect(push(m, frame(4), later).map((x) => x.id)).toEqual([4]);
     expect(m.holding).toBe(false);
+  });
+});
+
+describe("copies of a stereo voice", () => {
+  it("never grow a packet past what a network carries whole", () => {
+    const frame = new Uint8Array(400);
+    const fit = copiesThatFit(400, [{ dts: 960, data: frame }, { dts: 1920, data: frame }, { dts: 2880, data: frame }]);
+    expect(fit.map((c) => c.dts)).toEqual([960]);
+    expect(fit.reduce((n, c) => n + c.data.length, 400)).toBeLessThanOrEqual(MAX_PACKET_WITH_COPIES);
   });
 });

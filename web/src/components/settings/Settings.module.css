@@ -92,7 +92,7 @@
 .radio { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--sheen), var(--bg-surface); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border-subtle); cursor: pointer; margin-bottom: 8px; transition: box-shadow var(--transition), background var(--transition); }
 .radio:hover { box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border); }
 .radio[data-on="true"] { background: var(--sheen), color-mix(in srgb, var(--brand) 10%, var(--bg-surface)); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 2px color-mix(in srgb, var(--brand) 80%, transparent), 0 8px 20px -12px color-mix(in srgb, var(--brand) 80%, transparent); }
-.radio input { accent-color: var(--brand); width: 18px; height: 18px; }
+.radio input { accent-color: var(--brand); width: 18px; height: 18px; flex: none; }
 .radio[data-disabled] { cursor: default; }
 .radio[data-disabled] .radioLabel { color: var(--text-muted); }
 .radioText { display: flex; flex-direction: column; }

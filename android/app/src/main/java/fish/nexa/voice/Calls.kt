@@ -112,7 +112,7 @@ object Calls {
                 prev = v
                 if (Engine.current() == null) return@collect
                 fun changed(k: String) = before[k] != v[k]
-                if (changed("noiseMode") || changed("echoCancellation") || changed("autoGain") || changed("noiseSuppression")) Engine.refreshMic()
+                if (changed("noiseMode") || changed("echoCancellation") || changed("autoGain") || changed("noiseSuppression") || changed("voiceChannels")) Engine.refreshMic()
                 if (changed("outputVolume")) Engine.setMasterVolume(Voice.settingInt("outputVolume", 100))
                 if (changed("inputVolume")) Engine.applyInputGain()
                 if (changed("mode")) Engine.applyTransmit()

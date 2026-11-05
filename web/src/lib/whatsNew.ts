@@ -26,6 +26,12 @@ export interface Release {
 /** Newest first. */
 export const RELEASES: Release[] = [
   {
+    id: "2026-11-04",
+    items: [
+      { icon: AudioLines, title: "whatsNew.r20261104.stereoTitle", body: "whatsNew.r20261104.stereoBody" },
+    ],
+  },
+  {
     id: "2026-11-02",
     items: [
       { icon: Palette, title: "whatsNew.r20261102.themeBuilderTitle", body: "whatsNew.r20261102.themeBuilderBody" },

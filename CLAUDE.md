@@ -362,6 +362,9 @@ Each starts its own throwaway chatd.
 - `tools/sfu_call.py` and `tools/sfu_guest.py`: real calls and a guest through Cloudflare Realtime (keys
   from `chatd.env`). sfu_call turns noise suppression off, since its fake microphone is a steady tone
   the speech gate rightly silences.
+- `tools/stereo_call.py`: each of Mono, Dual Mono and True Stereo, changed mid-call in Settings, with a
+  different tone in each channel of a fake microphone and each channel the listener decodes measured apart;
+  `--sfu` through Cloudflare, `--speech` a speech-like sound on the left through RNNoise.
 - `tools/call_quality.py`: calls over bad networks made by `tools/netsim`.
 - `tools/share_quality.py`: a hard-motion screen share through Cloudflare, timed frame by frame as the
   viewer sees it; the sharer is Chromium, Firefox or the desktop app's Electron in a hidden window;
@@ -926,6 +929,32 @@ as Discord holds it:
 - The call view fits tiles from fractional ResizeObserver sizes rounded down (rounding up clipped the
   grid at fractional widths); `tools/call_layout_audit.py` checks it through the dev-only
   `web/tests/call-layout.html` fixture in Chromium and WebKit, with a negative control.
+- Stereo voice (Settings, Voice & Video, Stereo Voice; the synced `voiceChannels`, `mono` by default, web
+  `voice/channels.ts`): Mono is what calls always carried, untouched. Dual Mono and True Stereo send
+  two-channel Opus at 128 kbit/s with DTX (`opus.ts` `VOICE_STEREO_BITRATE`, Android `Sdp`), which an
+  encoder takes from the applied remote description, so changing one mid-call publishes the voice again
+  through the SFU (`setVoiceStereo`; everyone pulls it afresh, a few seconds without that voice) or
+  renegotiates peer to peer. Every current app asks to play pulled voices in stereo in its own description
+  (`tunedLocal`, `Sdp.tunedLocal`); peer to peer that stays local and the description sent is the one as
+  made, since an older app would take `stereo=1` from it. Older apps hear a stereo voice mixed to mono.
+  Measured with a different tone in each channel (`tools/stereo_call.py`, Chromium 153): Chromium's echo
+  cancellation, noise suppression and automatic gain each make a microphone one channel in both ears, so
+  True Stereo opens it without them (the settings page disables them and Standard) and only RNNoise can
+  run, one state a channel behind one shared gate (`denoise.worklet.ts`, `SpeechGate.processAll`). Voice
+  messages always record in mono. A voice packet with its copies stays within `MAX_PACKET_WITH_COPIES`
+  (`copiesThatFit`), since a stereo frame is far larger than a mono one. The meter charges a voice at the
+  bitrate its app declares on publish, between `AudioBps` and `StreamAudioBps` (`ClampVoiceBps`,
+  `voice.State.AudioBps`, not on the wire). No plan limits any of this.
+- Android stereo capture: `AudioRecord` opens one way for an audio device module's life, so True Stereo
+  has its own factory (`WebRtc.useStereoInput`, chosen in `Engine.join`, kept for the process). The capture
+  post-processing hook only ever gets the first channel, even with two captured, so in two-channel capture
+  `Denoise.process` does nothing and `StereoInput` (`AudioBufferCallback`, before WebRTC) does RNNoise, the
+  input volume, the level and the gate on both (`nativeProcessTwoChannels`). This must not break: gating
+  only in the hook left the right channel open while muted. A one-channel encoder fed from two-channel
+  capture came out garbled, so that call stays on Dual Mono until it ends (`Engine.sendsTwoChannels`,
+  `android.voice.channelsNextCall`). Whether a phone's own microphones or its voice-call audio path keep
+  stereo is the hardware's business and untested; the emulator only proves what reaches `AudioRecord`'s
+  buffer and what the speakers are handed (debug hooks `TONE` mode 4, `MUTE`, `LISTEN`).
 - Noise suppression is Xiph RNNoise commit `70f1d256acd4b34a572f999a05c87bf00b67730d` on both (web
   `@shiguredo/rnnoise-wasm` 2025.1.5 in `voice/denoise.worklet.ts`; native CMake fetches source and
   weights under SHA-256), gated by `voice/speechGate.ts` (native `SpeechGate`: hysteresis, 20 ms of
@@ -1439,6 +1468,8 @@ payments (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_API_URL` for a f
 - Tests against live services run only with their variables set (`UNFURL_LIVE`, `REALTIME_LIVE`,
   `TELEGRAM_LIVE_TOKEN`, `DISCORD_BOT_TOKEN`, and `OBJSTORE_LIVE` with the test bucket's `R2_*`, which
   refuses any bucket not named for tests); the Discord tests otherwise use `fakediscord`.
+- `TestPlanCaps` asks for room for a 1.5 GB file, so it fails with `no_space` when the test's temporary
+  directory is short of it (a small `/tmp`); point `TMPDIR` at a real disk.
 - The TURN tests (`turn_test.go`, `TestGuestTURN...`, `TestCloudflareTURNCredentials`) fail when run
   together (the whole package, or `-run 'TURN'`), at the commit before 2026-11-04's staff rework too;
   each passes alone (`-run '^TestName$'`). A failure there alone is that, not a regression.
@@ -2007,7 +2038,7 @@ cargo-ndk) for notes.
 
 - Testing: `check.sh`, `e2e.py`, `screenshot.py`, `seed.py`, `webhook_e2e.py`, `bot_e2e.py` with
   `bots/`, `apps_ui.py`, `discord_e2e.py`, `sfu_call.py`, `sfu_guest.py`, `call_quality.py` and
-  `share_quality.py` with `netsim/`, `call_layout_audit.py`, `text_layout_audit.py`, `ios_sim.py` with
+  `share_quality.py` with `netsim/`, `stereo_call.py`, `call_layout_audit.py`, `text_layout_audit.py`, `ios_sim.py` with
   `ios/`, `desktop_idle.py` with `desktop_idle/`, `check_frame_crypto.mjs` with
   `frame_crypto_check.cc`, `privacy_check.py`, and the unittest suites `test_build_pipeline.py`
   (`make build` in isolation, deploying nothing), `test_maintenance.py` and `test_publish_desktop.py`.

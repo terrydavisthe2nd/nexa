@@ -14,9 +14,10 @@ export function prepareDenoiser(ctx: AudioContext): Promise<boolean> {
   }
   return ready;
 }
-export async function makeDenoiser(ctx: AudioContext): Promise<AudioNode | null> {
+/** `channels` 2 keeps left and right apart, each with its own RNNoise, for True Stereo. */
+export async function makeDenoiser(ctx: AudioContext, channels: 1 | 2 = 1): Promise<AudioNode | null> {
   if (!await prepareDenoiser(ctx)) return null;
-  const node = new AudioWorkletNode(ctx, "nexa-denoise", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], channelCount: 1 });
+  const node = new AudioWorkletNode(ctx, "nexa-denoise", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [channels], channelCount: channels, channelCountMode: "explicit", processorOptions: { channels } });
   return new Promise((resolve) => {
     const timeout = setTimeout(() => { releaseDenoiser(node); resolve(null); }, 15000);
     node.port.onmessage = ({ data }) => {

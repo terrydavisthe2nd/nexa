@@ -10,7 +10,7 @@ export async function recordingInput(settings: VoiceSettings) {
   try {
     await ctx.resume();
     if (settings.noiseMode === "enhanced") denoiser = await makeDenoiser(ctx);
-    raw = await getMic({ ...settings, autoGain: false }, { browserNoise: settings.noiseMode === "standard" || (settings.noiseMode === "enhanced" && !denoiser) });
+    raw = await getMic({ ...settings, autoGain: false, voiceChannels: "mono" }, { browserNoise: settings.noiseMode === "standard" || (settings.noiseMode === "enhanced" && !denoiser) });
     const source = ctx.createMediaStreamSource(raw);
     const highpass = ctx.createBiquadFilter();
     highpass.type = "highpass"; highpass.frequency.value = 75; highpass.Q.value = 0.707;

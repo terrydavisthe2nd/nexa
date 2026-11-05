@@ -12,7 +12,14 @@
  */
 import type { VoiceState } from "@/api/types";
 import { FrameCrypto } from "./e2ee";
-import { tunedRemote } from "./opus";
+import { tunedLocal, tunedRemote } from "./opus";
+
+/**
+ * Asking to play stereo stays on this side (tunedLocal), and what goes to the
+ * other side is the description as it was made: an older app would take
+ * `stereo=1` from it and send its mono voice in two channels at a voice's bitrate.
+ */
+const NO_MIDS: ReadonlySet<string> = new Set();
 import { Playback } from "./playback";
 import { MAX_SHARE_BPS, MIN_SHARE_BPS } from "./shareQuality";
 import type { MediaKind, SignalPayload, TransportEvents, VoiceTransport } from "./transport";
@@ -82,6 +89,7 @@ export class MeshTransport implements VoiceTransport {
   private recentLoss = new RecentLoss();
   private peers = new Map<string, Peer>();
   private audioTrack: MediaStreamTrack | null = null;
+  private voiceStereo = false;
   private videoTrack: MediaStreamTrack | null = null;
   private screen: MediaStream | null = null;
   private audioStream = new MediaStream();
@@ -113,6 +121,13 @@ export class MeshTransport implements VoiceTransport {
   }
 
   // --- local media -------------------------------------------------------
+
+  /** An encoder takes its channels from the description, so a change goes through another exchange with each peer. */
+  setVoiceStereo(on: boolean): void {
+    if (on === this.voiceStereo) return;
+    this.voiceStereo = on;
+    for (const p of this.peers.values()) this.enqueue(p, () => this.negotiate(p));
+  }
 
   setLocalAudio(track: MediaStreamTrack | null): void {
     this.audioTrack = track;
@@ -344,11 +359,12 @@ export class MeshTransport implements VoiceTransport {
         const offerCollision = desc.type === "offer" && (peer.makingOffer || pc.signalingState !== "stable");
         peer.ignoreOffer = !peer.polite && offerCollision;
         if (peer.ignoreOffer) return;
-        await pc.setRemoteDescription(tunedRemote(desc));
+        await pc.setRemoteDescription(tunedRemote(desc, undefined, this.voiceStereo));
         for (const c of peer.pendingCandidates.splice(0)) await pc.addIceCandidate(c).catch(() => {});
         if (desc.type === "offer") {
-          await pc.setLocalDescription();
-          this.events.onSignal(from, { description: pc.localDescription!.toJSON(), streams: this.streamIds() });
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(tunedLocal(answer, NO_MIDS, "all"));
+          this.events.onSignal(from, { description: answer, streams: this.streamIds() });
         }
         if (peer.renegotiate && pc.signalingState === "stable") this.enqueue(peer, () => this.negotiate(peer));
       } else if (payload.candidate !== undefined) {
@@ -385,8 +401,9 @@ export class MeshTransport implements VoiceTransport {
     try {
       peer.makingOffer = true;
       const renegotiating = !!pc.remoteDescription;
-      await pc.setLocalDescription();
-      this.events.onSignal(peer.userId, { description: pc.localDescription!.toJSON(), streams: this.streamIds() });
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(tunedLocal(offer, NO_MIDS, "all"));
+      this.events.onSignal(peer.userId, { description: offer, streams: this.streamIds() });
       if (renegotiating) this.armOfferTimer(peer);
     } catch (err) {
       console.warn("voice: negotiation failed", err);

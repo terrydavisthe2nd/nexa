@@ -107,6 +107,25 @@ export function unwrapCopies(packet: Uint8Array): { primary: Uint8Array; copies:
 }
 
 /** What a sender keeps: its last few frames as the encoder made them, with their RTP timestamps. */
+/**
+ * The most a voice packet may grow to with its copies: past a network's MTU a
+ * packet is split or lost whole, taking the frame with it. A stereo voice's
+ * frames are far larger than a mono one's, so two copies can reach it.
+ */
+export const MAX_PACKET_WITH_COPIES = 1100;
+
+/** As many of `copies`, newest first, as fit a packet with a `primary`-byte frame. */
+export function copiesThatFit(primary: number, copies: Copy[]): Copy[] {
+  let used = primary;
+  const out: Copy[] = [];
+  for (const copy of copies) {
+    used += copy.data.length;
+    if (used > MAX_PACKET_WITH_COPIES) break;
+    out.push(copy);
+  }
+  return out;
+}
+
 export class CopyHistory {
   private frames: { ts: number; data: Uint8Array }[] = [];
 

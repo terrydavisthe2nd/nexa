@@ -38,6 +38,14 @@ const (
 	maxScreenBps = 20_000_000
 )
 
+// ClampVoiceBps is what a voice is estimated at from the bitrate its app
+// declared: AudioBps, or as much as a Dual Mono or True Stereo voice sends
+// (web voice/opus.ts VOICE_STEREO_BITRATE). An app can understate this, and
+// Cloudflare's measurement then corrects the month within minutes.
+func ClampVoiceBps(bps int64) int64 {
+	return min(StreamAudioBps, max(AudioBps, bps))
+}
+
 // ClampScreenBps bounds a screen share's bitrate.
 func ClampScreenBps(bps int64) int64 {
 	if bps <= 0 {

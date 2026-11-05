@@ -97,7 +97,9 @@ func TestSFUSessionFollowsTheCall(t *testing.T) {
 	if !ok || st.Tracks.Screen != "sc1" || st.ScreenBps != 8_000_000 {
 		t.Fatalf("track: %+v", st)
 	}
-	r.SetTrack(u, "s1", "audio", "a1", 0)
+	if st, _ := r.SetTrack(u, "s1", "audio", "a1", 128_000); st.AudioBps != 128_000 || st.ScreenBps != 8_000_000 {
+		t.Errorf("a voice's bitrate is its own: %+v", st)
+	}
 	if got, _ := r.Get(u); len(got.Tracks.Tags()) != 2 || got.Tracks.Tags()["audio"] != TrackTag(got.Tracks.Audio) || got.Tracks.Tags()["screen"] == "" {
 		t.Errorf("tags: %v", got.Tracks.Tags())
 	}

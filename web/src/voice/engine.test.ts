@@ -3,7 +3,7 @@ import type { VoiceState } from "@/api/types";
 import { useKeys } from "@/stores/keys";
 import { useSettings } from "@/stores/settings";
 import { useVoice } from "@/stores/voice";
-import { applyTransmit, join, leave, onMine, retryMic, setPttHeld } from "./engine";
+import { applyTransmit, join, leave, onMine, refreshMic, retryMic, setPttHeld } from "./engine";
 import { getMic } from "./media";
 
 vi.mock("@/lib/sounds", () => ({ playSound: vi.fn() }));
@@ -34,6 +34,7 @@ const meter = vi.hoisted(() => ({ level: 0 }));
 // the peer-to-peer transport, as a set of calls to look at
 const transport = vi.hoisted(() => ({
   setLocalAudio: vi.fn(),
+  setVoiceStereo: vi.fn(),
   setLocalVideo: vi.fn(),
   setLocalScreen: vi.fn(),
   addPeer: vi.fn(),
@@ -128,6 +129,23 @@ describe("the call engine", () => {
     await retryMic();
     expect(useVoice.getState().micBlocked).toBe(false);
     expect(transport.setLocalAudio).toHaveBeenLastCalledWith(copies[0]);
+  });
+
+  it("ends on the newest microphone when settings change together", async () => {
+    await join("c1", ice, () => true, vi.fn());
+    vi.mocked(getMic).mockClear();
+    const first = micStream();
+    const last = micStream();
+    let open: (s: MediaStream) => void = () => {};
+    vi.mocked(getMic).mockImplementationOnce(() => new Promise((done) => { open = done; }));
+    vi.mocked(getMic).mockResolvedValueOnce(last.stream);
+    const swaps = [refreshMic(), refreshMic(), refreshMic()];
+    await vi.waitFor(() => expect(getMic).toHaveBeenCalledTimes(1));
+    open(first.stream);
+    await Promise.all(swaps);
+    // one running, and one more for everything asked meanwhile
+    expect(getMic).toHaveBeenCalledTimes(2);
+    expect(transport.setLocalAudio).toHaveBeenLastCalledWith(last.copies[0]);
   });
 
   it("sends with push to talk only while the button or key is held, on every device", async () => {

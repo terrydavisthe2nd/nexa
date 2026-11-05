@@ -149,6 +149,64 @@ JNIEXPORT jfloat JNICALL Java_fish_nexa_voice_Denoise_nativeProcess(
   return float(std::min(1.0, sqrt(sum / frames) * 4.0));
 }
 
+// One block of the microphone as AudioRecord read it, interleaved 16-bit, in
+// place, before WebRTC sees it. The capture hook above only ever gets the first
+// channel, so with two-channel capture everything it does for a call happens
+// here instead, to both, or a shut gate would leave the right channel open.
+// Each channel has its own RNNoise and they share a gate, so a voice stays where
+// it is. `apart` false mixes them into one voice first. With `pass` off the block
+// is measured and silenced, however the rest of it went.
+JNIEXPORT jfloat JNICALL Java_fish_nexa_voice_Denoise_nativeProcessTwoChannels(
+    JNIEnv* env, jobject, jlong left, jlong right, jobject buffer, jint frames, jboolean denoise, jfloat gain, jboolean apart,
+    jboolean pass) {
+  auto* pcm = static_cast<int16_t*>(env->GetDirectBufferAddress(buffer));
+  const jlong capacity = env->GetDirectBufferCapacity(buffer);
+  if (pcm == nullptr || frames <= 0 || capacity < jlong(frames) * 4) return -1.f;
+  auto* d0 = reinterpret_cast<Denoiser*>(left);
+  auto* d1 = reinterpret_cast<Denoiser*>(right);
+  float in[2][kFrame];
+  const bool clean = denoise == JNI_TRUE && d0 != nullptr && d1 != nullptr && frames <= kFrame;
+  if (clean) {
+    for (int i = 0; i < frames; i++) {
+      const float l = float(pcm[i * 2]), r = float(pcm[i * 2 + 1]);
+      in[0][i] = apart == JNI_TRUE ? l : (l + r) * .5f;
+      in[1][i] = apart == JNI_TRUE ? r : in[0][i];
+    }
+    Denoiser* both[2] = {d0, d1};
+    float probability = 0.f;
+    for (int c = 0; c < 2; c++) {
+      Denoiser* d = both[c];
+      if (frames == kFrame) {
+        probability = std::max(probability, rnnoise_process_frame(d->state, d->out, in[c]));
+      } else {
+        const float last = in[c][frames - 1];
+        Stretch(in[c], frames, d->prev, d->up, kFrame);
+        probability = std::max(probability, rnnoise_process_frame(d->state, d->out, d->up));
+        d->prev = last;
+      }
+    }
+    for (int c = 0; c < 2; c++) {
+      SpeechGate(both[c], probability);
+      for (int i = 0; i < frames; i++) {
+        const int a = frames == kFrame ? i : std::max(0, std::min(kFrame - 1, int(lroundf((float(i) + 1.f) * float(kFrame) / float(frames) - 1.f))));
+        in[c][i] = both[c]->out[a];
+      }
+    }
+  }
+  double sum = 0;
+  for (int i = 0; i < frames; i++) {
+    float l = clean ? in[0][i] : float(pcm[i * 2]);
+    float r = clean ? in[1][i] : float(pcm[i * 2 + 1]);
+    if (!clean && apart != JNI_TRUE) l = r = (l + r) * .5f;
+    l = std::max(-32768.f, std::min(32767.f, l * gain));
+    r = std::max(-32768.f, std::min(32767.f, r * gain));
+    sum += (double(l) * l + double(r) * r) / (2.0 * 32768.0 * 32768.0);
+    pcm[i * 2] = pass == JNI_TRUE ? int16_t(lroundf(l)) : 0;
+    pcm[i * 2 + 1] = pass == JNI_TRUE ? int16_t(lroundf(r)) : 0;
+  }
+  return float(std::min(1.0, sqrt(sum / frames) * 4.0));
+}
+
 }  // extern "C"
 
 // Voice recordings own a separate filter state from a running call.

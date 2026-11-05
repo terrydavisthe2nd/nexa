@@ -44,6 +44,13 @@ object Denoise : ExternalAudioProcessingFactory.AudioProcessing {
 
     private var rate = 48_000
     private var ptr = 0L
+    private var right = 0L
+
+    /** Capture is in two channels now, so StereoInput does all of this before WebRTC gets it. */
+    @Volatile var twoChannels = false
+
+    /** Left and right stay as they are (True Stereo), rather than being mixed into one voice. */
+    @Volatile var apart = false
     private var previous = 0f
     private var logged = false
 
@@ -69,18 +76,30 @@ object Denoise : ExternalAudioProcessingFactory.AudioProcessing {
 
     override fun process(numBands: Int, numFrames: Int, buffer: ByteBuffer) {
         val p = ptr
-        if (p == 0L) return
+        if (p == 0L || twoChannels) return
         if (!logged) {
             logged = true
             Log.i(TAG, "first block: $numFrames frames, $numBands band(s), direct=${buffer.isDirect}, ${buffer.capacity()} bytes")
         }
-        val l = nativeProcess(p, buffer, numFrames, numFrames * 100, enhanced, gain, tone, open)
+        val l = nativeProcess(p, buffer, numFrames, numFrames * 100, enhanced, gain, if (tone == 4) 0 else tone, open)
         if (l < 0) return
         level = sqrt((l * l + previous * previous) / 2f)
         previous = l
         lastAt = SystemClock.elapsedRealtime()
     }
 
+    /** One block of two-channel capture (StereoInput), which this hook never sees more than the left of. */
+    fun processTwoChannels(buffer: ByteBuffer, frames: Int, apart: Boolean) {
+        val left = ensure()
+        synchronized(this) { if (right == 0L && left != 0L) right = runCatching { nativeCreate() }.getOrDefault(0L) }
+        val l = nativeProcessTwoChannels(left, right, buffer, frames, enhanced, gain, apart, open)
+        if (l < 0) return
+        level = sqrt((l * l + previous * previous) / 2f)
+        previous = l
+        lastAt = SystemClock.elapsedRealtime()
+    }
+
+    private external fun nativeProcessTwoChannels(left: Long, right: Long, buffer: ByteBuffer, frames: Int, denoise: Boolean, gain: Float, apart: Boolean, pass: Boolean): Float
     private external fun nativeCreate(): Long
     private external fun nativeDestroy(ptr: Long)
     private external fun nativeProcess(ptr: Long, buffer: ByteBuffer, frames: Int, rate: Int, denoise: Boolean, gain: Float, tone: Int, pass: Boolean): Float

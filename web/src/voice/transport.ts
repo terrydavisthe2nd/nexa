@@ -44,6 +44,8 @@ export interface TransportEvents {
 export interface VoiceTransport {
   /** The voice to send: a copy of the microphone that voiceSend.ts silences between phrases, never taken away for them. */
   setLocalAudio(track: MediaStreamTrack | null): void;
+  /** Whether this device's voice goes out in two channels (channels.ts). */
+  setVoiceStereo(on: boolean): void;
   setLocalVideo(track: MediaStreamTrack | null): void;
   /** `fps` is the share's chosen rate: a share at 60 is steered to keep moving (shareAdapt.ts). */
   /** `smooth`: the share keeps its frames and is made smaller when the link is short, rather than keeping its size (shareQuality.ts SharePlan). */

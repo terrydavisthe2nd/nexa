@@ -8,6 +8,7 @@ import { NOISE_MODES, useSettings, type VoiceSettings } from "@/stores/settings"
 import { useVoice } from "@/stores/voice";
 import { LevelMeter, audioContext, defaultDeviceLabel, describeInput, getMic, holdAudio, lastInputChoice, listDevices, realDevices, sentStream, type Devices } from "@/voice/media";
 import { makeDenoiser, prepareDenoiser, releaseDenoiser } from "@/voice/denoise";
+import { VOICE_CHANNELS, keepsChannelsApart } from "@/voice/channels";
 import { noiseModeHint, noiseModeLabel, noiseModePatch } from "@/voice/noiseMode";
 import { canChooseOutput } from "@/voice/output";
 import { noKeyToHold } from "@/voice/session";
@@ -21,11 +22,13 @@ export default function VoicePage() {
   const patch = useSettings((s) => s.patch);
   const liveLevel = useVoice((x) => x.level);
   const inCall = useVoice((x) => !!x.mine);
+  const apart = keepsChannelsApart(settings.voiceChannels);
   const [devices, setDevices] = useState<Devices | null>(null);
   const [testing, setTesting] = useState(false);
   const [testLevel, setTestLevel] = useState(0);
   const [sentLevel, setSentLevel] = useState(0);
   const [diag, setDiag] = useState("");
+  const [oneChannelMic, setOneChannelMic] = useState(false);
   // Kept apart from `diag`: that block is a device dump for someone reading it
   // closely, and a refused permission belongs in a sentence above it.
   const [micError, setMicError] = useState<string | null>(null);
@@ -83,9 +86,9 @@ export default function VoicePage() {
     try {
       const ctx = audioContext();
       // opened the way a call opens it, noise suppression and all
-      const rnnoise = settings.noiseMode === "enhanced" && (await prepareDenoiser(ctx));
-      stream = await getMic(settings, { browserNoise: settings.noiseMode === "standard" || (settings.noiseMode === "enhanced" && !rnnoise) });
-      if (rnnoise) denoiser = await makeDenoiser(ctx);
+      const rnnoise = (settings.noiseMode === "enhanced" || (apart && settings.noiseMode === "standard")) && (await prepareDenoiser(ctx));
+      stream = await getMic(settings, { browserNoise: !apart && (settings.noiseMode === "standard" || (settings.noiseMode === "enhanced" && !rnnoise)) });
+      if (rnnoise) denoiser = await makeDenoiser(ctx, apart ? 2 : 1);
       if (ctx.state === "suspended") await ctx.resume();
       // Settings closed while the prompt was up: let the microphone go rather than holding it with nothing to show
       if (!aliveRef.current) {
@@ -98,7 +101,7 @@ export default function VoicePage() {
       // stream after noise suppression and the input slider. If this one stays
       // flat while the first moves, the trouble is here rather than with the
       // microphone.
-      const sent = sentStream(ctx, stream, settings.inputVolume, denoiser);
+      const sent = sentStream(ctx, stream, settings.inputVolume, denoiser, settings.voiceChannels);
       if (denoiser && !sent.source) {
         releaseDenoiser(denoiser);
         denoiser = null;
@@ -111,6 +114,7 @@ export default function VoicePage() {
       testRef.current = { stream, meter, timer, sent: sent.stream, sentMeter, gain: sent.gain, denoiser, release: holdAudio() };
       setTesting(true);
       setDiag(describeInput(ctx, stream, sent.stream, settings.inputVolume, !!denoiser));
+      setOneChannelMic(apart && stream.getAudioTracks()[0]?.getSettings().channelCount === 1);
       setWrongDevice(lastInputChoice() === "missing");
       // permission granted: device labels are now readable
       listDevices().then(setDevices).catch(() => {});
@@ -130,15 +134,17 @@ export default function VoicePage() {
   };
 
   // a test that is running starts again with the noise suppression just chosen, or it would show the old one
-  const modeRef = useRef(settings.noiseMode);
+  const modeRef = useRef(`${settings.noiseMode} ${settings.voiceChannels}`);
   useEffect(() => {
-    if (modeRef.current === settings.noiseMode) return;
-    modeRef.current = settings.noiseMode;
+    const mode = `${settings.noiseMode} ${settings.voiceChannels}`;
+    if (modeRef.current === mode) return;
+    modeRef.current = mode;
+    setOneChannelMic(false);
     if (!testRef.current) return;
     stopTest();
     void startTest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.noiseMode]);
+  }, [settings.noiseMode, settings.voiceChannels]);
 
   // The sensitivity bar is set against the voice, so it listens as soon as it
   // is on screen where the microphone was allowed before (a call's own level
@@ -325,18 +331,33 @@ export default function VoicePage() {
           </Field>
         ) : null}
       </div>
-      <h3 data-setting="noiseSuppression" className={st.h5}>{tr_("voice.noise.title")}</h3>
-      <div role="radiogroup" aria-label={tr_("voice.noise.title")}>
-        {NOISE_MODES.map((m) => (
-          <label key={m} className={st.radio} data-on={settings.noiseMode === m}>
-            <input type="radio" name="voice-noise-mode" checked={settings.noiseMode === m} onChange={() => set(noiseModePatch(m))} data-testid={`noise-${m}`} />
-            <span className={st.radioText}><span className={st.radioLabel}>{noiseModeLabel(m)}</span><span className={st.radioDesc}>{noiseModeHint(m)}</span></span>
+      <h3 data-setting="voiceStereo" className={st.h5}>{tr_("voice.channels.title")}</h3>
+      <div role="radiogroup" aria-label={tr_("voice.channels.title")}>
+        {VOICE_CHANNELS.map((m) => (
+          <label key={m} className={st.radio} data-on={settings.voiceChannels === m}>
+            <input type="radio" name="voice-channels" checked={settings.voiceChannels === m} onChange={() => set({ voiceChannels: m })} data-testid={`channels-${m}`} />
+            <span className={st.radioText}><span className={st.radioLabel}>{tr_(`voice.channels.${m}`)}</span><span className={st.radioDesc}>{tr_(`voice.channels.${m}Hint`)}</span></span>
           </label>
         ))}
       </div>
+      {apart ? <p className={st.hint} data-testid="channels-note">{tr_("voice.channels.stereoNote")}</p> : null}
+      {oneChannelMic ? <p className={st.hint} data-testid="channels-one-mic">{tr_("voice.channels.oneChannelMic")}</p> : null}
+      <h3 data-setting="noiseSuppression" className={st.h5}>{tr_("voice.noise.title")}</h3>
+      <div role="radiogroup" aria-label={tr_("voice.noise.title")}>
+        {NOISE_MODES.map((m) => {
+          const off = apart && m === "standard";
+          const on = (apart && settings.noiseMode === "standard" ? "enhanced" : settings.noiseMode) === m;
+          return (
+            <label key={m} className={st.radio} data-on={on} data-disabled={off || undefined}>
+              <input type="radio" name="voice-noise-mode" checked={on} disabled={off} onChange={() => set(noiseModePatch(m))} data-testid={`noise-${m}`} />
+              <span className={st.radioText}><span className={st.radioLabel}>{noiseModeLabel(m)}</span><span className={st.radioDesc}>{noiseModeHint(m)}</span></span>
+            </label>
+          );
+        })}
+      </div>
       <h3 data-setting="voiceProcessing" className={st.h5}>{tr_("settings.voice.voiceProcessing")}</h3>
-      <Toggle checked={settings.echoCancellation} onChange={(on) => set({ echoCancellation: on })} label={tr_("settings.voice.echoCancellation")} />
-      <Toggle checked={settings.autoGain} onChange={(on) => set({ autoGain: on })} label={tr_("settings.voice.automaticGainControl")} />
+      <Toggle checked={settings.echoCancellation && !apart} disabled={apart} onChange={(on) => set({ echoCancellation: on })} label={tr_("settings.voice.echoCancellation")} />
+      <Toggle checked={settings.autoGain && !apart} disabled={apart} onChange={(on) => set({ autoGain: on })} label={tr_("settings.voice.automaticGainControl")} />
       <div className={st.form} style={{ marginTop: 24 }}>
         <Field label={tr_("settings.voice.camera")}>
           <Select

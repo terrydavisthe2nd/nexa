@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STREAM_AUDIO_BITRATE, tuneOpus, tunedLocal, tunedRemote, VOICE_BITRATE } from "./opus";
+import { STREAM_AUDIO_BITRATE, tuneOpus, tunedLocal, tunedRemote, VOICE_BITRATE, VOICE_STEREO_BITRATE } from "./opus";
 
 const answer = [
   "v=0",
@@ -21,6 +21,19 @@ const answer = [
   "a=rtpmap:109 opus/48000/2",
   "",
 ].join("\r\n");
+
+describe("stereo voices", () => {
+  it("sends two channels only when asked, keeping DTX", () => {
+    expect(tuneOpus(answer)).not.toContain("stereo=1");
+    expect(tuneOpus(answer, new Set(), true, true)).toContain(`usedtx=1;maxaveragebitrate=${VOICE_STEREO_BITRATE};stereo=1;sprop-stereo=1`);
+  });
+  it("asks to play in stereo only in the sections it is given, and never for a share's tuning", () => {
+    const out = tunedLocal({ type: "answer", sdp: answer }, new Set(), new Set(["2"])).sdp!;
+    expect(out).toContain("a=rtpmap:109 opus/48000/2\r\na=fmtp:109 stereo=1");
+    expect(out).toContain("a=fmtp:111 minptime=10;useinbandfec=1\r\n");
+    expect(tunedLocal({ type: "answer", sdp: answer }, new Set(), "all").sdp).toContain("a=fmtp:111 minptime=10;useinbandfec=1;stereo=1");
+  });
+});
 
 describe("tuneOpus", () => {
   it("asks every Opus section for DTX and the voice bitrate, keeping what was there", () => {

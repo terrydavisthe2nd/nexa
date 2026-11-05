@@ -623,7 +623,7 @@ export function installVoice(): void {
     const a = st.settings.voice;
     const b = prev.settings.voice;
     if (!engine?.current()) return;
-    if (a.inputDeviceId !== b.inputDeviceId || a.noiseMode !== b.noiseMode || a.echoCancellation !== b.echoCancellation || a.autoGain !== b.autoGain) void engine.refreshMic();
+    if (a.inputDeviceId !== b.inputDeviceId || a.noiseMode !== b.noiseMode || a.echoCancellation !== b.echoCancellation || a.autoGain !== b.autoGain || a.voiceChannels !== b.voiceChannels) void engine.refreshMic();
     if (a.outputDeviceId !== b.outputDeviceId) engine.setOutputDevice(a.outputDeviceId);
     if (a.cameraDeviceId !== b.cameraDeviceId || a.cameraDeviceLabel !== b.cameraDeviceLabel) void engine.switchCamera();
     if (a.outputVolume !== b.outputVolume) engine.setMasterVolume(a.outputVolume);

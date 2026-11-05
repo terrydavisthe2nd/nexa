@@ -235,8 +235,11 @@ func (s *Server) handleSFUPublish(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		bps := int64(0)
-		if t.Kind == realtime.KindScreen {
+		switch t.Kind {
+		case realtime.KindScreen:
 			bps = realtime.ClampScreenBps(t.Bitrate)
+		case realtime.KindAudio:
+			bps = realtime.ClampVoiceBps(t.Bitrate)
 		}
 		if next, ok := s.Voice.SetPublishedTrack(me.ID, req.SessionID, t.Kind, names[t.Mid], t.Mid, bps); ok {
 			latest, published = next, true
@@ -410,8 +413,11 @@ func (s *Server) handleSFUSubscribe(w http.ResponseWriter, r *http.Request) {
 			p.Mid = got.Mid
 			p.Tag = voice.TrackTag(x.name)
 			rate := realtime.RateFor(x.kind, 0)
-			if x.kind == realtime.KindScreen {
+			switch x.kind {
+			case realtime.KindScreen:
 				rate = realtime.RateFor(x.kind, s.shareMaxBps(r.Context(), x.target))
+			case realtime.KindAudio:
+				rate = realtime.ClampVoiceBps(x.target.AudioBps)
 			}
 			s.Meter.Start(req.SessionID, got.Mid, realtime.Source(x.target.SFUSession, x.kind), rate, int64(me.ID), int64(x.target.UserID))
 		}

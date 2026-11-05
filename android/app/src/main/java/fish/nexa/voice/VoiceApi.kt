@@ -86,7 +86,7 @@ object VoiceApi {
                 for ((mid, kind, bitrate) in tracks) add(buildJsonObject {
                     put("mid", mid)
                     put("kind", kind)
-                    if (kind == "screen" && bitrate > 0) put("bitrate", bitrate)
+                    if (bitrate > 0) put("bitrate", bitrate)
                 })
             })
         }).read(SfuPublishResult.serializer())

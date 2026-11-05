@@ -49,6 +49,7 @@ type State struct {
 	TrackMids     Tracks `json:"-"`
 	Tracks        Tracks `json:"-"`
 	ScreenBps     int64  `json:"-"`
+	AudioBps      int64  `json:"-"`
 	// Detached counts the times this call lost its connection. A grace
 	// timer ends the call only if it is still detached from the drop that
 	// set it, not from a later one it would cut short.
@@ -245,7 +246,7 @@ func (r *Registry) Join(st State, keepModeration bool) (old *State, started bool
 		// mute or camera toggle comes through here too). A move or another
 		// device starts afresh, and the caller closes the old session.
 		if prev.ChannelID == st.ChannelID && prev.ConnID == st.ConnID {
-			st.SFUSession, st.Tracks, st.ScreenBps = prev.SFUSession, prev.Tracks, prev.ScreenBps
+			st.SFUSession, st.Tracks, st.ScreenBps, st.AudioBps = prev.SFUSession, prev.Tracks, prev.ScreenBps, prev.AudioBps
 			st.TrackMids, st.SFUGeneration, st.SFUPolicy = prev.TrackMids, prev.SFUGeneration, prev.SFUPolicy
 		}
 	}
@@ -279,7 +280,7 @@ func (r *Registry) SetSFU(uid, channelID, connID ids.ID, session string) (string
 		return "", false
 	}
 	old := st.SFUSession
-	st.SFUSession, st.Tracks, st.TrackMids, st.ScreenBps = session, Tracks{}, Tracks{}, 0
+	st.SFUSession, st.Tracks, st.TrackMids, st.ScreenBps, st.AudioBps = session, Tracks{}, Tracks{}, 0, 0
 	return old, true
 }
 
@@ -289,7 +290,7 @@ func (r *Registry) SetTrack(uid ids.ID, session, kind, name string, screenBps in
 	return r.SetPublishedTrack(uid, session, kind, name, "", screenBps)
 }
 
-func (r *Registry) SetPublishedTrack(uid ids.ID, session, kind, name, mid string, screenBps int64) (State, bool) {
+func (r *Registry) SetPublishedTrack(uid ids.ID, session, kind, name, mid string, bps int64) (State, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	st, ok := r.byUser[uid]
@@ -298,8 +299,11 @@ func (r *Registry) SetPublishedTrack(uid ids.ID, session, kind, name, mid string
 	}
 	st.Tracks = st.Tracks.With(kind, name)
 	st.TrackMids = st.TrackMids.With(kind, mid)
-	if kind == "screen" {
-		st.ScreenBps = screenBps
+	switch kind {
+	case "screen":
+		st.ScreenBps = bps
+	case "audio":
+		st.AudioBps = bps
 	}
 	return *st, true
 }

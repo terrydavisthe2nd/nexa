@@ -5,6 +5,7 @@
  */
 import { AudioKeeper, isHomeScreenApp } from "@/lib/audioKeeper";
 import type { VoiceSettings } from "@/stores/settings";
+import { keepsChannelsApart, type VoiceChannels } from "./channels";
 import { DENOISE_RATE } from "./denoise";
 import { type SharePlan, shareVideoConstraints } from "./shareQuality";
 import { VIDEO_CAP } from "./videoCap";
@@ -26,6 +27,7 @@ export function lastInputChoice(): InputChoice {
  * it in the page instead, and two of them in a row only blur a voice.
  */
 function micConstraints(v: VoiceSettings, browserNoise: boolean): MediaTrackConstraints {
+  if (keepsChannelsApart(v.voiceChannels)) return { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 } };
   return {
     echoCancellation: v.echoCancellation,
     noiseSuppression: browserNoise,
@@ -302,12 +304,17 @@ export function resumeAudio(): void {
  * is nothing to apply, so the microphone's own track goes out untouched
  * rather than through a graph that could go wrong.
  */
-export function sentStream(ctx: AudioContext, mic: MediaStream, inputVolume: number, denoiser: AudioNode | null = null): { stream: MediaStream; gain: GainNode | null; source: MediaStreamAudioSourceNode | null } {
-  if (inputVolume === 100 && !denoiser) return { stream: mic, gain: null, source: null };
+export function sentStream(ctx: AudioContext, mic: MediaStream, inputVolume: number, denoiser: AudioNode | null = null, channels: VoiceChannels = "mono"): { stream: MediaStream; gain: GainNode | null; source: MediaStreamAudioSourceNode | null } {
+  if (inputVolume === 100 && !denoiser && channels !== "dual") return { stream: mic, gain: null, source: null };
   try {
     const src = ctx.createMediaStreamSource(mic);
     const gain = ctx.createGain();
     gain.gain.value = Math.max(0, inputVolume) / 100;
+    if (channels === "dual") {
+      // whatever the device gives becomes one voice here, and the destination puts it in both ears
+      gain.channelCount = 1;
+      gain.channelCountMode = "explicit";
+    }
     const dest = ctx.createMediaStreamDestination();
     (denoiser ? src.connect(denoiser) : src).connect(gain).connect(dest);
     if (dest.stream.getAudioTracks().length === 0) {
