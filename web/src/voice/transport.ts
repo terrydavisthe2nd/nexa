@@ -46,6 +46,8 @@ export interface VoiceTransport {
   setLocalAudio(track: MediaStreamTrack | null): void;
   /** Whether this device's voice goes out in two channels (channels.ts). */
   setVoiceStereo(on: boolean): void;
+  /** Whether every voice and shared sound plays here in one channel. */
+  setHearMono(on: boolean): void;
   setLocalVideo(track: MediaStreamTrack | null): void;
   /** `fps` is the share's chosen rate: a share at 60 is steered to keep moving (shareAdapt.ts). */
   /** `smooth`: the share keeps its frames and is made smaller when the link is short, rather than keeping its size (shareQuality.ts SharePlan). */

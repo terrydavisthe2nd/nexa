@@ -244,7 +244,7 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
             put("cameraDeviceId", JsonNull); put("cameraDeviceLabel", JsonNull)
             put("inputVolume", 100); put("outputVolume", 100)
             put("mode", "vad"); put("pttKey", "`"); put("sensitivity", -50); put("autoSensitivity", true)
-            put("noiseMode", "enhanced"); put("noiseSuppression", true); put("echoCancellation", true); put("autoGain", true); put("voiceChannels", "mono")
+            put("noiseMode", "enhanced"); put("noiseSuppression", true); put("echoCancellation", true); put("autoGain", true); put("voiceChannels", "mono"); put("hearMono", false)
             put("shareResolution", "1080p"); put("shareFps", 30); put("shareAudio", true)
         }
 

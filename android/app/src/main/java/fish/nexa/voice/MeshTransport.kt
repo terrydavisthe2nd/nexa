@@ -72,6 +72,8 @@ class MeshTransport(
     private val peers = LinkedHashMap<String, Peer>()
     private var audio: AudioTrack? = null
     @Volatile private var voiceStereo = false
+    @Volatile private var hearMono = false
+    @Volatile private var monoOnly = emptySet<String>()
     private var video: VideoTrack? = null
     private var screen: VideoTrack? = null
     private val audioStreamId = UUID.randomUUID().toString()
@@ -301,7 +303,23 @@ class MeshTransport(
     }
 
     override fun peerIds(): List<String> = peers.keys.toList()
-    override fun setRoster(states: List<VoiceState>) = Unit
+    /** Who the server says lacks Use Stereo Voice: their sound is decoded in one channel, whatever they send. */
+    override fun setRoster(states: List<VoiceState>) {
+        val next = states.filter { it.monoOnly }.map { it.userId }.toSet()
+        val changed = peers.values.filter { (it.userId in next) != (it.userId in monoOnly) }
+        monoOnly = next
+        if (!hearMono) for (p in changed) enqueue(p) { negotiate(p) }
+    }
+
+    override fun setHearMono(on: Boolean) {
+        if (on == hearMono) return
+        hearMono = on
+        for (p in peers.values) enqueue(p) { negotiate(p) }
+    }
+
+    private fun tuneLocal(userId: String, desc: SessionDescription): SessionDescription =
+        if (hearMono || userId in monoOnly) Sdp.tunedLocal(desc, emptySet(), null) else Sdp.tunedLocal(desc, null)
+
     override fun joined(state: VoiceState) = reportConnection()
     override fun reconnected() = Unit
     override fun moveTo(channelId: String) = Unit
@@ -368,7 +386,7 @@ class MeshTransport(
                 if (type == SessionDescription.Type.OFFER) {
                     // asking to play stereo stays on this side: an older app would take it from what is sent as a request to send two channels
                     val local = WebRtc.createAnswer(pc)
-                    WebRtc.setLocal(pc, Sdp.tunedLocal(local))
+                    WebRtc.setLocal(pc, tuneLocal(peer.userId, local))
                     events.onSignal(peer.userId, buildJsonObject {
                         put("description", buildJsonObject {
                             put("type", Sdp.wireOf(local.type))
@@ -419,7 +437,7 @@ class MeshTransport(
             peer.makingOffer = true
             val renegotiating = pc.remoteDescription != null
             val local = WebRtc.createOffer(pc)
-            WebRtc.setLocal(pc, Sdp.tunedLocal(local))
+            WebRtc.setLocal(pc, tuneLocal(peer.userId, local))
             events.onSignal(peer.userId, buildJsonObject {
                 put("description", buildJsonObject {
                     put("type", Sdp.wireOf(local.type))

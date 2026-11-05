@@ -51,8 +51,10 @@ func (s *Server) sfuPolicyLocked(ctx context.Context, previous voice.State) (voi
 		if !p.Has(perms.Stream) {
 			policy |= 4
 		}
-		changed = current.Suppress != suppress || current.SFUPolicy != policy
+		monoOnly := !p.Has(perms.UseStereoVoice)
+		changed = current.Suppress != suppress || current.MonoOnly != monoOnly || current.SFUPolicy != policy
 		current.Suppress = suppress
+		current.MonoOnly = monoOnly
 		if !p.Has(perms.Stream) {
 			current.Video, current.Streaming = false, false
 		}

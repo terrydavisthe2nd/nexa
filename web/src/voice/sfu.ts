@@ -32,6 +32,8 @@ interface Pulled {
   tag: string;
   asked: string;
   mid: string;
+  /** Decoded in one channel, whatever is sent: see monoFor. */
+  mono: boolean;
   /** The received track, once it has arrived. */
   track: MediaStreamTrack | null;
   /** This receiver's name in the frame crypto worker, new for every receiver. */
@@ -48,6 +50,7 @@ interface Pulled {
 }
 
 interface Want {
+  mono: boolean;
   userId: string;
   kind: PubKind;
   tag: string;
@@ -214,6 +217,7 @@ export class SfuTransport implements VoiceTransport {
 
   private audioTrack: MediaStreamTrack | null = null;
   private voiceStereo = false;
+  private hearMono = false;
   private videoTrack: MediaStreamTrack | null = null;
   private screen: MediaStream | null = null;
   private screenBitrate = 6_000_000;
@@ -771,19 +775,30 @@ export class SfuTransport implements VoiceTransport {
   }
 
   /**
-   * Every voice this device pulls plays in stereo whenever its sender sends
-   * it, and this device's own says so while it does.
+   * Whether this device decodes a track in one channel: everything when it
+   * chose that, and the voice of anyone the server says lacks Use Stereo Voice.
+   * Their own app may send what it likes; this end is what holds it.
    */
-  private listenMids(): Set<string> {
-    const mids = new Set<string>();
-    for (const p of this.pulled.values()) if (p.kind === "audio") mids.add(p.mid);
-    const own = this.senders.audio?.mid;
-    if (own && this.voiceStereo) mids.add(own);
-    return mids;
+  private monoFor(st: VoiceState, kind: PubKind): boolean {
+    return this.hearMono || (kind === "audio" && !!st.mono_only);
+  }
+
+  setHearMono(on: boolean): void {
+    if (on === this.hearMono) return;
+    this.hearMono = on;
+    this.scheduleSync();
   }
 
   private tuneLocal(desc: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
-    return tunedLocal(desc, this.streamMids(), this.listenMids());
+    // every voice plays in stereo whenever its sender sends it; this device's own section stays as it
+    // was made, since an encoder goes by the remote description
+    const listen = new Set<string>();
+    const mono = new Set<string>();
+    for (const p of this.pulled.values()) {
+      if (p.mono && (p.kind === "audio" || p.kind === "screen_audio")) mono.add(p.mid);
+      else if (p.kind === "audio") listen.add(p.mid);
+    }
+    return tunedLocal(desc, this.streamMids(), listen, mono);
   }
 
   private tuneRemote<D extends { type?: RTCSdpType | string; sdp?: string | null }>(desc: D): D {
@@ -1031,7 +1046,7 @@ export class SfuTransport implements VoiceTransport {
       if (userId === this.meId || !this.peers.has(userId)) continue;
       const add = (kind: PubKind) => {
         const tag = st.media?.[kind];
-        if (tag) out.set(slot(userId, kind), { userId, kind, tag });
+        if (tag) out.set(slot(userId, kind), { userId, kind, tag, mono: this.monoFor(st, kind) });
       };
       if (!this.roster.get(this.meId)?.server_deaf && !st.server_mute && !st.server_deaf && !st.suppress) add("audio");
       if (pictures) add("video");
@@ -1059,7 +1074,8 @@ export class SfuTransport implements VoiceTransport {
     for (const [key, p] of this.pulled) {
       const w = want.get(key);
       // a track published again has a new tag, and is pulled again
-      if (!w || (w.tag !== p.tag && w.tag !== p.asked)) drop.push(p);
+      // and so is one to decode differently, which only a new exchange can change
+      if (!w || (w.tag !== p.tag && w.tag !== p.asked) || w.mono !== p.mono) drop.push(p);
     }
     const add = [...want.entries()].filter(([key]) => !this.pulled.has(key) || drop.includes(this.pulled.get(key)!)).map(([, w]) => w);
     if (drop.length) await this.unsubscribe(drop);
@@ -1094,7 +1110,7 @@ export class SfuTransport implements VoiceTransport {
       if (!t.mid || t.error) continue;
       this.refusedPulls.delete(key);
       const kind = t.kind as PubKind;
-      const p: Pulled = { userId: t.user_id, kind, tag: t.tag ?? "", asked: asked.get(slot(t.user_id, kind)) ?? "", mid: t.mid, track: null };
+      const p: Pulled = { userId: t.user_id, kind, tag: t.tag ?? "", asked: asked.get(slot(t.user_id, kind)) ?? "", mono: list.find((w) => w.userId === t.user_id && w.kind === kind)?.mono ?? false, mid: t.mid, track: null };
       this.pulled.set(slot(p.userId, kind), p);
       this.byMid.set(p.mid, p);
     }

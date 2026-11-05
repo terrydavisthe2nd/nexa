@@ -113,9 +113,19 @@ object Calls {
                 if (Engine.current() == null) return@collect
                 fun changed(k: String) = before[k] != v[k]
                 if (changed("noiseMode") || changed("echoCancellation") || changed("autoGain") || changed("noiseSuppression") || changed("voiceChannels")) Engine.refreshMic()
+                if (changed("hearMono")) Engine.setHearMono(Voice.settingBool("hearMono", false))
                 if (changed("outputVolume")) Engine.setMasterVolume(Voice.settingInt("outputVolume", 100))
                 if (changed("inputVolume")) Engine.applyInputGain()
                 if (changed("mode")) Engine.applyTransmit()
+            }
+        }
+        // the channel's permission changed mid-call: the voice goes out as it now may
+        scope.launch {
+            var was: Pair<String?, Boolean>? = null
+            Voice.state.map { it.mine?.channelId to (it.mine?.monoOnly == true) }.distinctUntilChanged().collect { now ->
+                val before = was
+                was = now
+                if (before != null && before.first == now.first && before.second != now.second && Engine.current() != null) Engine.refreshMic()
             }
         }
         scope.launch { Voice.mix.collect { Engine.applyMix() } }

@@ -624,6 +624,7 @@ export function installVoice(): void {
     const b = prev.settings.voice;
     if (!engine?.current()) return;
     if (a.inputDeviceId !== b.inputDeviceId || a.noiseMode !== b.noiseMode || a.echoCancellation !== b.echoCancellation || a.autoGain !== b.autoGain || a.voiceChannels !== b.voiceChannels) void engine.refreshMic();
+    if (a.hearMono !== b.hearMono) engine.setHearMono(a.hearMono);
     if (a.outputDeviceId !== b.outputDeviceId) engine.setOutputDevice(a.outputDeviceId);
     if (a.cameraDeviceId !== b.cameraDeviceId || a.cameraDeviceLabel !== b.cameraDeviceLabel) void engine.switchCamera();
     if (a.outputVolume !== b.outputVolume) engine.setMasterVolume(a.outputVolume);
@@ -631,6 +632,8 @@ export function installVoice(): void {
     if (a.mode !== b.mode) engine.applyTransmit();
   });
   useVoice.subscribe((st, prev) => {
+    // the channel's permission changed mid-call: the voice goes out as it now may
+    if (engine?.current() && !!st.mine?.mono_only !== !!prev.mine?.mono_only && st.mine?.channel_id === prev.mine?.channel_id) void engine.refreshMic();
     // One ring for however many calls are coming in, until the last is
     // answered, declined or gone. Do Not Disturb shows the call but keeps it quiet.
     if (st.ringing !== prev.ringing) {

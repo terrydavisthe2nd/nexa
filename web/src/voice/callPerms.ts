@@ -5,6 +5,7 @@
  * sfu_handlers.go); these keep the app from offering what it would refuse.
  */
 import { P } from "@/lib/perms";
+import type { VoiceChannels } from "./channels";
 import { useChannels } from "@/stores/channels";
 import { canI, useServers } from "@/stores/servers";
 import { useSettings } from "@/stores/settings";
@@ -20,6 +21,17 @@ function allows(channelId: string | null | undefined, need: bigint): boolean {
 /** Whether this person may turn on a camera or share a screen here (Video). */
 export function mayStream(channelId: string | null | undefined): boolean {
   return allows(channelId, P.STREAM);
+}
+
+/**
+ * How this person's voice goes out here: as they chose, or mono where the
+ * channel denies Use Stereo Voice. The server's word for a call this device is in
+ * (`mono_only`) counts as soon as it comes, roles here perhaps not yet loaded.
+ */
+export function allowedChannels(chosen: VoiceChannels, channelId: string | null | undefined): VoiceChannels {
+  if (chosen === "mono" || !allows(channelId, P.USE_STEREO_VOICE)) return "mono";
+  const mine = useVoice.getState().mine;
+  return mine?.channel_id === channelId && mine?.mono_only ? "mono" : chosen;
 }
 
 /** Whether this person may talk as Priority Speaker here: only in a server's voice channel that allows it. */

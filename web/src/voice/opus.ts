@@ -39,6 +39,8 @@ const VOICE: Record<string, string> = { usedtx: "1", maxaveragebitrate: String(V
 const VOICE_STEREO: Record<string, string> = { usedtx: "1", maxaveragebitrate: String(VOICE_STEREO_BITRATE), stereo: "1", "sprop-stereo": "1" };
 /** What a side says to play a section in stereo. Sound sent in one channel plays in both ears as it always did. */
 const LISTEN: Record<string, string> = { stereo: "1" };
+/** Plays a section in one channel, however many it is sent in: what holds Use Stereo Voice and Hear Everything in Mono. */
+const LISTEN_MONO: Record<string, string> = { stereo: "0" };
 /** A share's sound: in stereo, and without DTX, which would gate the quiet passages of music. */
 const STREAM: Record<string, string> = { usedtx: "0", maxaveragebitrate: String(STREAM_AUDIO_BITRATE), stereo: "1", "sprop-stereo": "1" };
 
@@ -132,11 +134,12 @@ export function tunedRemote<D extends { type?: RTCSdpType | string; sdp?: string
  * This device's own description. A decoder plays stereo only when the local
  * side asks for it, so a share's sound asks here too, and so does every voice
  * in `listen` (a set of mids, or "all" for each audio section), whether its
- * sender uses two channels or not: nobody can say in advance who will.
- * Anything else passes as it is.
+ * sender uses two channels or not: nobody can say in advance who will. Those
+ * in `mono` are decoded in one channel whatever their sender sends, which no
+ * sender can get round. Anything else passes as it is.
  */
-export function tunedLocal<D extends { type?: RTCSdpType | string; sdp?: string | null }>(desc: D, streamMids: ReadonlySet<string>, listen: ReadonlySet<string> | "all" = new Set()): D {
+export function tunedLocal<D extends { type?: RTCSdpType | string; sdp?: string | null }>(desc: D, streamMids: ReadonlySet<string>, listen: ReadonlySet<string> | "all" = new Set(), mono: ReadonlySet<string> | "all" = new Set()): D {
   if (!desc || !desc.sdp || desc.type === "rollback") return desc;
-  if (streamMids.size === 0 && listen !== "all" && listen.size === 0) return desc;
-  return { ...desc, sdp: tuneSections(desc.sdp, (mid) => (mid !== undefined && streamMids.has(mid) ? STREAM : listen === "all" || (mid !== undefined && listen.has(mid)) ? LISTEN : null)) };
+  const among = (set: ReadonlySet<string> | "all", mid: string | undefined) => set === "all" || (mid !== undefined && set.has(mid));
+  return { ...desc, sdp: tuneSections(desc.sdp, (mid) => (among(mono, mid) ? LISTEN_MONO : mid !== undefined && streamMids.has(mid) ? STREAM : among(listen, mid) ? LISTEN : null)) };
 }

@@ -64,7 +64,7 @@ describe("servers store", () => {
   });
   it("computes permissions locally", () => {
     const st = useServers.getState().byId[S]!;
-    expect(serverPerms(st, "1")).toBe((1n << 61n) - 1n & serverPerms(st, "1"));
+    expect(serverPerms(st, "1")).toBe((1n << 62n) - 1n & serverPerms(st, "1"));
     expect(canI(st, P.MANAGE_MESSAGES)).toBe(true);
     expect(canI(st, P.KICK_MEMBERS)).toBe(false);
     expect(channelPerms(st, "201", "3")).toBe(0n);

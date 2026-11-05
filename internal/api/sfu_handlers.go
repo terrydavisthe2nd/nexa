@@ -240,6 +240,9 @@ func (s *Server) handleSFUPublish(w http.ResponseWriter, r *http.Request) {
 			bps = realtime.ClampScreenBps(t.Bitrate)
 		case realtime.KindAudio:
 			bps = realtime.ClampVoiceBps(t.Bitrate)
+			if st.MonoOnly {
+				bps = realtime.AudioBps
+			}
 		}
 		if next, ok := s.Voice.SetPublishedTrack(me.ID, req.SessionID, t.Kind, names[t.Mid], t.Mid, bps); ok {
 			latest, published = next, true

@@ -51,6 +51,8 @@ export const P = {
   BYPASS_SLOWMODE: 1n << 52n,
   /** Nexa's own: someone's typing style is shown when they type here; without it, the plain dots. Readers' apps hold it. */
   USE_CUSTOM_TYPING: 1n << 60n,
+  /** Nexa's own: someone may send their voice in two channels here. Without it, the server marks them mono_only and listeners' apps decode them in one. */
+  USE_STEREO_VOICE: 1n << 61n,
 } as const;
 
 export type PermName = keyof typeof P;
@@ -58,7 +60,7 @@ export type PermName = keyof typeof P;
 export const ALL: bigint = Object.values(P).reduce((a, b) => a | b, 0n);
 export const DEFAULT_EVERYONE: bigint =
   P.CREATE_INSTANT_INVITE | P.ADD_REACTIONS | P.STREAM | P.VIEW_CHANNEL | P.SEND_MESSAGES | P.EMBED_LINKS | P.ATTACH_FILES | P.READ_MESSAGE_HISTORY | P.USE_EXTERNAL_EMOJIS | P.CONNECT | P.SPEAK | P.USE_VAD | P.CHANGE_NICKNAME | P.USE_SOUNDBOARD | P.CREATE_POLLS |
-  P.CREATE_PUBLIC_THREADS | P.CREATE_PRIVATE_THREADS | P.USE_EXTERNAL_STICKERS | P.SEND_MESSAGES_IN_THREADS | P.USE_APPLICATION_COMMANDS | P.USE_EXTERNAL_APPS | P.USE_CUSTOM_TYPING;
+  P.CREATE_PUBLIC_THREADS | P.CREATE_PRIVATE_THREADS | P.USE_EXTERNAL_STICKERS | P.SEND_MESSAGES_IN_THREADS | P.USE_APPLICATION_COMMANDS | P.USE_EXTERNAL_APPS | P.USE_CUSTOM_TYPING | P.USE_STEREO_VOICE;
 export const TIMED_OUT_KEEP: bigint = P.VIEW_CHANNEL | P.READ_MESSAGE_HISTORY;
 
 /** The kinds of channel a permission matters in, for the channel permission editor. */
@@ -121,6 +123,7 @@ export function permGroups(): { group: string; items: { name: PermName; label: s
       { name: "SPEAK", label: t("perms.speak"), description: t("perms.allowsMembersToTalkInVoice"), channel: ["voice"] },
       { name: "STREAM", label: t("perms.video"), description: t("perms.allowsMembersToShareTheirVideo"), channel: ["voice"] },
       { name: "USE_VAD", label: t("perms.useVoiceActivity"), description: t("perms.allowsMembersToSpeakInVoice"), channel: ["voice"] },
+      { name: "USE_STEREO_VOICE", label: t("perms.useStereoVoice"), description: t("perms.useStereoVoiceDescription"), channel: ["voice"] },
       { name: "PRIORITY_SPEAKER", label: t("perms.prioritySpeaker"), description: t("perms.allowsMembersToBeMoreEasily"), channel: ["voice"] },
       { name: "MUTE_MEMBERS", label: t("perms.muteMembers"), description: t("perms.allowsMembersToMuteOtherMembers"), channel: ["voice"] },
       { name: "DEAFEN_MEMBERS", label: t("perms.deafenMembers"), description: t("perms.allowsMembersToDeafenOtherMembers"), channel: ["voice"] },

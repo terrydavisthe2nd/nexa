@@ -1,7 +1,10 @@
 """What a listener really gets from each way of sending a voice: a real call on
 a throwaway chatd, the speaker's fake microphone playing 440 Hz on the left and
 1500 Hz on the right, and each channel the listener decodes measured apart.
-The speaker changes mode in Settings during the call, as a person would.
+The speaker changes mode in Settings during the call, as a person would. Also Hear
+everything in mono, and Use Stereo Voice taken away mid-call, from an honest app
+and from one patched to go on sending stereo (window.__cheat), which is how the
+listeners' end is known to hold.
 
     stereo_call.py            peer to peer
     stereo_call.py --sfu      through Cloudflare Realtime (keys from chatd.env; a few MB of real traffic)
@@ -86,6 +89,14 @@ PATCH = """
   Patched.prototype = Native.prototype;
   Object.setPrototypeOf(Patched, Native);
   window.RTCPeerConnection = Patched;
+  // a sender that ignores what its app is told: two channels at the stereo bitrate, whatever it asks for
+  const setRemote = Native.prototype.setRemoteDescription;
+  Native.prototype.setRemoteDescription = function (desc, ...rest) {
+    if (window.__cheat && desc && desc.sdp) desc = { type: desc.type, sdp: desc.sdp.replace(/;?(stereo|sprop-stereo|maxaveragebitrate)=\\d+/g, "").replace(/(a=fmtp:\\d+ )(minptime|usedtx|useinbandfec)/g, "$1stereo=1;sprop-stereo=1;maxaveragebitrate=128000;$2") };
+    return setRemote.call(this, desc, ...rest);
+  };
+  const gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia = (c) => gum(window.__cheat && c.audio ? { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2 } } : c);
   const size = (b, f, sr) => { let w = 2 * Math.PI * f / sr, c = 2 * Math.cos(w), x = 0, y = 0; for (const s of b) { const t = s + c * x - y; y = x; x = t; } return Math.sqrt(Math.max(0, x * x + y * y - c * x * y)) / b.length * 2; };
   // the loudest live voice this page receives, each channel on its own
   window.__measure = async () => {
@@ -177,19 +188,30 @@ try:
             btn.click()
         bob.page.wait_for_url("**/channels/*/*", timeout=20000)
 
+        def switch(sess, label, on):
+            box = sess.page.locator(f"label:has-text('{label}') input")
+            box.check(force=True) if on else box.uncheck(force=True)
+
         def choose(sess, mode, noise="off"):
             sess.open_settings("voice")
-            sess.page.locator(f"[data-testid=channels-{mode}]").check(force=True)
+            if mode == "stereo":
+                switch(sess, "Stereo voice", True)
+            elif mode == "dual":
+                switch(sess, "Dual mono", True)
+            else:
+                switch(sess, "Stereo voice", False)
+                switch(sess, "Dual mono", False)
             sess.page.locator(f"[data-testid=noise-{noise}]").check(force=True)
             sess.page.wait_for_timeout(800)
             sess.shot(f"settings-{mode}")
             sess.page.keyboard.press("Escape")
             sess.page.wait_for_timeout(300)
 
-        def measure_until(want, what, timeout=25):
-            got = wait_for(lambda: (lambda m: m if want(m) else None)(bob.page.evaluate("window.__measure()")), timeout)
-            kbps = alice.page.evaluate("window.__sending()")
-            shown = {k: round(v, 4) for k, v in (got or bob.page.evaluate("window.__measure()") or {}).items()}
+        def measure_until(want, what, timeout=25, speaker=None, listener=None):
+            speaker, listener = speaker or alice, listener or bob
+            got = wait_for(lambda: (lambda m: m if want(m) else None)(listener.page.evaluate("window.__measure()")), timeout)
+            kbps = speaker.page.evaluate("window.__sending()")
+            shown = {k: round(v, 4) for k, v in (got or listener.page.evaluate("window.__measure()") or {}).items() if k in ("L440", "L1500", "R440", "R1500")}
             check(bool(got), f"{what}: {json.dumps(shown)}, sending {kbps} kbit/s")
             return kbps
 
@@ -200,10 +222,13 @@ try:
             except Exception:
                 pass
         # a steady tone is what automatic sensitivity learns to take for background noise
-        alice.open_settings("voice")
-        alice.page.locator("label:has-text('Automatically determine input sensitivity') input").uncheck(force=True)
-        alice.page.wait_for_timeout(500)
-        alice.page.keyboard.press("Escape")
+        for s in (alice, bob):
+            s.open_settings("voice")
+            s.page.locator("label:has-text('Automatically determine input sensitivity') input").uncheck(force=True)
+            s.page.locator("[data-testid=noise-off]").check(force=True)
+            s.page.wait_for_timeout(500)
+            s.page.keyboard.press("Escape")
+            s.page.wait_for_timeout(300)
         choose(alice, "stereo", "enhanced") if SPEECH else choose(alice, "mono")
         for s in (alice, bob):
             s.page.locator("[data-channel]:has(span:text-is('General')) button").first.click()
@@ -226,6 +251,45 @@ try:
         choose(alice, "stereo", "enhanced")
         choose(alice, "mono")
         measure_until(same_both, "and back to Mono")
+
+        print("== Hear everything in mono", flush=True)
+        choose(alice, "stereo")
+        measure_until(separated, "alice in stereo, bob hears it")
+        bob.open_settings("voice")
+        switch(bob, "Hear everything in mono", True)
+        bob.page.wait_for_timeout(500)
+        bob.page.keyboard.press("Escape")
+        k = measure_until(same_both, "bob turns it on: the same mix in both ears, just for him")
+        check(k is not None and k > 90, f"alice is still sending stereo ({k} kbit/s)")
+        bob.open_settings("voice")
+        switch(bob, "Hear everything in mono", False)
+        bob.page.wait_for_timeout(500)
+        bob.page.keyboard.press("Escape")
+        measure_until(separated, "bob turns it off: left and right apart again")
+
+        print("== Use Stereo Voice, bob speaking and alice listening", flush=True)
+        choose(alice, "mono")
+        choose(bob, "stereo")
+        voice_id = a.evaluate("() => [...document.querySelectorAll('[data-channel]')].find((x) => x.querySelector('button') && x.textContent.includes('General')).getAttribute('data-channel')")
+        def deny(bits):
+            r = a.evaluate("""async ([ch, sid, deny]) => {
+              const tok = localStorage.getItem('ec.token');
+              const res = await fetch(`/api/v1/channels/${ch}/permissions/${sid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify({ type: 'role', deny }) });
+              return res.status; }""", [voice_id, server_id, bits])
+            check(r < 300, f"the owner sets the channel's @everyone deny to {bits}: {r}")
+        STEREO_BIT = str(1 << 61)
+        measure_until(separated, "bob in stereo, allowed: alice hears left and right", speaker=bob, listener=alice)
+        deny(STEREO_BIT)
+        k = measure_until(same_both, "taken away mid-call: alice hears one mix", speaker=bob, listener=alice)
+        check(k is not None and k < 80, f"bob's honest app drops to a voice's bitrate ({k} kbit/s)")
+        deny("0")
+        measure_until(separated, "given back: left and right again", speaker=bob, listener=alice)
+        bob.page.evaluate("window.__cheat = true")
+        deny(STEREO_BIT)
+        k = measure_until(same_both, "a patched app that lost it: alice still hears one mix", speaker=bob, listener=alice)
+        check(k is not None and k > 90, f"and it really is still sending two channels ({k} kbit/s)")
+        bob.page.evaluate("window.__cheat = false")
+        deny("0")
         errors = [e for s in (alice, bob) for e in s.errors]
         check(not errors, f"no page errors: {errors[:5]}")
         b.close()

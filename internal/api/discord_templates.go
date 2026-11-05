@@ -379,6 +379,8 @@ func buildTemplateSpec(tpl *discordGuildTemplate, customName string) (store.Temp
 			// soundboards or polls had permission bits of their own: grant the
 			// newer defaults whenever @everyone could already talk in channels.
 			if p != 0 {
+				// Discord has no such bit, so no template can have meant to take it away
+				p |= perms.UseStereoVoice
 				if p.Has(perms.SendMessages) && r.Permissions < (1<<32) {
 					p |= perms.CreatePublicThreads | perms.CreatePrivateThreads | perms.UseExternalStickers | perms.SendMessagesInThreads
 				}

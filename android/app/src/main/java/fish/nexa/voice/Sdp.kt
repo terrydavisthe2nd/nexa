@@ -21,6 +21,7 @@ object Sdp {
     private val WANTED = linkedMapOf("usedtx" to "1", "maxaveragebitrate" to VOICE_BITRATE.toString())
     private val WANTED_STEREO = linkedMapOf("usedtx" to "1", "maxaveragebitrate" to VOICE_STEREO_BITRATE.toString(), "stereo" to "1", "sprop-stereo" to "1")
     private val LISTEN = linkedMapOf("stereo" to "1")
+    private val LISTEN_MONO = linkedMapOf("stereo" to "0")
     private val RTPMAP = Regex("^a=rtpmap:(\\d+) opus/48000", RegexOption.IGNORE_CASE)
     private val FMTP = Regex("^a=fmtp:(\\d+) (.*)$")
 
@@ -99,12 +100,19 @@ object Sdp {
 
     /**
      * This device's own description, playing in stereo every audio section whose
-     * mid is in [mids] (all of them when null). Sound sent in one channel still
-     * plays in both ears as it always did.
+     * mid is in [stereo] (all when null); sound sent in one channel still plays in
+     * both ears as it always did. Those in [mono] (all when null) are decoded in one
+     * channel whatever their sender sends, which no sender can get round.
      */
-    fun tunedLocal(desc: SessionDescription, mids: Set<String>? = null): SessionDescription =
-        if (desc.type == SessionDescription.Type.ROLLBACK || desc.description.isNullOrEmpty() || mids?.isEmpty() == true) desc
-        else SessionDescription(desc.type, tuneSections(desc.description) { mid -> if (mids == null || mid in mids) LISTEN else null })
+    fun tunedLocal(desc: SessionDescription, stereo: Set<String>?, mono: Set<String>? = emptySet()): SessionDescription =
+        if (desc.type == SessionDescription.Type.ROLLBACK || desc.description.isNullOrEmpty()) desc
+        else SessionDescription(desc.type, tuneSections(desc.description) { mid ->
+            when {
+                mono == null || mid in mono -> LISTEN_MONO
+                stereo == null || mid in stereo -> LISTEN
+                else -> null
+            }
+        })
 
     fun typeOf(wire: String): SessionDescription.Type? = when (wire) {
         "offer" -> SessionDescription.Type.OFFER

@@ -29,6 +29,8 @@ export const RELEASES: Release[] = [
     id: "2026-11-04",
     items: [
       { icon: AudioLines, title: "whatsNew.r20261104.stereoTitle", body: "whatsNew.r20261104.stereoBody" },
+      { icon: Headphones, title: "whatsNew.r20261104.hearMonoTitle", body: "whatsNew.r20261104.hearMonoBody" },
+      { icon: ShieldCheck, title: "whatsNew.r20261104.stereoPermTitle", body: "whatsNew.r20261104.stereoPermBody" },
     ],
   },
   {

@@ -149,7 +149,9 @@ fun VoicePage() {
     val mode = (voice["mode"] as? JsonPrimitive)?.contentOrNull ?: "vad"
     val channels = (voice["voiceChannels"] as? JsonPrimitive)?.contentOrNull.takeIf { it == "dual" || it == "stereo" } ?: "mono"
     val apart = channels == "stereo"
-    val inCall = fish.nexa.voice.Voice.state.collectAsState().value.mine != null
+    val mine = fish.nexa.voice.Voice.state.collectAsState().value.mine
+    val inCall = mine != null
+    val heldToMono = mine?.monoOnly == true
     // True Stereo has no Standard noise suppression (web voice/channels.ts): what is saved comes back when it ends
     val noise = ((voice["noiseMode"] as? JsonPrimitive)?.contentOrNull ?: "enhanced").let { if (apart && it == "standard") "enhanced" else it }
     val auto = voice.voiceBool("autoSensitivity", true)
@@ -203,7 +205,9 @@ fun VoicePage() {
     }
 
     SectionHeading(t("voice.channels.title"), Modifier.settingAnchor("voiceStereo"))
-    for (m in listOf("mono", "dual", "stereo")) RadioCard(t("voice.channels.$m"), channels == m, { patchVoice("voiceChannels" to JsonPrimitive(m)) }, t("voice.channels.${m}Hint"))
+    ToggleRow(t("voice.channels.stereo"), apart, { patchVoice("voiceChannels" to JsonPrimitive(if (it) "stereo" else "mono")) }, t("voice.channels.stereoHint"))
+    ToggleRow(t("voice.channels.dual"), channels == "dual", { patchVoice("voiceChannels" to JsonPrimitive(if (it) "dual" else "mono")) }, t("voice.channels.dualHint"))
+    ToggleRow(t("voice.channels.hearMono"), voice.voiceBool("hearMono", false), { patchVoice("hearMono" to JsonPrimitive(it)) }, t("voice.channels.hearMonoHint"), divider = false)
     if (apart) Hint(t("voice.channels.stereoNote"))
     if (inCall && apart != fish.nexa.voice.WebRtc.stereoInput) Hint(t("android.voice.channelsNextCall"))
 

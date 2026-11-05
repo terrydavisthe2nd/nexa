@@ -305,7 +305,7 @@ export function resumeAudio(): void {
  * rather than through a graph that could go wrong.
  */
 export function sentStream(ctx: AudioContext, mic: MediaStream, inputVolume: number, denoiser: AudioNode | null = null, channels: VoiceChannels = "mono"): { stream: MediaStream; gain: GainNode | null; source: MediaStreamAudioSourceNode | null } {
-  if (inputVolume === 100 && !denoiser && channels !== "dual") return { stream: mic, gain: null, source: null };
+  if (inputVolume === 100 && !denoiser && channels === "mono") return { stream: mic, gain: null, source: null };
   try {
     const src = ctx.createMediaStreamSource(mic);
     const gain = ctx.createGain();

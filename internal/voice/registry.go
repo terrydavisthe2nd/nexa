@@ -37,6 +37,9 @@ type State struct {
 	// Suppress is set when the channel denies Speak; it silences the user
 	// like a server mute but belongs to the channel, not to a moderator.
 	Suppress bool `json:"-"`
+	// MonoOnly is set when the channel denies Use Stereo Voice: listeners decode
+	// this person in one channel, whatever their app sends.
+	MonoOnly bool `json:"-"`
 	// Priority is set while the person talks as Priority Speaker (the key
 	// held, and the channel allows it).
 	Priority bool `json:"-"`

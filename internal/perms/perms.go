@@ -73,6 +73,12 @@ const (
 	// type in a channel, rather than the plain dots. The server never sees a
 	// style being drawn, so every reader's app holds it.
 	UseCustomTyping Perm = 1 << 60
+	// UseStereoVoice is Nexa's own too: whether someone may send their voice
+	// in two channels here (stereo or dual mono). Call frames are sealed, so
+	// the server cannot see what is sent. It says who lacks this in their
+	// voice state (mono_only), and every listener's app then decodes them in
+	// one channel, whatever their app sends.
+	UseStereoVoice Perm = 1 << 61
 )
 
 // All is every permission this server knows.
@@ -80,12 +86,12 @@ const All = CreateInstantInvite | KickMembers | BanMembers | Administrator | Man
 	PrioritySpeaker | Stream | ViewChannel | SendMessages | ManageMessages | EmbedLinks | AttachFiles | ReadMessageHistory | MentionEveryone |
 	UseExternalEmojis | Connect | Speak | MuteMembers | DeafenMembers | MoveMembers | UseVAD | ChangeNickname | ManageNicknames | ManageRoles |
 	ManageWebhooks | ManageEmojis | ManageThreads | CreatePublicThreads | CreatePrivateThreads | UseExternalStickers | SendMessagesInThreads |
-	ModerateMembers | UseSoundboard | CreateExpressions | CreatePolls | PinMessages | BypassSlowmode | UseApplicationCommands | UseExternalApps | UseCustomTyping
+	ModerateMembers | UseSoundboard | CreateExpressions | CreatePolls | PinMessages | BypassSlowmode | UseApplicationCommands | UseExternalApps | UseCustomTyping | UseStereoVoice
 
 // DefaultEveryone is what a fresh server's @everyone role gets.
 const DefaultEveryone = CreateInstantInvite | AddReactions | Stream | ViewChannel | SendMessages | EmbedLinks | AttachFiles |
 	ReadMessageHistory | UseExternalEmojis | Connect | Speak | UseVAD | ChangeNickname | UseSoundboard | CreatePolls |
-	CreatePublicThreads | CreatePrivateThreads | UseExternalStickers | SendMessagesInThreads | UseApplicationCommands | UseExternalApps | UseCustomTyping
+	CreatePublicThreads | CreatePrivateThreads | UseExternalStickers | SendMessagesInThreads | UseApplicationCommands | UseExternalApps | UseCustomTyping | UseStereoVoice
 
 // TimedOutKeep is all a timed-out member retains.
 const TimedOutKeep = ViewChannel | ReadMessageHistory
@@ -102,7 +108,7 @@ var Names = map[string]Perm{
 	"CREATE_POLLS": CreatePolls, "USE_EXTERNAL_EMOJIS": UseExternalEmojis, "MANAGE_THREADS": ManageThreads, "CREATE_PUBLIC_THREADS": CreatePublicThreads,
 	"CREATE_PRIVATE_THREADS": CreatePrivateThreads, "USE_EXTERNAL_STICKERS": UseExternalStickers, "SEND_MESSAGES_IN_THREADS": SendMessagesInThreads,
 	"CREATE_EXPRESSIONS": CreateExpressions, "PIN_MESSAGES": PinMessages, "BYPASS_SLOWMODE": BypassSlowmode,
-	"USE_APPLICATION_COMMANDS": UseApplicationCommands, "USE_EXTERNAL_APPS": UseExternalApps, "USE_CUSTOM_TYPING": UseCustomTyping,
+	"USE_APPLICATION_COMMANDS": UseApplicationCommands, "USE_EXTERNAL_APPS": UseExternalApps, "USE_CUSTOM_TYPING": UseCustomTyping, "USE_STEREO_VOICE": UseStereoVoice,
 }
 
 // MarshalJSON writes the bitset as a decimal string.

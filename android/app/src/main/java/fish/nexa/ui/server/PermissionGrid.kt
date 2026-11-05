@@ -91,6 +91,7 @@ object PermInfo {
                 PermItem(P.SPEAK, t("perms.speak"), t("perms.allowsMembersToTalkInVoice"), VOICE),
                 PermItem(P.STREAM, t("perms.video"), t("perms.allowsMembersToShareTheirVideo"), VOICE),
                 PermItem(P.USE_VAD, t("perms.useVoiceActivity"), t("perms.allowsMembersToSpeakInVoice"), VOICE),
+                PermItem(P.USE_STEREO_VOICE, t("perms.useStereoVoice"), t("perms.useStereoVoiceDescription"), VOICE),
                 PermItem(P.PRIORITY_SPEAKER, t("perms.prioritySpeaker"), t("perms.allowsMembersToBeMoreEasily"), VOICE),
                 PermItem(P.MUTE_MEMBERS, t("perms.muteMembers"), t("perms.allowsMembersToMuteOtherMembers"), VOICE),
                 PermItem(P.DEAFEN_MEMBERS, t("perms.deafenMembers"), t("perms.allowsMembersToDeafenOtherMembers"), VOICE),

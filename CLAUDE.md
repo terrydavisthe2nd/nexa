@@ -362,9 +362,10 @@ Each starts its own throwaway chatd.
 - `tools/sfu_call.py` and `tools/sfu_guest.py`: real calls and a guest through Cloudflare Realtime (keys
   from `chatd.env`). sfu_call turns noise suppression off, since its fake microphone is a steady tone
   the speech gate rightly silences.
-- `tools/stereo_call.py`: each of Mono, Dual Mono and True Stereo, changed mid-call in Settings, with a
-  different tone in each channel of a fake microphone and each channel the listener decodes measured apart;
-  `--sfu` through Cloudflare, `--speech` a speech-like sound on the left through RNNoise.
+- `tools/stereo_call.py`: mono, dual mono and stereo, changed mid-call in Settings, with a different tone in
+  each channel of a fake microphone and each channel the listener decodes measured apart; Hear everything in
+  mono; Use Stereo Voice taken away from an honest app and from one patched to go on sending stereo
+  (`window.__cheat`); `--sfu` through Cloudflare, `--speech` a speech-like sound on the left through RNNoise.
 - `tools/call_quality.py`: calls over bad networks made by `tools/netsim`.
 - `tools/share_quality.py`: a hard-motion screen share through Cloudflare, timed frame by frame as the
   viewer sees it; the sharer is Chromium, Firefox or the desktop app's Electron in a hidden window;
@@ -666,6 +667,13 @@ as Discord holds it:
   bit, far above Discord's; migration 0045 gave every existing @everyone it): without it in a channel the
   typing bar shows that person with the plain dots instead of their typing style (web `TypingBar.tsx`,
   Android `ui/chat/TypingBar.kt`).
+- Use Stereo Voice (1 << 61, Nexa's own; migration 0051 gave every existing @everyone it, and Discord templates
+  keep it): call frames are sealed, so the server cannot see or stop what is sent. It works out who lacks the
+  permission (`voice.State.MonoOnly`, at join, on a move and in `sfuPolicyLocked`, so it follows a change mid-call
+  without touching the session) and says so in their voice state as `mono_only`. Every listener's app then decodes
+  them in one channel (Calls, Mono on the listener's side), and the sender's own app sends mono (web
+  `allowedChannels` in `voice/callPerms.ts`, Android `CallPerms.allowedChannels`). A patched sender only wastes
+  its own bandwidth; only an older or patched listener can hear it in stereo.
 - Use Application Commands (1 << 31) and Use External Apps (1 << 50) are for apps, and @everyone has
   both. Use Soundboard (1 << 42) stays in the maths for the bot API and Discord templates, but Nexa has
   no soundboard and the role editors do not offer it.
@@ -929,32 +937,43 @@ as Discord holds it:
 - The call view fits tiles from fractional ResizeObserver sizes rounded down (rounding up clipped the
   grid at fractional widths); `tools/call_layout_audit.py` checks it through the dev-only
   `web/tests/call-layout.html` fixture in Chromium and WebKit, with a negative control.
-- Stereo voice (Settings, Voice & Video, Stereo Voice; the synced `voiceChannels`, `mono` by default, web
-  `voice/channels.ts`): Mono is what calls always carried, untouched. Dual Mono and True Stereo send
-  two-channel Opus at 128 kbit/s with DTX (`opus.ts` `VOICE_STEREO_BITRATE`, Android `Sdp`), which an
-  encoder takes from the applied remote description, so changing one mid-call publishes the voice again
-  through the SFU (`setVoiceStereo`; everyone pulls it afresh, a few seconds without that voice) or
-  renegotiates peer to peer. Every current app asks to play pulled voices in stereo in its own description
-  (`tunedLocal`, `Sdp.tunedLocal`); peer to peer that stays local and the description sent is the one as
-  made, since an older app would take `stereo=1` from it. Older apps hear a stereo voice mixed to mono.
-  Measured with a different tone in each channel (`tools/stereo_call.py`, Chromium 153): Chromium's echo
-  cancellation, noise suppression and automatic gain each make a microphone one channel in both ears, so
-  True Stereo opens it without them (the settings page disables them and Standard) and only RNNoise can
-  run, one state a channel behind one shared gate (`denoise.worklet.ts`, `SpeechGate.processAll`). Voice
-  messages always record in mono. A voice packet with its copies stays within `MAX_PACKET_WITH_COPIES`
-  (`copiesThatFit`), since a stereo frame is far larger than a mono one. The meter charges a voice at the
-  bitrate its app declares on publish, between `AudioBps` and `StreamAudioBps` (`ClampVoiceBps`,
-  `voice.State.AudioBps`, not on the wire). No plan limits any of this.
-- Android stereo capture: `AudioRecord` opens one way for an audio device module's life, so True Stereo
-  has its own factory (`WebRtc.useStereoInput`, chosen in `Engine.join`, kept for the process). The capture
+- Stereo voice (Settings, Voice & Video, Stereo & Mono; web `voice/channels.ts`): the synced `voiceChannels`
+  is `mono` (the default, and what calls always carried, untouched), `dual` or `stereo`, shown as two switches
+  that turn each other off. Only the person talking chooses it. Dual and stereo send two-channel Opus at 128
+  kbit/s with DTX (`opus.ts` `VOICE_STEREO_BITRATE`, Android `Sdp`), which an encoder takes from the applied
+  remote description, so changing it mid-call publishes the voice again through the SFU (`setVoiceStereo`;
+  everyone pulls it afresh, a few seconds without that voice) or renegotiates peer to peer. Every current app
+  asks to play pulled voices in stereo in its own description (`tunedLocal`, `Sdp.tunedLocal`); peer to peer
+  that stays local and the description sent is the one as made, since an older app would take `stereo=1` from
+  it. Older apps hear a stereo voice mixed to mono. Measured with a different tone in each channel
+  (`tools/stereo_call.py`, Chromium 153): Chromium's echo cancellation, noise suppression and automatic gain
+  each make a microphone one channel in both ears, so stereo opens it without them (the settings page disables
+  them and Standard) and only RNNoise can run, one state a channel behind one shared gate
+  (`denoise.worklet.ts`, `SpeechGate.processAll`). Stereo always goes through the WebAudio graph
+  (`sentStream`): the unprocessed microphone track sent directly left about one join in fifteen with Cloudflare
+  answering `not_found_track_error` to every pull while its packets arrived (0 of 120 through the graph; why is
+  not known), so do not take that stage out. Voice messages always record in mono. A voice packet with its
+  copies stays within `MAX_PACKET_WITH_COPIES` (`copiesThatFit`), since a stereo frame is far larger than a mono
+  one. The meter charges a voice at the bitrate its app declares on publish, between `AudioBps` and
+  `StreamAudioBps` (`ClampVoiceBps`, `voice.State.AudioBps`, not on the wire), and at `AudioBps` for someone
+  `MonoOnly`. No plan limits any of this.
+- Mono on the listener's side: a section whose local description says `stereo=0` is decoded in one channel
+  whatever is sent (`tunedLocal`'s `mono`, `Sdp.tunedLocal`), which no sender can get round. Hear everything in
+  mono (the synced `hearMono`, `setHearMono`) does that for every voice and share sound; a voice whose state says
+  `mono_only` gets it too. Only a new exchange changes a decoder, so `Pulled.mono` differing from what is wanted
+  drops and pulls the track again in `syncNow`, and peer to peer renegotiates (`setRoster`).
+- Android stereo capture: `AudioRecord` opens one way for an audio device module's life, so stereo voice has its
+  own factory (`WebRtc.useStereoInput`, chosen in `Engine.join`, kept for the process). The capture
   post-processing hook only ever gets the first channel, even with two captured, so in two-channel capture
-  `Denoise.process` does nothing and `StereoInput` (`AudioBufferCallback`, before WebRTC) does RNNoise, the
-  input volume, the level and the gate on both (`nativeProcessTwoChannels`). This must not break: gating
-  only in the hook left the right channel open while muted. A one-channel encoder fed from two-channel
-  capture came out garbled, so that call stays on Dual Mono until it ends (`Engine.sendsTwoChannels`,
-  `android.voice.channelsNextCall`). Whether a phone's own microphones or its voice-call audio path keep
-  stereo is the hardware's business and untested; the emulator only proves what reaches `AudioRecord`'s
-  buffer and what the speakers are handed (debug hooks `TONE` mode 4, `MUTE`, `LISTEN`).
+  `Denoise.process` does nothing and `StereoInput` (`AudioBufferCallback`, before WebRTC) does RNNoise, the input
+  volume, the level and the gate on both (`nativeProcessTwoChannels`). This must not break: gating only in the
+  hook left the right channel open while muted. A one-channel encoder fed from two-channel capture came out
+  garbled, so a call that turns stereo off, or loses the permission, stays in two identical channels until it
+  ends (`Engine.sendsTwoChannels`, `android.voice.channelsNextCall`). Whether a phone's own microphones or its
+  voice-call audio path keep stereo is the hardware's business and untested; the emulator only proves what reaches
+  `AudioRecord`'s buffer and what the speakers are handed (debug hooks `TONE` mode 4, `MUTE`, `LISTEN`). A native
+  call on a disposed `PeerConnection` crashes past `runCatching`, so after any suspension check `closed` (or
+  `live(of)`) first: `SfuTransport.setLocal` once crashed the app on leaving during an exchange.
 - Noise suppression is Xiph RNNoise commit `70f1d256acd4b34a572f999a05c87bf00b67730d` on both (web
   `@shiguredo/rnnoise-wasm` 2025.1.5 in `voice/denoise.worklet.ts`; native CMake fetches source and
   weights under SHA-256), gated by `voice/speechGate.ts` (native `SpeechGate`: hysteresis, 20 ms of

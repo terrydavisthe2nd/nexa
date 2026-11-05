@@ -773,6 +773,7 @@ private fun settingsIndex(groups: List<SettingsGroup>): List<SettingResult> {
         Triple("voice", "voiceStereo", "voice.channels.title"),
         Triple("voice", "voiceStereo", "voice.channels.stereo"),
         Triple("voice", "voiceStereo", "voice.channels.dual"),
+        Triple("voice", "voiceStereo", "voice.channels.hearMono"),
         Triple("voice", "noiseSuppression", "voice.noise.title"),
         Triple("voice", "noiseSuppression", "voice.noise.enhanced"),
         Triple("voice", "voiceProcessing", "settings.voice.echoCancellation"),

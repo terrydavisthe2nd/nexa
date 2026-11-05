@@ -8,7 +8,7 @@ import { NOISE_MODES, useSettings, type VoiceSettings } from "@/stores/settings"
 import { useVoice } from "@/stores/voice";
 import { LevelMeter, audioContext, defaultDeviceLabel, describeInput, getMic, holdAudio, lastInputChoice, listDevices, realDevices, sentStream, type Devices } from "@/voice/media";
 import { makeDenoiser, prepareDenoiser, releaseDenoiser } from "@/voice/denoise";
-import { VOICE_CHANNELS, keepsChannelsApart } from "@/voice/channels";
+import { keepsChannelsApart } from "@/voice/channels";
 import { noiseModeHint, noiseModeLabel, noiseModePatch } from "@/voice/noiseMode";
 import { canChooseOutput } from "@/voice/output";
 import { noKeyToHold } from "@/voice/session";
@@ -23,6 +23,7 @@ export default function VoicePage() {
   const liveLevel = useVoice((x) => x.level);
   const inCall = useVoice((x) => !!x.mine);
   const apart = keepsChannelsApart(settings.voiceChannels);
+  const heldToMono = useVoice((x) => !!x.mine?.mono_only);
   const [devices, setDevices] = useState<Devices | null>(null);
   const [testing, setTesting] = useState(false);
   const [testLevel, setTestLevel] = useState(0);
@@ -332,16 +333,12 @@ export default function VoicePage() {
         ) : null}
       </div>
       <h3 data-setting="voiceStereo" className={st.h5}>{tr_("voice.channels.title")}</h3>
-      <div role="radiogroup" aria-label={tr_("voice.channels.title")}>
-        {VOICE_CHANNELS.map((m) => (
-          <label key={m} className={st.radio} data-on={settings.voiceChannels === m}>
-            <input type="radio" name="voice-channels" checked={settings.voiceChannels === m} onChange={() => set({ voiceChannels: m })} data-testid={`channels-${m}`} />
-            <span className={st.radioText}><span className={st.radioLabel}>{tr_(`voice.channels.${m}`)}</span><span className={st.radioDesc}>{tr_(`voice.channels.${m}Hint`)}</span></span>
-          </label>
-        ))}
-      </div>
+      <Toggle checked={settings.voiceChannels === "stereo"} onChange={(on) => set({ voiceChannels: on ? "stereo" : "mono" })} label={tr_("voice.channels.stereo")} description={tr_("voice.channels.stereoHint")} />
+      <Toggle checked={settings.voiceChannels === "dual"} onChange={(on) => set({ voiceChannels: on ? "dual" : "mono" })} label={tr_("voice.channels.dual")} description={tr_("voice.channels.dualHint")} />
+      <Toggle checked={settings.hearMono} onChange={(on) => set({ hearMono: on })} label={tr_("voice.channels.hearMono")} description={tr_("voice.channels.hearMonoHint")} />
       {apart ? <p className={st.hint} data-testid="channels-note">{tr_("voice.channels.stereoNote")}</p> : null}
       {oneChannelMic ? <p className={st.hint} data-testid="channels-one-mic">{tr_("voice.channels.oneChannelMic")}</p> : null}
+      {inCall && settings.voiceChannels !== "mono" && heldToMono ? <p className={st.hint} data-testid="channels-held">{tr_("voice.channels.notAllowed")}</p> : null}
       <h3 data-setting="noiseSuppression" className={st.h5}>{tr_("voice.noise.title")}</h3>
       <div role="radiogroup" aria-label={tr_("voice.noise.title")}>
         {NOISE_MODES.map((m) => {

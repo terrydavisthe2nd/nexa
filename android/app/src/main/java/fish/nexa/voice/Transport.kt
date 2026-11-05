@@ -32,6 +32,8 @@ interface VoiceTransport {
     fun setLocalAudio(track: AudioTrack?)
     /** Whether this device's voice goes out in two channels. */
     fun setVoiceStereo(on: Boolean)
+    /** Whether every voice and shared sound plays here in one channel. */
+    fun setHearMono(on: Boolean)
     fun setLocalVideo(track: VideoTrack?)
     /** `smooth`: the share keeps its frames and is made smaller when the link is short, rather than keeping its size (VideoCap.SharePlan). */
     fun setLocalScreen(track: VideoTrack?, bitrate: Int, fps: Int, smooth: Boolean = fps >= 50)

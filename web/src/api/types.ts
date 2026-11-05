@@ -577,6 +577,8 @@ export interface VoiceState {
   server_deaf: boolean;
   /** The channel denies Speak: server_mute is set for that, not for anything a moderator did. */
   suppress?: boolean;
+  /** They lack Use Stereo Voice here, so this app decodes them in one channel whatever they send (voice/channels.ts). */
+  mono_only?: boolean;
   /** Talking as Priority Speaker now: everyone else is turned down while they are heard (absent from older servers). */
   priority_speaker?: boolean;
   joined_at: number;

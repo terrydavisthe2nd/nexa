@@ -62,7 +62,7 @@ class SfuTransport(
     private class SyncLater(message: String) : Exception(message)
 
     /** A track pulled from someone else, arriving on one of this connection's mids. */
-    private class Pulled(val userId: String, val kind: PubKind, val tag: String, val asked: String, val mid: String) {
+    private class Pulled(val userId: String, val kind: PubKind, val tag: String, val asked: String, val mid: String, val mono: Boolean = false) {
         @Volatile var transceiver: RtpTransceiver? = null
         @Volatile var track: MediaStreamTrack? = null
         @Volatile var decryptor: NativeFrameDecryptor? = null
@@ -71,7 +71,7 @@ class SfuTransport(
         var tooLarge = false
     }
 
-    private class Want(val userId: String, val kind: PubKind, val tag: String)
+    private class Want(val userId: String, val kind: PubKind, val tag: String, val mono: Boolean = false)
 
     private class Shown(val audio: AudioTrack?, val video: VideoTrack?, val screen: VideoTrack?, val screenAudio: AudioTrack?, val videoTooLarge: Boolean, val screenTooLarge: Boolean) {
         val empty get() = audio == null && video == null && screen == null
@@ -90,6 +90,7 @@ class SfuTransport(
 
     private var audioTrack: AudioTrack? = null
     @Volatile private var voiceStereo = false
+    @Volatile private var hearMono = false
     private var videoTrack: VideoTrack? = null
     private var screenTrack: VideoTrack? = null
     private var screenBitrate = 6_000_000
@@ -255,19 +256,37 @@ class SfuTransport(
         return job
     }
 
-    /** Every sound this device pulls plays in stereo whenever it is sent that way, and its own voice says so while it does. */
-    private fun listenMids(): Set<String> {
-        val mids = HashSet<String>()
-        for (p in pulled.values) if (!p.kind.video) mids += p.mid
-        if (voiceStereo) senders[PubKind.AUDIO]?.let { tr -> runCatching { tr.mid }.getOrNull()?.let { mids += it } }
-        return mids
+    /**
+     * Whether this device decodes a track in one channel: everything when it
+     * chose that, and the voice of anyone the server says lacks Use Stereo Voice.
+     * Their own app may send what it likes; this end is what holds it.
+     */
+    private fun monoFor(st: VoiceState, kind: PubKind) = hearMono || (kind == PubKind.AUDIO && st.monoOnly)
+
+    override fun setHearMono(on: Boolean) {
+        if (on == hearMono) return
+        hearMono = on
+        scheduleSync()
+    }
+
+    /**
+     * Every sound this device pulls plays in stereo whenever it is sent that way. Its own
+     * section stays as it was made, since an encoder goes by the remote description.
+     */
+    private fun tuneLocal(desc: SessionDescription): SessionDescription {
+        val stereo = HashSet<String>()
+        val mono = HashSet<String>()
+        for (p in pulled.values) if (!p.kind.video) (if (p.mono) mono else stereo) += p.mid
+        return Sdp.tunedLocal(desc, stereo, mono)
     }
 
     /** Stops a step that waited while its connection was replaced or closed. */
     /** Applies this device's own description, noting the extension ids it gives each mid. */
     private suspend fun setLocal(of: PeerConnection, desc: SessionDescription) {
-        WebRtc.setLocal(of, Sdp.tunedLocal(desc, listenMids()))
-        if (of === pc) extmaps.note(runCatching { of.localDescription }.getOrNull()?.description ?: desc.description)
+        WebRtc.setLocal(of, tuneLocal(desc))
+        // leaving while this waited disposed the connection (on this same thread), and reading a disposed
+        // one crashes in native code, past what runCatching can catch
+        if (of === pc && !closed) extmaps.note(runCatching { of.localDescription }.getOrNull()?.description ?: desc.description)
     }
 
     /** Applies the SFU's description, without extension ids that would mean something else on a mid than before. */
@@ -828,7 +847,7 @@ class SfuTransport(
             if (userId == meId || userId !in peers) continue
             fun add(kind: PubKind) {
                 val tag = st.media?.get(kind.wire)
-                if (!tag.isNullOrEmpty()) out[slot(userId, kind)] = Want(userId, kind, tag)
+                if (!tag.isNullOrEmpty()) out[slot(userId, kind)] = Want(userId, kind, tag, monoFor(st, kind))
             }
             if (roster[meId]?.serverDeaf != true && !st.serverMute && !st.serverDeaf && !st.suppress) add(PubKind.AUDIO)
             if (pictures) add(PubKind.VIDEO)
@@ -855,7 +874,8 @@ class SfuTransport(
         val drop = pulled.entries.filter { (key, p) ->
             val w = want[key]
             // a track published again has a new tag, and is pulled again
-            w == null || (w.tag != p.tag && w.tag != p.asked)
+            // and so is one to decode differently, which only a new exchange can change
+            w == null || (w.tag != p.tag && w.tag != p.asked) || w.mono != p.mono
         }.map { it.value }
         val add = want.entries.filter { (key, _) -> !pulled.containsKey(key) || drop.contains(pulled[key]) }.map { it.value }
         if (drop.isNotEmpty()) unsubscribe(drop)
@@ -889,7 +909,7 @@ class SfuTransport(
             }
             if (t.mid == null || t.error != null) continue
             refusedPulls.remove(key)
-            val p = Pulled(t.userId, kind, t.tag.orEmpty(), asked[key].orEmpty(), t.mid)
+            val p = Pulled(t.userId, kind, t.tag.orEmpty(), asked[key].orEmpty(), t.mid, list.firstOrNull { it.userId == t.userId && it.kind == kind }?.mono == true)
             pulled[key]?.let { old -> if (byMid[old.mid] === old) byMid.remove(old.mid) }
             pulled[key] = p
             // filled before the offer is applied: onTrack fires inside setRemoteDescription

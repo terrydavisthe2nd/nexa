@@ -35,6 +35,7 @@ const meter = vi.hoisted(() => ({ level: 0 }));
 const transport = vi.hoisted(() => ({
   setLocalAudio: vi.fn(),
   setVoiceStereo: vi.fn(),
+  setHearMono: vi.fn(),
   setLocalVideo: vi.fn(),
   setLocalScreen: vi.fn(),
   addPeer: vi.fn(),

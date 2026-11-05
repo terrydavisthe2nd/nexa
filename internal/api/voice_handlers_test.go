@@ -815,3 +815,39 @@ func TestPrioritySpeaker(t *testing.T) {
 		t.Errorf("letting go of the key: %v", ev)
 	}
 }
+
+// A listener's app goes by mono_only, so it has to follow the permission, for
+// someone already in the call too, and a server's owner always keeps it.
+func TestStereoVoicePermission(t *testing.T) {
+	_, ts := newTestServer(t)
+	tokA, idA := register(t, ts, "alice")
+	tokB, idB := register(t, ts, "bob")
+	view := createServer(t, ts, tokA, "Voice")
+	sid := view["id"].(string)
+	voiceCh := channelNamed(view, "General")["id"].(string)
+	join(t, ts, tokB, inviteFor(t, ts, tokA, channelNamed(view, "general")["id"].(string)))
+	ga := connectGW(t, ts, tokA)
+	gb := connectGW(t, ts, tokB)
+	ga.op(t, "voice_state", map[string]any{"channel_id": voiceCh})
+	if ev := ga.nextVoice(idA, voiceCh, 3*time.Second); ev == nil || ev["mono_only"] != nil {
+		t.Fatalf("the owner joins: %v", ev)
+	}
+	gb.op(t, "voice_state", map[string]any{"channel_id": voiceCh})
+	if ev := ga.nextVoice(idB, voiceCh, 3*time.Second); ev == nil || ev["mono_only"] != nil {
+		t.Fatalf("bob has it by default: %v", ev)
+	}
+	set := func(deny perms.Perm) {
+		t.Helper()
+		if res, body := do(t, ts, "PUT", "/api/v1/channels/"+voiceCh+"/permissions/"+sid, tokA, map[string]any{"type": "role", "deny": permStr(deny)}); res.StatusCode >= 300 {
+			t.Fatalf("overwrite: %d %v", res.StatusCode, body)
+		}
+	}
+	set(perms.UseStereoVoice)
+	if ev := ga.nextVoice(idB, voiceCh, 3*time.Second); ev == nil || ev["mono_only"] != true {
+		t.Fatalf("taken away mid-call: %v", ev)
+	}
+	set(0)
+	if ev := ga.nextVoice(idB, voiceCh, 3*time.Second); ev == nil || ev["mono_only"] != nil {
+		t.Fatalf("given back: %v", ev)
+	}
+}

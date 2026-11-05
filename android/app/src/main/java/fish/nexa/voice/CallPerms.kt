@@ -19,6 +19,17 @@ object CallPerms {
     /** Whether this person may turn on a camera or share a screen here (Video). */
     fun mayStream(channelId: String?): Boolean = allows(channelId, P.STREAM)
 
+    /**
+     * How this person's voice goes out here: as they chose, or mono where the
+     * channel denies Use Stereo Voice. The server's word for a call this device is
+     * in (mono_only) counts as soon as it comes, roles here perhaps not yet loaded.
+     */
+    fun allowedChannels(chosen: String, channelId: String?): String {
+        if (chosen == "mono" || !allows(channelId, P.USE_STEREO_VOICE)) return "mono"
+        val mine = Voice.state.value.mine
+        return if (mine?.channelId == channelId && mine?.monoOnly == true) "mono" else chosen
+    }
+
     /** Whether a channel lets this person talk by voice activity; without Use Voice Activity they must push to talk. */
     fun allowsVoiceActivity(channelId: String?): Boolean = allows(channelId, P.USE_VAD)
 

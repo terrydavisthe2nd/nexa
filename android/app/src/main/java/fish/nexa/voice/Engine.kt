@@ -79,6 +79,7 @@ internal object Engine {
         val speaking = SpeakingGate()
         var announced = false
         var noiseNoticed = false
+        var monoNoticed = false
         val jobs = ArrayList<Job>()
         val relayedTo = HashMap<String, String>()
     }
@@ -143,17 +144,31 @@ internal object Engine {
 
     private fun hasMicPermission(): Boolean = ContextCompat.checkSelfPermission(Nexa.app, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-    private fun voiceChannels() = Voice.setting("voiceChannels").takeIf { it == "dual" || it == "stereo" } ?: "mono"
+    private fun chosenChannels() = Voice.setting("voiceChannels").takeIf { it == "dual" || it == "stereo" } ?: "mono"
+
+    /** How the voice goes out in this channel: what was chosen, less what the channel denies. */
+    private fun voiceChannels(channelId: String) = CallPerms.allowedChannels(chosenChannels(), channelId)
+
+    /** Says once a call that a channel holds this voice to mono, as nothing else would. */
+    private fun noteMonoOnly(s: Session) {
+        if (s.monoNoticed || chosenChannels() == "mono" || voiceChannels(s.channelId) != "mono") return
+        s.monoNoticed = true
+        Nexa.ui.toast(t("voice.channels.notAllowed"))
+    }
+
+    fun setHearMono(on: Boolean) {
+        session?.transport?.setHearMono(on)
+    }
 
     /**
      * Whether the encoder gets two channels. Capture in two channels stays that way
      * until the call ends (WebRtc.stereoInput), and a one-channel encoder fed from it
      * came out garbled, so it goes on as Dual Mono rather than Mono until then.
      */
-    private fun sendsTwoChannels() = voiceChannels() != "mono" || WebRtc.stereoInput
+    private fun sendsTwoChannels(channelId: String) = voiceChannels(channelId) != "mono" || WebRtc.stereoInput
 
     /** Whether this call keeps the microphone's channels apart: chosen, and captured that way since it began. */
-    private fun trueStereo() = voiceChannels() == "stereo" && WebRtc.stereoInput
+    private fun trueStereo(channelId: String) = voiceChannels(channelId) == "stereo" && WebRtc.stereoInput
 
     /**
      * How noise is taken out: RNNoise here (Enhanced), the platform's own
@@ -162,7 +177,7 @@ internal object Engine {
      */
     private fun noisePlan(s: Session): Pair<Boolean, Boolean> {
         // True Stereo has only RNNoise: the platform's own would make the microphone one channel
-        if (trueStereo() && (Voice.setting("noiseMode") ?: "enhanced") != "off") {
+        if (trueStereo(s.channelId) && (Voice.setting("noiseMode") ?: "enhanced") != "off") {
             if (Denoise.available) return true to false
             if (!s.noiseNoticed) {
                 s.noiseNoticed = true
@@ -189,7 +204,7 @@ internal object Engine {
         Denoise.enhanced = rnnoise
         Denoise.gain = Voice.settingInt("inputVolume", 100).coerceIn(0, 200) / 100f
         // each of these would make the microphone one channel, as the browser's do (web voice/channels.ts)
-        val apart = trueStereo()
+        val apart = trueStereo(s.channelId)
         Denoise.apart = apart
         val echo = !apart && Voice.settingBool("echoCancellation", true)
         val agc = !apart && Voice.settingBool("autoGain", true)
@@ -226,7 +241,8 @@ internal object Engine {
             val (source, track) = openMic(s)
             s.micSource = source
             s.micTrack = track
-            s.transport.setVoiceStereo(sendsTwoChannels())
+            s.transport.setVoiceStereo(sendsTwoChannels(s.channelId))
+            noteMonoOnly(s)
             s.transport.setLocalAudio(track)
             applyTransmit()
             old.first?.let { runCatching { it.dispose() } }
@@ -277,7 +293,7 @@ internal object Engine {
      */
     suspend fun join(channelId: String, ice: IceConfig, wanted: () -> Boolean, refuse: (String) -> Unit): Boolean {
         val myId = me() ?: return false
-        WebRtc.useStereoInput(voiceChannels() == "stereo")
+        WebRtc.useStereoInput(voiceChannels(channelId) == "stereo")
         if (ice.sfu) {
             if (!FrameCryptoNative.loaded) {
                 refuse(t("session.thisBrowserCannotMakeEncryptedCalls"))
@@ -356,7 +372,9 @@ internal object Engine {
             Nexa.ui.toast(t("session.microphoneAccessWasDeniedYouCan"), "error")
             Voice.update { it.copy(micBlocked = true) }
         }
-        transport.setVoiceStereo(sendsTwoChannels())
+        transport.setVoiceStereo(sendsTwoChannels(channelId))
+        transport.setHearMono(Voice.settingBool("hearMono", false))
+        noteMonoOnly(s)
         s.micTrack?.let { transport.setLocalAudio(it) }
         transport.playback.setVolumes(Voice.mix.value)
         for (uid in Voice.state.value.watching) transport.setWatching(uid, true)

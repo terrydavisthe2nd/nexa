@@ -35,6 +35,15 @@ describe("stereo voices", () => {
   });
 });
 
+describe("holding a voice to mono", () => {
+  it("decodes one channel where it is told to, over every other wish", () => {
+    const out = tunedLocal({ type: "answer", sdp: answer }, new Set(["2"]), "all", new Set(["2"])).sdp!;
+    expect(out).toContain("a=rtpmap:109 opus/48000/2\r\na=fmtp:109 stereo=0");
+    expect(out).toContain("a=fmtp:111 minptime=10;useinbandfec=1;stereo=1");
+    expect(tunedLocal({ type: "answer", sdp: answer }, new Set(), new Set(), "all").sdp).toContain("a=fmtp:111 minptime=10;useinbandfec=1;stereo=0");
+  });
+});
+
 describe("tuneOpus", () => {
   it("asks every Opus section for DTX and the voice bitrate, keeping what was there", () => {
     const out = tuneOpus(answer);

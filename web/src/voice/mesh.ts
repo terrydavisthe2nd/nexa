@@ -90,6 +90,8 @@ export class MeshTransport implements VoiceTransport {
   private peers = new Map<string, Peer>();
   private audioTrack: MediaStreamTrack | null = null;
   private voiceStereo = false;
+  private hearMono = false;
+  private monoOnly = new Set<string>();
   private videoTrack: MediaStreamTrack | null = null;
   private screen: MediaStream | null = null;
   private audioStream = new MediaStream();
@@ -302,7 +304,24 @@ export class MeshTransport implements VoiceTransport {
   }
 
   /** The mesh learns about peers one by one through addPeer. */
-  setRoster(_states: VoiceState[]): void {}
+  /** Who the server says lacks Use Stereo Voice: their sound is decoded in one channel, whatever they send. */
+  setRoster(states: VoiceState[]): void {
+    const next = new Set(states.filter((s) => s.mono_only).map((s) => s.user_id));
+    const changed = [...this.peers.values()].filter((p) => next.has(p.userId) !== this.monoOnly.has(p.userId));
+    this.monoOnly = next;
+    if (!this.hearMono) for (const p of changed) this.enqueue(p, () => this.negotiate(p));
+  }
+
+  setHearMono(on: boolean): void {
+    if (on === this.hearMono) return;
+    this.hearMono = on;
+    for (const p of this.peers.values()) this.enqueue(p, () => this.negotiate(p));
+  }
+
+  private tuneLocal(userId: string, desc: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
+    const mono = this.hearMono || this.monoOnly.has(userId);
+    return tunedLocal(desc, NO_MIDS, mono ? NO_MIDS : "all", mono ? "all" : NO_MIDS);
+  }
 
   /** In the call: with nobody else there yet, there is nothing to connect to and the call is up. */
   joined(_state: VoiceState): void {
@@ -363,7 +382,7 @@ export class MeshTransport implements VoiceTransport {
         for (const c of peer.pendingCandidates.splice(0)) await pc.addIceCandidate(c).catch(() => {});
         if (desc.type === "offer") {
           const answer = await pc.createAnswer();
-          await pc.setLocalDescription(tunedLocal(answer, NO_MIDS, "all"));
+          await pc.setLocalDescription(this.tuneLocal(from, answer));
           this.events.onSignal(from, { description: answer, streams: this.streamIds() });
         }
         if (peer.renegotiate && pc.signalingState === "stable") this.enqueue(peer, () => this.negotiate(peer));
@@ -402,7 +421,7 @@ export class MeshTransport implements VoiceTransport {
       peer.makingOffer = true;
       const renegotiating = !!pc.remoteDescription;
       const offer = await pc.createOffer();
-      await pc.setLocalDescription(tunedLocal(offer, NO_MIDS, "all"));
+      await pc.setLocalDescription(this.tuneLocal(peer.userId, offer));
       this.events.onSignal(peer.userId, { description: offer, streams: this.streamIds() });
       if (renegotiating) this.armOfferTimer(peer);
     } catch (err) {

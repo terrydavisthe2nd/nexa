@@ -15,7 +15,7 @@ import { ring } from "@/lib/keyring";
 import { playSound } from "@/lib/sounds";
 import { convForChannel } from "@/components/composer/send";
 import { useKeys } from "@/stores/keys";
-import { useSettings } from "@/stores/settings";
+import { useSettings, type VoiceSettings } from "@/stores/settings";
 import { useUI } from "@/stores/ui";
 import { participantsOf, useVoice } from "@/stores/voice";
 import { useVoiceLocal } from "@/stores/voiceLocal";
@@ -24,7 +24,7 @@ import { hasGuestKeys, openRelayedKeys, sealKeysForGuest } from "./guestKeys";
 import { LevelMeter, audioContext, getCamera, getMic, getScreen, holdAudio, lastInputChoice, sensitivityToThreshold, sentStream, type CameraFacing } from "./media";
 import { MeshTransport, type SignalPayload } from "./mesh";
 import { asGuest, iceConfig, me, sendState } from "./session";
-import { pushToTalkOn } from "./callPerms";
+import { allowedChannels, pushToTalkOn } from "./callPerms";
 import { SfuTransport } from "./sfu";
 import { type SharePlan, sharePlan } from "./shareQuality";
 import { shareAllowance } from "@/lib/plans";
@@ -66,6 +66,7 @@ interface Session {
   micRetrying: boolean;
   micSwap: Promise<void> | null;
   micSwapAgain: boolean;
+  monoNoticed: boolean;
   noiseFloor: number;
   pttHeld: boolean;
   /** The Priority Speaker key is held: the mic is open, as with push to talk, and everyone else is turned down. */
@@ -250,10 +251,10 @@ export function priorityHeld(): boolean {
 export function applyInputGain(): void {
   const s = session;
   if (!s?.micRaw) return;
-  const { inputVolume: volume, voiceChannels } = useSettings.getState().settings.voice;
+  const { inputVolume: volume, voiceChannels } = voiceNow();
   if (s.inputGain) {
-    // moving back to 100% takes the extra stage out of the way again, unless RNNoise or Dual Mono needs the graph anyway
-    if (volume === 100 && !s.denoiser && voiceChannels !== "dual") void rebuildInput(s);
+    // moving back to 100% takes the extra stage out of the way again, unless RNNoise or stereo needs the graph anyway
+    if (volume === 100 && !s.denoiser && voiceChannels === "mono") void rebuildInput(s);
     else s.inputGain.gain.value = volume / 100;
     return;
   }
@@ -288,7 +289,7 @@ async function rebuildInput(s: Session): Promise<void> {
  * the browser's own, and says so once.
  */
 async function noisePlan(s: Session): Promise<{ rnnoise: boolean; browserNoise: boolean }> {
-  const { noiseMode: mode, voiceChannels } = useSettings.getState().settings.voice;
+  const { noiseMode: mode, voiceChannels } = voiceNow();
   if (mode === "off") return { rnnoise: false, browserNoise: false };
   // True Stereo has only RNNoise: the browser's own would make the microphone one channel
   if (keepsChannelsApart(voiceChannels)) {
@@ -369,8 +370,9 @@ export async function join(channelId: string, ice: { servers: RTCIceServer[]; sf
     },
   };
   const transport: VoiceTransport = ice.sfu ? new SfuTransport(myId, channelId, ice.servers, events) : new MeshTransport(myId, ice.servers, events);
-  s = { channelId, transport, mic: null, micRaw: null, send: new VoiceSend(), inputGain: null, inputSource: null, denoiser: null, rnnoise: false, noiseNoticed: false, inputGen: 0, meter: null, meterTimer: null, camera: null, screen: null, cameraPending: false, screenPending: false, micRetrying: false, micSwap: null, micSwapAgain: false, noiseFloor: 0.01, pttHeld: false, priorityHeld: false, vadOpen: false, vadHoldUntil: 0, speaking: new SpeakingGate(), announced: false, iceTimer: null, cleanups: [] };
+  s = { channelId, transport, mic: null, micRaw: null, send: new VoiceSend(), inputGain: null, inputSource: null, denoiser: null, rnnoise: false, noiseNoticed: false, inputGen: 0, meter: null, meterTimer: null, camera: null, screen: null, cameraPending: false, screenPending: false, micRetrying: false, micSwap: null, micSwapAgain: false, monoNoticed: false, noiseFloor: 0.01, pttHeld: false, priorityHeld: false, vadOpen: false, vadHoldUntil: 0, speaking: new SpeakingGate(), announced: false, iceTimer: null, cleanups: [] };
   session = s;
+  transport.setHearMono(useSettings.getState().settings.voice.hearMono);
   useVoice.getState().setConnection("connecting");
   releaseCall ??= holdReload("call");
   releaseAudio ??= holdAudio();
@@ -379,7 +381,7 @@ export async function join(channelId: string, ice: { servers: RTCIceServer[]; sf
   try {
     const plan = await noisePlan(s);
     s.rnnoise = plan.rnnoise;
-    mic = await getMic(useSettings.getState().settings.voice, { browserNoise: plan.browserNoise });
+    mic = await getMic(voiceNow(), { browserNoise: plan.browserNoise });
     if (plan.rnnoise) denoiser = await newDenoiser();
     if (plan.rnnoise && !denoiser) {
       s.rnnoise = false;
@@ -405,7 +407,8 @@ export async function join(channelId: string, ice: { servers: RTCIceServer[]; sf
     s.micRaw = mic;
     s.mic = buildInput(s, mic, denoiser);
     watchMic(s);
-    transport.setVoiceStereo(sendsTwoChannels(useSettings.getState().settings.voice.voiceChannels));
+    transport.setVoiceStereo(sendsTwoChannels(voiceNow().voiceChannels));
+    noteMonoOnly(s);
     if (lastInputChoice() === "missing") {
       // Better to say so than to carry a microphone nobody is talking into.
       useUI.getState().toast(tr_("session.theMicrophoneYouPickedIsNot"), "error");
@@ -533,19 +536,33 @@ export function stats(): Promise<{ rtt: number; loss: number }> | null {
  * microphone's own track is sent instead: a graph that produces silence on
  * some devices is not worth inserting for no change in level.
  */
+/** The voice settings as this call may use them: what was chosen, less what its channel denies. */
+function voiceNow(): VoiceSettings {
+  const v = useSettings.getState().settings.voice;
+  return { ...v, voiceChannels: allowedChannels(v.voiceChannels, session?.channelId) };
+}
+
+/** Says once a call that a channel holds this voice to mono, as nothing else would. */
+function noteMonoOnly(s: Session): void {
+  const chosen = useSettings.getState().settings.voice.voiceChannels;
+  if (s.monoNoticed || chosen === "mono" || allowedChannels(chosen, s.channelId) !== "mono") return;
+  s.monoNoticed = true;
+  useUI.getState().toast(tr_("voice.channels.notAllowed"), "info");
+}
+
 /** The RNNoise stage for how the voice is sent now. */
 function newDenoiser(): Promise<AudioNode | null> {
-  return makeDenoiser(audioContext(), keepsChannelsApart(useSettings.getState().settings.voice.voiceChannels) ? 2 : 1);
+  return makeDenoiser(audioContext(), keepsChannelsApart(voiceNow().voiceChannels) ? 2 : 1);
 }
 
 /** RNNoise would not start: the browser's own takes over, except where it would make the microphone one channel. */
 async function browserNoiseInstead(mic: MediaStream): Promise<void> {
-  if (keepsChannelsApart(useSettings.getState().settings.voice.voiceChannels)) return;
+  if (keepsChannelsApart(voiceNow().voiceChannels)) return;
   await mic.getAudioTracks()[0]?.applyConstraints({ noiseSuppression: true });
 }
 
 function buildInput(s: Session, raw: MediaStream, denoiser: AudioNode | null): MediaStream {
-  const { inputVolume, voiceChannels } = useSettings.getState().settings.voice;
+  const { inputVolume, voiceChannels } = voiceNow();
   const { stream, gain, source } = sentStream(audioContext(), raw, inputVolume, denoiser, voiceChannels);
   // a graph that could not be built sends the microphone as it is
   if (denoiser && !source) releaseDenoiser(denoiser);
@@ -657,7 +674,7 @@ function swapMic(s: Session, failure: string | null): Promise<void> {
 async function swapMicOnce(s: Session, failure: string | null): Promise<void> {
   try {
     const plan = await noisePlan(s);
-    const next = await getMic(useSettings.getState().settings.voice, { browserNoise: plan.browserNoise });
+    const next = await getMic(voiceNow(), { browserNoise: plan.browserNoise });
     const denoiser = plan.rnnoise ? await newDenoiser() : null;
     if (plan.rnnoise && !denoiser) await browserNoiseInstead(next);
     if (session !== s) {
@@ -678,7 +695,8 @@ async function swapMicOnce(s: Session, failure: string | null): Promise<void> {
     s.micRaw = next;
     s.mic = buildInput(s, next, denoiser);
     watchMic(s);
-    s.transport.setVoiceStereo(sendsTwoChannels(useSettings.getState().settings.voice.voiceChannels));
+    s.transport.setVoiceStereo(sendsTwoChannels(voiceNow().voiceChannels));
+    noteMonoOnly(s);
     s.transport.setLocalAudio(s.send.track(s.mic.getAudioTracks()[0] ?? null));
     startMeter(s);
     applyTransmit();
@@ -690,6 +708,11 @@ async function swapMicOnce(s: Session, failure: string | null): Promise<void> {
     // and one that is gone is: the button read "Mute" while nothing was sent
     if (session === s && !s.micRaw?.getAudioTracks().some((t) => t.readyState === "live")) useVoice.getState().setMicBlocked(true);
   }
+}
+
+/** Whether every voice and shared sound plays here in one channel. */
+export function setHearMono(on: boolean): void {
+  session?.transport.setHearMono(on);
 }
 
 /** Swap the microphone after a device or processing setting change. */

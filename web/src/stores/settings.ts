@@ -60,6 +60,8 @@ export interface VoiceSettings {
   autoGain: boolean;
   /** How this device's voice is sent: one channel, one channel in both ears, or the microphone's own left and right (voice/channels.ts). */
   voiceChannels: VoiceChannels;
+  /** Plays every voice and shared sound in one channel, on this account's own devices only. */
+  hearMono: boolean;
   /** Which way a share is tuned (voice/shareQuality.ts sharePlan); the share dialog starts from the last one used. */
   shareMode: ShareMode;
   /** A Custom share's size and frame rate. */
@@ -310,6 +312,7 @@ export const DEFAULT_SETTINGS: Settings = {
     echoCancellation: true,
     autoGain: true,
     voiceChannels: "mono",
+    hearMono: false,
     shareMode: "performance",
     shareResolution: "1080p",
     shareFps: 30,

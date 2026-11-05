@@ -101,6 +101,7 @@ export function settingsIndex(opts: { pageLabels: Record<string, string> }): Set
     e("voice", t("voice.channels.title"), "voiceStereo"),
     e("voice", t("voice.channels.stereo"), "voiceStereo"),
     e("voice", t("voice.channels.dual"), "voiceStereo"),
+    e("voice", t("voice.channels.hearMono"), "voiceStereo"),
     e("voice", t("voice.noise.title"), "noiseSuppression"),
     e("voice", t("voice.noise.enhanced"), "noiseSuppression"),
     e("voice", t("settings.voice.echoCancellation"), "voiceProcessing"),
