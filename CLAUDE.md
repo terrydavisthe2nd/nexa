@@ -266,16 +266,23 @@ runs in the foreground, so start it in the background; stop it with `pkill -f bi
 
 - `chatd.env`'s real captcha keys fail there unless dev.nexa.fish is on the Turnstile widget's hostnames, so
   every captcha says "The captcha check failed". Run it with Cloudflare's test keys in the environment, which
-  win over `chatd.env` and never show a challenge (`HCAPTCHA_SITE_KEY=` and `HCAPTCHA_SECRET_KEY=` empty turn
-  the fallback off too):
+  win over `chatd.env` and never show a challenge. An empty variable does not override the file, so `/instance`
+  still names hCaptcha, which is harmless: current apps read `turnstile` first.
 
   ```
   make web-dev server-dev
   TURNSTILE_SITE_KEY=1x00000000000000000000AA TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA \
     HCAPTCHA_SITE_KEY= HCAPTCHA_SECRET_KEY= \
     LISTEN=127.0.0.1:6969 PUBLIC_URL=https://dev.nexa.fish DATA_DIR=./data-dev R2_BUCKET=off \
-    WEB_DIST=./web/dist-dev ./bin/chatd_dev -env chatd.env      # in the background
+    DESKTOP_DIR=./data-dev/desktop WEB_DIST=./web/dist-dev ./bin/chatd_dev -env chatd.env      # in the background
   ```
+
+- Desktop clients for it: `python3 tools/desktop_dev_build.py` builds every platform into `~/.cache/nexa-desktop-dev`
+  and puts the installers in `data-dev/desktop` (so `DESKTOP_DIR` above serves them at dev.nexa.fish/desktop/ and on
+  its download page), publishing nothing live. Its address is fixed when built (`NEXA_BUILD_URL`, `__NEXA_BUILD_URL__`
+  in `config.ts`, empty in a release), since an installed app ignores environment overrides. It installs as "Nexa Dev",
+  with its own bundle id and profile, beside the real app and never over it. It is not signed with the update key, so
+  it never updates itself: install a newer one by hand. The tool refuses the live folder and the live addresses.
 
 - `R2_BUCKET=off` (`make run-dev` sets it too) keeps it out of the live bucket `chatd.env` names: an empty
   variable does not override the file, and its uploads and deletions would land on live keys.
@@ -1390,8 +1397,11 @@ and must stay in step and compatible with installed apps (anything new is option
 - Windows' calls run on a worker thread (`windows.ts`, `windowsApi.ts`, `windowsWorker.ts`, loaded from text so it runs
   inside the archive): under Wine `GetForegroundWindow` never returned, which on the main thread would freeze the app.
   A call that does not answer in 5 s costs the thread; one that hangs twice is not asked again; a thread stuck for good
-  makes `will-quit` end the process itself. Checked under Wine with a Windows Node: listing, windows, version resources
-  and `reg query`. Not checked on real Windows: `ProcessCommandLineInformation` (which Wine lacks, and Java games
+  makes `will-quit` end the process itself. Electron makes `process.resourcesPath` read only in a worker, so assigning to
+  it throws; plain Node does not, so test the packaged app (`Nexa Dev.exe` under Wine, `EVILION_DEBUG=1` logs each look).
+  Checked under Wine with a Windows Node: listing, windows, version resources
+  and `reg query`; and the packaged `Nexa Dev.exe` under Wine, whose worker listed processes and found a stand-in game.
+  Not checked on real Windows: `ProcessCommandLineInformation` (which Wine lacks, and Java games
   need), `GetForegroundWindow` and the GPU counters. On a Mac: all of it.
 - Sharing: someone may share a game they added, with or without an IGDB game (`POST /api/v1/games/shared`, `limGameShare`,
   closed to muted accounts). It sends a file name, the OS, a name and any IGDB id, never a path. Each row stays until
@@ -1489,7 +1499,8 @@ talks to the server as deployed, so it never depends on unreleased server change
   in isolation, deploying nothing), `test_maintenance.py` and `test_publish_desktop.py`.
 - i18n: `i18n_check.py`, `i18n_keys_used.py`, `i18n_apply.py` (write or merge a language's values),
   `i18n_extract.py` (pull hardcoded English into keys); `android/tools/add_strings.py`.
-- Releases: `android_release.py`, `desktop_release.py`, `mac_package.py`, `publish_desktop.py`, `licenses.py`
+- Releases: `android_release.py`, `desktop_release.py`, `mac_package.py`, `publish_desktop.py`, `desktop_dev_build.py`
+  (test builds, publishing nothing), `licenses.py`
   (license texts in `licenses/`).
 - Assets: `twemoji_font.py`, `twemoji_font_check.py`, `twemoji_sprites.py`, `trace_wordmark.py`,
   `home_shots.py`, `home_gifs.py`; `android/tools/name_fonts.py`. `requirements.txt` needs Brotli 1.2.1 or

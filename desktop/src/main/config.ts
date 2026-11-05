@@ -5,6 +5,18 @@
  */
 import { app } from "electron";
 
+/**
+ * The address a build of the app for a test site was made for
+ * (tools/desktop_dev_build.py), fixed when it is built and empty in a release. It
+ * cannot be set on an installed app, which is why this is safe where an
+ * environment variable is not (see baseUrl below).
+ */
+declare const __NEXA_BUILD_URL__: string | undefined;
+const BUILT_FOR = typeof __NEXA_BUILD_URL__ === "string" ? __NEXA_BUILD_URL__ : "";
+
+/** This copy is a test build for another site, installed beside the real app rather than over it. */
+export const TEST_BUILD = !!BUILT_FOR;
+
 /** Development and test overrides never change an installed app. */
 export function testHook(name: string): string | undefined {
   return app.isPackaged ? undefined : process.env[name];
@@ -25,7 +37,7 @@ function baseUrl(): URL {
       /* fall back to the public site */
     }
   }
-  return new URL("https://nexa.fish");
+  return new URL(BUILT_FOR || "https://nexa.fish");
 }
 
 export const BASE = baseUrl();

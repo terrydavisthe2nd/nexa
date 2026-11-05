@@ -16,6 +16,8 @@ const common = {
   // koffi's per-platform packages hold native modules; the Windows one ships in resources/koffi instead
   external: ["electron", "@koromix/*"],
   logLevel: "warning",
+  // empty for a release; tools/desktop_dev_build.py sets it for a test site's clients
+  define: { __NEXA_BUILD_URL__: JSON.stringify(process.env.NEXA_BUILD_URL ?? "") },
 };
 await Promise.all([
   build({ ...common, entryPoints: ["src/main/index.ts"], outfile: "dist-app/main.js" }),

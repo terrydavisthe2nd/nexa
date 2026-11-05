@@ -41,7 +41,7 @@ export class WindowsLister implements ProcessLister {
     if (this.worker) return this.worker;
     try {
       // from text: a worker cannot be started from a file inside the app's archive
-      const worker = new Worker(fs.readFileSync(this.file, "utf8"), { eval: true, workerData: { resourcesPath: (process as unknown as { resourcesPath?: string }).resourcesPath } });
+      const worker = new Worker(fs.readFileSync(this.file, "utf8"), { eval: true, workerData: { file: this.file, resourcesPath: (process as unknown as { resourcesPath?: string }).resourcesPath } });
       worker.on("message", (m: { id?: number; value?: unknown; error?: string; log?: string; extra?: Record<string, unknown> }) => {
         if (m.log) this.log(m.log, m.extra);
         if (m.error) this.log("game detection: a call failed", { error: m.error });

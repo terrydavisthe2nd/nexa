@@ -289,7 +289,13 @@ export class GameService extends EventEmitter {
       }
       this.looks++;
       if (this.looks % BEHAVIOUR_EVERY === 1 && (await this.watchBehaviour(unknown, procs))) changed = true;
-      if (changed) this.changed();
+      if (changed) {
+        // only with EVILION_DEBUG, and only here: how to tell a look that ran and found nothing from one that never ran
+        this.opts.log?.("games changed", { processes: procs.length, playing: [...this.playing.values()].map((g) => g.match.name) });
+        this.changed();
+      } else if (this.looks === 1) {
+        this.opts.log?.("first look at what is running", { processes: procs.length, recognised: found.size });
+      }
     } catch (err) {
       this.opts.log?.("game scan failed", { err: String(err) });
     } finally {

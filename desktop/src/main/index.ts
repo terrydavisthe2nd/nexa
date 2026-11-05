@@ -6,7 +6,7 @@ import { app, BrowserWindow, globalShortcut, ipcMain, nativeImage, net, powerMon
 import fs from "node:fs";
 import path from "node:path";
 import { IPC, type DesktopSettings, type Identity, type RpcActivity, type WindowState } from "../shared/bridge";
-import { BASE, ORIGIN, isAppUrl, testHook } from "./config";
+import { BASE, ORIGIN, TEST_BUILD, isAppUrl, testHook } from "./config";
 import { chooseDisplaySource, handleDisplayMedia, lockPermissions, openScreenSettings, resetScreenAccess, restartApp, screenAccess, shareAudioFailed } from "./permissions";
 import { RpcService } from "./rpc/service";
 import { GameLists } from "./games/lists";
@@ -28,7 +28,7 @@ const originals = new Originals((url) => shell.openExternal(url));
 const settings = new SettingsStore(path.join(app.getPath("userData"), "settings.json"));
 if (!settings.get("hardwareAcceleration")) app.disableHardwareAcceleration();
 if (process.platform === "linux") app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
-if (process.platform === "win32") app.setAppUserModelId("xyz.evilion.chat");
+if (process.platform === "win32") app.setAppUserModelId(TEST_BUILD ? "xyz.evilion.chat.dev" : "xyz.evilion.chat");
 
 const log = (msg: string, extra?: Record<string, unknown>) => {
   if (!app.isPackaged || process.env.EVILION_DEBUG) console.log(`[evilion] ${msg}`, extra ?? "");
