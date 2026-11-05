@@ -2,7 +2,7 @@ import { PersonName } from "@/components/common/PersonName";
 import { useMediaAnimation } from "@/lib/mediaAnimation";
 import { CalendarDays, Gavel, Hash, Search, Server, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { moderation as modApi, type ModServer, type People, type ServerSort } from "@/api/moderation";
 import { bannerUrl } from "@/api/users";
 import { Avatar } from "@/components/common/Avatar";
@@ -41,13 +41,15 @@ export function serverBlockedText(b: ModServer["blocked"]): string {
  * name and description, who owns it and how big it is. Nothing said inside
  * a server is here, or anywhere in the panel.
  */
-export function DiscoveryModerationTab() { return <ServersTab key="discovery" discovery />; }
-
-export function ServersTab({ discovery = false }: { discovery?: boolean }) {
+export function ServersTab() {
   const nav = useNavigate();
   const mergePeople = useModeration((s) => s.mergePeople);
   const [q, setQ] = useState("");
-  const [listing, setListing] = useState("all");
+  // Discovery is a view of the servers: those on it, listed or held ("" is every server)
+  const [params, setParams] = useSearchParams();
+  const listing = ["all", "listed", "held"].includes(params.get("discover") ?? "") ? params.get("discover")! : "";
+  const discovery = listing !== "";
+  const setListing = (v: string) => setParams(v ? { discover: v } : {}, { replace: true });
   const openModal = useUI((u) => u.openModal);
   const [sort, setSort] = useState<ServerSort>("newest");
   const [servers, setServers] = useState<ModServer[] | null>(null);
@@ -149,7 +151,12 @@ export function ServersTab({ discovery = false }: { discovery?: boolean }) {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("moderation.servers.search")} aria-label={t("moderation.servers.search")} data-testid="servers-search" />
         </label>
         {total !== null ? <span className={p.total}>{t("moderation.servers.total", { count: total })}</span> : null}
-        {discovery ? <Select value={listing} onChange={(e) => setListing(e.target.value)} aria-label={t("moderation.tabs.discovery")}><option value="all">{t("discovery.all")}</option><option value="listed">{t("moderation.servers.discoveryListed")}</option><option value="held">{t("moderation.servers.discoveryHeld")}</option></Select> : null}
+        <Select className={m.sort} value={listing} onChange={(e) => setListing(e.target.value)} aria-label={t("moderation.tabs.discovery")} data-testid="servers-discover">
+          <option value="">{t("moderation.servers.everyServer")}</option>
+          <option value="all">{t("moderation.servers.onDiscover")}</option>
+          <option value="listed">{t("moderation.servers.discoveryListed")}</option>
+          <option value="held">{t("moderation.servers.discoveryHeld")}</option>
+        </Select>
         <Select className={m.sort} value={sort} onChange={(e) => setSort(e.target.value as ServerSort)} aria-label={t("moderation.sort.label")}>
           <option value="newest">{t("moderation.sort.newest")}</option>
           <option value="oldest">{t("moderation.sort.oldest")}</option>

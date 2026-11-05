@@ -39,7 +39,7 @@ import { menuPoint } from "./ServerSidebar";
 import { NexaAvatar, OfficialBadge } from "@/components/nexa/NexaBits";
 import { useNexa } from "@/stores/nexa";
 import { useNotes } from "@/stores/notes";
-import { unreadCount, useModeration } from "@/stores/moderation";
+import { attentionCount, useModeration } from "@/stores/moderation";
 import { moderationMenu } from "@/components/moderation/modMenu";
 import { UserTag } from "@/components/servertag/UserTag";
 import { BotTag } from "@/components/apps/BotTag";
@@ -85,7 +85,7 @@ export function DMSidebar() {
   const isAdmin = useMyRank() !== null;
   // cases the member wrote in last, and bug reports waiting for an answer
   // case threads and bug reports waiting on the staff that hold something this person has not read
-  const needsReply = useModeration((m) => unreadCount(m.unread));
+  const needsReply = useModeration(attentionCount);
   const active = loc.pathname.match(/^\/channels\/@me\/(\d+)/)?.[1];
   // A subchat keeps its conversation highlighted, with its siblings listed
   // underneath, so you can see where you are.

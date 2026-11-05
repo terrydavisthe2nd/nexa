@@ -98,7 +98,7 @@ export function GrantBadgesModal({ user, onClose }: { user: { id: string; displa
                     <BadgePill badge={o} user={NOBODY} still named />
                     {held.includes(o.id) ? <span className={r.now}>{t("badges.staff.held")}</span> : null}
                   </span>
-                  <span className={r.powers}>{o.id === CONTRIBUTOR ? t("badges.contributorTip") : t("badges.eventTip")}</span>
+                  {o.id === CONTRIBUTOR ? <span className={r.powers}>{t("badges.contributorTip")}</span> : null}
                 </span>
               </label>
             );

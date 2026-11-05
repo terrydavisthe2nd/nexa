@@ -409,6 +409,16 @@ object Moderation {
         decode(BugCounts.serializer(), staff["bugs"])?.let { bugCounts.value = it }
         decode(ModUnread.serializer(), staff["unread"])?.let { _unread.value = it }
         (staff["owner_id"] as? JsonPrimitive)?.contentOrNull?.let { ownerId.value = it }
+        // reports by status: the open ones count on every badge for the panel
+        decode(kotlinx.serialization.builtins.MapSerializer(kotlinx.serialization.serializer<String>(), kotlinx.serialization.serializer<Int>()), staff["reports"])?.let { Reports.counts.value = it }
+    }
+
+    /** For staff alerts (notify/StaffAlerts.kt): a member wrote in a case, or a bug report came in or its reporter wrote. */
+    var onStaffAlert: ((StaffAlert) -> Unit)? = null
+
+    sealed interface StaffAlert {
+        data class Appeal(val case: StaffCase) : StaffAlert
+        data class Bug(val report: StaffBug, val isNew: Boolean) : StaffAlert
     }
 
     /** mod_case, mod_log, mod_bug, mod_unread, and the announcements every account hears. */
@@ -422,7 +432,10 @@ object Moderation {
                     people(o["people"])
                     decode(CaseCounts.serializer(), o["counts"])?.let { counts.value = it }
                     val c = decode(StaffCase.serializer(), o["case"]) ?: return
-                    _events.tryEmit(ModEvent.Case(c, decode(ListSerializer(CaseMessage.serializer()), o["messages"]) ?: emptyList()))
+                    val lines = decode(ListSerializer(CaseMessage.serializer()), o["messages"]) ?: emptyList()
+                    _events.tryEmit(ModEvent.Case(c, lines))
+                    // a member writing is what the staff are waiting for
+                    if (lines.any { it.kind == "member" }) onStaffAlert?.invoke(StaffAlert.Appeal(c))
                 }
                 "mod_log" -> {
                     o ?: return
@@ -434,7 +447,11 @@ object Moderation {
                     people(o["people"])
                     decode(BugCounts.serializer(), o["counts"])?.let { bugCounts.value = it }
                     val r = decode(StaffBug.serializer(), o["report"]) ?: return
-                    _events.tryEmit(ModEvent.Bug(r, decode(ListSerializer(BugMessage.serializer()), o["messages"]) ?: emptyList()))
+                    val lines = decode(ListSerializer(BugMessage.serializer()), o["messages"]) ?: emptyList()
+                    _events.tryEmit(ModEvent.Bug(r, lines))
+                    // a new report, or the reporter writing, is what the staff are waiting for
+                    if (r.lastMessage == null) onStaffAlert?.invoke(StaffAlert.Bug(r, true))
+                    else if (lines.any { it.kind == "member" }) onStaffAlert?.invoke(StaffAlert.Bug(r, false))
                 }
                 "nexa_announcement" -> decode(Announcement.serializer(), o?.get("announcement"))?.let { _events.tryEmit(ModEvent.News(it)) }
                 "nexa_announcement_delete" -> (o?.get("id") as? JsonPrimitive)?.contentOrNull?.let { _events.tryEmit(ModEvent.NewsGone(it)) }

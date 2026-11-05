@@ -359,7 +359,7 @@ private fun UserCard(u: ModUser, picking: Boolean, picked: Boolean, onPick: (() 
                 }
                 Row(Modifier.padding(top = 8.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     NxButton(t("moderation.moderate"), onModerate, Modifier.weight(1f), icon = "Gavel", size = ButtonSize.TOUCH, enabled = u.blocked.isEmpty())
-                    CasesButton(u.caseCount, Modifier.weight(1f)) { goPanel("users/${u.id}/cases") }
+                    CasesButton(u.caseCount, Modifier.weight(1f)) { goPanel("users/${u.id}") }
                     ModIconButton("Ellipsis", t("moderation.more"), onMenu)
                 }
                 // why Moderate is off, said under the card's buttons where there is no pointer to hover with

@@ -114,6 +114,8 @@ fun NavDrawer(open: Boolean) {
             ) {
                 when (val r = Nav.route) {
                     is Route.Server -> ServerSidebar(r.serverId, r.channelId)
+                    // the panel has its own sidebar in place of the conversations, as a server has its channels
+                    is Route.Admin -> fish.nexa.ui.moderation.StaffSidebar(r)
                     else -> DmSidebar()
                 }
             }
@@ -285,8 +287,8 @@ fun Rail(modifier: Modifier = Modifier) {
         ) { NexaMark(if (home) c.onBrand else c.textSubtle, 30.dp) }
         // every rank of staff opens the panel
         if (fish.nexa.data.StaffRanks.of(me?.id, me?.flags ?: 0L) != null) {
-            // case threads and bug reports waiting on the staff that hold something this person has not read
-            val waitingOnStaff = fish.nexa.data.Moderation.unread.collectAsState().value.count
+            // threads waiting on the staff this person has not read, and reports nobody has picked up
+            val waitingOnStaff = fish.nexa.ui.moderation.attentionCount()
             val inPanel = route is Route.Admin
             RailItem(
                 if (waitingOnStaff > 0) t("moderation.railWithCount", "count" to waitingOnStaff) else t("moderation.title"),

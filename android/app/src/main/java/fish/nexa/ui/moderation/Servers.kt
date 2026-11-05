@@ -124,11 +124,13 @@ private fun tagOf(s: ModServer): WornTag? = s.tag?.let { WornTag(s.id, it.text, 
  * said inside a server is here, or anywhere in the panel.
  */
 @Composable
-fun ServersTab(discovery: Boolean = false) {
+fun ServersTab(startListing: String = "") {
     val scope = rememberCoroutineScope()
     var q by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf("newest") }
-    var listing by remember { mutableStateOf("all") }
+    // Discovery is a view of the servers: those on it, listed or held ("" is every server)
+    var listing by remember(startListing) { mutableStateOf(startListing) }
+    val discovery = listing.isNotEmpty()
     val servers = remember { mutableStateListOf<ModServer>() }
     var loaded by remember { mutableStateOf(false) }
     var total by remember { mutableStateOf<Int?>(null) }
@@ -198,7 +200,7 @@ fun ServersTab(discovery: Boolean = false) {
                     SearchField(q, { q = it }, t("moderation.servers.search"), Modifier.weight(1f))
                     total?.let { Txt(t("moderation.servers.total", "count" to it), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f)), color = Nx.colors.textMuted, maxLines = 1) }
                 }
-                if (discovery) SortField(listOf("all" to t("discovery.all"), "listed" to t("moderation.servers.discoveryListed"), "held" to t("moderation.servers.discoveryHeld")), listing) { listing = it }
+                SortField(listOf("" to t("moderation.servers.everyServer"), "all" to t("moderation.servers.onDiscover"), "listed" to t("moderation.servers.discoveryListed"), "held" to t("moderation.servers.discoveryHeld")), listing) { listing = it }
                 SortField(listOf("newest" to t("moderation.sort.newest"), "oldest" to t("moderation.sort.oldest"), "members" to t("moderation.servers.sortMembers"), "name" to t("moderation.sort.name")), sort) { sort = it }
             }
         }

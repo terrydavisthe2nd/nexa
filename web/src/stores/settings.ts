@@ -88,6 +88,17 @@ export interface AppLockPolicy {
 
 export type FontFace = "default" | "classic";
 
+/**
+ * What staff are told about (lib/staffAlerts.ts): new safety reports (every
+ * one, only urgent ones, or none), members writing in cases, and bug reports.
+ * Missing means the defaults, everything on.
+ */
+export interface StaffAlertSettings {
+  reports?: "all" | "urgent" | "off";
+  cases?: boolean;
+  bugs?: boolean;
+}
+
 export interface Settings {
   theme: Theme;
   accent: string | null;
@@ -162,7 +173,7 @@ export interface Settings {
    * desktop: notifications in a browser, which has to be allowed first.
    * app: notifications in the desktop app, on unless turned off.
    */
-  notifications: { desktop: boolean; app: boolean; sounds: boolean; perChannel: Record<string, NotificationLevel>; muted: string[]; preview: NotificationPreview };
+  notifications: { desktop: boolean; app: boolean; sounds: boolean; perChannel: Record<string, NotificationLevel>; muted: string[]; preview: NotificationPreview; staff?: StaffAlertSettings };
   /**
    * Which sound pack plays, how loud, which sounds are off, and the account's
    * own packs: their names, and the sealed recordings each plays (lib/soundPacks.ts).

@@ -133,7 +133,7 @@ export type GatewayEvent =
   | { t: "mod_bug"; d: { report: StaffBug; messages: BugMessage[]; people: People; counts: BugCounts } }
   /** Staff: the case threads and bug reports waiting on the staff that this person has not read. */
   | { t: "mod_unread"; d: ModUnread }
-  | { t: "mod_report"; d: { reports: SafetyReport[]; counts: Record<string, number>; people: People } }
+  | { t: "mod_report"; d: { reports: SafetyReport[]; counts: Record<string, number>; people: People; new?: boolean } }
   | { t: "report_update"; d: ReportReceipt }
   /** This account's linked Discord account changed: linked, unlinked, out of the activity server or back in it. */
   | { t: "discord_link"; d: DiscordState }

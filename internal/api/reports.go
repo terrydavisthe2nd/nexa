@@ -409,7 +409,7 @@ func (s *Server) handleReportCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	s.emitReportChanges(r.Context(), true, v)
+	s.emitReportChanges(r.Context(), true, true, v)
 	WriteJSON(w, 201, map[string]any{"report": reportReceipt(v)})
 }
 
@@ -445,9 +445,9 @@ func reportListView(v *store.SafetyReport) *store.SafetyReport {
 }
 
 // emitReportChanges tells staff about new or changed reports (with the queue's
-// counts) and, unless the first report's status stayed the same, each reporter
+// counts; fresh when the first was just sent) and, unless the first report's status stayed the same, each reporter
 // about their own report's new status.
-func (s *Server) emitReportChanges(ctx context.Context, statusChanged bool, list ...*store.SafetyReport) {
+func (s *Server) emitReportChanges(ctx context.Context, statusChanged, fresh bool, list ...*store.SafetyReport) {
 	if len(list) == 0 {
 		return
 	}
@@ -463,7 +463,8 @@ func (s *Server) emitReportChanges(ctx context.Context, statusChanged bool, list
 		who = append(who, v.ReporterID, v.SubjectID, v.AssignedTo)
 	}
 	_ = s.Store.FillReportDuplicates(ctx, views)
-	s.emitStaff(ctx, rankMod, gateway.EvModReport, map[string]any{"reports": views, "counts": counts, "people": s.people(ctx, who...)})
+	// "new" marks a report just sent, which the apps tell staff about
+	s.emitStaff(ctx, rankMod, gateway.EvModReport, map[string]any{"reports": views, "counts": counts, "people": s.people(ctx, who...), "new": fresh})
 	told := map[ids.ID]bool{}
 	for i, v := range list {
 		if i > 0 || statusChanged {
@@ -513,7 +514,8 @@ func (s *Server) handleModReports(w http.ResponseWriter, r *http.Request) {
 	}
 	before, _ := ids.Parse(q.Get("before"))
 	after, _ := ids.Parse(q.Get("after"))
-	f := store.ReportFilter{Status: status, Kind: kind, Reason: reason, Query: truncateRunes(q.Get("q"), 200), Before: before, Limit: 51, Duplicates: true}
+	// "group=item" shows each reported item once (the newest report about it), as the queue does
+	f := store.ReportFilter{Status: status, Kind: kind, Reason: reason, Query: truncateRunes(q.Get("q"), 200), Before: before, Limit: 51, Duplicates: true, Grouped: q.Get("group") == "item"}
 	if q.Get("sort") == "oldest" {
 		f.Oldest, f.After, f.Before = true, after, 0
 	}
@@ -589,7 +591,8 @@ func (s *Server) handleModReport(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, x := range related {
 		publicReportSnapshot(x)
-		who = append(who, x.SubjectID)
+		// the panel shows who sent each report about the same thing
+		who = append(who, x.SubjectID, x.ReporterID)
 	}
 	_ = s.Store.FillReportDuplicates(r.Context(), append([]*store.SafetyReport{v}, related...))
 	stats, err := s.Store.SafetyReportStatsFor(r.Context(), v.ReporterID)
@@ -671,7 +674,7 @@ func (s *Server) handleModReportReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if now, err := s.Store.SafetyReportByID(r.Context(), v.ID); err == nil {
-		s.emitReportChanges(r.Context(), now.Status != v.Status, append([]*store.SafetyReport{now}, closed...)...)
+		s.emitReportChanges(r.Context(), now.Status != v.Status, false, append([]*store.SafetyReport{now}, closed...)...)
 	}
 	s.handleModReport(w, r)
 }
@@ -817,7 +820,7 @@ func (s *Server) handleReportRemoveMessage(w http.ResponseWriter, r *http.Reques
 	s.withLastMessage(r.Context(), ev, channel)
 	s.Bcast.EmitChannel(channel, "message_delete", ev)
 	if now, err := s.Store.SafetyReportByID(r.Context(), v.ID); err == nil {
-		s.emitReportChanges(r.Context(), now.Status != v.Status, append([]*store.SafetyReport{now}, closed...)...)
+		s.emitReportChanges(r.Context(), now.Status != v.Status, false, append([]*store.SafetyReport{now}, closed...)...)
 	}
 	if ch, err := s.Store.ChannelByID(r.Context(), channel); err == nil && ch.Type == store.ChannelAnnouncement {
 		s.originalsGone(r.Context(), []ids.ID{message.ID})

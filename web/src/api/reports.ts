@@ -88,6 +88,8 @@ export interface SafetyReport {
   updated_at: number;
   /** Open or in-review reports about the same item, this one included. */
   duplicates?: number;
+  /** The distinct reasons of those reports, when there is more than one. */
+  reasons?: string[];
   /** What the reporter was told on closing it, and when (0: not told). */
   outcome?: string;
   outcome_at?: number;

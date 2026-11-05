@@ -93,7 +93,7 @@ fun LazyListScope.caseItems(cases: List<StaffCase>, selected: String?, showTarge
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CaseRow(cs: StaffCase, selected: Boolean, showTarget: Boolean, onClick: () -> Unit) {
+internal fun CaseRow(cs: StaffCase, selected: Boolean, showTarget: Boolean, onClick: () -> Unit) {
     val c = Nx.colors
     val fresh = Moderation.unread.collectAsState().value.cases.contains(cs.id)
     val target = person(cs.userId)

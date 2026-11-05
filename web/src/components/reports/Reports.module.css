@@ -669,25 +669,6 @@
   padding: 16px 14px 12px;
   border-bottom: 1px solid var(--border-subtle);
 }
-.queueTitle {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-.queueTitle h2 {
-  margin: 0;
-  color: var(--text-strong);
-  font-family: var(--font-display);
-  font-size: 20px;
-}
-.queueWaiting {
-  flex: 1;
-  color: var(--text-muted);
-  font-size: 14px;
-}
-.queueTitle .iconButton {
-  align-self: center;
-}
 .views {
   display: flex;
   gap: 6px;
@@ -851,12 +832,15 @@
   justify-content: center;
 }
 
+/* A reported thing. Its edge carries how pressing the reason is, the one
+   loud thing in the queue; what was reported comes before what was said. */
 .row {
+  position: relative;
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  flex-direction: column;
+  gap: 6px;
   width: 100%;
-  padding: 12px;
+  padding: 11px 12px 12px 16px;
   border: 0;
   border-radius: var(--radius-sm);
   color: var(--text);
@@ -864,6 +848,22 @@
   font: inherit;
   text-align: start;
   cursor: pointer;
+}
+.row::before {
+  content: "";
+  position: absolute;
+  inset-block: 10px;
+  inset-inline-start: 4px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--border-subtle);
+}
+.row[data-tone="serious"]::before {
+  background: var(--warning);
+}
+.row[data-tone="urgent"]::before {
+  background: var(--danger);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--danger) 60%, transparent);
 }
 .row + .row {
   margin-top: 2px;
@@ -879,30 +879,34 @@
 .row[data-status="dismissed"] {
   opacity: 0.78;
 }
-.rowBody {
+.row[data-fresh] {
+  animation: rowIn 260ms var(--ease-out, ease-out) both;
+}
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.rowTop {
   display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 5px;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
-.rowHeading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+.rowReason {
   min-width: 0;
-}
-.rowHeading strong {
-  min-width: 0;
+  overflow: hidden;
   color: var(--text-strong);
-  font-size: 15px;
-  overflow-wrap: anywhere;
+  font-size: 14.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .rowTime {
   flex-shrink: 0;
+  margin-inline-start: auto;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12.5px;
   white-space: nowrap;
 }
 .rowSubject {
@@ -924,14 +928,27 @@
   flex-shrink: 0;
   color: var(--text-muted);
 }
+.rowContent {
+  display: -webkit-box;
+  overflow: hidden;
+  padding: 6px 9px;
+  border-radius: var(--radius-xs);
+  color: var(--text-strong);
+  background: var(--bg-input);
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
 .rowText {
   display: -webkit-box;
   overflow: hidden;
   color: var(--text-subtle);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 13.5px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
 }
 .rowFoot {
@@ -939,10 +956,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 8px;
-  margin-top: 2px;
 }
 .dupes {
   display: inline-flex;
+  flex-shrink: 0;
   padding: 1px 8px;
   border-radius: var(--radius-pill);
   color: var(--text-strong);
@@ -1031,18 +1048,21 @@
   color: var(--text-muted);
   font-size: 14px;
 }
-.assignment {
+.claimRow {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  background: var(--bg-input);
-  font-size: 15px;
+  gap: 6px 10px;
+  margin-top: -8px;
+  font-size: 14px;
 }
-.assignLabel {
-  color: var(--text-muted);
+.claimWho {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.reportHeader[data-tone="urgent"] h2 {
+  color: var(--text-danger);
 }
 
 .detailGrid {
@@ -1067,7 +1087,6 @@
 }
 .said,
 .content,
-.decision,
 .relatedBox,
 .historyBox,
 .panel {
@@ -1075,11 +1094,6 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-}
-.people {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 .panel {
   padding: 14px;
@@ -1092,27 +1106,6 @@
   color: var(--text-muted);
   font-family: var(--font);
   font-weight: 600;
-}
-.quote {
-  margin: 0;
-  padding: 12px 16px;
-  border-inline-start: 3px solid var(--border-strong);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  color: var(--text-strong);
-  background: var(--bg-input);
-  font-size: 16px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.byline {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 14px;
 }
 .evidenceRow {
   overflow: hidden;
@@ -1234,29 +1227,124 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* the decision: the one panel that asks for something */
-.decision {
+/* deciding: right under what was reported, the two ways out side by side */
+/* the two buttons stay in reach while the rest is read; an open panel scrolls with the page */
+.decideBox:has(> .decideBar) {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
+.decideBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-medium), inset 0 1px 0 var(--edge-light);
+}
+.decide {
+  display: flex;
+  flex-direction: column;
   gap: 14px;
   padding: 16px;
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
   box-shadow: var(--shadow-medium), inset 0 1px 0 var(--edge-light);
+  animation: decideIn 200ms var(--ease-out, ease-out) both;
 }
-.decision label > span:first-child {
-  font-size: 15px;
+.decide[data-kind="act"] {
+  box-shadow: var(--shadow-medium), inset 0 1px 0 var(--edge-light), inset 0 3px 0 var(--danger);
+}
+@keyframes decideIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.decideTitle {
+  margin: 0;
   color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 17px;
 }
-.outcomes {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  padding: 4px;
+.decideGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.decideGroup legend,
+.decideLabel {
+  padding: 0;
+  margin-bottom: 2px;
+  color: var(--text-strong);
+  font-size: 14.5px;
+  font-weight: 650;
+}
+.decideField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+.pickRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  background: var(--bg-surface);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pick:hover:not(:disabled) {
+  color: var(--text-strong);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.pick:is([aria-pressed="true"], [aria-checked="true"]) {
+  color: var(--text-strong);
+  background: color-mix(in srgb, var(--brand) 20%, var(--bg-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 60%, transparent);
+}
+.decide[data-kind="act"] .pick[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--danger) 18%, var(--bg-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 55%, transparent);
+}
+.pick:focus-visible,
+.segmentItem:focus-visible,
+.linkish:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.segment {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-self: flex-start;
+  gap: 3px;
+  padding: 3px;
   border-radius: var(--radius-md);
   background: var(--bg-input);
 }
-.outcome {
-  min-height: 42px;
-  padding: 6px 8px;
+.segmentItem {
+  min-height: 34px;
+  padding: 0 16px;
   border: 0;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
@@ -1264,37 +1352,181 @@
   font: inherit;
   font-size: 14px;
   font-weight: 600;
-  line-height: 1.25;
+  white-space: nowrap;
   cursor: pointer;
 }
-.outcome:hover:not(:disabled) {
+.segmentItem:hover {
   color: var(--text-strong);
 }
-.outcome[aria-checked="true"] {
+.segmentItem[aria-checked="true"] {
   color: var(--text-strong);
   background: var(--bg-surface);
   box-shadow: var(--shadow-low), inset 0 1px 0 var(--edge-light);
 }
-.outcome[aria-checked="true"][data-status="actioned"] {
-  color: var(--on-positive);
-  background: var(--grad-positive);
+.linkish {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--text-link, var(--text-brand));
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
 }
-.outcome[aria-checked="true"][data-status="dismissed"] {
-  color: var(--text-strong);
-  background: color-mix(in srgb, var(--text-muted) 26%, var(--bg-surface));
+.linkish:hover {
+  text-decoration: underline;
 }
-.removeBox {
+.willList {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px 10px 28px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--bg-input);
+  font-size: 14px;
+}
+.decideFoot {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.outcomeBox {
+  display: flex;
+  align-items: flex-start;
   gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-low), inset 0 1px 0 var(--edge-light);
 }
-.removeBox[data-open] {
-  padding: 14px;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--danger) 8%, var(--bg-input));
+.outcomeBox > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--positive);
 }
-.removeBox > button {
-  align-self: flex-start;
+.outcomeBox[data-status="dismissed"] > svg {
+  color: var(--text-muted);
+}
+.outcomeText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 14.5px;
+}
+.outcomeText .muted {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.outcomeNote {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.targetBox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.partLine {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.unverified {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+/* what each reporter said, as a short stack */
+.voices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.voice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+}
+.voiceHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 14px;
+}
+.voiceReason {
+  color: var(--text-muted);
+}
+.voiceOpen {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  background: none;
+  cursor: pointer;
+}
+.voiceOpen:hover {
+  color: var(--text-strong);
+  background: var(--bg-hover);
+}
+.voiceText {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.historyBox > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+.historyBox > summary::-webkit-details-marker {
+  display: none;
+}
+.historyBox > summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-inline-end: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(-45deg);
+  transition: transform var(--transition);
+}
+.historyBox[open] > summary::before {
+  transform: rotate(45deg);
+}
+.historyBox[open] > summary {
+  margin-bottom: 10px;
+}
+.noteRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.noteRow > :first-child {
+  flex: 1;
 }
 .check {
   display: flex;
@@ -1310,19 +1542,6 @@
   margin-top: 2px;
   accent-color: var(--brand);
 }
-.inlineActions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.savedNote {
-  margin: 0 auto 0 0;
-  color: var(--positive);
-  font-size: 14px;
-}
-
 .relatedList {
   display: flex;
   flex-direction: column;
@@ -1431,38 +1650,14 @@
   overflow-wrap: anywhere;
 }
 
-/* narrower: one column, in the order a decision is made */
+/* narrower: one column, the people after what was said */
 @container panel (max-width: 1080px) {
   .detailGrid {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
   }
-  .mainCol,
   .sideCol {
-    display: contents;
-  }
-  .said {
-    order: 1;
-  }
-  .content {
-    order: 2;
-  }
-  .people {
-    order: 3;
-  }
-  .decision {
-    order: 4;
-  }
-  .relatedBox {
-    order: 5;
-  }
-  .historyBox {
-    order: 6;
-  }
-  .people {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }
 }
 @container panel (max-width: 820px) {
@@ -1482,8 +1677,11 @@
   .back {
     display: inline-flex;
   }
-  .outcomes {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .decideBar > button {
+    flex: 1 1 140px;
+  }
+  .segment {
+    align-self: stretch;
   }
   .headerText h2 {
     font-size: 21px;

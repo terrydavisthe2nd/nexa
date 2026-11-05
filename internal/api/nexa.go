@@ -230,6 +230,9 @@ type staffSummary struct {
 	// Unread is the threads waiting on the staff this person has not read,
 	// which the panel's badges count.
 	Unread store.ModUnread `json:"unread"`
+	// Reports counts safety reports by status (nil when they could not be
+	// read): the open ones are on every badge for the panel.
+	Reports map[string]int `json:"reports,omitempty"`
 }
 
 func (s *Server) nexaState(ctx context.Context, u *store.User) (*nexaState, error) {
@@ -279,6 +282,9 @@ func (s *Server) nexaState(ctx context.Context, u *store.User) (*nexaState, erro
 			return nil, err
 		}
 		st.Staff = &staffSummary{Counts: counts, OwnerID: st.OwnerID, Unread: s.modUnreadFor(ctx, u.ID)}
+		if rc, err := s.Store.SafetyReportCounts(ctx); err == nil {
+			st.Staff.Reports = rc
+		}
 		if rank >= rankAdmin {
 			st.Staff.Bugs = s.bugCountsFor(ctx)
 		}

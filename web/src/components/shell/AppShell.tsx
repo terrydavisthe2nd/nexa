@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Rail } from "@/components/rail/Rail";
 import { DMSidebar } from "@/components/sidebar/DMSidebar";
 import { ServerSidebar } from "@/components/sidebar/ServerSidebar";
+import { StaffSidebar } from "@/components/moderation/StaffSidebar";
 import { ModalHost } from "@/components/modals/ModalHost";
 import { NexaNotices } from "@/components/nexa/NexaNotices";
 import { TermsGate } from "@/components/legal/TermsGate";
@@ -86,7 +87,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   /** Which settings page the query has already opened, so one run does it once. */
   const openedSettings = useRef<string | null>(null);
   const serverId = loc.pathname.match(/^\/channels\/(\d+)/)?.[1];
-  const sidebar = serverId ? <ServerSidebar serverId={serverId} /> : <DMSidebar />;
+  // the panel has its own sidebar in place of the conversations, as a server has its channels
+  const inPanel = loc.pathname.startsWith("/channels/@admin");
+  const sidebar = serverId ? <ServerSidebar serverId={serverId} /> : inPanel ? <StaffSidebar /> : <DMSidebar />;
   const tabId = useTabs((p) => activeTab(p).id);
   const setTabChannel = useTabs((p) => p.setTabChannel);
   // the strip is only drawn once there is more than one tab (see Tabs)

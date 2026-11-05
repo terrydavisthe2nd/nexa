@@ -1,4 +1,4 @@
-import type { ReportReceipt } from "@/api/reports";
+import type { ReportReceipt, SafetyReport } from "@/api/reports";
 import { useMyReports } from "@/stores/myReports";
 import { useBilling } from "@/stores/billing";
 import type { GatewayEvent, MentionMeta } from "./events";
@@ -33,7 +33,7 @@ import { ring } from "@/lib/keyring";
 import type { Member, Message, NoteInviteRow, PublicUser, Relationship, ServerView } from "@/api/types";
 import { MSG_FLAG_EPHEMERAL } from "@/api/types";
 import { useAppCommands } from "@/stores/appCommands";
-import { nexa as nexaApi, type Announcement, type MemberCase, type NexaState } from "@/api/moderation";
+import { nexa as nexaApi, type Announcement, type MemberCase, type NexaState, type People } from "@/api/moderation";
 import { useNexa } from "@/stores/nexa";
 import { useDiscord } from "@/stores/discord";
 import { emitModEvent, useModeration } from "@/stores/moderation";
@@ -63,7 +63,13 @@ function voice(): Promise<VoiceModule> {
 }
 
 /** Something from Nexa worth a sound or a notification. */
-export type NexaAlert = { kind: "notice" | "reply"; case: MemberCase } | { kind: "announcement"; announcement: Announcement } | { kind: "appeal"; caseId: string; userId: string } | { kind: "report"; report: ReportReceipt };
+export type NexaAlert =
+  | { kind: "notice" | "reply"; case: MemberCase }
+  | { kind: "announcement"; announcement: Announcement }
+  | { kind: "appeal"; caseId: string; userId: string }
+  | { kind: "report"; report: ReportReceipt }
+  /** For staff: someone just sent a safety report. */
+  | { kind: "newReport"; report: SafetyReport; people: People };
 
 /** A message edited or deleted, or conversations gone, for what keeps its own copy (the search index). */
 export type MessageChange =
@@ -102,6 +108,7 @@ function applyNexaState(st: NexaState | undefined): void {
     useModeration.getState().setOwner(st.staff.owner_id);
     useModeration.getState().setBugCounts(st.staff.bugs);
     useModeration.getState().setUnread(st.staff.unread);
+    useModeration.getState().setReportCounts(st.staff.reports);
   }
 }
 
@@ -754,6 +761,8 @@ export async function applyEvent(e: GatewayEvent): Promise<void> {
     case "mod_report":
       useModeration.getState().setReportCounts(e.d.counts);
       emitModEvent({ type: "report", reports: e.d.reports, people: e.d.people });
+      // a report just sent is news to the staff, as a member writing in a case is
+      if (e.d.new && e.d.reports[0]) each(dispatchHooks.onNexa, (h) => h({ kind: "newReport", report: e.d.reports[0]!, people: e.d.people }));
       return;
     case "report_update": {
       const before = useMyReports.getState().list?.find((x) => x.id === e.d.id);

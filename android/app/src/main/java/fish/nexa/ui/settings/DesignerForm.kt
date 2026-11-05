@@ -405,7 +405,7 @@ fun BadgeEditor(userId: String, flags: Long, plan: String) {
                                 }
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                     if (!tagGroup) Txt(name, style = Nx.type.body.copy(fontSize = Nx.type.sp(14.5f), fontWeight = FontWeight(650)), color = if (b.hidden) c.textMuted else c.textStrong)
-                                    Txt(why, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(17.5f)), color = c.textMuted)
+                                    if (why.isNotEmpty()) Txt(why, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), lineHeight = Nx.type.sp(17.5f)), color = c.textMuted)
                                 }
                                 IconTool("ArrowUp", t("badges.moveUp", "name" to name), enabled = i > 0) {
                                     set(group.toMutableList().also { l -> l.add(i - 1, l.removeAt(i)) })

@@ -74,7 +74,7 @@ object Badges {
         "app_developer" -> Look("dev", "bot", t("badges.appDeveloper"), t("badges.appDeveloperTip"))
         "gift_giver" -> GIFT_TONES[b.level.coerceIn(1, 3) - 1].let { tone -> Look(tone, "gift", t("badges.giftGiver"), t("badges.giftGiverTip.$tone")) }
         CONTRIBUTOR -> Look("contributor", "wrench", t("badges.contributor"), t("badges.contributorTip"))
-        else -> if (b.isEvent && b.name != null) Look("event", b.icon ?: "award", b.name, t("badges.eventTip"), b.color) else null
+        else -> if (b.isEvent && b.name != null) Look("event", b.icon ?: "award", b.name, "", b.color) else null
     }
 
     /** A badge's name in a list (the designer, the staff panel), staff and plan included. */

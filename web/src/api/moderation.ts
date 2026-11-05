@@ -186,7 +186,7 @@ export interface NexaState {
   /** The owner of Nexa, for every account ("0" when there is none yet; absent from older servers). */
   owner_id?: Snowflake;
   /** Staff only: what is waiting on them (bug report counts and what they have not read are absent from older servers). */
-  staff?: { counts: CaseCounts; owner_id: Snowflake; bugs?: BugCounts; unread?: ModUnread };
+  staff?: { counts: CaseCounts; owner_id: Snowflake; bugs?: BugCounts; unread?: ModUnread; reports?: Record<string, number> };
 }
 
 export interface Announcement {

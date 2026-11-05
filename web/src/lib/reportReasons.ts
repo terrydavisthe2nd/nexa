@@ -31,3 +31,15 @@ export function reasonIcon(reason: string): LucideIcon {
 export function reasonTone(reason: string): ReasonTone {
   return REASONS[reason]?.tone ?? "routine";
 }
+
+const RANK: Record<ReasonTone, number> = { urgent: 2, serious: 1, routine: 0 };
+
+/**
+ * The reason a queue row speaks with when it stands for several reports: the
+ * most pressing among them, the report's own when nothing outranks it.
+ */
+export function worstReason(reason: string, others: string[] | undefined): string {
+  let worst = reason;
+  for (const r of others ?? []) if (RANK[reasonTone(r)] > RANK[reasonTone(worst)]) worst = r;
+  return worst;
+}

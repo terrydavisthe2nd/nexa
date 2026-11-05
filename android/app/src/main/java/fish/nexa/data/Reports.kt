@@ -29,6 +29,8 @@ data class SafetyReport(
     @SerialName("updated_at") val updatedAt: Long = 0,
     /** Open or in-review reports about the same item, this one included. */
     val duplicates: Int = 1,
+    /** The distinct reasons of those reports, when there is more than one. */
+    val reasons: List<String> = emptyList(),
     /** What the reporter was told on closing it, and when (0: not told). */
     val outcome: String = "",
     @SerialName("outcome_at") val outcomeAt: Long = 0,
@@ -183,6 +185,14 @@ object Reports {
 
     fun closing(status: String) = status == "actioned" || status == "dismissed"
 
+    /** The reason a queue row speaks with when it stands for several reports: the most pressing (lib/reportReasons.ts worstReason). */
+    fun worst(reason: String, others: List<String>): String {
+        fun rank(r: String) = when (tone(r)) { ReasonTone.URGENT -> 2; ReasonTone.SERIOUS -> 1; ReasonTone.ROUTINE -> 0 }
+        var w = reason
+        for (r in others) if (rank(r) > rank(w)) w = r
+        return w
+    }
+
     /** The standard words a reporter is told when staff leave the message empty. */
     fun outcomeText(r: ReportReceipt) =
         r.outcome.ifEmpty { fish.nexa.ui.t(if (r.status == "dismissed") "reports.outcome.dismissed" else "reports.outcome.actioned") }
@@ -227,6 +237,9 @@ object Reports {
     private val _changes = kotlinx.coroutines.flow.MutableSharedFlow<Pair<List<SafetyReport>, Map<String, NexaPerson>>>(extraBufferCapacity = 32)
     val changes: kotlinx.coroutines.flow.SharedFlow<Pair<List<SafetyReport>, Map<String, NexaPerson>>> = _changes
 
+    /** A report someone just sent, for staff notifications (notify/StaffAlerts.kt). */
+    var onNewReport: ((SafetyReport, Map<String, NexaPerson>) -> Unit)? = null
+
     fun onStaffEvent(d: JsonElement?) {
         val o = d as? JsonObject ?: return
         runCatching {
@@ -235,6 +248,7 @@ object Reports {
             val people = wireJson.decodeFromJsonElement(kotlinx.serialization.builtins.MapSerializer(String.serializer(), NexaPerson.serializer()), o["people"] ?: JsonObject(emptyMap()))
             NexaInbox.mergePeople(people)
             _changes.tryEmit(list to people)
+            if ((o["new"] as? JsonPrimitive)?.booleanOrNull == true) list.firstOrNull()?.let { onNewReport?.invoke(it, people) }
         }
     }
 
@@ -264,6 +278,8 @@ object Reports {
         sort: String,
         search: String,
         cursor: String = "",
+        /** "item" lists each reported thing once, the newest report about it speaking for it. */
+        group: String = "item",
     ): SafetyReportList {
         val r =
             Nexa.api.get(
@@ -276,6 +292,7 @@ object Reports {
                             "assigned" to assigned,
                             "sort" to sort,
                             "q" to search,
+                            "group" to group,
                             (if (sort == "oldest") "after" else "before") to cursor,
                         )
                     ),

@@ -67,12 +67,14 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 
 /**
- * One person, for the staff (PersonPage.tsx): their profile as everyone sees
- * it, with a way to take down any part of it, and every case about them.
- * Never anything they said in a conversation: the panel has no way to see it.
+ * One person, for the staff, on one page (PersonPage.tsx): Mute and Ban (or
+ * lifting them) as buttons, their profile as everyone sees it with a way to
+ * take down any part of it, and every case about them on the same page. A
+ * case opens in place. Never anything they said in a conversation.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun PersonPage(userId: String, cases: Boolean, caseId: String?) {
+fun PersonPage(userId: String, caseId: String?) {
     val c = Nx.colors
     val scope = rememberCoroutineScope()
     var data by remember(userId) { mutableStateOf<Moderation.Person?>(null) }
@@ -113,59 +115,78 @@ fun PersonPage(userId: String, cases: Boolean, caseId: String?) {
         user.ban?.let { b -> b.expiresAt?.let { t("moderation.state.bannedUntil", "when" to Time.relativeTo(it)) } ?: t("moderation.state.bannedForever") },
         user.mute?.let { m -> m.expiresAt?.let { t("moderation.state.mutedUntil", "when" to Time.relativeTo(it)) } ?: t("moderation.state.muted") },
     )
-    val awaiting = d.cases.count { it.status == "open" && it.awaiting == "staff" }
     val base = "users/$userId"
-    fun moderate(action: String? = null, preset: ModeratePreset? = null) = openModerate(user, d.servers, action, preset) { cs ->
-        if (cs.action == "delete") load() else goPanel("$base/cases/${cs.id}")
+    val mine = fish.nexa.data.StaffRanks.mine()
+    val actable = user.blocked.isEmpty() && !deleted
+    fun moderate(action: String? = null, preset: ModeratePreset? = null) = openModerate(user, d.servers, action, preset) { load() }
+    // lifting asks why, as it does from the case, then the account is read again
+    fun lift(r: fish.nexa.data.Restriction) {
+        val what = if (r.kind == "ban") t("moderation.case.liftBan") else t("moderation.case.liftMute")
+        fish.nexa.ui.dialogs.promptText(what, t("moderation.case.liftReason"), placeholder = t("moderation.case.liftPlaceholder"), maxLength = 1000, hint = t("moderation.case.liftHint"), confirmLabel = what, allowEmpty = true) { reason ->
+            scope.launch {
+                try {
+                    Moderation.lift(r.caseId, reason.trim())
+                    Nexa.ui.toast(t("moderation.case.lifted"), "success")
+                    load()
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    Nexa.ui.toast(fish.nexa.ui.describeError(e, t("moderation.failed")), "error")
+                }
+            }
+        }
+    }
+
+    // one case open: its thread in place of the page, with the way back to them
+    if (caseId != null) {
+        StaffCasePane(caseId, showMember = false, onBack = { goPanel(base, replace = true) }) { changed -> data = d.copy(cases = d.cases.map { if (it.id == changed.id) changed else it }) }
+        return
     }
 
     Column(Modifier.fillMaxSize()) {
         PageHead(
-            back = t(if(ReportNavigation.origin != null) "reports.returnToReport" else "moderation.backToUsers"),
+            back = t(if (ReportNavigation.origin != null) "reports.returnToReport" else "moderation.backToUsers"),
             onBack = { panelBack("users") },
             leading = { Avatar(user.id, user.displayName, user.avatarId, 48.dp, status = if (deleted) null else st.status) },
             title = if (deleted) t("nexa.deletedUser") else user.displayName,
             titlePersonId = user.id.takeUnless { deleted },
-            sub = listOf(if (deleted) t("moderation.user.deleted") else "@${user.username}", t("moderation.casesCount", "count" to d.cases.size)).plus(standing).joinToString(" · "),
+            sub = if (deleted) t("moderation.user.deleted") else "@${user.username}",
             badge = {
                 AltBadge(user)
                 RankBadge(user.id, user.adminFlags, withIcon = true)
             },
-            below = if (deleted) null else ({ StatusSummary(st, compact = true) }),
-            actions = if (deleted) null else ({
-                NxButton(t("moderation.menu.profile"), { openProfile(user.id) }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "UserRound")
-                // the owner gives and takes ranks, from here as from the grid's menu
-                if (fish.nexa.data.StaffRanks.mine() == fish.nexa.data.StaffRank.OWNER && user.blocked != "self" && user.blocked != "owner") {
-                    NxButton(t("staff.rankModal.menu"), { openRankSheet(user) { load() } }, kind = ButtonKind.SECONDARY, size = ButtonSize.TOUCH, icon = "ShieldCheck")
-                }
-                // admins give Contributor and event badges by hand; bots hold none
-                if (fish.nexa.data.StaffRanks.mine()?.atLeast(fish.nexa.data.StaffRank.ADMIN) == true && user.adminFlags and 64L == 0L) {
-                    NxButton(t("badges.staff.giveMenu"), { openGiveBadgesSheet(user) }, kind = ButtonKind.SECONDARY, size = ButtonSize.TOUCH, icon = "Award")
-                }
-                if (user.blocked.isEmpty()) NxButton(t("moderation.moderate"), { moderate() }, size = ButtonSize.TOUCH, icon = "Gavel")
+            below = if (standing.isNotEmpty()) ({ Txt(standing.joinToString(" · "), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13.5f), fontWeight = FontWeight(600)), color = c.textDanger) }) else if (deleted) null else ({ StatusSummary(st, compact = true) }),
+            // the common actions are buttons on the page, never behind a menu
+            actions = if (!actable) null else ({
+                val mute = user.mute
+                val ban = user.ban
+                if (mute != null) NxButton(t("moderation.case.liftMute"), { lift(mute) }, Modifier.weight(1f), kind = ButtonKind.POSITIVE, size = ButtonSize.TOUCH, icon = "LockOpen")
+                else NxButton(t("reports.act.restrict.mute"), { moderate("mute") }, Modifier.weight(1f), kind = ButtonKind.SECONDARY, size = ButtonSize.TOUCH, icon = "MessageSquareOff")
+                if (ban != null) NxButton(t("moderation.case.liftBan"), { lift(ban) }, Modifier.weight(1f), kind = ButtonKind.POSITIVE, size = ButtonSize.TOUCH, icon = "LockOpen")
+                else NxButton(t("reports.act.restrict.ban"), { moderate("ban") }, Modifier.weight(1f), kind = ButtonKind.DANGER, size = ButtonSize.TOUCH, icon = "Ban")
             }),
         )
-        // the two views share one pill, which slides to the one opened (components/Glide.kt)
-        val subGlide = rememberGlide(cases)
-        Box(Modifier.fillMaxWidth().sidewaysScroll().padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Box(Modifier.glideArea(subGlide)) {
-                SubTabPill(subGlide)
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SubTab(t("moderation.person.profileTab"), "IdCard", !cases, glide = subGlide, key = false) { goPanel(base, replace = true) }
-                    SubTab(t("moderation.person.casesTab"), "FolderOpen", cases, count = d.cases.size, badge = awaiting, glide = subGlide, key = true) { goPanel("$base/cases", replace = true) }
-                }
-            }
+        // the rarer things to do with an account, in a quiet row under its name
+        androidx.compose.foundation.layout.FlowRow(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            if (!deleted) NxButton(t("moderation.menu.profile"), { openProfile(user.id) }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "UserRound")
+            NxButton(t("moderation.person.reports"), { fish.nexa.ui.moderation.ReportSearch.query = user.id; goPanel("reports") }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "Flag")
+            if (mine == fish.nexa.data.StaffRank.OWNER && user.blocked != "self" && user.blocked != "owner" && !deleted)
+                NxButton(t("staff.rankModal.menu"), { openRankSheet(user) { load() } }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "ShieldCheck")
+            if (mine?.atLeast(fish.nexa.data.StaffRank.ADMIN) == true && !deleted && user.adminFlags and 64L == 0L)
+                NxButton(t("badges.staff.giveMenu"), { openGiveBadgesSheet(user) }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "Award")
+            NxButton(t("moderation.menu.copyId"), {
+                val cm = Nexa.app.getSystemService(android.content.ClipboardManager::class.java)
+                cm?.setPrimaryClip(android.content.ClipData.newPlainText("id", user.id))
+                Nexa.ui.toast(t("moderation.copied"), "success")
+            }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "Copy")
+            if (actable && mine?.atLeast(fish.nexa.data.StaffRank.DEVELOPER) == true)
+                NxButton(t("moderation.act.deleteTitle"), { moderate("delete") }, kind = ButtonKind.GHOST, size = ButtonSize.TOUCH, icon = "Trash2")
         }
         Rule()
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            when {
-                !cases -> ProfileSheet(user, d.servers, d.packs, owner = user.id == ownerId) { action, preset -> moderate(action, preset) }
-                d.cases.isEmpty() -> EmptyState("FolderOpen", t("moderation.user.noCases"), t("moderation.user.noCasesHint"))
-                caseId != null -> StaffCasePane(caseId, showMember = false, onBack = { goPanel("$base/cases", replace = true) }) { changed -> data = d.copy(cases = d.cases.map { if (it.id == changed.id) changed else it }) }
-                else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp)) {
-                    caseItems(d.cases, selected = null, showTarget = false) { goPanel("$base/cases/$it") }
-                }
-            }
+            ProfileSheet(user, d.servers, d.packs, owner = user.id == ownerId, cases = d.cases, onCase = { goPanel("$base/cases/$it") }) { action, preset -> moderate(action, preset) }
         }
     }
 }
@@ -176,7 +197,7 @@ fun PersonPage(userId: String, cases: Boolean, caseId: String?) {
  * down, the servers they own, the packs they made, and the account's facts.
  */
 @Composable
-private fun ProfileSheet(user: ModUser, servers: List<ModMembership>, packs: List<ModPack>, owner: Boolean, onModerate: (String, ModeratePreset) -> Unit) {
+private fun ProfileSheet(user: ModUser, servers: List<ModMembership>, packs: List<ModPack>, owner: Boolean, cases: List<StaffCase>, onCase: (String) -> Unit, onModerate: (String, ModeratePreset) -> Unit) {
     @Suppress("UNUSED_VARIABLE") val mediaAnimationPreferences = fish.nexa.Nexa.settings.doc.collectAsState().value
     val c = Nx.colors
     val deleted = user.isDeleted
@@ -199,6 +220,13 @@ private fun ProfileSheet(user: ModUser, servers: List<ModMembership>, packs: Lis
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PanelPad, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item("face") { PublicFace(user) }
+        // their cases, on the same page as everything else about them
+        item("cases") {
+            SheetPanel(t("moderation.person.casesTab") + " (" + cases.size + ")", null) {
+                if (cases.isEmpty()) Txt(t("moderation.user.noCases"), Modifier.padding(horizontal = 14.dp, vertical = 10.dp), style = Nx.type.bodySmall, color = c.textMuted)
+                else Column { cases.forEach { cs -> CaseRow(cs, selected = false, showTarget = false) { onCase(cs.id) } } }
+            }
+        }
         item("public") {
             SheetPanel(t("moderation.sheet.publicTitle"), if (locked) blocked else t("moderation.sheet.publicHint")) {
                 @Composable

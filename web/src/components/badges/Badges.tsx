@@ -26,7 +26,7 @@ export function BadgePill({ badge, user, still, named }: { badge: Badge; user: W
   if (!look) return null;
   const style = look.color !== undefined ? ({ "--tone": hexColour(look.color) } as CSSProperties) : undefined;
   const tile = (
-    <span className={s.badge} data-tone={look.tone} style={style} tabIndex={still ? undefined : 0} role="img" aria-label={`${look.label}. ${look.tip}`} data-testid={`badge-${badge.id}`}>
+    <span className={s.badge} data-tone={look.tone} style={style} tabIndex={still ? undefined : 0} role="img" aria-label={look.tip ? `${look.label}. ${look.tip}` : look.label} data-testid={`badge-${badge.id}`}>
       {look.Icon ? (
         <look.Icon size={15} strokeWidth={2.25} aria-hidden="true" />
       ) : (
@@ -44,7 +44,7 @@ export function BadgePill({ badge, user, still, named }: { badge: Badge; user: W
       </span>
     );
   }
-  return still ? tile : <Tooltip text={`${look.label}: ${look.tip}`} side="top">{tile}</Tooltip>;
+  return still ? tile : <Tooltip text={look.tip ? `${look.label}: ${look.tip}` : look.label} side="top">{tile}</Tooltip>;
 }
 
 /**

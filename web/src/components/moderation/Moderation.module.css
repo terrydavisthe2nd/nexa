@@ -23,67 +23,31 @@
   box-shadow: 0 1px 0 var(--border-subtle), 0 8px 16px -14px color-mix(in srgb, var(--shade) 90%, transparent);
   position: relative;
   z-index: 2;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.header::-webkit-scrollbar {
-  display: none;
 }
 .title {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 9px;
+  color: var(--text-strong);
+}
+.title svg {
+  flex: none;
+  color: var(--text-brand);
+}
+.titleText {
+  margin: 0;
+  min-width: 0;
   font-family: var(--font-display);
   font-size: 16.5px;
   font-weight: 680;
-  letter-spacing: 0;
-  color: var(--text-strong);
-  padding-inline-end: 14px;
-  margin-inline-end: 2px;
-  border-inline-end: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.title svg {
-  color: var(--text-brand);
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--brand) 60%, transparent));
-}
-/* the tabs are one segmented control: a well, with the open tab lifted out of it */
-.tabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 12px;
-  background: var(--bg-input);
-  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--shade) 45%, transparent), inset 0 0 0 1px var(--border-subtle);
-}
-.tab {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 9px;
-  color: var(--text-muted);
-  font-size: 14.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: background-color var(--transition), color var(--transition), box-shadow var(--transition);
-}
-.tab svg {
+.headerBack {
   flex: none;
-}
-.tab:hover {
-  color: var(--text-strong);
-}
-.tab[data-selected="true"] {
-  background: var(--sheen), var(--bg-surface);
-  color: var(--text-strong);
-  box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border-subtle), var(--shadow-low);
-}
-.tab[data-selected="true"] svg {
-  color: var(--text-brand);
 }
 .badge {
   min-width: 19px;
@@ -902,6 +866,46 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.userStanding {
+  color: var(--text-danger);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+/* the rarer things to do with an account, in a quiet row under its name */
+.userTools {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.dangerGhost {
+  color: var(--text-danger);
+}
+.personCases {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-low), inset 0 1px 0 var(--edge-light);
+}
+.personCasesTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 16px;
+}
+.personCasesEmpty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
 
 /* --- log -------------------------------------------------------------------------- */
 
@@ -1459,66 +1463,7 @@ td.logReason {
     grid-template-columns: 1fr;
   }
 }
-/* not room for every tab's name in one row: the open tab keeps its name, the others show their icon */
-@container panel (max-width: 1240px) {
-  .tab:not([data-selected="true"]) {
-    min-width: 40px;
-    justify-content: center;
-  }
-  .tab:not([data-selected="true"]) .tabLabel {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-}
 @container panel (max-width: 767px) {
-  /* the title on one row, the tabs under it: the open tab named, the others as icons */
-  .header {
-    flex-wrap: wrap;
-    height: auto;
-    min-height: var(--header-h);
-    padding: 6px 12px 8px;
-    row-gap: 6px;
-    overflow: visible;
-  }
-  .title {
-    border-inline-end: 0;
-    padding-inline-end: 0;
-    margin-inline-end: 0;
-  }
-  .tabs {
-    flex: 1 0 100%;
-    gap: 4px;
-    min-width: 0;
-  }
-  .tab {
-    flex: none;
-    justify-content: center;
-    min-width: 44px;
-    height: 36px;
-    padding: 0 10px;
-  }
-  /* every tab keeps its name: the strip scrolls sideways instead of hiding them */
-  .tabs {
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .tabs::-webkit-scrollbar {
-    display: none;
-  }
-  .tab:not([data-selected="true"]) {
-    min-width: 0;
-  }
-  .tab:not([data-selected="true"]) .tabLabel {
-    position: static;
-    width: auto;
-    height: auto;
-    overflow: visible;
-    clip-path: none;
-  }
   /* a case's buttons say what they do with their icon and their label for a screen reader */
   .paneActions .btnLabel {
     position: absolute;
@@ -1634,7 +1579,6 @@ td.logReason {
 }
 /* finger-sized targets */
 @media (pointer: coarse) {
-  .tab,
   .chip,
   .listTools .chip {
     height: 40px;
@@ -1883,3 +1827,8 @@ td.logReason {
 /* Keep shared user text inside its own layout slot. */
 .logReasonText { overflow-wrap: anywhere; overflow: clip; }
 .cardNameLink { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* a person's card opens their page from anywhere on it */
+.card[data-user] {
+  cursor: pointer;
+}

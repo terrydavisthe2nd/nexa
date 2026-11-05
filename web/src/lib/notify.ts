@@ -25,6 +25,10 @@ import { roundAvatar } from "./roundIcon";
 import { heldBy } from "./automod/rules";
 import { currentBlockRules, isQuiet, loadedAuthorOf } from "./blocked";
 import { bugAlertHooks, bugNumber, bugStatusLabel, type BugAlert } from "./bugs";
+import { alertsForReport, staffAlerts } from "./staffAlerts";
+import { reasonTone } from "./reportReasons";
+import type { SafetyReport } from "@/api/reports";
+import type { People } from "@/api/moderation";
 
 import { t } from "@/i18n";
 let navigateTo: ((path: string) => void) | null = null;
@@ -225,8 +229,10 @@ function onFriendRequest(r: Relationship): void {
  * ways: sounds off, Do Not Disturb, or already looking at it.
  */
 function onNexa(a: NexaAlert): void {
+  if (a.kind === "newReport") return onNewReport(a.report, a.people);
   const me = useAuth.getState().me;
   if (!me || doNotDisturb()) return;
+  if (a.kind === "appeal" && !staffAlerts(useSettings.getState().settings).cases) return;
   const path =
     a.kind === "appeal" ? `/channels/@admin/cases/${a.caseId}` : a.kind === "announcement" || a.kind === "report" ? "/channels/@me/nexa" : a.kind === "reply" ? `/channels/@me/nexa/cases/${a.case.id}` : "/channels/@me/nexa";
   const onScreen = appOnScreen();
@@ -258,6 +264,7 @@ function onNexa(a: NexaAlert): void {
 function onBugAlert(a: BugAlert): void {
   const me = useAuth.getState().me;
   if (!me || doNotDisturb()) return;
+  if (a.kind === "staff" && !staffAlerts(useSettings.getState().settings).bugs) return;
   const path = a.kind === "staff" ? `/channels/@admin/bugs/${a.report.id}` : `/channels/@me/nexa/bugs/${a.report.id}`;
   if (appOnScreen() && typeof location !== "undefined" && location.pathname === path) return;
   const settings = useSettings.getState().settings;
@@ -267,6 +274,31 @@ function onBugAlert(a: BugAlert): void {
   const title = a.kind === "staff" ? (a.isNew ? t("bugs.notify.newTitle") : t("bugs.notify.replyTitle")) : "Nexa";
   const body = a.kind === "staff" ? a.report.subject : a.kind === "reply" ? t("bugs.feed.replied", { number: bugNumber(number) }) : t("bugs.feed.statusChanged", { number: bugNumber(number), status: bugStatusLabel(a.report.status) });
   void showNotification(title, { body, tag: `ec-bug-${a.report.id}`, icon: "/icons/icon-192.png", silent: true }, path);
+}
+
+/**
+ * For staff: someone just sent a safety report. Every one, or only the urgent
+ * ones (someone may be in danger), as Settings, Notifications says; an urgent
+ * one sounds like a mention. Quiet while the report queue is on screen, where
+ * it arrives in the list.
+ */
+function onNewReport(r: SafetyReport, people: People): void {
+  const me = useAuth.getState().me;
+  if (!me || r.reporter_id === me.id || doNotDisturb()) return;
+  const settings = useSettings.getState().settings;
+  if (!alertsForReport(settings, r.reason)) return;
+  const path = `/channels/@admin/reports/${r.id}`;
+  const onScreen = appOnScreen();
+  if (onScreen && typeof location !== "undefined" && location.pathname.startsWith("/channels/@admin/reports")) return;
+  const urgent = reasonTone(r.reason) === "urgent";
+  if (settings.notifications.sounds) void playSound(urgent ? "mention" : "message");
+  if (onScreen || !notificationsEnabled(settings)) return;
+  const subject = r.subject_id !== "0" ? people[r.subject_id] : undefined;
+  const name = subject ? subject.display_name || subject.username : "";
+  const kind = t(`reports.kind.${r.target_kind}`);
+  const about = name ? t("reports.notify.about", { kind, name }) : kind;
+  const body = r.description ? `${about}\n${r.description.slice(0, 160)}` : about;
+  void showNotification(t("reports.notify.newTitle", { reason: t(`reports.reason.${r.reason}`) }), { body, tag: `ec-staff-report-${r.id}`, icon: "/icons/icon-192.png", silent: true, requireInteraction: urgent }, path);
 }
 
 /** Someone asking to share a note sounds like a friend request, and notifies while the app is not being looked at. */

@@ -861,7 +861,7 @@ as Discord holds it:
   (`Meter.Measure`); the month's usage is that measurement plus the estimate since. A day's egress is
   attributed by session (`realtime_sessions`), track (names start with the publisher's id) and TURN
   `customIdentifier`, the rest to account 0. The meter pauses video near `REALTIME_MONTHLY_GB` and stops
-  calls just short of it. Admins see it on the Calls tab (`/channels/@admin/calls`,
+  calls just short of it. Admins see it on the Call Usage page (`/channels/@admin/calls`,
   `GET /moderation/calls`; web `moderation/CallsTab.tsx`, Android `ui/moderation/Calls.kt`) and per
   person (`GET /moderation/users/{id}/calls`, `CallUsagePanel.tsx`). `call_usage` is kept 62 days,
   `realtime_sessions` three (Privacy Policy section 3l).
@@ -972,6 +972,28 @@ as Discord holds it:
 - Nexa is the account the service speaks as: notices, announcements, and case threads where a member can
   appeal (not end-to-end encrypted, and the app says so). The staff panel is `/channels/@admin`
   (`/api/v1/moderation/*`); the member's side is `/api/v1/nexa/*`.
+- The panel (reworked 2026-11-04; the owner's rule: everything one or two presses away, nothing behind
+  sub-pages or menus that a button could do) has its own sidebar in place of the conversations, as a
+  server has its channels: web `moderation/StaffSidebar.tsx` (chosen in `AppShell.tsx`), Android
+  `ui/moderation/StaffSidebar.kt` (chosen in `NavDrawer`), both from one list of places in groups
+  (`STAFF_GROUPS`: Needs Attention: Reports, Cases, Bug Reports; Look Up: People, Servers, Stickers &
+  Emoji, Apps & Bots; Records: Action Log; Running Nexa: Announcements, Badges, Call Usage), each with
+  its least rank; the page header names the place. The panel opens on Reports (Android
+  `Route.Admin()` defaults to `reports`). Discovery is a filter of Servers (web `?discover=all|listed|held`,
+  `/channels/@admin/discovery` redirects there; Android `ServersTab(startListing)`). Every badge for the
+  panel (rail, DM list, Android drawer) is `attentionCount`: unread case and bug threads plus open
+  (unclaimed) reports; the sidebar counts Reports as open plus in review. Report counts come with sign-in
+  in the Nexa state's `staff.reports`.
+- A person's page (web `PersonPage.tsx`, Android `Person.kt`) is one page: Mute and Ban as buttons
+  (Lift Mute and Lift Ban when one is in force, asking for a reason), a quiet row of the rarer things
+  (View Profile, Reports About Them, Set Rank, Badges, Copy User ID, Delete Account), then the profile
+  sheet with their cases beside what everyone can see. A case opens in place of the page at
+  `users/{id}/cases/{caseId}`. A card in the People grid opens the person from anywhere on it.
+- Staff notifications (web `lib/notify.ts` with `lib/staffAlerts.ts`, Android `notify/StaffAlerts.kt`):
+  a report just sent (`mod_report` with `new: true`), a member writing in a case, a bug report arriving
+  or its reporter writing. The synced `notifications.staff` (`reports` all, urgent or off; `cases`,
+  `bugs`; missing means on) is Settings, Notifications, Staff (anchor `staffAlerts`, the sidebar's bell
+  opens it). Urgent reasons play the mention sound. Quiet while the place they belong to is on screen.
 - Staff ranks (`api/staff.go`, web `lib/staffRank.ts`, Android `data/StaffRanks.kt`) are public user
   flags, each holding everything below it. Mod (512): the panel's people, cases and log, mutes and bans
   of at most a week (`modMaxDuration`; never permanent, never shortening a longer one), and lifting,
@@ -992,7 +1014,7 @@ as Discord holds it:
 - Staff act on accounts (mutes, bans, purges, removing pictures, resetting fields), servers (Discovery
   holds included), sticker packs, emoji and uploads (`moderation_actions.go` and the other
   `moderation_*` files), logged in `mod_log`; an action on an account comes with a case (`mod_cases`)
-  whose thread the member sees. The people grid leaves bots out; the Bots tab
+  whose thread the member sees. The people grid leaves bots out; the Apps & Bots page
   (`GET /api/v1/moderation/apps`, `moderation_apps.go`, web `components/moderation/BotsTab.tsx`, Android
   `ui/moderation/Bots.kt`) lists every app with its owner, reach and whether it reads every message.
   Bulk moderation (web `UserGrid.tsx` with `ModerateModal`'s `bulk`, Android `Users.kt` with
@@ -1024,8 +1046,10 @@ as Discord holds it:
   about the item), `POST /reports/attachments`, `GET /media/reports/{id}`, and the staff's
   `/api/v1/moderation/reports` list (`status` active, closed or one status; `kind`, `reason`,
   `assigned` me or none, the old `mine=1` too; `sort=oldest` with `after`, else `before`; `q` matches
-  words, report, item and account ids and usernames; `people` and each report's `duplicates`), `/{id}`
-  detail (plus `related` reports about the same item or account, `reporter_stats` and `subject`, the
+  words, report, item and account ids and usernames; `group=item` keeps only the newest report about
+  each item among those matching the status, which the queue always sends; `people` and each report's
+  `duplicates`), `/{id}`
+  detail (plus `related` reports about the same item or account, their reporters among `people`, `reporter_stats` and `subject`, the
   account's standing) and version-checked review (`resolve_related` closes the other active reports
   about the same item the same way, `reporter_message` is what the reporter is told). `POST
   /{id}/remove-message` (Admin and up) removes exactly the reported message without joining its
@@ -1053,7 +1077,7 @@ as Discord holds it:
   `NexaUnread` and in `NexaLatest`; a sent report is a `report` item, not unread); reopening clears it.
   `report_update` carries the receipt to the reporter when the status moves (the apps update Your Reports
   and the conversation, and notify on a new outcome), `mod_report` carries changed reports, people and
-  counts to every member of staff (the queue moves live; the Reports tab's badge is open plus in review).
+  counts to every member of staff, with `new` when the first was just sent (the queue moves live).
   Staff leave the reporter message empty to send the standard words (`reports.outcome.actioned`,
   `.dismissed`).
 - The form (web `ReportModal.tsx`, Android `openReport` in `ui/reports/ReportForm.kt`) is steps: from an
@@ -1075,19 +1099,30 @@ as Discord holds it:
   AES-GCM with range support (`media/reported.go`), and reported files keep their blob references after
   the source is deleted. Evidence is not end-to-end encrypted and is labelled reporter-supplied, not
   authenticated proof. Reports give staff no conversation keys and no unreported content.
-- Staff (web `ReportsTab.tsx`, Android `ui/moderation/Reports.kt`): the queue has view chips with
-  counts (Needs Review, Open, In Review, Resolved, All), search, and filters folded behind a toggle;
-  rows show the reason's glyph, who or what, the words, status, how many open reports share the item and
-  the assignee. A report shows, in one page, what the reporter said, the reported content (the chat row
-  or a target card, then the captured snapshot), the responsible account's standing, the reporter's
-  record, links to the account, server and pack pages, the decision (Remove Message for admins on
-  messages; Open, In Review, Action Taken, Dismissed; the reporter message; closing the duplicates; the
-  internal note, required to close), the other reports and the history. Claiming puts an open report in
-  review and unclaiming opens it again. On a wide web panel the account, reporter and links sit in a
-  side column; below 1080 px of panel everything is one column in that order, as on Android. Web queue
-  filters live in the URL and Android keeps its queue state. Account, server and pack pages opened from
-  a report keep a return link and Back returns there (Android `Nav.returnTo` drops the inspected pages
-  from Back history). Reporting adds no staff privileges.
+- Staff (web `ReportsTab.tsx` with `ReportDecision.tsx`, Android `ui/moderation/Reports.kt` with
+  `ReportDecision.kt`): the queue shows each reported thing once (`group=item`; a later report about a
+  listed item takes its row), with view chips (Needs Review, Mine, Resolved, All), search, and filters
+  folded behind a toggle. A row carries its reason's tone along its edge (urgent danger, serious
+  warning), the reason, who or what, how many reports, what was reported (a message's words) and what
+  the reporter said; reports that arrive while it is open rise in. A report shows the reported content
+  first, then Take Action and Dismiss right under it (sticky at the bottom of the web pane while closed),
+  then what every reporter of that item said, the other reports about the account, the account's
+  standing and the reporter's record, and the history folded away with Add Note and the captured
+  snapshot. Take Action opens in place: what to take down (picked from the reported part: the
+  message; profile fields; server fields; the pack, or making it private; the sticker; the emoji; admins
+  and up only), Leave It, Mute or Ban with a duration (mods within a week), one reason (the report's
+  reason prefilled), an optional message to the reporter, closing the other reports about the item, and
+  a list of what will happen. It runs the existing audited calls in turn (`remove-message`, which
+  closes the report itself, then the account, server, pack or emoji actions), then closes the report as
+  Action Taken with the reason and case numbers as its note; a failure part-way says so and reloads.
+  Dismiss is a common reason (Not against the rules, Not enough to go on, Already dealt with,
+  Duplicate report, which is the note) plus anything to add. Deciding opens the next report in the
+  queue. A closed report shows its outcome with Reopen Report. Claiming puts an open report in review and
+  unclaiming opens it again. Web queue filters live in the URL (`view=mine`, `status`, `kind`, `reason`,
+  `assigned=none`, `sort`, `q`) and Android keeps its queue state (`ReportSearch.query` opens it on a
+  search). Account, server and pack pages opened from a report keep a return link and Back returns there
+  (Android `Nav.returnTo` drops the inspected pages from Back history). Reporting adds no staff
+  privileges.
 
 ### NSFW communities
 
@@ -1109,7 +1144,7 @@ as Discord holds it:
   clients keep each confirmation in memory for the current account. Public media URLs stay public.
 - Whole-community NSFW servers cannot create or wear guild tags (turning the toggle on strips the tag
   from wearers); a few NSFW channels change neither tags nor public details.
-- The staff Discovery tab (`/channels/@admin/discovery`, Admin and up) uses
+- The staff panel's Servers page, filtered to On Discover, Listed or Held (Admin and up), uses
   `/moderation/servers?discovery=all|listed|held`, which searches and paginates listings and holds
   before returning them, with matching totals, and reuses the audited hide/restore actions and owner
   cases. Both clients use the same catalogue strings and Terms version.
@@ -1120,8 +1155,9 @@ as Discord holds it:
   of 2026-11-02 in Alaska), `years` (whole years on Nexa as `level`), `bug_hunter` (a bug report staff
   resolved), `app_developer` (an owned app's bot in `AppDeveloperServers`, 5, servers the owner does not
   own), `gift_giver` (paid plan gifts to others, `level` 1 to 3 at `GiftTiers` 1, 5, 20), and the two
-  staff give by hand in `user_badges`: `contributor` and `event:<badge_defs id>` (a name, a Lucide icon
-  name and a colour). Earned badges are worked out when asked for, never stored; bots, Nexa's accounts
+  staff give by hand in `user_badges`: `contributor` and `event:<badge_defs id>` (a custom badge: a
+  name, a Lucide icon name and a colour; it says only its own name, with no line of its own explaining
+  it). Earned badges are worked out when asked for, never stored; bots, Nexa's accounts
   and deleted accounts have none (deleting an account drops its rows).
 - `GET /users/{id}/profile` and `/profiles/{username}` carry `badges`, visible ones in the holder's
   order; `GET`/`PUT /users/@me/badges` (`order`, `hidden`; open to muted and banned accounts) is the
@@ -1879,9 +1915,10 @@ cargo-ndk) for notes.
   `Modifier.floatAbove(gap)` in `components/Controls.kt` (hangs a list over what it sits on),
   `SQUARE_AVATAR`, `TickBox`, `RadioCard(tick = true)`.
 - Moderation: `data/NexaInbox` (a member's side), `data/Moderation` (staff: `mod_unread`, `events` for
-  open views), `ui/nexa/ThreadChat`, and the native staff panel in `ui/moderation` (`Panel`, `Users`,
-  `Bots`, `Person`, `Moderate`, `Cases`, `Bugs`, `Servers`, `Expressions`, `Calls`, `Logs`, `Parts`,
-  `Words`) at `Route.Admin(path)`, the path being the web's below `/channels/@admin`.
+  open views, `onStaffAlert`), `ui/nexa/ThreadChat`, and the native staff panel in `ui/moderation`
+  (`Panel`, `StaffSidebar`, `Reports`, `ReportDecision`, `Users`, `Bots`, `Person`, `Moderate`, `Cases`,
+  `Bugs`, `Servers`, `Expressions`, `Calls`, `Logs`, `Parts`, `Words`) at `Route.Admin(path)`, the path
+  being the web's below `/channels/@admin`.
 - Apps: `data/Apps`, `AppCommands`, `Interactions`, `BotCopies`, `Pickables`, `net/AppModels`; screens
   in `ui/apps` (`CommandMode`, `CommandBox`, `CommandList`, `AppMessage` with `InteractionLine`,
   `AppForm`, `SelectBox`, `Authorize` for `/oauth2/authorize` links, `ReadingApps`, `ReadingGlass`,

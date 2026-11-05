@@ -80,8 +80,8 @@ fun BadgePill(badge: Badges.Badge, userId: String, flags: Long, plan: String, st
                     ))
                 } else Modifier)
                 .ring(shape, tone.copy(alpha = 0.36f))
-                .then(if (still) Modifier else Modifier.pressable(remember { MutableInteractionSource() }) { Nexa.ui.toast("${look.label}: ${look.tip}") })
-                .semantics { contentDescription = "${look.label}. ${look.tip}" },
+                .then(if (still) Modifier else Modifier.pressable(remember { MutableInteractionSource() }) { Nexa.ui.toast(if (look.tip.isEmpty()) look.label else "${look.label}: ${look.tip}") })
+                .semantics { contentDescription = if (look.tip.isEmpty()) look.label else "${look.label}. ${look.tip}" },
             contentAlignment = Alignment.Center,
         ) {
             Icon(if (fish.nexa.ui.Lucide.exists(look.icon)) look.icon else "award", text, size = 15.dp, stroke = 2.25f)

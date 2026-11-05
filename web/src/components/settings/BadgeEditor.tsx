@@ -66,7 +66,7 @@ export function BadgeEditor({ me }: { me: Pick<PublicUser, "id" | "flags" | "pla
             </span>
             <span className={d.badgeText}>
               {tagGroup ? null : <span className={d.badgeName} dir="auto">{name}</span>}
-              <span className={d.badgeWhy}>{b.hidden ? t("badges.hiddenWhy") : why}</span>
+              {b.hidden || why ? <span className={d.badgeWhy}>{b.hidden ? t("badges.hiddenWhy") : why}</span> : null}
             </span>
             <span className={d.widgetTools}>
               <button type="button" className={d.iconBtn} onClick={() => void set(moved(group, i, -1))} disabled={i === 0} aria-label={t("badges.moveUp", { name })} title={t("reorder.moveUp")}>

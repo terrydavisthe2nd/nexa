@@ -339,7 +339,7 @@ export function UserGrid() {
               u={u}
               owner={u.id === ownerId}
               onModerate={() => setModerating(u)}
-              onCases={() => nav(`/channels/@admin/users/${u.id}/cases`)}
+              onCases={() => nav(`/channels/@admin/users/${u.id}`)}
               onProfile={() => nav(`/channels/@admin/users/${u.id}`)}
               onMenu={(e) => menu(e, u)}
               onAlts={atLeast(mine, "admin") ? () => setAltsOf(u) : undefined}
@@ -440,8 +440,12 @@ function UserCard({ u, owner, onModerate, onCases, onProfile, onMenu, onAlts, pi
   );
   return (
     <article className={m.card} data-state={state} data-picked={picked || undefined} onContextMenu={onMenu}
-      // while picking, a click on the card (not on one of its buttons) picks it
-      onClick={picking && onPick ? (e) => !(e.target as HTMLElement).closest("button, a, input, label") && onPick() : undefined} data-testid="user-card" data-user={u.id}>
+      // a click on the card (not on one of its buttons) picks it while picking, and opens their page otherwise
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("button, a, input, label")) return;
+        if (picking) onPick?.();
+        else onProfile();
+      }} data-testid="user-card" data-user={u.id}>
       {picking ? (
         <label className={m.pickBox} data-disabled={!onPick || undefined} title={onPick ? undefined : blockedText(u.blocked) || t("moderation.blocked.owner")}>
           <input type="checkbox" checked={picked} disabled={!onPick} onChange={() => onPick?.()} aria-label={t("moderation.bulk.pick", { name: u.display_name })} data-testid="card-pick" />

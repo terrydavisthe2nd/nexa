@@ -28,9 +28,9 @@ sealed interface Route {
      * "servers[/<id>]", "expressions[/uploads|/packs/<id>]", "cases[/<id>]",
      * "bugs[/<id>]", "reports[/<id>]", "calls", "logs", "announcements", "badges".
      */
-    data class Admin(val path: String = "users") : Route {
+    data class Admin(val path: String = "reports") : Route {
         val parts: List<String> get() = path.split('/').filter { it.isNotEmpty() }
-        val tab: String get() = parts.firstOrNull()?.takeIf { it in TABS } ?: "users"
+        val tab: String get() = parts.firstOrNull()?.takeIf { it in TABS } ?: "reports"
 
         companion object {
             val TABS = listOf("reports", "discovery", "users", "bots", "servers", "expressions", "calls", "cases", "bugs", "logs", "announcements", "badges")
@@ -167,7 +167,7 @@ object Nav {
                 id.matches(parts[2]) -> Route.Dm(parts[2], parts.getOrNull(3)?.takeIf { id.matches(it) })
                 else -> return false
             }
-            "@admin" -> Route.Admin(parts.drop(2).filter { Regex("^[a-z]+$|^\\d{1,20}$").matches(it) }.joinToString("/").ifEmpty { "users" })
+            "@admin" -> Route.Admin(parts.drop(2).filter { Regex("^[a-z]+$|^\\d{1,20}$").matches(it) }.joinToString("/").ifEmpty { "reports" })
             "@discover" -> Route.Discover
             else -> if (id.matches(parts[1])) Route.Server(parts[1], parts.getOrNull(2)?.takeIf { id.matches(it) }, parts.getOrNull(3)?.takeIf { id.matches(it) }) else return false
         }

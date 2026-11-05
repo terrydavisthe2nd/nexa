@@ -46,7 +46,6 @@ const adminPanel = () => import("@/pages/AdminPanelPage");
 const AdminPanelPage = lazyPage(adminPanel);
 const AdminUsers = lazyPage(() => adminPanel().then((m) => ({ default: m.UserGrid })));
 const AdminUser = lazyPage(() => adminPanel().then((m) => ({ default: m.PersonPage })));
-const AdminDiscovery = lazyPage(() => adminPanel().then((m) => ({ default: m.DiscoveryModerationTab })));
 const AdminServers = lazyPage(() => adminPanel().then((m) => ({ default: m.ServersTab })));
 const AdminBots = lazyPage(() => adminPanel().then((m) => ({ default: m.BotsTab })));
 const AdminCalls = lazyPage(() => adminPanel().then((m) => ({ default: m.CallsTab })));
@@ -100,7 +99,7 @@ export function AppRoutes() {
                   <Route path="@me/notes" element={<NotesPage />} />
                   <Route path="@me/notes/:noteId" element={<NotesPage />} />
                   <Route path="@admin" element={<AdminPanelPage />}>
-                    <Route index element={<Navigate to="users" replace />} />
+                    <Route index element={<Navigate to="reports" replace />} />
                     <Route path="users" element={<AdminUsers />} />
                     <Route path="users/:userId" element={<AdminUser />} />
                     <Route path="users/:userId/cases" element={<AdminUser />} />
@@ -108,7 +107,7 @@ export function AppRoutes() {
                     <Route path="bots" element={<AdminBots />} />
                     <Route path="calls" element={<AdminCalls />} />
                     <Route path="servers" element={<AdminServers />} />
-                    <Route path="discovery" element={<AdminDiscovery />} />
+                    <Route path="discovery" element={<Navigate to="/channels/@admin/servers?discover=all" replace />} />
                     <Route path="servers/:serverId" element={<AdminServer />} />
                     <Route path="expressions" element={<AdminExpressions />} />
                     <Route path="expressions/uploads" element={<AdminExpressions />} />
@@ -122,7 +121,7 @@ export function AppRoutes() {
                     <Route path="reports/:reportId" element={<AdminReports />} />
                     <Route path="bugs" element={<AdminBugs />} />
                     <Route path="bugs/:reportId" element={<AdminBugs />} />
-                    <Route path="*" element={<Navigate to="users" replace />} />
+                    <Route path="*" element={<Navigate to="reports" replace />} />
                   </Route>
                   <Route path="@discover" element={<DiscoveryPage />} />
                   <Route path="@me/:channelId" element={<DMPage />} />

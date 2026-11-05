@@ -327,7 +327,7 @@ fun openGiveBadgesSheet(u: ModUser) {
                                 BadgePill(o, "0", 0L, "", still = true, named = true)
                                 if (o.id in h) Txt(t("badges.staff.held"), style = Nx.type.hint.copy(fontSize = Nx.type.sp(11f), fontWeight = FontWeight(700)), color = c.textMuted)
                             }
-                            Txt(if (o.id == Badges.CONTRIBUTOR) t("badges.contributorTip") else t("badges.eventTip"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f)), color = c.textMuted)
+                            if (o.id == Badges.CONTRIBUTOR) Txt(t("badges.contributorTip"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f)), color = c.textMuted)
                         }
                     }
                 }

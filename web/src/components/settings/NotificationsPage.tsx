@@ -7,6 +7,8 @@ import { showNotification } from "@/lib/notify";
 import { previewSound, soundTrouble, type SoundName } from "@/lib/sounds";
 import { useSettings, type NotificationPreview } from "@/stores/settings";
 import { useUI } from "@/stores/ui";
+import { staffAlerts } from "@/lib/staffAlerts";
+import { atLeast, useMyRank } from "@/lib/staffRank";
 import s from "./Settings.module.css";
 
 import { t } from "@/i18n";
@@ -19,7 +21,39 @@ function previewChoices(): { value: NotificationPreview; label: string; desc: st
   ];
 }
 
+/**
+ * For staff: what they are told about. New reports (all of them, only the
+ * urgent ones, or none), members writing in cases, and bug reports; they still
+ * count on the badges either way.
+ */
+function StaffAlertSettings({ admin }: { admin: boolean }) {
+  const st = useSettings((x) => x.settings);
+  const patch = useSettings((x) => x.patch);
+  const now = staffAlerts(st);
+  const set = (change: Partial<typeof now>) => patch({ notifications: { ...st.notifications, staff: { ...now, ...change } } });
+  const levels = [
+    { value: "all", label: t("settings.notifications.staffReportsAll"), desc: t("settings.notifications.staffReportsAllHint") },
+    { value: "urgent", label: t("settings.notifications.staffReportsUrgent"), desc: t("settings.notifications.staffReportsUrgentHint") },
+    { value: "off", label: t("settings.notifications.staffReportsOff"), desc: t("settings.notifications.staffReportsOffHint") },
+  ] as const;
+  return (
+    <>
+      <h3 className={s.h5} data-setting="staffAlerts">{t("settings.notifications.staffHeading")}</h3>
+      <p className={s.hint}>{t("settings.notifications.staffIntro")}</p>
+      {levels.map((o) => (
+        <label key={o.value} className={s.radio} data-on={now.reports === o.value}>
+          <input type="radio" name="staff-report-alerts" checked={now.reports === o.value} onChange={() => set({ reports: o.value })} data-testid={`staff-reports-${o.value}`} />
+          <span className={s.radioText}><span className={s.radioLabel}>{o.label}</span><span className={s.radioDesc}>{o.desc}</span></span>
+        </label>
+      ))}
+      <Toggle checked={now.cases} onChange={(v) => set({ cases: v })} label={t("settings.notifications.staffCases")} description={t("settings.notifications.staffCasesHint")} />
+      {admin ? <Toggle checked={now.bugs} onChange={(v) => set({ bugs: v })} label={t("settings.notifications.staffBugs")} description={t("settings.notifications.staffBugsHint")} /> : null}
+    </>
+  );
+}
+
 export default function NotificationsPage({ onSounds }: { onSounds?: () => void }) {
+  const rank = useMyRank();
   const st = useSettings((x) => x.settings);
   const patch = useSettings((x) => x.patch);
   const toast = useUI((x) => x.toast);
@@ -73,6 +107,7 @@ export default function NotificationsPage({ onSounds }: { onSounds?: () => void 
           <span className={s.radioText}><span className={s.radioLabel}>{o.label}</span><span className={s.radioDesc}>{o.desc}</span></span>
         </label>
       ))}
+      {rank ? <StaffAlertSettings admin={atLeast(rank, "admin")} /> : null}
       <h3 className={s.h5}>{t("settings.notifications.test")}</h3>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Button size="sm" variant="secondary" onClick={() => void testSound("message")}>{t("profile.profileCard.message")}</Button>

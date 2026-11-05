@@ -40,6 +40,8 @@ interface Props {
   /** The sticker and emoji packs they made. */
   packs?: ModPack[];
   onOpenPack?: (id: string) => void;
+  /** Their cases, shown beside what everyone can see so the page holds all of it. */
+  cases?: ReactNode;
 }
 
 function blockedText(b: ModUser["blocked"]): string {
@@ -66,7 +68,7 @@ function RankIcon({ rank }: { rank: StaffRank }) {
   return <Icon size={14} aria-hidden="true" />;
 }
 
-export function ProfileSheet({ user, servers, owner, onModerate, onOpenServer, packs = [], onOpenPack }: Props) {
+export function ProfileSheet({ user, servers, owner, onModerate, onOpenServer, packs = [], onOpenPack, cases }: Props) {
   useMediaAnimation();
   const rank = owner ? "owner" : rankOf(null, user.admin_flags);
   const [hl, setHl] = useState<Part>(null);
@@ -239,6 +241,7 @@ export function ProfileSheet({ user, servers, owner, onModerate, onOpenServer, p
         <PublicFace user={user} hl={hl} />
 
         <div className={p.column}>
+          {cases}
           <section className={p.panel} aria-labelledby="sheet-public">
             <header className={p.panelHead}>
               <h3 id="sheet-public" className={p.panelTitle}>{t("moderation.sheet.publicTitle")}</h3>

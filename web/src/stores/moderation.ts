@@ -49,9 +49,17 @@ interface ModerationStore {
 
 const NONE: ModUnread = { cases: [], bugs: [] };
 
-/** How many threads wait unread: the number every badge for the panel shows. */
+/** How many threads wait unread. */
 export function unreadCount(u: ModUnread): number {
   return u.cases.length + u.bugs.length;
+}
+
+/**
+ * What every badge for the panel shows: the threads waiting unread, plus the
+ * reports nobody has picked up yet (a report someone claimed is theirs).
+ */
+export function attentionCount(s: Pick<ModerationStore, "unread" | "reportCounts">): number {
+  return unreadCount(s.unread) + (s.reportCounts?.open ?? 0);
 }
 
 export const useModeration = create<ModerationStore>()((set, get) => ({

@@ -1,0 +1,7 @@
+/* the panel's name where a server shows its own, with the staff notification settings beside it */
+.head { flex: none; height: var(--header-h); display: flex; align-items: center; gap: 10px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--border-subtle); color: var(--text-strong); }
+.headIcon { flex: none; color: var(--text-brand); }
+.headTitle { flex: 1; min-width: 0; font-size: 15.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.headBtn { flex: none; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); color: var(--text-muted); }
+.headBtn:hover { background: var(--bg-hover); color: var(--text); }
+.headBtn:focus-visible { outline: 2px solid var(--focus, var(--brand)); outline-offset: 1px; }

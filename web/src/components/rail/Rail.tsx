@@ -31,7 +31,7 @@ import { serverMenu } from "@/components/sidebar/serverMenu";
 import { menuPoint } from "@/components/sidebar/ServerSidebar";
 import { lastChannelOf } from "@/stores/serverNav";
 import { useNexa } from "@/stores/nexa";
-import { unreadCount, useModeration } from "@/stores/moderation";
+import { attentionCount, useModeration } from "@/stores/moderation";
 import { moderationMenu } from "@/components/moderation/modMenu";
 import { NexaAvatar } from "@/components/nexa/NexaBits";
 import { FolderFace } from "./FolderFace";
@@ -122,7 +122,7 @@ export function Rail() {
   // every rank of staff opens the panel
   const isAdmin = useMyRank() !== null;
   // case threads and bug reports waiting on the staff that hold something this person has not read
-  const needsReply = useModeration((m) => unreadCount(m.unread));
+  const needsReply = useModeration(attentionCount);
   const inPanel = loc.pathname.startsWith("/channels/@admin");
   // like the people themselves waiting at the door: who sent something, and how much; Nexa among them, by when it spoke
   const waiting: Waiting[] = unreadConversations(channels, reads, settings, openConvo).map((w) => ({ ...w, at: w.channel.last_message_id ?? w.channel.id }));

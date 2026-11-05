@@ -66,6 +66,8 @@ import fish.nexa.ui.theme.topEdge
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -380,6 +382,24 @@ fun NotificationsPage(openPage: (String, String?) -> Unit) {
         Triple("name", "settings.notifications.previewName", "settings.notifications.previewNameHint"),
         Triple("none", "settings.notifications.previewNone", "settings.notifications.previewNoneHint"),
     )) RadioCard(t(label), preview == value, { patchNested("notifications", mapOf("preview" to JsonPrimitive(value))) }, t(hint))
+
+    // for staff: what they are told about (NotificationsPage.tsx StaffAlertSettings)
+    val me by Nexa.users.me.collectAsState()
+    val rank = fish.nexa.data.StaffRanks.of(me?.id, me?.flags ?: 0L)
+    if (rank != null) {
+        val staff = fish.nexa.notify.StaffAlerts.prefs()
+        fun setStaff(reports: String = staff.reports, cases: Boolean = staff.cases, bugs: Boolean = staff.bugs) =
+            patchNested("notifications", mapOf("staff" to buildJsonObject { put("reports", reports); put("cases", cases); put("bugs", bugs) }))
+        SectionHeading(t("settings.notifications.staffHeading"), Modifier.settingAnchor("staffAlerts"))
+        Hint(t("settings.notifications.staffIntro"), Modifier.padding(bottom = 12.dp))
+        for ((value, label, hint) in listOf(
+            Triple("all", "settings.notifications.staffReportsAll", "settings.notifications.staffReportsAllHint"),
+            Triple("urgent", "settings.notifications.staffReportsUrgent", "settings.notifications.staffReportsUrgentHint"),
+            Triple("off", "settings.notifications.staffReportsOff", "settings.notifications.staffReportsOffHint"),
+        )) RadioCard(t(label), staff.reports == value, { setStaff(reports = value) }, t(hint))
+        ToggleRow(t("settings.notifications.staffCases"), staff.cases, { setStaff(cases = it) }, t("settings.notifications.staffCasesHint"))
+        if (rank.atLeast(fish.nexa.data.StaffRank.ADMIN)) ToggleRow(t("settings.notifications.staffBugs"), staff.bugs, { setStaff(bugs = it) }, t("settings.notifications.staffBugsHint"))
+    }
 
     SectionHeading(t("settings.notifications.test"))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

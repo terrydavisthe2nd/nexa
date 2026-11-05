@@ -42,6 +42,9 @@ type SafetyReport struct {
 	// Duplicates is how many open or in-review reports name the same item,
 	// this one included; only the staff queue fills it in.
 	Duplicates int `json:"duplicates,omitempty"`
+	// Reasons are the distinct reasons of those reports, so a queue row that
+	// stands for several can show the most pressing; filled in with Duplicates.
+	Reasons []string `json:"reasons,omitempty"`
 }
 
 type SafetyReportEvent struct {
@@ -180,6 +183,9 @@ type ReportFilter struct {
 	Unassigned bool
 	// Duplicates counts the active reports about each listed item.
 	Duplicates bool
+	// Grouped keeps one report per item, the newest of those that match the
+	// status, so the queue shows each reported thing once.
+	Grouped bool
 }
 
 // reportActive is the status condition for a report that still waits on staff.
@@ -231,6 +237,19 @@ func (s *Store) SafetyReports(ctx context.Context, f ReportFilter) ([]*SafetyRep
 		where = append(where, `(lower(description) LIKE ? ESCAPE '\' OR lower(custom_part) LIKE ? ESCAPE '\' OR CAST(id AS TEXT)=? OR CAST(target_id AS TEXT)=? OR CAST(subject_id AS TEXT)=? OR CAST(reporter_id AS TEXT)=? OR subject_id IN (SELECT id FROM users WHERE username=?) OR reporter_id IN (SELECT id FROM users WHERE username=?))`)
 		args = append(args, q, q, raw, raw, raw, raw, strings.ToLower(raw), strings.ToLower(raw))
 	}
+	if f.Grouped {
+		// the same status condition, on the newer report about the same item
+		same := `o.status IN ('open','in_review')`
+		switch {
+		case f.Status == "closed":
+			same = `o.status IN ('actioned','dismissed')`
+		case f.Status != "" && f.Status != "active":
+			same = `o.status=safety_reports.status`
+		case f.Status == "":
+			same = `1=1`
+		}
+		where = append(where, `(target_id=0 OR NOT EXISTS (SELECT 1 FROM safety_reports o WHERE o.target_kind=safety_reports.target_kind AND o.target_id=safety_reports.target_id AND o.id>safety_reports.id AND `+same+`))`)
+	}
 	if f.Limit <= 0 || f.Limit > 101 {
 		f.Limit = 51
 	}
@@ -276,6 +295,7 @@ func (s *Store) countDuplicates(ctx context.Context, list []*SafetyReport) error
 		id   ids.ID
 	}
 	counts := map[item]int{}
+	reasons := map[item][]string{}
 	for _, v := range list {
 		if v.TargetID == 0 {
 			v.Duplicates = 1
@@ -283,13 +303,31 @@ func (s *Store) countDuplicates(ctx context.Context, list []*SafetyReport) error
 		}
 		key := item{v.TargetKind, v.TargetID}
 		if _, done := counts[key]; !done {
-			var n int
-			if err := s.db.R.QueryRowContext(ctx, `SELECT count(*) FROM safety_reports WHERE target_kind=? AND target_id=? AND `+reportActive, v.TargetKind, int64(v.TargetID)).Scan(&n); err != nil {
+			rows, err := s.db.R.QueryContext(ctx, `SELECT reason, count(*) FROM safety_reports WHERE target_kind=? AND target_id=? AND `+reportActive+` GROUP BY reason ORDER BY reason`, v.TargetKind, int64(v.TargetID))
+			if err != nil {
+				return err
+			}
+			n := 0
+			for rows.Next() {
+				var reason string
+				var c int
+				if err := rows.Scan(&reason, &c); err != nil {
+					rows.Close()
+					return err
+				}
+				n += c
+				reasons[key] = append(reasons[key], reason)
+			}
+			rows.Close()
+			if err := rows.Err(); err != nil {
 				return err
 			}
 			counts[key] = n
 		}
 		v.Duplicates = max(counts[key], 1)
+		if len(reasons[key]) > 1 {
+			v.Reasons = reasons[key]
+		}
 	}
 	return nil
 }

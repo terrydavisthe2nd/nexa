@@ -474,7 +474,7 @@ fun DmSidebar() {
                 // case threads and bug reports waiting on the staff that hold something this person has not read
                 // every rank of staff opens the panel
                 if (StaffRanks.of(me?.id, me?.flags ?: 0L) != null) item("mod") {
-                    val waitingOnStaff = fish.nexa.data.Moderation.unread.collectAsState().value.count
+                    val waitingOnStaff = fish.nexa.ui.moderation.attentionCount()
                     NavRow("Shield", t("moderation.navLabel"), route is Route.Admin, waitingOnStaff, t("moderation.railWithCount", "count" to waitingOnStaff), onLongClick = { fish.nexa.ui.moderation.openModerationMenu() }) {
                         Nav.go(Route.Admin())
                         Nav.leftOpen = false
