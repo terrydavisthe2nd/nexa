@@ -4,7 +4,7 @@ import { jumpTarget } from "@/lib/appLinks";
 import { useDownloadsHidden } from "@/lib/mediaDownloads";
 import { PersonName } from "@/components/common/PersonName";
 import { useMediaAnimation } from "@/lib/mediaAnimation";
-import { Check, CornerUpRight, Hash, Link2, Lock, MailOpen, Megaphone, MessageSquareText, MoreHorizontal, Pencil, Pin, PinOff, Reply, RotateCw, ShieldAlert, SmilePlus, Trash2 } from "lucide-react";
+import { Check, CornerUpRight, Hash, ImageOff, Link2, Lock, MailOpen, Megaphone, MessageSquareText, MoreHorizontal, Pencil, Pin, PinOff, Reply, RotateCw, ShieldAlert, SmilePlus, Trash2 } from "lucide-react";
 import { type ReactNode, memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/common/Avatar";
 import { Markdown, isEmojiOnly, parse, plainText } from "@/markdown";
@@ -49,7 +49,7 @@ import { ThreadChip } from "./ThreadChip";
 import { canPublish, publish } from "./publish";
 import type { UnfurlResult } from "@/api/types";
 import { EditMessage } from "./EditMessage";
-import { isOnlyMediaLinks } from "./mediaLinks";
+import { isBareGifPath, isOnlyMediaLinks } from "./mediaLinks";
 import { Reactions, toggleReaction } from "./Reactions";
 import { StickerPopout } from "./StickerPopout";
 import { ReplyWords, useReplyWords } from "./ReplyWords";
@@ -485,7 +485,8 @@ function MessageContent({ msg, name, id, pending, upload }: { msg: DecryptedMess
   const embeds = shownEmbeds?.length ? shownEmbeds : null;
   // Pictures and GIFs stand alone; audio and video keep their original link above the player.
   const mediaOnly = !!embeds && imagePreviews && isOnlyMediaLinks(msg.payload?.t ?? "", embeds);
-  const text = mediaOnly ? "" : (msg.payload?.t ?? "");
+  const hiddenGif = !mediaOnly && isBareGifPath(msg.payload?.t ?? "");
+  const text = mediaOnly || hiddenGif ? "" : (msg.payload?.t ?? "");
   const nodes = useMemo(() => (text ? parse(text) : []), [text]);
   // A message of nothing but emoji draws them big, all at one size: shrinking
   // them as there were more made two messages side by side look mismatched.
@@ -518,6 +519,7 @@ function MessageContent({ msg, name, id, pending, upload }: { msg: DecryptedMess
           <span className={s.waiting}><Lock size={14} /> {t("chat.messageItem.thisMessageCouldNotBeDecrypted")}</span>
         ) : (
           <>
+            {hiddenGif ? <span className={s.waiting} data-testid="gif-not-shown"><ImageOff size={14} aria-hidden="true" /> {t("chat.messageItem.gifNotShown")}</span> : null}
             {text ? <Markdown source={text} ctx={ctx} jumbo={jumbo} /> : null}
             {msg.edited_at ? <span className={s.edited} title={formatFull(msg.edited_at)}>{t("chat.messageItem.edited")}</span> : null}
           </>

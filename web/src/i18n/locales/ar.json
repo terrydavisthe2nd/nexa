@@ -8160,6 +8160,7 @@
   "whatsNew.r20261028.discoveryBody": "يتوفر للفريق تبويب استكشاف مستقل في لوحة الإشراف لمراجعة الخوادم المدرجة وإخفائها واستعادة الخوادم التي أخفاها الفريق.",
   "nsfw.discoveryHint": "إظهار الخوادم التي تحتوي على محتوى NSFW. يجب أن يكون عمرك 18 عامًا أو أكثر.",
   "chat.leaveSilently": "المغادرة دون إظهار رسالة مغادرة",
+  "chat.messageItem.gifNotShown": "لا تظهر صورة GIF هذه هنا.",
   "chat.systemMessage.changedName": "غيّر {actor} اسم المجموعة.",
   "chat.systemMessage.changedIcon": "غيّر {actor} أيقونة المجموعة.",
   "designer.bannerEmptyHint": "بدون لافتة، تملأ ألوان ملفك الشخصي هذه المساحة.",

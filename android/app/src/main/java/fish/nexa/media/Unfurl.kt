@@ -175,6 +175,9 @@ fun openExternal(url: String) {
 }
 
 /** mediaLinks.ts isOnlyMediaLinks: a message that is nothing but the links of its picture or GIF previews. Audio and video keep their original links. */
+/** The message's text is only the signed path a picker GIF is sent as (mediaLinks.ts isBareGifPath). */
+fun isBareGifPath(text: String): Boolean = Regex("""^/media/proxy/\S+$""").matches(text.trim())
+
 fun isOnlyMediaLinks(text: String, embeds: List<Unfurl>): Boolean {
     val words = text.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
     if (words.isEmpty() || embeds.isEmpty() || !embeds.all { it.type == "image" || it.type == "gif" }) return false

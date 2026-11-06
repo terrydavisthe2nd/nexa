@@ -595,6 +595,9 @@ it:
 - Embed Links: previews are made and sealed by the sender's app, so the server sets Suppress Embeds (flag 4)
   on any new or edited message whose author lacks Embed Links there (`embedFlags`) and refuses to clear it
   while they lack it; apps hide flagged previews and composers fetch none there.
+  A picker GIF is a preview whose text is its signed `/media/proxy/` path, so composers offer no GIFs tab there,
+  and a message that is only such a path with its preview left off draws a note instead (web `isBareGifPath`,
+  Android `media/Unfurl.kt`), never the path.
 - Add Reactions is needed only for a new reaction; every reaction needs Read Message History, without which
   history answers an empty list and only live messages are seen.
 - Video (Stream): without it a voice state never says `video` or `streaming`, and the SFU refuses to publish

@@ -7741,6 +7741,7 @@
   "whatsNew.r20261028.discoveryBody": "В панели модерации появилась отдельная вкладка обнаружения: сотрудники могут проверять серверы в каталоге, скрывать их и снимать ограничения на показ.",
   "nsfw.discoveryHint": "Показывать серверы с материалами NSFW. Вам должно быть не менее 18 лет.",
   "chat.leaveSilently": "Выйти без сообщения о выходе",
+  "chat.messageItem.gifNotShown": "Этот GIF здесь не показывается.",
   "chat.systemMessage.changedName": "{actor} изменил(а) название группы.",
   "chat.systemMessage.changedIcon": "{actor} изменил(а) значок группы.",
   "designer.bannerEmptyHint": "Без баннера это место заполняют цвета профиля.",

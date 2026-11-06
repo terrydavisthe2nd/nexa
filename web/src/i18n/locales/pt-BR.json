@@ -7401,6 +7401,7 @@
   "whatsNew.r20261028.discoveryBody": "A equipe tem uma aba de Descoberta separada no painel de moderação para revisar servidores listados, ocultá-los e restaurar os ocultados pela equipe.",
   "nsfw.discoveryHint": "Mostrar servidores com conteúdo NSFW. Você deve ter pelo menos 18 anos.",
   "chat.leaveSilently": "Sair sem mostrar uma mensagem de saída",
+  "chat.messageItem.gifNotShown": "Este GIF não é exibido aqui.",
   "chat.systemMessage.changedName": "{actor} alterou o nome do grupo.",
   "chat.systemMessage.changedIcon": "{actor} alterou o ícone do grupo.",
   "designer.bannerEmptyHint": "Sem banner, as cores do seu perfil preenchem este espaço.",

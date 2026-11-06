@@ -7286,6 +7286,7 @@
   "whatsNew.r20261028.discoveryBody": "Staff have a separate Discovery tab in the moderation panel to review listed servers, hide listings, and restore servers hidden by staff.",
   "nsfw.discoveryHint": "Show servers with NSFW content. You must be 18 or older.",
   "chat.leaveSilently": "Leave without showing a leave message",
+  "chat.messageItem.gifNotShown": "This GIF isn't shown here.",
   "chat.systemMessage.changedName": "{actor} changed the group name.",
   "chat.systemMessage.changedIcon": "{actor} changed the group icon.",
   "designer.bannerEmptyHint": "Without a banner, your profile colours fill this space.",

@@ -7045,6 +7045,7 @@
   "whatsNew.r20261028.discoveryBody": "管理面板新增独立的探索标签页，工作人员可查看已上架服务器、隐藏条目或恢复被工作人员隐藏的服务器。",
   "nsfw.discoveryHint": "显示含 NSFW 内容的服务器。您必须年满 18 岁。",
   "chat.leaveSilently": "退出时不显示退出消息",
+  "chat.messageItem.gifNotShown": "此 GIF 不会在这里显示。",
   "chat.systemMessage.changedName": "{actor}更改了群组名称。",
   "chat.systemMessage.changedIcon": "{actor}更改了群组图标。",
   "designer.bannerEmptyHint": "没有横幅时，这里会用你的资料颜色填充。",

@@ -7400,6 +7400,7 @@
   "whatsNew.r20261028.discoveryBody": "L’équipe dispose d’un onglet Découverte distinct dans le panneau de modération pour examiner les serveurs répertoriés, les masquer et rétablir ceux masqués par l’équipe.",
   "nsfw.discoveryHint": "Afficher les serveurs contenant du contenu NSFW. Vous devez avoir au moins 18 ans.",
   "chat.leaveSilently": "Quitter sans afficher de message de départ",
+  "chat.messageItem.gifNotShown": "Ce GIF n'est pas affiché ici.",
   "chat.systemMessage.changedName": "{actor} a changé le nom du groupe.",
   "chat.systemMessage.changedIcon": "{actor} a changé l’icône du groupe.",
   "designer.bannerEmptyHint": "Sans bannière, les couleurs de votre profil remplissent cet espace.",

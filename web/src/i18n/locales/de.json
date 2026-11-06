@@ -7286,6 +7286,7 @@
   "whatsNew.r20261028.discoveryBody": "Das Moderationsteam hat einen eigenen Entdeckung-Tab im Moderationsbereich, um gelistete Server zu prüfen, Einträge auszublenden und ausgeblendete Server wieder freizugeben.",
   "nsfw.discoveryHint": "Server mit NSFW-Inhalten anzeigen. Du musst mindestens 18 Jahre alt sein.",
   "chat.leaveSilently": "Ohne Austrittsnachricht verlassen",
+  "chat.messageItem.gifNotShown": "Dieses GIF wird hier nicht angezeigt.",
   "chat.systemMessage.changedName": "{actor} hat den Gruppennamen geändert.",
   "chat.systemMessage.changedIcon": "{actor} hat das Gruppenbild geändert.",
   "designer.bannerEmptyHint": "Ohne Banner füllen deine Profilfarben diesen Platz.",

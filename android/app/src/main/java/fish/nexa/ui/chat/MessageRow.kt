@@ -660,7 +660,8 @@ internal fun MessageBody(item: MsgItem, ctx: ListCtx, failed: Boolean, preview: 
     val doc by Nexa.settings.doc.collectAsState()
     val mediaOnly = embeds != null && remember(doc) { Nexa.settings.imagePreviews } &&
         remember(payload?.t, embeds) { isOnlyMediaLinks(payload?.t ?: "", embeds.mapNotNull { Unfurl.of(it) }) }
-    val text = if (mediaOnly) null else payload?.t
+    val hiddenGif = !mediaOnly && fish.nexa.media.isBareGifPath(payload?.t ?: "")
+    val text = if (mediaOnly || hiddenGif) null else payload?.t
     // Use External Emoji and Use External Stickers, held by every reader: what the author may not use here draws as words
     val emojiMap by Nexa.expressions.emojis.collectAsState()
     val packMap by Nexa.expressions.packs.collectAsState()
@@ -674,6 +675,10 @@ internal fun MessageBody(item: MsgItem, ctx: ListCtx, failed: Boolean, preview: 
         packMap.values.none { p -> p.serverId == serverId && p.stickers.any { it.id == payload.sticker.id } }
     val edited = cm?.m?.editedAt?.let { t("chat.messageItem.edited") }
     if (cm != null && ChatUi.editing[cm.channelId]?.messageId == cm.id) EditMessage(cm)
+    else if (hiddenGif) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Icon("ImageOff", c.textMuted, size = 14.dp)
+        Txt(t("chat.messageItem.gifNotShown"), style = Nx.type.body.copy(fontSize = Nx.type.sp(15f), fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), color = c.textMuted)
+    }
     else if (!text.isNullOrEmpty()) fish.nexa.ui.markdown.MarkdownView(
         text,
         fish.nexa.ui.markdown.RenderCtx(serverId = ctx.server?.server?.id, color = if (failed) c.textDanger else null, edited = edited, surface = c.bgRaised, plainEmoji = plainEmoji),

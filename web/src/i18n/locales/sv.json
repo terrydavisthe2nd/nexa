@@ -7286,6 +7286,7 @@
   "whatsNew.r20261028.discoveryBody": "Personalen har en separat Upptäck-flik i modereringspanelen för att granska listade servrar, dölja listningar och återställa servrar som personalen dolt.",
   "nsfw.discoveryHint": "Visa servrar med NSFW-innehåll. Du måste vara minst 18 år.",
   "chat.leaveSilently": "Lämna utan att visa ett meddelande",
+  "chat.messageItem.gifNotShown": "Den här GIF:en visas inte här.",
   "chat.systemMessage.changedName": "{actor} ändrade gruppens namn.",
   "chat.systemMessage.changedIcon": "{actor} ändrade gruppens ikon.",
   "designer.bannerEmptyHint": "Utan banner fyller dina profilfärger den här ytan.",

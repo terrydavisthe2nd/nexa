@@ -7045,6 +7045,7 @@
   "whatsNew.r20261028.discoveryBody": "관리 패널에 별도의 서버 탐색 탭이 생겼습니다. 운영진은 등록된 서버를 검토하고 숨기거나 운영진이 숨긴 서버를 복원할 수 있습니다.",
   "nsfw.discoveryHint": "NSFW 콘텐츠가 있는 서버를 표시합니다. 18세 이상이어야 합니다.",
   "chat.leaveSilently": "나가기 메시지를 표시하지 않고 나가기",
+  "chat.messageItem.gifNotShown": "이 GIF는 여기에 표시되지 않아요.",
   "chat.systemMessage.changedName": "{actor}님이 그룹 이름을 변경했어요.",
   "chat.systemMessage.changedIcon": "{actor}님이 그룹 아이콘을 변경했어요.",
   "designer.bannerEmptyHint": "배너가 없으면 프로필 색상이 이 자리를 채워요.",

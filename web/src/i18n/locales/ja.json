@@ -7045,6 +7045,7 @@
   "whatsNew.r20261028.discoveryBody": "モデレーションパネルに独立したサーバー発見タブを追加しました。スタッフは掲載サーバーを確認し、掲載の非表示やスタッフによる非表示の解除を行えます。",
   "nsfw.discoveryHint": "NSFWコンテンツを含むサーバーを表示します。18歳以上である必要があります。",
   "chat.leaveSilently": "退出メッセージを表示せずに抜ける",
+  "chat.messageItem.gifNotShown": "このGIFはここには表示されません。",
   "chat.systemMessage.changedName": "{actor}がグループ名を変更しました。",
   "chat.systemMessage.changedIcon": "{actor}がグループアイコンを変更しました。",
   "designer.bannerEmptyHint": "バナーがない場合は、プロフィールの色でこの部分が塗られます。",

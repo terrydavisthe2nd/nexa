@@ -1,6 +1,16 @@
 import type { UnfurlResult } from "@/api/types";
 
 const LINK = /^https?:\/\/\S+$/i;
+const PROXY_PATH = /^\/media\/proxy\/\S+$/;
+
+/**
+ * Whether a message's text is only the signed path a picker GIF is sent as.
+ * It means nothing to a reader, so with its preview left off (Suppress Embeds,
+ * Image Previews) a note takes its place.
+ */
+export function isBareGifPath(text: string): boolean {
+  return PROXY_PATH.test(text.trim());
+}
 
 export function isMediaEmbed(e: UnfurlResult | null | undefined): boolean {
   return !!e && (e.type === "image" || e.type === "gif");

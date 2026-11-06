@@ -28,7 +28,11 @@ fun openExpressionPicker(channelId: String, onPick: (String) -> Unit) {
         return fish.nexa.data.SendOptions(replyTo = r?.messageId, ping = r?.ping)
     }
     fish.nexa.ui.pickers.Pickers.open(fish.nexa.ui.pickers.Pickers.Opener(
-        listOf(fish.nexa.ui.pickers.Pickers.Tab.GIFS, fish.nexa.ui.pickers.Pickers.Tab.STICKERS, fish.nexa.ui.pickers.Pickers.Tab.EMOJI), serverId,
+        // a picker GIF is a preview, which Embed Links holds back, so without it there is no tab
+        listOfNotNull(
+            fish.nexa.ui.pickers.Pickers.Tab.GIFS.takeIf { serverId == null || fish.nexa.Nexa.servers.canI(fish.nexa.Nexa.servers.get(serverId), fish.nexa.data.P.EMBED_LINKS, channelId) },
+            fish.nexa.ui.pickers.Pickers.Tab.STICKERS, fish.nexa.ui.pickers.Pickers.Tab.EMOJI,
+        ), serverId,
         // a custom emoji reads as its :name: in the box where that name brings it back
         onEmoji = { p ->
             val name = p.custom?.name ?: p.packEmoji?.name

@@ -941,7 +941,8 @@ export function Composer({ channel }: { channel: Channel }) {
           }}
           serverId={channel.server_id}
           onlyServer={ownEmojiOnly}
-          gifs={<GifPicker onPick={(g) => {
+          // a picker GIF is a preview, which Embed Links holds back, so without it there is no tab
+          gifs={!mayEmbed ? undefined : <GifPicker onPick={(g) => {
             setPicker(false);
             if (g.att) {
               // an uploaded favourite: stage its decrypted bytes, then it goes
