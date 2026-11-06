@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -44,6 +46,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -132,7 +135,17 @@ data class RenderCtx(
 fun MarkdownView(source: String, ctx: RenderCtx, modifier: Modifier = Modifier) {
     val nodes = remember(source, ctx.files, ctx.max) { Markdown.parse(source, files = ctx.files, max = ctx.max) }
     val jumbo = remember(nodes) { Markdown.isEmojiOnly(nodes) }
-    Column(modifier.clipToBounds()) { Blocks(nodes, ctx, jumbo, top = true, edited = ctx.edited) }
+    Column(modifier.clipInk()) { Blocks(nodes, ctx, jumbo, top = true, edited = ctx.edited) }
+}
+
+/**
+ * Keeps a message's ink near its box without cutting what belongs in the line.
+ * An emoji can stand a little past the box: below the last line of a wrapped
+ * message, and at the end of a line on phones that measure text a hair short.
+ */
+private fun Modifier.clipInk(): Modifier = drawWithContent {
+    val bleed = 4.dp.toPx()
+    clipRect(-bleed, -bleed, size.width + bleed, size.height + bleed) { this@drawWithContent.drawContent() }
 }
 
 /**
@@ -519,12 +532,13 @@ private class Builder(
             if (!covered) {
                 val ref = remember { AnchorRef() }
                 val mod = if (ctx.inert) Modifier else Modifier.anchor(ref).pressable(remember { MutableInteractionSource() }) { openEmoji(n, ref.rect) }
-                Box(mod) {
+                // the picture fills its place in the line, which grows and shrinks with Text Size
+                Box(mod.fillMaxSize()) {
                     if (custom != null) {
                         val density = LocalDensity.current.density
                         @Suppress("UNUSED_VARIABLE") val animate = fish.nexa.ui.shell.settingOn("animateEmoji")
-                        AsyncImage(Media.emojiUrl(custom.id, if (jumbo) 48 else 48, density), custom.name, Modifier.size(if (jumbo) 48.dp else 22.dp))
-                    } else TwemojiImage(alt, if (jumbo) 48.dp else 22.dp)
+                        AsyncImage(Media.emojiUrl(custom.id, if (jumbo) 48 else 48, density), custom.name, Modifier.fillMaxSize())
+                    } else TwemojiImage(alt, Modifier.fillMaxSize())
                 }
             }
         }
@@ -580,7 +594,7 @@ private fun InlineText(
     val density = LocalDensity.current
     BasicText(
         built.text,
-        modifier = modifier.then(inlineWidth.modifier).clipToBounds().drawBehind {
+        modifier = modifier.then(inlineWidth.modifier).clipInk().drawBehind {
             val l = layout ?: return@drawBehind
             for (chip in built.chips) for (r in boxes(l, chip.start, chip.end)) {
                 val inset = with(density) { chip.inset.toPx() }

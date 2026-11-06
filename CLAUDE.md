@@ -1227,7 +1227,8 @@ combining sequences, non-breaking spaces and long words must be contained, even 
 clients. `base.css` gives inherited emergency wrapping and the `PersonName` identity boundary; the chat list
 never scrolls sideways. Compact labels get explicit line limits, titles are bounded, markdown blocks wrap and
 clip excess ink, code and tables scroll in their own wrappers, and emoji fallbacks stay icon-sized. Android
-bounds ink in its common text, name and markdown renderers (keep its bounded name-effect halo). Removable
+bounds ink in its common text, name and markdown renderers (keep its bounded name-effect halo; markdown's `clipInk`
+allows 4 dp past the box, since an emoji can stand that far out of its line). Removable
 labels go in a shrinkable text child so their buttons stay visible, and shared action buttons do not shrink in
 flex rows (text and inputs yield, form rows wrap). `docs/UI_TEXT_AUDIT.md` is the regression workflow, and
 `docs/UI_TEXT_INPUTS.md` with `docs/UI_TEXT_INPUTS.tsv` and `docs/UI_TEXT_INPUTS_ANDROID.tsv` the field-level

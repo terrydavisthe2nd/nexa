@@ -118,12 +118,14 @@ fun Txt(
     maxLines: Int = Int.MAX_VALUE,
     weight: Int? = null,
     align: androidx.compose.ui.text.style.TextAlign? = null,
+    softWrap: Boolean = true,
 ) {
     BasicText(
         text = text,
         // Text ink (especially combining marks) must stay in its measured box.
         modifier = modifier.clipToBounds(),
         style = style.copy(color = color).let { s -> if (weight != null) s.copy(fontWeight = FontWeight(weight)) else s }.let { s -> if (align != null) s.copy(textAlign = align) else s },
+        softWrap = softWrap,
         maxLines = maxLines,
         overflow = if (maxLines == Int.MAX_VALUE) TextOverflow.Clip else TextOverflow.Ellipsis,
     )

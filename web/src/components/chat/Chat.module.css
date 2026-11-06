@@ -144,7 +144,8 @@
 .forwarded { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; font-size: 12px; font-weight: 600; line-height: 18px; color: var(--text-muted); }
 .forwarded time { font-weight: 500; }
 .edited { font-size: 10px; color: var(--text-muted); margin-inline-start: 4px; }
-.content > :global(.md-paragraph):last-of-type { display: inline; }
+/* Firefox clips an inline box to one line of text, which cut emoji taller than the line (markdown.css's overflow: clip) */
+.content > :global(.md-paragraph):last-of-type { display: inline; overflow: visible; }
 /* Each paragraph reads, and lines up, in the direction of its own words: an
    English message in an Arabic interface keeps its question mark at the end
    of the sentence and starts at the left, as in every app that shows the two

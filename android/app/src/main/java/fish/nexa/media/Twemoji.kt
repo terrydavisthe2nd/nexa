@@ -96,12 +96,16 @@ object Twemoji {
 
 /** One emoji drawn from the sheets, or nothing when the set has no picture for it. */
 @Composable
-fun TwemojiImage(text: String, size: Dp, modifier: Modifier = Modifier) {
+fun TwemojiImage(text: String, size: Dp, modifier: Modifier = Modifier) = TwemojiImage(text, modifier.size(size))
+
+/** The same, as big as [modifier] makes it. */
+@Composable
+fun TwemojiImage(text: String, modifier: Modifier) {
     val spot = Twemoji.locate(text) ?: return
     val bmp = produceState<ImageBitmap?>(Twemoji.sheet(spot.first).takeIf { false }, spot.first) {
         value = withContext(Dispatchers.IO) { Twemoji.sheet(spot.first) }
     }.value
-    Canvas(modifier.size(size)) {
+    Canvas(modifier) {
         val b = bmp ?: return@Canvas
         drawImage(b, Twemoji.srcOffset(spot.second), Twemoji.srcSize, dstSize = IntSize(this.size.width.toInt(), this.size.height.toInt()), filterQuality = FilterQuality.High)
     }

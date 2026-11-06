@@ -734,6 +734,7 @@ private fun FailedButton(icon: String?, label: String, pressedBg: Color, pressed
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (icon != null) Icon(icon, if (pressed) pressedFg else c.text, size = 13.dp)
-        Txt(label, style = Nx.type.hint.copy(fontWeight = FontWeight(600)), color = if (pressed) pressedFg else c.text)
+        // one word that never breaks: on some phones text measures a hair short of what it draws, which put "y" under "Retr"
+        Txt(label, style = Nx.type.hint.copy(fontWeight = FontWeight(600)), color = if (pressed) pressedFg else c.text, softWrap = false)
     }
 }
