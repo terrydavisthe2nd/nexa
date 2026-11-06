@@ -71,7 +71,6 @@ var muteAllowed = map[string]bool{
 	"POST /api/v1/proxy/refresh":                                        true,
 	"POST /api/v1/activities/preview":                                   true,
 	"POST /api/v1/keys/grants":                                          true,
-	"POST /api/v1/keys/epochs":                                          true,
 	"POST /api/v1/keys/request":                                         true, // reading needs the keys
 	"DELETE /api/v1/users/@me/relationships/{id}":                       true,
 	"PATCH /api/v1/users/@me/relationships/{id}":                        true,

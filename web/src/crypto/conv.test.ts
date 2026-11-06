@@ -1,11 +1,25 @@
 import { equal, randomBytes } from "./bytes";
-import { KeyRing, channelKey, newRootKey } from "./conv";
+import { KeyRing, channelKey, keyCommitment, newRootKey } from "./conv";
 
 describe("newRootKey", () => {
   it("returns 32 fresh random bytes", () => {
     const a = newRootKey();
     expect(a.length).toBe(32);
     expect(equal(a, newRootKey())).toBe(false);
+  });
+});
+
+describe("keyCommitment", () => {
+  it("matches what the Android app computes", () => {
+    // web-crypto-vectors.json holds the same root and result for CryptoVectorsTest
+    const root = Uint8Array.from("656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e".match(/../g)!.map((x) => parseInt(x, 16)));
+    const hex = Array.from(keyCommitment(root, "99723385805733891"), (x) => x.toString(16).padStart(2, "0")).join("");
+    expect(hex).toBe("bbca7e07983fad3d35e036b14333027a60c81880f38bfd2c1989e409c4eaac11");
+  });
+
+  it("is not the key that opens messages", () => {
+    const root = newRootKey();
+    expect(equal(keyCommitment(root, "c"), channelKey(root, "c"))).toBe(false);
   });
 });
 

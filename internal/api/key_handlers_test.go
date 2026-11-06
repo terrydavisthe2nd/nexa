@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"evilion.xyz/chat/internal/ids"
+	"evilion.xyz/chat/internal/store"
 )
 
 func TestARecipientCanRejectOnlyItsExactUnusableGrant(t *testing.T) {
@@ -54,7 +55,7 @@ func TestARecipientCanRejectOnlyItsExactUnusableGrant(t *testing.T) {
 }
 
 func TestKeyGrantsAndNeeds(t *testing.T) {
-	_, ts := newTestServer(t)
+	srv, ts := newTestServer(t)
 	tokA, idA := register(t, ts, "alice")
 	tokB, idB := register(t, ts, "bob")
 	tokC, idC := register(t, ts, "carol")
@@ -103,7 +104,8 @@ func TestKeyGrantsAndNeeds(t *testing.T) {
 		t.Errorf("no more needs: %v", body)
 	}
 	// rotation
-	res, body = do(t, ts, "POST", "/api/v1/keys/epochs", tokB, map[string]any{"conv_id": g, "reason": "manual"})
+	askForRotation(t, srv, g)
+	res, body = do(t, ts, "POST", "/api/v1/keys/epochs", tokB, map[string]any{"conv_id": g, "reason": rotationReason, "commitment": testCommitment})
 	if res.StatusCode != 201 || body["epoch"].(float64) != 1 {
 		t.Fatalf("rotate: %d %v", res.StatusCode, body)
 	}
@@ -124,7 +126,7 @@ func TestKeyGrantsAndNeeds(t *testing.T) {
 // too, so they read what was said before they came; and a device still
 // waiting can ask the holders again.
 func TestJoiningHandsOnEveryKey(t *testing.T) {
-	_, ts := newTestServer(t)
+	api, ts := newTestServer(t)
 	tokA, idA := register(t, ts, "alice")
 	tokB, idB := register(t, ts, "bob")
 	srv := createServer(t, ts, tokA, "Old Server")
@@ -132,7 +134,10 @@ func TestJoiningHandsOnEveryKey(t *testing.T) {
 	general := channelNamed(srv, "general")["id"].(string)
 	// two keys: the first, and the one that replaced it when someone left
 	for epoch := 0; epoch < 2; epoch++ {
-		if res, body := do(t, ts, "POST", "/api/v1/keys/epochs", tokA, map[string]any{"conv_id": conv}); res.StatusCode != 201 {
+		if epoch > 0 {
+			askForRotation(t, api, conv)
+		}
+		if res, body := do(t, ts, "POST", "/api/v1/keys/epochs", tokA, map[string]any{"conv_id": conv, "commitment": testCommitment}); res.StatusCode != 201 {
 			t.Fatalf("epoch %d: %d %v", epoch, res.StatusCode, body)
 		}
 		if res, body := do(t, ts, "POST", "/api/v1/keys/grants", tokA, []map[string]any{{"conv_id": conv, "epoch": epoch, "user_id": idA, "wrapped_key": b64([]byte("a"))}}); res.StatusCode != 200 {
@@ -183,5 +188,312 @@ func TestJoiningHandsOnEveryKey(t *testing.T) {
 	}
 	if _, body := do(t, ts, "GET", "/api/v1/keys/needs", tokA, nil); len(body["_list"].([]any)) != 0 {
 		t.Errorf("needs after granting both: %v", body)
+	}
+}
+
+// On 2026-11-06 a new member of a 350-person server posted one epoch with the
+// reason "probe" and handed out no key. It became the only epoch messages
+// could use, so nobody could send in any channel on the server's key.
+func TestAMemberCannotReplaceAKeyNobodyAskedToReplace(t *testing.T) {
+	_, ts := newTestServer(t)
+	tokA, _ := register(t, ts, "alice")
+	tokB, idB := register(t, ts, "bob")
+	srv := createServer(t, ts, tokA, "Keys")
+	conv := srv["id"].(string)
+	general := channelNamed(srv, "general")["id"].(string)
+	join(t, ts, tokB, inviteFor(t, ts, tokA, general))
+	createEpoch(t, ts, tokA, conv)
+
+	post := func(tok, target, reason string) int {
+		res, _ := do(t, ts, "POST", "/api/v1/keys/epochs", tok, map[string]any{"conv_id": target, "reason": reason, "commitment": testCommitment})
+		return res.StatusCode
+	}
+	for _, reason := range []string{"probe", "", rotationReason} {
+		if code := post(tokB, conv, reason); code != 409 {
+			t.Errorf("a member replaced the server's key with reason %q: %d", reason, code)
+		}
+	}
+	if code := post(tokB, conv, manualRotationReason); code != 403 {
+		t.Errorf("by hand, without Manage Server: %d", code)
+	}
+	// A public channel shares the server's key. One of its own would move the
+	// channel onto a key nobody holds, the same outage a channel at a time.
+	if code := post(tokB, general, "probe"); code != 409 {
+		t.Errorf("a key for a public channel: %d", code)
+	}
+	if _, body := do(t, ts, "GET", "/api/v1/channels/"+general, tokB, nil); body["key_conv_id"] != conv {
+		t.Errorf("the channel moved off the server's key: %v", body["key_conv_id"])
+	}
+	if code := post(tokA, conv, manualRotationReason); code != 201 {
+		t.Errorf("the owner replacing it by hand: %d", code)
+	}
+	if res, _ := do(t, ts, "DELETE", "/api/v1/servers/"+conv+"/members/"+idB, tokA, nil); res.StatusCode != 204 {
+		t.Fatalf("kick: %d", res.StatusCode)
+	}
+	if code := post(tokA, conv, rotationReason); code != 201 {
+		t.Errorf("answering a real rotation: %d", code)
+	}
+}
+
+// A key can be asked for and then never handed out: an app stopped halfway, or
+// someone did it on purpose. Whoever next tries to send is told to replace it,
+// which every app already does for a rotation it finds pending, and whoever made
+// it does not get another go.
+func TestAKeyThatNeverArrivedIsReplaced(t *testing.T) {
+	srv, ts := newTestServer(t)
+	tokA, idA := register(t, ts, "alice")
+	tokB, idB := register(t, ts, "bob")
+	tokC, idC := register(t, ts, "carol")
+	tokD, _ := register(t, ts, "dave")
+	s := createServer(t, ts, tokA, "Keys")
+	conv := s["id"].(string)
+	invite := inviteFor(t, ts, tokA, channelNamed(s, "general")["id"].(string))
+	join(t, ts, tokB, invite)
+	join(t, ts, tokC, invite)
+	join(t, ts, tokD, invite)
+	createEpoch(t, ts, tokA, conv)
+	cid, _ := ids.Parse(conv)
+	carol, _ := ids.Parse(idC)
+	alice, _ := ids.Parse(idA)
+	ctx := t.Context()
+
+	flagged := func(tok string) bool {
+		_, body := do(t, ts, "GET", "/api/v1/keys/epochs?conv_id="+conv, tok, nil)
+		return body["flags"].(map[string]any)["needs_rotation"] == true
+	}
+	plant := func(epoch int, age time.Duration) {
+		t.Helper()
+		e := &store.KeyEpoch{ConvID: cid, Epoch: epoch, CreatedBy: carol, Reason: rotationReason, CreatedAt: time.Now().Add(-age).UnixMilli()}
+		if err := srv.Store.CreateEpoch(ctx, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	answer := func(tok string) int {
+		res, _ := do(t, ts, "POST", "/api/v1/keys/epochs", tok, map[string]any{"conv_id": conv, "reason": rotationReason, "commitment": testCommitment})
+		return res.StatusCode
+	}
+
+	plant(1, 0)
+	if flagged(tokB) {
+		t.Error("a key still being handed out was called lost")
+	}
+	plant(2, time.Minute)
+	if flagged(tokC) {
+		t.Error("the person who made the key could call for it to be replaced")
+	}
+	if !flagged(tokB) {
+		t.Fatal("a key nobody got was not called lost")
+	}
+	// someone holding only an older key hears of it on connecting
+	_, body := do(t, ts, "GET", "/api/v1/keys/needs", tokD, nil)
+	if needs := body["_list"].([]any); len(needs) != 1 || needs[0].(map[string]any)["rotate"] != true {
+		t.Errorf("a holder of the older key was not asked to replace it: %v", needs)
+	}
+	if code := answer(tokC); code != 409 {
+		t.Errorf("the person whose key was lost answered again: %d", code)
+	}
+	if code := answer(tokB); code != 201 {
+		t.Fatalf("replacing it: %d", code)
+	}
+	if flagged(tokB) {
+		t.Error("still pending once replaced")
+	}
+	if ok, err := srv.Store.MarkEpochLost(ctx, cid, 2); err != nil || ok {
+		t.Errorf("marked a replaced key: %v %v", ok, err)
+	}
+	// the owner can always answer, or a raid could lock them out
+	if err := srv.Store.CreateEpoch(ctx, &store.KeyEpoch{ConvID: cid, Epoch: 4, CreatedBy: alice, Reason: rotationReason, CreatedAt: time.Now().Add(-time.Minute).UnixMilli()}); err != nil {
+		t.Fatal(err)
+	}
+	if !flagged(tokB) {
+		t.Fatal("the owner's lost key was not called lost")
+	}
+	if code := answer(tokA); code != 201 {
+		t.Errorf("the owner after losing a key: %d", code)
+	}
+
+	// Someone holding the key can send, so nothing is wrong for them. It takes
+	// someone without it, while most people lack it.
+	plant(6, time.Minute)
+	if res, body := do(t, ts, "POST", "/api/v1/keys/grants", tokC, []map[string]any{{"conv_id": conv, "epoch": 6, "user_id": idA, "wrapped_key": b64([]byte("a"))}}); res.StatusCode != 200 {
+		t.Fatalf("grant: %d %v", res.StatusCode, body)
+	}
+	if flagged(tokA) {
+		t.Error("someone holding the key called it lost")
+	}
+	// Half of them have it now: those lacking it wait for a holder, as ever.
+	if res, body := do(t, ts, "POST", "/api/v1/keys/grants", tokC, []map[string]any{{"conv_id": conv, "epoch": 6, "user_id": idB, "wrapped_key": b64([]byte("b"))}}); res.StatusCode != 200 {
+		t.Fatalf("grant: %d %v", res.StatusCode, body)
+	}
+	if flagged(tokD) {
+		t.Error("a key half the people hold was called lost")
+	}
+}
+
+// Handing everyone a key that does not open, or does not match its fingerprint,
+// is seen by the people it reaches. Once two of them say so everyone online is
+// asked to make a new one, and its maker does not get another go.
+func TestAKeyPeopleCannotOpenIsReplaced(t *testing.T) {
+	srv, ts := newTestServer(t)
+	tokA, _ := register(t, ts, "alice")
+	tokB, idB := register(t, ts, "bob")
+	tokC, idC := register(t, ts, "carol")
+	tokM, idM := register(t, ts, "mallory")
+	s := createServer(t, ts, tokA, "Keys")
+	conv := s["id"].(string)
+	invite := inviteFor(t, ts, tokA, channelNamed(s, "general")["id"].(string))
+	join(t, ts, tokB, invite)
+	join(t, ts, tokC, invite)
+	join(t, ts, tokM, invite)
+	createEpoch(t, ts, tokA, conv)
+	askForRotation(t, srv, conv)
+	res, body := do(t, ts, "POST", "/api/v1/keys/epochs", tokM, map[string]any{"conv_id": conv, "reason": rotationReason, "commitment": testCommitment})
+	if res.StatusCode != 201 {
+		t.Fatalf("mallory answers: %d %v", res.StatusCode, body)
+	}
+	junk := func(uid string) string { return b64([]byte("junk for " + uid)) }
+	var grants []map[string]any
+	for _, uid := range []string{idB, idC, idM} {
+		grants = append(grants, map[string]any{"conv_id": conv, "epoch": 1, "user_id": uid, "wrapped_key": junk(uid)})
+	}
+	if res, body := do(t, ts, "POST", "/api/v1/keys/grants", tokM, grants); res.StatusCode != 200 {
+		t.Fatalf("grants: %d %v", res.StatusCode, body)
+	}
+	// what apps need to check the key against comes with the grant
+	if _, body := do(t, ts, "GET", "/api/v1/keys/grants", tokB, nil); !grantHasCommitment(body, conv, 1) {
+		t.Errorf("the grant came without its fingerprint: %v", body)
+	}
+	flagged := func() bool {
+		_, body := do(t, ts, "GET", "/api/v1/keys/epochs?conv_id="+conv, tokA, nil)
+		return body["flags"].(map[string]any)["needs_rotation"] == true
+	}
+	reject := func(tok, uid string) {
+		t.Helper()
+		if res, body := do(t, ts, "POST", "/api/v1/keys/request", tok, map[string]any{"conv_id": conv, "bad_epoch": 1, "bad_wrapped_key": junk(uid)}); res.StatusCode != 204 {
+			t.Fatalf("reject: %d %v", res.StatusCode, body)
+		}
+	}
+	ga := connectGW(t, ts, tokA)
+	// mallory cannot have her own key called bad, and one person is not enough
+	reject(tokM, idM)
+	reject(tokB, idB)
+	if flagged() {
+		t.Fatal("one person's word replaced the key")
+	}
+	reject(tokC, idC)
+	if !flagged() {
+		t.Fatal("a key two people could not open was left in place")
+	}
+	if ev := ga.nextWhere("key_rotation_needed", 3*time.Second, func(d map[string]any) bool { return d["conv_id"] == conv }); ev == nil {
+		t.Error("nobody online was asked to replace it")
+	}
+	if res, _ := do(t, ts, "POST", "/api/v1/keys/epochs", tokM, map[string]any{"conv_id": conv, "reason": rotationReason, "commitment": testCommitment}); res.StatusCode != 409 {
+		t.Errorf("mallory answered again: %d", res.StatusCode)
+	}
+	if res, _ := do(t, ts, "POST", "/api/v1/keys/epochs", tokB, map[string]any{"conv_id": conv, "reason": rotationReason, "commitment": testCommitment}); res.StatusCode != 201 {
+		t.Errorf("bob replacing it: %d", res.StatusCode)
+	}
+}
+
+func grantHasCommitment(body map[string]any, conv string, epoch float64) bool {
+	for _, g := range body["_list"].([]any) {
+		m := g.(map[string]any)
+		if m["conv_id"] == conv && m["epoch"] == epoch {
+			return m["commitment"] == testCommitment
+		}
+	}
+	return false
+}
+
+// A rotation answered without a fingerprint could hand each person a different
+// key with nothing to show for it, so it waits for an app that makes one.
+func TestAnswerNeedsAFingerprint(t *testing.T) {
+	serial(t)
+	srv, ts := newTestServer(t)
+	tokA, _ := register(t, ts, "alice")
+	tokB, _ := register(t, ts, "bob")
+	s := createServer(t, ts, tokA, "Keys")
+	conv := s["id"].(string)
+	join(t, ts, tokB, inviteFor(t, ts, tokA, channelNamed(s, "general")["id"].(string)))
+	createEpoch(t, ts, tokA, conv)
+	askForRotation(t, srv, conv)
+	res, body := do(t, ts, "POST", "/api/v1/keys/epochs", tokB, map[string]any{"conv_id": conv, "reason": rotationReason})
+	if res.StatusCode != 409 || errCode(body) != "commitment_needed" {
+		t.Errorf("no fingerprint: %d %v", res.StatusCode, body)
+	}
+	res, body = do(t, ts, "POST", "/api/v1/keys/epochs", tokB, map[string]any{"conv_id": conv, "reason": rotationReason, "commitment": b64([]byte("short"))})
+	if res.StatusCode != 400 || errCode(body) != "bad_commitment" {
+		t.Errorf("a short fingerprint: %d %v", res.StatusCode, body)
+	}
+	// an old app is answered if nothing better has come along
+	defer func(d time.Duration) { oldAppAnswerWait = d }(oldAppAnswerWait)
+	oldAppAnswerWait = 0
+	if res, body := do(t, ts, "POST", "/api/v1/keys/epochs", tokB, map[string]any{"conv_id": conv, "reason": rotationReason}); res.StatusCode != 201 {
+		t.Errorf("an old app after the wait: %d %v", res.StatusCode, body)
+	}
+}
+
+// One account cannot keep answering rotations: past its own allowance the
+// rotation is left for someone else's app.
+func TestOneAccountCannotAnswerEveryRotation(t *testing.T) {
+	srv, ts := newTestServer(t)
+	tokA, _ := register(t, ts, "alice")
+	tokB, _ := register(t, ts, "bob")
+	s := createServer(t, ts, tokA, "Keys")
+	conv := s["id"].(string)
+	join(t, ts, tokB, inviteFor(t, ts, tokA, channelNamed(s, "general")["id"].(string)))
+	createEpoch(t, ts, tokA, conv)
+	answer := func(tok string) int {
+		t.Helper()
+		askForRotation(t, srv, conv)
+		res, _ := do(t, ts, "POST", "/api/v1/keys/epochs", tok, map[string]any{"conv_id": conv, "reason": rotationReason, "commitment": testCommitment})
+		return res.StatusCode
+	}
+	code := 201
+	for i := 0; i < 40 && code == 201; i++ {
+		code = answer(tokB)
+	}
+	if code != 409 {
+		t.Fatalf("one account answered every rotation: %d", code)
+	}
+	if code := answer(tokA); code != 201 {
+		t.Errorf("someone else answering: %d", code)
+	}
+}
+
+// A pending rotation stops everyone from sending until it is answered, so joining
+// and leaving in a loop must not be able to keep one pending. Being removed always
+// costs a new key.
+func TestLeavingInALoopCannotHoldTheKeyUp(t *testing.T) {
+	_, ts := newTestServer(t)
+	tokA, _ := register(t, ts, "alice")
+	tokB, idB := register(t, ts, "bob")
+	s := createServer(t, ts, tokA, "Keys")
+	conv := s["id"].(string)
+	invite := inviteFor(t, ts, tokA, channelNamed(s, "general")["id"].(string))
+	createEpoch(t, ts, tokA, conv)
+	flagged := func() bool {
+		_, body := do(t, ts, "GET", "/api/v1/keys/epochs?conv_id="+conv, tokA, nil)
+		return body["flags"].(map[string]any)["needs_rotation"] == true
+	}
+	stopped := false
+	for i := 0; i < 20 && !stopped; i++ {
+		join(t, ts, tokB, invite)
+		if res, _ := do(t, ts, "POST", "/api/v1/servers/"+conv+"/leave", tokB, nil); res.StatusCode != 204 {
+			t.Fatalf("leave: %d", res.StatusCode)
+		}
+		if stopped = !flagged(); !stopped {
+			createEpoch(t, ts, tokA, conv)
+		}
+	}
+	if !stopped {
+		t.Fatal("every leave asked for a new key, without end")
+	}
+	join(t, ts, tokB, invite)
+	if res, _ := do(t, ts, "DELETE", "/api/v1/servers/"+conv+"/members/"+idB, tokA, nil); res.StatusCode != 204 {
+		t.Fatalf("kick: %d", res.StatusCode)
+	}
+	if !flagged() {
+		t.Error("a removal did not ask for a new key")
 	}
 }

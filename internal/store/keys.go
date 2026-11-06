@@ -56,13 +56,59 @@ func (s *Store) createEpoch(ctx context.Context, e *KeyEpoch, pending bool) erro
 		if e.Epoch != want {
 			return ErrConflict
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO key_epochs (conv_id, epoch, created_by, created_at, reason) VALUES (?,?,?,?,?)`, int64(e.ConvID), e.Epoch, int64(e.CreatedBy), e.CreatedAt, e.Reason)
+		_, err := tx.ExecContext(ctx, `INSERT INTO key_epochs (conv_id, epoch, created_by, created_at, reason, commitment) VALUES (?,?,?,?,?,?)`, int64(e.ConvID), e.Epoch, int64(e.CreatedBy), e.CreatedAt, e.Reason, e.Commitment)
 		if err != nil {
+			return err
+		}
+		// what people could not open is moot once there is a newer key
+		if _, err := tx.ExecContext(ctx, `DELETE FROM key_rejections WHERE conv_id = ?`, int64(e.ConvID)); err != nil {
 			return err
 		}
 		_, err = tx.ExecContext(ctx, `INSERT INTO key_flags (conv_id, needs_rotation, needs_own_key, updated_at) VALUES (?,0,0,?) ON CONFLICT(conv_id) DO UPDATE SET needs_rotation = 0, needs_own_key = 0, updated_at = excluded.updated_at`, int64(e.ConvID), e.CreatedAt)
 		return err
 	})
+}
+
+// MarkEpochLost records that an epoch's key never reached the people who need
+// it, and asks for it to be replaced. It does nothing, and answers false, once
+// that epoch is no longer the newest: the check runs outside this lock, and
+// flagging a key that has just replaced it would cost everyone another rotation.
+func (s *Store) MarkEpochLost(ctx context.Context, conv ids.ID, epoch int) (bool, error) {
+	lost := false
+	err := s.Tx(ctx, func(tx *db.Tx) error {
+		if err := tx.Serialise(ctx, "epoch", int64(conv)); err != nil {
+			return err
+		}
+		var err error
+		lost, err = markEpochLost(ctx, tx, conv, epoch)
+		return err
+	})
+	return lost, err
+}
+
+// markEpochLost is MarkEpochLost inside a transaction holding the epoch lock.
+func markEpochLost(ctx context.Context, tx *db.Tx, conv ids.ID, epoch int) (bool, error) {
+	var max sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `SELECT max(epoch) FROM key_epochs WHERE conv_id = ?`, int64(conv)).Scan(&max); err != nil {
+		return false, err
+	}
+	if !max.Valid || int(max.Int64) != epoch {
+		return false, nil
+	}
+	now := nowMs()
+	if _, err := tx.ExecContext(ctx, `UPDATE key_epochs SET lost_at = ? WHERE conv_id = ? AND epoch = ?`, now, int64(conv), epoch); err != nil {
+		return false, err
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO key_flags (conv_id, needs_rotation, needs_own_key, updated_at) VALUES (?,1,0,?) ON CONFLICT(conv_id) DO UPDATE SET needs_rotation = 1, updated_at = excluded.updated_at`, int64(conv), now)
+	return err == nil, err
+}
+
+// MadeLostEpochSince reports whether uid made an epoch of conv whose key was
+// lost at or after since.
+func (s *Store) MadeLostEpochSince(ctx context.Context, conv, uid ids.ID, since int64) (bool, error) {
+	var n int
+	err := s.db.R.QueryRowContext(ctx, `SELECT count(*) FROM key_epochs WHERE conv_id = ? AND created_by = ? AND lost_at >= ?`, int64(conv), int64(uid), since).Scan(&n)
+	return n > 0, err
 }
 
 // LatestEpoch returns the highest epoch of a conversation, and whether any exists.
@@ -79,7 +125,7 @@ func (s *Store) LatestEpoch(ctx context.Context, conv ids.ID) (int, bool, error)
 
 // Epochs lists a conversation's epochs ascending.
 func (s *Store) Epochs(ctx context.Context, conv ids.ID) ([]*KeyEpoch, error) {
-	rows, err := s.db.R.QueryContext(ctx, `SELECT conv_id, epoch, created_by, created_at, reason FROM key_epochs WHERE conv_id = ? ORDER BY epoch`, int64(conv))
+	rows, err := s.db.R.QueryContext(ctx, `SELECT conv_id, epoch, created_by, created_at, reason, commitment FROM key_epochs WHERE conv_id = ? ORDER BY epoch`, int64(conv))
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +133,7 @@ func (s *Store) Epochs(ctx context.Context, conv ids.ID) ([]*KeyEpoch, error) {
 	out := []*KeyEpoch{}
 	for rows.Next() {
 		var e KeyEpoch
-		if err := rows.Scan(&e.ConvID, &e.Epoch, &e.CreatedBy, &e.CreatedAt, &e.Reason); err != nil {
+		if err := rows.Scan(&e.ConvID, &e.Epoch, &e.CreatedBy, &e.CreatedAt, &e.Reason, &e.Commitment); err != nil {
 			return nil, err
 		}
 		out = append(out, &e)
@@ -121,9 +167,52 @@ func (s *Store) PutGrants(ctx context.Context, grants []KeyGrant) (int, error) {
 // RejectGrant lets only the recipient discard the exact wrapper it could not
 // open. Matching the bytes avoids deleting a replacement another device has
 // already obtained while this request was in flight.
-func (s *Store) RejectGrant(ctx context.Context, conv ids.ID, epoch int, recipient ids.ID, wrapped []byte) error {
-	_, err := s.db.W.ExecContext(ctx, `DELETE FROM key_grants WHERE conv_id = ? AND epoch = ? AND user_id = ? AND wrapped_key = ?`, int64(conv), epoch, int64(recipient), wrapped)
-	return err
+//
+// A wrapper from anyone else says nothing about the key, since a holder sharing
+// junk leaves the real key intact. One from the maker of the newest epoch does:
+// once need different people could not open theirs, that key is lost and this
+// answers true. need 0 discards without counting.
+func (s *Store) RejectGrant(ctx context.Context, conv ids.ID, epoch int, recipient ids.ID, wrapped []byte, need int) (bool, error) {
+	lost := false
+	err := s.Tx(ctx, func(tx *db.Tx) error {
+		if err := tx.Serialise(ctx, "epoch", int64(conv)); err != nil {
+			return err
+		}
+		var wrappedBy, createdBy int64
+		err := tx.QueryRowContext(ctx, `SELECT g.wrapped_by, e.created_by FROM key_grants g JOIN key_epochs e ON e.conv_id = g.conv_id AND e.epoch = g.epoch
+			WHERE g.conv_id = ? AND g.epoch = ? AND g.user_id = ? AND g.wrapped_key = ?`, int64(conv), epoch, int64(recipient), wrapped).Scan(&wrappedBy, &createdBy)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM key_grants WHERE conv_id = ? AND epoch = ? AND user_id = ? AND wrapped_key = ?`, int64(conv), epoch, int64(recipient), wrapped); err != nil {
+			return err
+		}
+		if need == 0 || wrappedBy != createdBy || createdBy == int64(recipient) {
+			return nil
+		}
+		var max sql.NullInt64
+		if err := tx.QueryRowContext(ctx, `SELECT max(epoch) FROM key_epochs WHERE conv_id = ?`, int64(conv)).Scan(&max); err != nil {
+			return err
+		}
+		if !max.Valid || int(max.Int64) != epoch {
+			return nil
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO key_rejections (conv_id, epoch, user_id, created_at) VALUES (?,?,?,?) ON CONFLICT DO NOTHING`, int64(conv), epoch, int64(recipient), nowMs()); err != nil {
+			return err
+		}
+		var n int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM key_rejections WHERE conv_id = ? AND epoch = ?`, int64(conv), epoch).Scan(&n); err != nil {
+			return err
+		}
+		if n >= need {
+			lost, err = markEpochLost(ctx, tx, conv, epoch)
+		}
+		return err
+	})
+	return lost, err
 }
 
 func isFKError(err error) bool {
@@ -135,12 +224,15 @@ func isFKError(err error) bool {
 	return strings.Contains(msg, "FOREIGN KEY constraint failed") || strings.Contains(msg, "SQLSTATE 23503")
 }
 
+// grantRead reads grants with their epoch's fingerprint.
+const grantRead = `SELECT g.conv_id, g.epoch, g.user_id, g.wrapped_key, g.wrapped_by, g.created_at, e.commitment FROM key_grants g JOIN key_epochs e ON e.conv_id = g.conv_id AND e.epoch = g.epoch `
+
 func scanGrants(rows *sql.Rows) ([]*KeyGrant, error) {
 	defer rows.Close()
 	out := []*KeyGrant{}
 	for rows.Next() {
 		var g KeyGrant
-		if err := rows.Scan(&g.ConvID, &g.Epoch, &g.UserID, &g.WrappedKey, &g.WrappedBy, &g.CreatedAt); err != nil {
+		if err := rows.Scan(&g.ConvID, &g.Epoch, &g.UserID, &g.WrappedKey, &g.WrappedBy, &g.CreatedAt, &g.Commitment); err != nil {
 			return nil, err
 		}
 		out = append(out, &g)
@@ -150,7 +242,7 @@ func scanGrants(rows *sql.Rows) ([]*KeyGrant, error) {
 
 // GrantsForUser returns every grant addressed to uid.
 func (s *Store) GrantsForUser(ctx context.Context, uid ids.ID) ([]*KeyGrant, error) {
-	rows, err := s.db.R.QueryContext(ctx, `SELECT conv_id, epoch, user_id, wrapped_key, wrapped_by, created_at FROM key_grants WHERE user_id = ? ORDER BY conv_id, epoch`, int64(uid))
+	rows, err := s.db.R.QueryContext(ctx, grantRead+`WHERE g.user_id = ? ORDER BY g.conv_id, g.epoch`, int64(uid))
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +252,7 @@ func (s *Store) GrantsForUser(ctx context.Context, uid ids.ID) ([]*KeyGrant, err
 // Grant returns one grant, or ErrNotFound.
 func (s *Store) Grant(ctx context.Context, conv ids.ID, epoch int, uid ids.ID) (*KeyGrant, error) {
 	var g KeyGrant
-	err := s.db.R.QueryRowContext(ctx, `SELECT conv_id, epoch, user_id, wrapped_key, wrapped_by, created_at FROM key_grants WHERE conv_id = ? AND epoch = ? AND user_id = ?`, int64(conv), epoch, int64(uid)).Scan(&g.ConvID, &g.Epoch, &g.UserID, &g.WrappedKey, &g.WrappedBy, &g.CreatedAt)
+	err := s.db.R.QueryRowContext(ctx, grantRead+`WHERE g.conv_id = ? AND g.epoch = ? AND g.user_id = ?`, int64(conv), epoch, int64(uid)).Scan(&g.ConvID, &g.Epoch, &g.UserID, &g.WrappedKey, &g.WrappedBy, &g.CreatedAt, &g.Commitment)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -265,8 +357,9 @@ type KeyNeed struct {
 // heldKey is one epoch of a conversation's key a user holds.
 type heldKey struct {
 	KeyEpoch
-	// latest is whether it is the conversation's newest epoch; rotate whether
-	// the conversation's key is waiting to be replaced.
+	// latest is whether it is the newest epoch of the conversation this user
+	// holds (the newest of all may be one that never reached anybody); rotate
+	// whether the conversation's key is waiting to be replaced.
 	latest, rotate bool
 }
 
@@ -277,7 +370,7 @@ type heldKey struct {
 // invite link from junk, so such a holder is not asked to share it.
 func (s *Store) heldKeys(ctx context.Context, uid ids.ID) ([]heldKey, error) {
 	rows, err := s.db.R.QueryContext(ctx, `SELECT g.conv_id, g.epoch, coalesce(f.needs_rotation, 0),
-		CASE WHEN g.epoch = (SELECT max(m.epoch) FROM key_epochs m WHERE m.conv_id = g.conv_id) THEN 1 ELSE 0 END
+		CASE WHEN g.epoch = (SELECT max(m.epoch) FROM key_grants m WHERE m.conv_id = g.conv_id AND m.user_id = g.user_id) THEN 1 ELSE 0 END
 		FROM key_grants g
 		JOIN key_epochs e ON e.conv_id = g.conv_id AND e.epoch = g.epoch
 		LEFT JOIN key_flags f ON f.conv_id = g.conv_id
@@ -517,21 +610,21 @@ func (s *Store) SetKeyFlags(ctx context.Context, conv ids.ID, needsRotation, nee
 
 // KeyFlags reads the flags (zero values when no row exists).
 func (s *Store) KeyFlags(ctx context.Context, conv ids.ID) (*KeyFlags, error) {
-	var rot, own int64
-	err := s.db.R.QueryRowContext(ctx, `SELECT needs_rotation, needs_own_key FROM key_flags WHERE conv_id = ?`, int64(conv)).Scan(&rot, &own)
+	var rot, own, updated int64
+	err := s.db.R.QueryRowContext(ctx, `SELECT needs_rotation, needs_own_key, updated_at FROM key_flags WHERE conv_id = ?`, int64(conv)).Scan(&rot, &own, &updated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &KeyFlags{ConvID: conv}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &KeyFlags{ConvID: conv, NeedsRotation: rot == 1, NeedsOwnKey: own == 1}, nil
+	return &KeyFlags{ConvID: conv, NeedsRotation: rot == 1, NeedsOwnKey: own == 1, UpdatedAt: updated}, nil
 }
 
 // Epoch loads one epoch row.
 func (s *Store) Epoch(ctx context.Context, conv ids.ID, epoch int) (*KeyEpoch, error) {
 	var e KeyEpoch
-	err := s.db.R.QueryRowContext(ctx, `SELECT conv_id, epoch, created_by, created_at, reason FROM key_epochs WHERE conv_id = ? AND epoch = ?`, int64(conv), epoch).Scan(&e.ConvID, &e.Epoch, &e.CreatedBy, &e.CreatedAt, &e.Reason)
+	err := s.db.R.QueryRowContext(ctx, `SELECT conv_id, epoch, created_by, created_at, reason, commitment FROM key_epochs WHERE conv_id = ? AND epoch = ?`, int64(conv), epoch).Scan(&e.ConvID, &e.Epoch, &e.CreatedBy, &e.CreatedAt, &e.Reason, &e.Commitment)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

@@ -836,6 +836,8 @@ data class KeyGrant(
     @SerialName("wrapped_key") val wrappedKey: String,
     @SerialName("wrapped_by") val wrappedBy: Snowflake = "",
     @SerialName("created_at") val createdAt: Long = 0,
+    /** The epoch's fingerprint of its key; missing on older epochs. */
+    val commitment: String? = null,
 )
 
 @Serializable

@@ -1,10 +1,15 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"net/http"
+	"slices"
+	"time"
 
 	"evilion.xyz/chat/internal/auth"
 	"evilion.xyz/chat/internal/ids"
+	"evilion.xyz/chat/internal/perms"
 	"evilion.xyz/chat/internal/store"
 )
 
@@ -13,7 +18,36 @@ const (
 	maxGrantsBatch = 200
 	// rotationReason is what clients send when answering key_rotation_needed.
 	rotationReason = "membership change"
+	// manualRotationReason is what the Encryption page's Rotate button sends.
+	manualRotationReason = "manual"
+	// keyCommitmentBytes is the size of an epoch's fingerprint of its key.
+	keyCommitmentBytes = 32
+	// lostKeyStrike is how long someone whose key was lost cannot answer another
+	// rotation in that conversation, so a key handed out to nobody costs an
+	// account one try. Anyone else's app answers meanwhile.
+	lostKeyStrike = time.Hour
 )
+
+// oldAppAnswerWait is how long a rotation stays with apps that make a fingerprint
+// before one from an app too old to is taken. Current apps answer in about a
+// second, so without one a key is only taken when no current app is around.
+// Remove it, and refuse those keys outright, once old apps are gone.
+var oldAppAnswerWait = 15 * time.Second
+
+// keyDeliveryGrace is how long a new key has to reach conv's people before it
+// counts as lost. Apps upload their first grants within about a second for 350
+// people, and guessing too low costs only one more rotation.
+func keyDeliveryGrace(people int) time.Duration {
+	return 10*time.Second + time.Duration(people)*20*time.Millisecond
+}
+
+// errKeyInPlace answers a request for a new key when the conversation has one
+// and nothing asks for another. It is a 409 because that is what apps already
+// take as "someone else saw to it": they look for their grants and wait.
+var errKeyInPlace = E(http.StatusConflict, "key_in_place", "This conversation already has a key, and nothing needs it replaced.")
+
+// errEpochBusy answers someone who has used up their turns at replacing this key.
+var errEpochBusy = E(http.StatusConflict, "epoch_busy", "Someone else needs to replace this key. Try again in a moment.")
 
 func (s *Server) keyRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/keys/grants", s.authed(s.handleKeyGrants))
@@ -55,13 +89,41 @@ func (s *Server) handleKeyRequest(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, ErrBadJSON)
 			return
 		}
-		if err := s.Store.RejectGrant(r.Context(), req.ConvID, *req.BadEpoch, me.ID, req.BadWrappedKey); err != nil {
+		// Counted for only a few a person an hour: enough to catch a key people
+		// cannot open, too few to make a good one keep being replaced on purpose.
+		// One person is enough only among a few, where they may be all that is left.
+		need := 2
+		if len(set) <= 3 {
+			need = 1
+		}
+		if ok, _ := s.limKeyBad.Allow("keyreject:" + me.ID.String() + ":" + req.ConvID.String()); !ok {
+			need = 0
+		}
+		lost, err := s.Store.RejectGrant(r.Context(), req.ConvID, *req.BadEpoch, me.ID, req.BadWrappedKey, need)
+		if err != nil {
 			WriteError(w, err)
 			return
 		}
+		if lost {
+			s.askToReplaceKey(req.ConvID, set)
+		}
+	}
+	// Someone waiting asks here now and then, so a key that was never handed out
+	// gets replaced even if nobody tries to send.
+	if s.noticeLostKey(r.Context(), me, req.ConvID, set) {
+		s.askToReplaceKey(req.ConvID, set)
 	}
 	s.Bcast.KeysMaybeNeeded(req.ConvID)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// askToReplaceKey asks the online people of conv to make it a new key.
+func (s *Server) askToReplaceKey(conv ids.ID, people map[ids.ID]bool) {
+	targets := make([]ids.ID, 0, len(people))
+	for id := range people {
+		targets = append(targets, id)
+	}
+	s.Bcast.EmitUsers(targets, "key_rotation_needed", map[string]any{"conv_id": conv})
 }
 
 func (s *Server) handleKeyGrants(w http.ResponseWriter, r *http.Request) {
@@ -184,68 +246,139 @@ func (s *Server) handleKeyGrantsPut(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]any{"inserted": inserted})
 }
 
+// epochPlan is how a new epoch may be written, once allowed.
+type epochPlan struct {
+	create func(context.Context, *store.KeyEpoch) error
+	reason string
+	// free is for those who run the conversation: no limit on how often, which a
+	// moderator clearing out a raid with nobody else online needs.
+	free bool
+}
+
+// epochCreator decides whether me may start a new key for conv now. The newest
+// epoch is the only one messages can use from the moment it exists, before anyone
+// holds its key, so a new one stops a whole conversation until its key arrives.
+// It therefore takes a reason the server itself knows about, never what the
+// caller says:
+//
+//   - a pending rotation: any member, whoever answers first, since it has to be
+//     possible with only ordinary members online;
+//   - the first key of a conversation that needs one;
+//   - someone who runs the server replacing it by hand.
+func (s *Server) epochCreator(ctx context.Context, me *store.User, conv ids.ID, reason string, fingerprinted, alone bool) (*epochPlan, error) {
+	flags, err := s.Store.KeyFlags(ctx, conv)
+	if err != nil {
+		return nil, err
+	}
+	_, exists, err := s.Store.LatestEpoch(ctx, conv)
+	if err != nil {
+		return nil, err
+	}
+	ch, err := s.Store.ChannelForAccess(ctx, conv)
+	if errors.Is(err, store.ErrNotFound) {
+		ch = nil // a server's own conversation
+	} else if err != nil {
+		return nil, err
+	}
+	runs := alone
+	if !runs {
+		switch {
+		case ch != nil && ch.ServerID == nil:
+			runs = managesGroup(ch, me)
+		default:
+			serverID := conv
+			if ch != nil {
+				serverID = *ch.ServerID
+			}
+			p, err := s.Store.ServerPerms(ctx, serverID, me.ID)
+			if err != nil {
+				return nil, err
+			}
+			runs = p.Has(perms.ManageServer)
+		}
+	}
+	switch {
+	case flags.NeedsRotation:
+		if !fingerprinted && exists && time.Since(time.UnixMilli(flags.UpdatedAt)) < oldAppAnswerWait {
+			return nil, E(http.StatusConflict, "commitment_needed", "A new key needs its fingerprint.")
+		}
+		if !runs {
+			struck, err := s.Store.MadeLostEpochSince(ctx, conv, me.ID, time.Now().Add(-lostKeyStrike).UnixMilli())
+			if err != nil {
+				return nil, err
+			}
+			if struck {
+				return nil, errEpochBusy
+			}
+		}
+		return &epochPlan{s.Store.CreatePendingEpoch, rotationReason, runs}, nil
+	case !exists:
+		// A public channel shares its server's key, and one of its own would move
+		// it onto a key nobody holds. A private channel is flagged when it turns
+		// private, and a private thread always has its own.
+		if ch != nil && ch.ServerID != nil && !flags.NeedsOwnKey && ch.Type != "private_thread" {
+			return nil, errKeyInPlace
+		}
+		return &epochPlan{s.Store.CreateEpoch, "", runs}, nil
+	case reason != manualRotationReason:
+		return nil, errKeyInPlace
+	case !runs || (ch != nil && ch.ServerID == nil):
+		return nil, ErrForbidden
+	}
+	return &epochPlan{s.Store.CreateEpoch, manualRotationReason, true}, nil
+}
+
 func (s *Server) handleKeyEpochCreate(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserFrom(r.Context())
 	var req struct {
-		ConvID ids.ID `json:"conv_id"`
-		Reason string `json:"reason"`
+		ConvID     ids.ID `json:"conv_id"`
+		Reason     string `json:"reason"`
+		Commitment []byte `json:"commitment"`
 	}
 	if err := ReadJSON(w, r, &req, 4<<10); err != nil {
 		WriteError(w, err)
 		return
 	}
+	if len(req.Commitment) != 0 && len(req.Commitment) != keyCommitmentBytes {
+		WriteError(w, E(http.StatusBadRequest, "bad_commitment", "That is not a key's fingerprint."))
+		return
+	}
 	ctx := r.Context()
 	entitled, err := s.Store.Entitled(ctx, req.ConvID)
-	if err != nil {
+	if err != nil || !slices.Contains(entitled, me.ID) {
 		WriteError(w, ErrNotFound)
 		return
-	}
-	isMember := false
-	for _, id := range entitled {
-		if id == me.ID {
-			isMember = true
-		}
-	}
-	if !isMember {
-		WriteError(w, ErrNotFound)
-		return
-	}
-	if s.CanRotate != nil {
-		if ok, err := s.CanRotate(ctx, me, req.ConvID); err != nil || !ok {
-			WriteError(w, ErrForbidden)
-			return
-		}
 	}
 	reason, _ := CleanText(req.Reason, 64)
-	var epoch *store.KeyEpoch
-	create, attempts := s.Store.CreateEpoch, 3
-	if reason == rotationReason {
-		// Every online device that holds the key answers key_rotation_needed.
-		// One new epoch is enough, so this only goes through while the
-		// rotation is still pending, and a lost race is not retried.
-		create, attempts = s.Store.CreatePendingEpoch, 1
+	plan, err := s.epochCreator(ctx, me, req.ConvID, reason, len(req.Commitment) > 0, len(entitled) == 1)
+	if err != nil {
+		WriteError(w, err)
+		return
 	}
-	for attempt := 0; attempt < attempts; attempt++ {
-		latest, exists, err := s.Store.LatestEpoch(ctx, req.ConvID)
-		if err != nil {
-			WriteError(w, err)
-			return
-		}
-		next := 0
-		if exists {
-			next = latest + 1
-		}
-		e := &store.KeyEpoch{ConvID: req.ConvID, Epoch: next, CreatedBy: me.ID, Reason: reason}
-		if err := create(ctx, e); err == nil {
-			epoch = e
-			break
-		} else if err != store.ErrConflict {
-			WriteError(w, err)
+	// Only now, so a refused request spends nothing.
+	if !plan.free {
+		if ok, _ := s.limRotator.Allow("epoch:" + req.ConvID.String() + ":" + me.ID.String()); !ok {
+			WriteError(w, errEpochBusy)
 			return
 		}
 	}
-	if epoch == nil {
+	latest, exists, err := s.Store.LatestEpoch(ctx, req.ConvID)
+	if err != nil {
+		WriteError(w, err)
+		return
+	}
+	next := 0
+	if exists {
+		next = latest + 1
+	}
+	epoch := &store.KeyEpoch{ConvID: req.ConvID, Epoch: next, CreatedBy: me.ID, Reason: plan.reason, Commitment: req.Commitment}
+	// One go: losing the race means someone else has just done what was asked,
+	// and trying again would replace their key too.
+	if err := plan.create(ctx, epoch); errors.Is(err, store.ErrConflict) {
 		WriteError(w, E(http.StatusConflict, "epoch_race", "Someone else just rotated this key; reload."))
+		return
+	} else if err != nil {
+		WriteError(w, err)
 		return
 	}
 	if epoch.Epoch == 0 {
@@ -258,6 +391,39 @@ func (s *Server) handleKeyEpochCreate(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusCreated, map[string]any{"conv_id": epoch.ConvID, "epoch": epoch.Epoch, "user_ids": entitled})
 }
 
+// noticeLostKey checks conv's newest key from the side of someone stuck without
+// it, and marks it lost if it was started and then not handed out: past the grace
+// period most of its people lack it, so nobody can pass it on. Holding the key
+// means nothing is wrong for that person, and the one who made it cannot call it
+// lost, which would let an account replace its own key in a loop. It answers
+// whether it just marked it.
+func (s *Server) noticeLostKey(ctx context.Context, me *store.User, conv ids.ID, people map[ids.ID]bool) bool {
+	latest, exists, err := s.Store.LatestEpoch(ctx, conv)
+	if err != nil || !exists {
+		return false
+	}
+	flags, err := s.Store.KeyFlags(ctx, conv)
+	if err != nil || flags.NeedsRotation {
+		return false
+	}
+	e, err := s.Store.Epoch(ctx, conv, latest)
+	if err != nil || e.CreatedBy == me.ID || time.Since(time.UnixMilli(e.CreatedAt)) < keyDeliveryGrace(len(people)) {
+		return false
+	}
+	if _, err := s.Store.Grant(ctx, conv, latest, me.ID); !errors.Is(err, store.ErrNotFound) {
+		return false
+	}
+	holders, err := s.Store.SharersOf(ctx, conv, latest)
+	if err != nil || len(holders)*2 >= len(people) {
+		return false
+	}
+	lost, err := s.Store.MarkEpochLost(ctx, conv, latest)
+	if err != nil {
+		s.Log.Warn("marking a lost key", "conv", conv.String(), "err", err)
+	}
+	return lost
+}
+
 func (s *Server) handleKeyEpochs(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserFrom(r.Context())
 	conv, err := ids.Parse(r.URL.Query().Get("conv_id"))
@@ -266,17 +432,7 @@ func (s *Server) handleKeyEpochs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entitled, err := s.Store.Entitled(r.Context(), conv)
-	if err != nil {
-		WriteError(w, ErrNotFound)
-		return
-	}
-	member := false
-	for _, id := range entitled {
-		if id == me.ID {
-			member = true
-		}
-	}
-	if !member {
+	if err != nil || !slices.Contains(entitled, me.ID) {
 		WriteError(w, ErrNotFound)
 		return
 	}
@@ -289,6 +445,15 @@ func (s *Server) handleKeyEpochs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		WriteError(w, err)
 		return
+	}
+	// Every send asks here first and replaces the key when told to, so a key that
+	// never arrived holds a conversation up only until someone next tries to talk.
+	people := make(map[ids.ID]bool, len(entitled))
+	for _, id := range entitled {
+		people[id] = true
+	}
+	if !flags.NeedsRotation && s.noticeLostKey(r.Context(), me, conv, people) {
+		flags.NeedsRotation = true
 	}
 	WriteJSON(w, http.StatusOK, map[string]any{"epochs": epochs, "flags": flags, "entitled": entitled})
 }

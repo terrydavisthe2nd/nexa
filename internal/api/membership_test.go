@@ -209,7 +209,7 @@ func TestPendingRotationHappensOnce(t *testing.T) {
 	g := body["id"].(string)
 	createEpoch(t, ts, tokA, g)
 	rotate := func(tok string) int {
-		res, _ := do(t, ts, "POST", "/api/v1/keys/epochs", tok, map[string]any{"conv_id": g, "reason": "membership change"})
+		res, _ := do(t, ts, "POST", "/api/v1/keys/epochs", tok, map[string]any{"conv_id": g, "reason": "membership change", "commitment": testCommitment})
 		return res.StatusCode
 	}
 	if code := rotate(tokB); code != 409 {
@@ -231,7 +231,7 @@ func TestPendingRotationHappensOnce(t *testing.T) {
 	if code := rotate(tokA); code != 409 {
 		t.Errorf("a second device rotated again: %d", code)
 	}
-	if res, _ := do(t, ts, "POST", "/api/v1/keys/epochs", tokA, map[string]any{"conv_id": g, "reason": "manual"}); res.StatusCode != 201 {
-		t.Errorf("a manual rotation is always allowed: %d", res.StatusCode)
+	if res, _ := do(t, ts, "POST", "/api/v1/keys/epochs", tokA, map[string]any{"conv_id": g, "reason": "manual"}); res.StatusCode != 403 {
+		t.Errorf("a group's key replaced by hand, with no removal to answer: %d", res.StatusCode)
 	}
 }

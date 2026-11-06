@@ -69,7 +69,7 @@ func TestOwnerRemovesAMember(t *testing.T) {
 	if len(needs) != 1 || needs[0].(map[string]any)["conv_id"] != g || needs[0].(map[string]any)["rotate"] != true {
 		t.Fatalf("pending rotation not reported: %v", body)
 	}
-	res, body = do(t, ts, "POST", "/api/v1/keys/epochs", tokB, map[string]any{"conv_id": g, "reason": "membership change"})
+	res, body = do(t, ts, "POST", "/api/v1/keys/epochs", tokB, map[string]any{"conv_id": g, "reason": "membership change", "commitment": testCommitment})
 	if res.StatusCode != 201 || body["epoch"].(float64) != 1 {
 		t.Fatalf("rotation: %d %v", res.StatusCode, body)
 	}
@@ -77,7 +77,7 @@ func TestOwnerRemovesAMember(t *testing.T) {
 		t.Errorf("the new key is for %v, not alice and bob", who)
 	}
 	// once is enough
-	if res, _ := do(t, ts, "POST", "/api/v1/keys/epochs", tokA, map[string]any{"conv_id": g, "reason": "membership change"}); res.StatusCode != 409 {
+	if res, _ := do(t, ts, "POST", "/api/v1/keys/epochs", tokA, map[string]any{"conv_id": g, "reason": "membership change", "commitment": testCommitment}); res.StatusCode != 409 {
 		t.Errorf("a second rotation for the same removal: %d", res.StatusCode)
 	}
 

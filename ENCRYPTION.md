@@ -154,7 +154,23 @@ When membership shrinks, the server requests rotation and an online client
 generates a new root for a new epoch. New messages and edits must use the current
 epoch; the server rejects stale ones. Rotation protects later content once the
 new epoch is established. It cannot take back old keys, downloads, exports or
-screenshots from a former member.
+screenshots from a former member. Someone leaving by their own choice many times
+in a short while stops costing a new key, so joining and leaving in a loop cannot
+hold a conversation up; the key is replaced at the next rotation. Someone being
+removed always costs one.
+
+The newest epoch is the only one new messages can use, so one member must not be
+able to stop a conversation by making one nobody can use. The server accepts a new
+epoch only when a rotation is pending, for a conversation's first key, or from
+someone who manages the server. Sealed keys look alike to the server, so each new
+epoch carries a one-way fingerprint of its key, HKDF of the root with the
+conversation's id, which reveals nothing about the key. Every client checks the
+key it receives against it. A key that does not open or does not match is reported.
+When people report the key its maker gave them, or when most people still lack it
+after a short while, the server asks for a new key, and whoever made the bad one
+cannot answer again for an hour. The server only learns that a key was unusable,
+never what it was. Keys made by older apps and first keys may have no fingerprint
+until those apps are gone.
 
 Nexa uses epoch keys rather than a per-message ratchet. It does **not** provide
 ratchet-based forward secrecy: exposure of an identity private key and its stored

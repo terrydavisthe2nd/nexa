@@ -3,7 +3,7 @@ import { api } from "@/api/client";
 import type { RequestOptions } from "@/api/client";
 import type { KeyGrant, Message } from "@/api/types";
 import { b64 } from "@/crypto/bytes";
-import { channelKey, newRootKey } from "@/crypto/conv";
+import { channelKey, keyCommitment, newRootKey } from "@/crypto/conv";
 import { generateIdentity, unwrapGrant, wrapGrant } from "@/crypto/keys";
 import { keystore } from "@/crypto/keystore";
 import { encryptMessage } from "@/crypto/message";
@@ -129,6 +129,37 @@ describe("key manager", () => {
     await useKeys.getState().ingestGrants([grant]);
     expect(request).toHaveBeenCalledWith("POST", "/keys/request", { conv_id: "conv1", bad_epoch: 0, bad_wrapped_key: grant.wrapped_key });
     expect(ring.get("conv1", 0)).toBeUndefined();
+  });
+
+  it("takes a key only if it matches its epoch's fingerprint", async () => {
+    await useKeys.getState().init("A", alice);
+    const request = vi.spyOn(api, "request").mockResolvedValue(undefined);
+    const root = newRootKey();
+    const grant = async (conv: string, commitment?: string): Promise<KeyGrant> => ({ conv_id: conv, epoch: 0, user_id: "A", wrapped_key: b64.enc(await wrapGrant(alice.publicKey, root)), wrapped_by: "B", created_at: 0, ...(commitment ? { commitment } : {}) });
+    // sealed properly, so it opens: only the fingerprint shows it is not the epoch's key
+    const other = await grant("conv1", b64.enc(keyCommitment(newRootKey(), "conv1")));
+    await useKeys.getState().ingestGrants([other]);
+    expect(ring.get("conv1", 0)).toBeUndefined();
+    expect(request).toHaveBeenCalledWith("POST", "/keys/request", { conv_id: "conv1", bad_epoch: 0, bad_wrapped_key: other.wrapped_key });
+    await useKeys.getState().ingestGrants([await grant("conv2", b64.enc(keyCommitment(root, "conv2")))]);
+    expect(ring.get("conv2", 0)).toEqual(root);
+    // from before fingerprints
+    await useKeys.getState().ingestGrants([await grant("conv3")]);
+    expect(ring.get("conv3", 0)).toEqual(root);
+  });
+
+  it("gives the server the fingerprint of the key it hands out", async () => {
+    await useKeys.getState().init("A", alice);
+    const base = api.request;
+    let commitment = "";
+    api.request = <T>(method: string, path: string, body?: unknown, opts?: RequestOptions): Promise<T> => {
+      if (method === "POST" && path === "/keys/epochs") commitment = (body as { commitment: string }).commitment;
+      return base<T>(method, path, body, opts);
+    };
+    await useKeys.getState().ensureConvKey("conv1");
+    const sealed = putGrants.find((g) => g.user_id === "A")!;
+    const root = await unwrapGrant(alice.privateKey, alice.publicKey, b64.dec(sealed.wrapped_key));
+    expect(b64.dec(commitment)).toEqual(keyCommitment(root, "conv1"));
   });
 
   it("never selects an old cached root for a new send after rotation", async () => {

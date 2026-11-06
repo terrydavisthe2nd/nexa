@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"evilion.xyz/chat/internal/ids"
 	"evilion.xyz/chat/internal/ratelimit"
 )
 
@@ -26,9 +27,26 @@ func sendMsg(t *testing.T, ts *httptest.Server, token, ch, conv string, epoch in
 	return do(t, ts, "POST", "/api/v1/channels/"+ch+"/messages", token, body)
 }
 
+// testCommitment stands in for a key's fingerprint where nothing checks it.
+var testCommitment = b64(bytes.Repeat([]byte{7}, keyCommitmentBytes))
+
+// askForRotation sets a conversation's key to be replaced, as someone leaving
+// does, so that createEpoch can make its next epoch.
+func askForRotation(t *testing.T, srv *Server, conv string) {
+	t.Helper()
+	id, err := ids.Parse(conv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr := true
+	if err := srv.Store.SetKeyFlags(t.Context(), id, &tr, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func createEpoch(t *testing.T, ts *httptest.Server, token, conv string) int {
 	t.Helper()
-	res, body := do(t, ts, "POST", "/api/v1/keys/epochs", token, map[string]any{"conv_id": conv, "reason": "test"})
+	res, body := do(t, ts, "POST", "/api/v1/keys/epochs", token, map[string]any{"conv_id": conv, "commitment": testCommitment})
 	if res.StatusCode != 201 {
 		t.Fatalf("create epoch: %d %v", res.StatusCode, body)
 	}

@@ -204,9 +204,11 @@ func (s *Server) removeFromGroup(r *http.Request, ch *store.Channel, uid ids.ID)
 	}
 	s.Bcast.EmitUsers([]ids.ID{uid}, "channel_delete", map[string]any{"id": ch.ID})
 	// whoever is left keeps talking under a fresh key
-	tr := true
-	_ = s.Store.SetKeyFlags(ctx, ch.ID, &tr, nil)
-	s.Bcast.EmitUsers(remaining, "key_rotation_needed", map[string]any{"conv_id": ch.ID})
+	if s.leaveRotates(ch.ID) {
+		tr := true
+		_ = s.Store.SetKeyFlags(ctx, ch.ID, &tr, nil)
+		s.Bcast.EmitUsers(remaining, "key_rotation_needed", map[string]any{"conv_id": ch.ID})
+	}
 	return nil
 }
 

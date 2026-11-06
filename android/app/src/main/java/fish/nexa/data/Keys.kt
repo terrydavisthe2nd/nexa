@@ -342,7 +342,8 @@ class KeyManager(
                 if (identity !== id) return@withContext
                 for ((j, root) in roots.withIndex()) {
                     val g = batch[j]
-                    if (root == null || root.size != 32) {
+                    // the server counts these: a key several people cannot use gets replaced
+                    if (root == null || root.size != 32 || !matchesEpoch(g, root)) {
                         runCatching {
                             api.request("POST", "/keys/request", buildJsonObject {
                                 put("conv_id", g.convId)
@@ -366,6 +367,12 @@ class KeyManager(
             onKeysArrived?.invoke(changed)
         }
         return changed
+    }
+
+    /** Whether an opened key is the one its epoch was made with. Epochs from before fingerprints have none to check. */
+    private fun matchesEpoch(g: KeyGrant, root: ByteArray): Boolean {
+        val commitment = g.commitment ?: return true
+        return runCatching { Conv.keyCommitment(root, g.convId).contentEquals(Bytes.unb64(commitment)) }.getOrDefault(false)
     }
 
     /** Who this device believes is in a conversation (web lib/convMembers.ts). */
@@ -474,13 +481,14 @@ class KeyManager(
     }
 
     private suspend fun createAndGrant(conv: String, uid: String, reason: String?): Pair<Int, ByteArray> {
+        val root = Conv.newRootKey()
         val res = api.request("POST", "/keys/epochs", buildJsonObject {
             put("conv_id", conv)
             if (reason != null) put("reason", reason)
+            put("commitment", Bytes.b64(Conv.keyCommitment(root, conv)))
         }).jsonObject
         val epoch = res["epoch"]!!.jsonPrimitive.int
         val userIds = (res["user_ids"] as? JsonArray)?.map { it.jsonPrimitive.content } ?: emptyList()
-        val root = Conv.newRootKey()
         val targets = if (uid in userIds) userIds else userIds + uid
         putGrantsFor(conv, epoch, root, targets)
         ring.set(conv, epoch, root)

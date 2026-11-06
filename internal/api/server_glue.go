@@ -192,23 +192,6 @@ func (s *Server) WireServers(hub *gateway.Hub) {
 		return ch.KeyConvID, nil
 	}
 	s.ServerChannelPatch = s.handleServerChannelPatch
-	// Who may rotate a conversation's key. Both branches of this used to
-	// return true, so the hook the router documents as restricting epoch
-	// creation restricted nothing: the newest member of a large server could
-	// post a new epoch as fast as the generic limiter allowed, and every
-	// accepted one makes every online key-holder re-wrap and redistribute a
-	// grant to every entitled member.
-	//
-	// It is a rate rather than a permission because this endpoint is also how
-	// an ordinary member answers key_rotation_needed after somebody is kicked,
-	// and the hook is not told which of the two it is looking at. The
-	// allowance is far above any real rate of membership change, and a
-	// rotation refused by it is not lost — the pending flag stays set and the
-	// next attempt goes through once the bucket has refilled.
-	s.CanRotate = func(ctx context.Context, u *store.User, conv ids.ID) (bool, error) {
-		ok, _ := s.limRotate.Allow("epoch:" + conv.String())
-		return ok, nil
-	}
 	s.InviteCheck = func(ctx context.Context, code string) bool {
 		_, err := s.Store.InviteByCode(ctx, code)
 		return err == nil

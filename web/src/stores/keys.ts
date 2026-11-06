@@ -3,8 +3,8 @@ import { ApiError } from "@/api/client";
 import { keys as keysApi } from "@/api/keys";
 import { users as usersApi } from "@/api/users";
 import type { KeyGrant } from "@/api/types";
-import { b64 } from "@/crypto/bytes";
-import { newRootKey } from "@/crypto/conv";
+import { b64, equal } from "@/crypto/bytes";
+import { keyCommitment, newRootKey } from "@/crypto/conv";
 import { keystore } from "@/crypto/keystore";
 import { unwrapGrant, wrapGrant, type Identity } from "@/crypto/keys";
 import { hasLock } from "@/lib/appLock";
@@ -32,6 +32,16 @@ interface KeysState {
 }
 
 const pendingEnsure = new Map<string, Promise<{ epoch: number; root: Uint8Array } | null>>();
+
+/** Whether an opened key is the one its epoch was made with. Epochs from before fingerprints have none to check. */
+function matchesEpoch(g: KeyGrant, root: Uint8Array): boolean {
+  if (!g.commitment) return true;
+  try {
+    return equal(keyCommitment(root, g.conv_id), b64.dec(g.commitment));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Asking the holders of a conversation's keys again, while this device waits
@@ -223,8 +233,8 @@ async function putGrantsFor(conv: string, epoch: number, root: Uint8Array, wante
  * on, so anything written under it would stay unreadable to everyone else.
  */
 async function createAndGrant(conv: string, userId: string, reason?: string): Promise<{ epoch: number; root: Uint8Array }> {
-  const created = await keysApi.createEpoch(conv, reason);
   const root = newRootKey();
+  const created = await keysApi.createEpoch(conv, reason, b64.enc(keyCommitment(root, conv)));
   const targets = created.user_ids.includes(userId) ? created.user_ids : [...created.user_ids, userId];
   await putGrantsFor(conv, created.epoch, root, targets);
   ring.set(conv, created.epoch, root);
@@ -268,9 +278,10 @@ export const useKeys = create<KeysState>()((set, get) => ({
       if (get().identity !== identity) return [];
       for (const [j, root] of roots.entries()) {
         const g = batch[j]!;
-        if (!root || root.length !== 32) {
+        if (!root || root.length !== 32 || !matchesEpoch(g, root)) {
           // A row already present used to prevent every honest holder from
-          // replacing an unopenable grant, however often we asked again.
+          // replacing an unopenable grant, however often we asked again. The
+          // server counts these: a key several people cannot use gets replaced.
           await keysApi.request(g.conv_id, g).catch(() => undefined);
           continue;
         }

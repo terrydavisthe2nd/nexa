@@ -30,6 +30,16 @@ export function voiceFrameKey(root: Uint8Array, channelId: string): Uint8Array {
   return hkdf(sha256, root, NO_SALT, utf8.enc(`voice:${channelId}`), KEY_LEN);
 }
 
+/**
+ * A public, one-way fingerprint of a conversation's key, which the epoch's maker
+ * gives the server and every member checks the key they were handed against. Sealed
+ * keys look alike to the server, so without this one person could hand each member
+ * a different key, or junk, and nobody could tell until messages stopped opening.
+ */
+export function keyCommitment(root: Uint8Array, conv: string): Uint8Array {
+  return hkdf(sha256, root, NO_SALT, utf8.enc(`commit:${conv}`), KEY_LEN);
+}
+
 /** In-memory cache of conversation root keys, keyed by conversation and epoch. */
 export class KeyRing {
   private readonly rings = new Map<string, Map<number, Uint8Array>>();

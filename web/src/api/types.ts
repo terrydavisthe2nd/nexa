@@ -966,6 +966,8 @@ export interface KeyGrant {
   wrapped_key: string;
   wrapped_by: Snowflake;
   created_at: number;
+  /** base64 of the epoch's fingerprint of its key; missing on older epochs. */
+  commitment?: string;
 }
 
 export interface KeyNeed {

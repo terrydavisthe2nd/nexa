@@ -90,7 +90,7 @@ func TestBlockClosesAnExistingDM(t *testing.T) {
 // An edit uses the current epoch and conversation, including after a channel
 // becomes private: the old server key belongs to people now excluded.
 func TestEditKeepsTheKeyThatOpensIt(t *testing.T) {
-	_, ts := newTestServer(t)
+	srv, ts := newTestServer(t)
 	tokA, _ := register(t, ts, "alice")
 	tokB, idB := register(t, ts, "bob")
 	_, body := do(t, ts, "POST", "/api/v1/users/@me/channels", tokA, map[string]any{"recipient_ids": []string{idB}})
@@ -98,6 +98,7 @@ func TestEditKeepsTheKeyThatOpensIt(t *testing.T) {
 	createEpoch(t, ts, tokA, dm)
 	_, body = sendMsg(t, ts, tokA, dm, dm, 0, "hi", "", nil)
 	mid := body["id"].(string)
+	askForRotation(t, srv, dm)
 	if e := createEpoch(t, ts, tokA, dm); e != 1 {
 		t.Fatalf("second epoch: %d", e)
 	}
@@ -139,13 +140,14 @@ func TestEditKeepsTheKeyThatOpensIt(t *testing.T) {
 }
 
 func TestNewMessagesAndEditsRefuseAnOldEpoch(t *testing.T) {
-	_, ts := newTestServer(t)
+	srv, ts := newTestServer(t)
 	token, _ := register(t, ts, "alice")
 	_, bob := register(t, ts, "bob")
 	ch := dmBetween(t, ts, token, bob)
 	createEpoch(t, ts, token, ch)
 	_, original := sendMsg(t, ts, token, ch, ch, 0, "before rotation", "before", nil)
 	id := original["id"].(string)
+	askForRotation(t, srv, ch)
 	createEpoch(t, ts, token, ch)
 	if res, body := sendMsg(t, ts, token, ch, ch, 0, "stale new text", "stale", nil); res.StatusCode != 409 || errCode(body) != "stale_epoch" {
 		t.Fatalf("new message with removed members' old key: %d %v", res.StatusCode, body)

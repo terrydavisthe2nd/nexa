@@ -88,6 +88,14 @@ object Conv {
     /** The key call frames are sealed with; derived apart from the message key. */
     fun voiceFrameKey(root: ByteArray, channelId: String): ByteArray =
         Bytes.hkdf(root, ByteArray(0), Bytes.utf8("voice:$channelId"), 32)
+
+    /**
+     * A public, one-way fingerprint of a conversation's key, which the epoch's
+     * maker gives the server and every member checks the key they were handed
+     * against (web crypto/conv.ts keyCommitment).
+     */
+    fun keyCommitment(root: ByteArray, conv: String): ByteArray =
+        Bytes.hkdf(root, ByteArray(0), Bytes.utf8("commit:$conv"), 32)
 }
 
 /** Conversation root keys held in memory, by conversation and epoch. */

@@ -808,6 +808,9 @@ type KeyEpoch struct {
 	CreatedBy ids.ID `json:"created_by"`
 	CreatedAt int64  `json:"created_at"`
 	Reason    string `json:"reason"`
+	// Commitment is a one-way fingerprint of the epoch's key, which every app
+	// checks the key it was handed against. Older epochs and old apps have none.
+	Commitment []byte `json:"commitment,omitempty"`
 }
 
 // KeyGrant is a root key sealed for one user.
@@ -818,6 +821,8 @@ type KeyGrant struct {
 	WrappedKey []byte `json:"wrapped_key"`
 	WrappedBy  ids.ID `json:"wrapped_by"`
 	CreatedAt  int64  `json:"created_at"`
+	// Commitment is the epoch's, for the app to check the key against as it opens it.
+	Commitment []byte `json:"commitment,omitempty"`
 }
 
 // KeyFlags marks a conversation that needs client-side key work.
@@ -825,4 +830,6 @@ type KeyFlags struct {
 	ConvID        ids.ID `json:"conv_id"`
 	NeedsRotation bool   `json:"needs_rotation"`
 	NeedsOwnKey   bool   `json:"needs_own_key"`
+	// UpdatedAt is when a flag last changed.
+	UpdatedAt int64 `json:"-"`
 }

@@ -9,7 +9,9 @@ import { Spinner } from "@/components/common/Spinner";
 import { describeError } from "@/lib/errors";
 import { formatFull } from "@/lib/time";
 import { ring } from "@/lib/keyring";
+import { P } from "@/lib/perms";
 import { useKeys } from "@/stores/keys";
+import { canI, useServers } from "@/stores/servers";
 import { useUI } from "@/stores/ui";
 import { displayName, useUsers } from "@/stores/users";
 import st from "@/components/settings/Settings.module.css";
@@ -20,6 +22,7 @@ export default function EncryptionPage({ serverId }: { serverId: string }) {
   const users = useUsers((u) => u.byId);
   const toast = useUI((u) => u.toast);
   const rotate = useKeys((k) => k.rotate);
+  const managesServer = canI(useServers((x) => x.byId[serverId]), P.MANAGE_SERVER);
   const reconcile = useKeys((k) => k.reconcile);
   const [info, setInfo] = useState<ServerKeyInfo[] | null>(null);
   // Without this a failed fetch rendered no rows and no message at all: a page
@@ -98,9 +101,12 @@ export default function EncryptionPage({ serverId }: { serverId: string }) {
                 {holdLatest ? t("server.encryption.youHoldTheCurrentKey") : held ? t("server.encryption.youHoldAnOlderKeyWaiting") : t("server.encryption.youDonTHoldThisKey")}
               </span>
             </div>
-            <Button size="sm" variant="secondary" disabled={!holdLatest || busy === c.conv_id} loading={busy === c.conv_id} onClick={() => void doRotate(c.conv_id)} title={holdLatest ? t("server.encryption.createAFreshKey") : t("server.encryption.onlyHoldersCanRotate")}>
-              <RefreshCw size={14} /> {t("server.encryption.rotate")}
-            </Button>
+            {/* the server takes a new key by hand only from those who manage it; anyone can answer a pending replacement */}
+            {managesServer || c.flags?.needs_rotation ? (
+              <Button size="sm" variant="secondary" disabled={!holdLatest || busy === c.conv_id} loading={busy === c.conv_id} onClick={() => void doRotate(c.conv_id)} title={holdLatest ? t("server.encryption.createAFreshKey") : t("server.encryption.onlyHoldersCanRotate")}>
+                <RefreshCw size={14} /> {t("server.encryption.rotate")}
+              </Button>
+            ) : null}
           </div>
         );
       })}

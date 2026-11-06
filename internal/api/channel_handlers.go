@@ -572,9 +572,11 @@ func (s *Server) handleRecipientRemove(w http.ResponseWriter, r *http.Request) {
 	if uid != me.ID || r.URL.Query().Get("silent") != "true" {
 		s.systemMessage(r, updated, me.ID, "system_member_remove", []ids.ID{uid}, nil)
 	}
-	tr := true
-	_ = s.Store.SetKeyFlags(r.Context(), ch.ID, &tr, nil)
-	s.Bcast.EmitUsers(remaining, "key_rotation_needed", map[string]any{"conv_id": ch.ID})
+	if uid != me.ID || s.leaveRotates(ch.ID) {
+		tr := true
+		_ = s.Store.SetKeyFlags(r.Context(), ch.ID, &tr, nil)
+		s.Bcast.EmitUsers(remaining, "key_rotation_needed", map[string]any{"conv_id": ch.ID})
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -555,7 +555,7 @@ serves until SIGINT or SIGTERM.
   kind, `dm_participants`, `channel_overwrites`, `channel_unlocks`, `thread_members`, `channel_follows`,
   `crossposts`), messages (`messages` with `ciphertext`, and `plain` for webhook and system text;
   `attachments`, `reactions`, `pins`, `read_states`, `polls`, `poll_votes`), keys (`key_epochs`, `key_grants`,
-  `key_flags`), servers (`servers`, `server_members`, `roles`, `member_roles`, `invites`, `bans`, `audit_log`,
+  `key_flags`, `key_rejections`), servers (`servers`, `server_members`, `roles`, `member_roles`, `invites`, `bans`, `audit_log`,
   `automod_rules`, `automod_events`), plans (`billing`, `server_boosts`, `plan_gifts`, `gift_links`,
   `users.plan`, `servers.boosts`), expressions (`emojis`, `sticker_packs`, `stickers`, `sticker_installs`,
   `recent_stickers`, `blocked_images`), games people share (`game_submissions`, `known_games`), files (`blobs`, `uploads`, `remote_blobs`, `storage_usage`), calls
@@ -1116,7 +1116,8 @@ it off), `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT` for tests, `R
   `do(t, ts, method, path, token, body)` makes a JSON request; `errCode` reads an error; `connectGWReady` /
   `connectGW` open a gateway socket and `gw.next(event, timeout)` waits for an event. Apps (`bot_test.go`):
   `makeApp`, `botDo`, `addBot`. TURN (`turn_test.go`): `newFakeTURN(t, srv)`, `iceUsername`, `idleTURN`,
-  `putInCall`. The Realtime SFU stand-in is `newRealtimeStandIn` (`sfu_handlers_test.go`).
+  `putInCall`. The Realtime SFU stand-in is `newRealtimeStandIn` (`sfu_handlers_test.go`). Keys: `createEpoch`,
+  `askForRotation` (a later epoch needs a rotation pending), `testCommitment`.
 - `internal/store`: `newStore(t)`, `mkUser(t, s, name)`.
 - Tests against live services run only with their variables set (`UNFURL_LIVE`, `REALTIME_LIVE`,
   `TELEGRAM_LIVE_TOKEN`, `DISCORD_BOT_TOKEN`, and `OBJSTORE_LIVE` with the test bucket's `R2_*`, which refuses
@@ -1142,6 +1143,28 @@ mentions, reactions, sizes.
   a member lacks (a waiting device asks again with `POST /keys/request`), and `key_rotation_needed` asks one
   for a new epoch when membership shrinks. Invite links can carry the root key in the fragment
   (`#k=<epoch>.<key>`), which never reaches the server.
+- Who may make an epoch (`epochCreator` in `api/key_handlers.go`; the owner's rule after 2026-11-06, when one
+  member's `POST /keys/epochs` with the reason "probe" stopped every channel on a 350-person server's key): the
+  newest epoch is the only one messages can use from the moment it exists, before anyone holds its key, so a new
+  one takes a reason the server knows, never what the caller says. Any member may answer a pending rotation; a
+  first key is allowed unless the conversation is a public channel (a private channel is flagged, a private
+  thread always has its own); by hand (`manual`) needs Manage Server, and groups and DMs have no hand rotation.
+  Anything else is a 409, which apps already take as "someone saw to it". Muted accounts cannot make keys.
+- A key can still be started and not delivered, so nothing one account does holds a conversation up for long.
+  Each epoch carries a fingerprint (`commitment`, `keyCommitment` in web `crypto/conv.ts` and Android `Conv`,
+  HKDF of the root with `commit:<conv>`, in the crypto vectors) that apps send when making it and check every key
+  against (`matchesEpoch`); one that fails is reported like one that does not open. A key is lost (`lost_at`,
+  `Store.MarkEpochLost`) when two people (one among three or fewer) report what its maker sent them
+  (`key_rejections`, a person counting twice an hour by `limKeyBad`), or when someone lacking it asks after
+  `keyDeliveryGrace` while under half of its people hold it (`noticeLostKey`, on `GET /keys/epochs`, which every
+  send calls, and on `POST /keys/request`, which waiting devices call). A lost key sets `needs_rotation`, which
+  every app already answers, and costs its maker the right to answer in that conversation for `lostKeyStrike`,
+  unless they run it or are alone in it; `limRotator` caps how often an account can answer. A wait on keys
+  without a fingerprint (`oldAppAnswerWait`, and first keys without one being accepted) stays for APKs that predate
+  fingerprints: remove both once they are gone, which closes the last way to hand out different keys unnoticed.
+- `limLeftKey`: past its allowance someone leaving of their own accord costs no new key, since a pending rotation
+  stops everyone from sending until answered and joining and leaving in a loop must not keep one pending. Removals
+  always rotate. The Encryption page shows Rotate only to those with Manage Server, or to anyone while one is pending.
 - Sends and edits use the channel's current conversation and epoch: clients fetch a missing grant rather than
   use an old root, the API rejects stale epochs, and `InsertEncryptedMessage` and `UpdateEncryptedMessage`
   check again inside the writing transaction under the epoch lock. An edit after a channel turns private uses

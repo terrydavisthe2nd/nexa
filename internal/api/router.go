@@ -116,7 +116,9 @@ type Server struct {
 	limVoice   *ratelimit.Limiter
 	limTurn    *ratelimit.Limiter
 	limGuest   *ratelimit.Limiter
-	limRotate  *ratelimit.Limiter
+	limLeftKey *ratelimit.Limiter
+	limRotator *ratelimit.Limiter
+	limKeyBad  *ratelimit.Limiter
 	limPass    *ratelimit.Limiter
 	limProfile *ratelimit.Limiter
 	limExpr    *ratelimit.Limiter
@@ -263,8 +265,6 @@ type Server struct {
 	ConvForChannel func(ctx context.Context, ch *store.Channel) (ids.ID, error)
 	// ServerChannelPatch handles PATCH for server channels (Phase 2).
 	ServerChannelPatch func(w http.ResponseWriter, r *http.Request, ch *store.Channel, me *store.User)
-	// CanRotate restricts who may create key epochs for a conversation (Phase 2).
-	CanRotate func(ctx context.Context, u *store.User, conv ids.ID) (bool, error)
 }
 
 // WaitBackground waits, until ctx ends, for the loops the Start functions
@@ -328,11 +328,17 @@ func NewServer(cfg config.Config, st *store.Store, log *slog.Logger, bc Broadcas
 		limTurn: ratelimit.New(ratelimit.Every(12, time.Hour), 6, 2*time.Hour),
 		// joining a call as a guest, per address: a household or a meeting room, not a crowd of bots
 		limGuest: ratelimit.New(ratelimit.Every(30, time.Hour), 10, 2*time.Hour),
-		// New key epochs, per conversation. Every one of them costs every
-		// online key-holder a re-wrap for every entitled member, so the rate
-		// is held to well above real membership churn and far below what one
-		// account posting in a loop would manage.
-		limRotate: ratelimit.New(ratelimit.Every(60, time.Hour), 30, 2*time.Hour),
+		// New keys because someone left of their own accord, per conversation. The
+		// most any conversation has had is seven an hour. Past this someone leaving
+		// costs no new key, since a pending rotation stops everyone from sending
+		// until it is answered, and joining and leaving in a loop must not be able
+		// to keep one pending. Someone being removed always costs one.
+		limLeftKey: ratelimit.New(ratelimit.Every(12, time.Hour), 10, 2*time.Hour),
+		// New keys an account can make in a conversation, unless it runs it: someone
+		// else's app answers past this.
+		limRotator: ratelimit.New(ratelimit.Every(30, time.Hour), 10, 2*time.Hour),
+		// Keys someone can report as unopenable in a conversation and have it count.
+		limKeyBad: ratelimit.New(ratelimit.Every(2, time.Hour), 2, 2*time.Hour),
 		// Password checks by a signed-in account — changing it, a new
 		// recovery key, deleting the account, two-factor changes, a locked
 		// subchat — each cost an Argon2 hash, the most expensive thing the
@@ -445,7 +451,7 @@ func (s *Server) limiters() map[string]*ratelimit.Limiter {
 	out := map[string]*ratelimit.Limiter{
 		"generic": s.limGeneric, "auth-ip": s.limAuthIP, "auth-user": s.limAuthUsr, "register": s.limReg, "signup": s.limSignup, "message": s.limMsg,
 		"upload": s.limUpload, "parts": s.limParts, "links": s.limLinks, "reads": s.limReads, "relay": s.limRelay, "unfurl": s.limUnfurl, "proxy": s.limProxy, "youtube": s.limYouTube, "refresh": s.limRefresh, "voice": s.limVoice, "turn": s.limTurn,
-		"guest": s.limGuest, "rotate": s.limRotate, "password": s.limPass, "profile": s.limProfile, "expressions": s.limExpr,
+		"guest": s.limGuest, "leave-key": s.limLeftKey, "rotator": s.limRotator, "key-reject": s.limKeyBad, "password": s.limPass, "profile": s.limProfile, "expressions": s.limExpr,
 		"import": s.limImport, "crash": s.limCrash, "bug": s.limBug, "report": s.limReport, "bug-file": s.limBugFile, "key-ask": s.limKeyAsk,
 		"webhook": s.limHook, "webhook-channel": s.limHookCh, "webhook-manage": s.limHookMgr, "poll-vote": s.limVote, "discord": s.limDiscord, "server-tag": s.limTag, "music-search": s.limMusic, "music-preview": s.limPreview,
 		"automod": s.limAutomod, "publish": s.limPublish, "thread": s.limThread, "discover": s.limDiscover,

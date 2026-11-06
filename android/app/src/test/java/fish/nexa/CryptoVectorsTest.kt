@@ -59,6 +59,7 @@ class CryptoVectorsTest {
         assertEquals(s("fingerprint"), Fingerprint.of(hex("pub")))
         assertArrayEquals(hex("chanKey"), Conv.channelKey(hex("root"), "99723385805733891"))
         assertArrayEquals(hex("voiceKey"), Conv.voiceFrameKey(hex("root"), "99723385805733891"))
+        assertArrayEquals(hex("keyCommitment"), Conv.keyCommitment(hex("root"), "99723385805733891"))
         val rec = v["recovery"]!!.jsonObject
         val bytes = Kdf.recoveryKeyBytes("0123ABCD-4567EF01-89abcdef-01234567-89ABCDEF-01234567-89ABCDEF-0123 4567")
         assertArrayEquals(unhex(rec["bytes"]!!.jsonPrimitive.content), bytes)

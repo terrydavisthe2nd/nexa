@@ -208,7 +208,7 @@ func run(from, to string, wipe bool, batch int) error {
 // has to be here.
 var keyColumns = []struct{ table, cols string }{
 	{"users", "id, username, kdf_salt, kdf_params, public_key, enc_private_key, enc_private_key_recovery, auth_hash, recovery_auth_hash, flags"},
-	{"key_epochs", "conv_id, epoch, created_by, created_at"},
+	{"key_epochs", "conv_id, epoch, created_by, created_at, commitment"},
 	{"key_grants", "conv_id, epoch, user_id, wrapped_key, wrapped_by"},
 	{"messages", "id, ciphertext, key_conv_id, key_epoch, webhook_id, plain"},
 	{"user_settings", "user_id, blob, version"},

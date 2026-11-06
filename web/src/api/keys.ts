@@ -18,8 +18,8 @@ export const keys = {
   putGrants(list: GrantUpload[]): Promise<{ inserted: number }> {
     return api.request("POST", "/keys/grants", list);
   },
-  createEpoch(conv_id: Snowflake, reason?: string): Promise<{ conv_id: Snowflake; epoch: number; user_ids: Snowflake[] }> {
-    return api.request("POST", "/keys/epochs", { conv_id, reason: reason ?? "" });
+  createEpoch(conv_id: Snowflake, reason?: string, commitment?: string): Promise<{ conv_id: Snowflake; epoch: number; user_ids: Snowflake[] }> {
+    return api.request("POST", "/keys/epochs", { conv_id, reason: reason ?? "", ...(commitment ? { commitment } : {}) });
   },
   epochs(conv_id: Snowflake): Promise<{ epochs: KeyEpoch[]; flags: KeyFlags; entitled: Snowflake[] }> {
     return api.request("GET", "/keys/epochs", undefined, { query: { conv_id } });

@@ -590,7 +590,7 @@ func (s *Server) removeMember(r *http.Request, srv *store.Server, uid ids.ID, ev
 	if u, err := s.Store.UserByID(ctx, uid); err == nil && u.Flags&store.FlagBot != 0 {
 		s.botLeftServer(r, srv, uid)
 	}
-	return s.rotateFor(r, srv, visible)
+	return s.rotateFor(r, srv, visible, extra["reason"] == "leave")
 }
 
 // rotateAfter starts a new key in every conversation of a server that uid
@@ -601,12 +601,20 @@ func (s *Server) rotateAfter(r *http.Request, srv *store.Server, uid ids.ID) err
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		return err
 	}
-	return s.rotateFor(r, srv, visible)
+	return s.rotateFor(r, srv, visible, false)
+}
+
+// leaveRotates says whether someone leaving of their own accord should cost conv
+// a new key (see limLeftKey).
+func (s *Server) leaveRotates(conv ids.ID) bool {
+	ok, _ := s.limLeftKey.Allow("leave:" + conv.String())
+	return ok
 }
 
 // rotateFor flags the server root, and the private channels and threads of
 // visible, as needing a new key, and asks their members' apps to make one.
-func (s *Server) rotateFor(r *http.Request, srv *store.Server, visible map[ids.ID]perms.Perm) error {
+// left says someone went of their own accord.
+func (s *Server) rotateFor(r *http.Request, srv *store.Server, visible map[ids.ID]perms.Perm, left bool) error {
 	ctx := r.Context()
 	// rotate the server root and every private channel the user could read
 	convs := []ids.ID{srv.ID}
@@ -637,6 +645,9 @@ func (s *Server) rotateFor(r *http.Request, srv *store.Server, visible map[ids.I
 	// failure is what the caller hears about.
 	var failed error
 	for _, conv := range convs {
+		if left && !s.leaveRotates(conv) {
+			continue
+		}
 		if err := s.Store.SetKeyFlags(ctx, conv, &tr, nil); err != nil {
 			failed = cmp.Or(failed, err)
 			continue

@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import fish.nexa.Nexa
+import fish.nexa.data.P
 import fish.nexa.net.Ban
 import fish.nexa.net.Invite
 import fish.nexa.net.PublicUser
@@ -69,14 +70,17 @@ private fun isFor(d: kotlinx.serialization.json.JsonElement?, serverId: String) 
 
 /**
  * EncryptionPage: the server's key and each private channel's, who made the
- * latest and whether this device holds it; Rotate for holders; and Check Now,
- * which hands out keys members who joined while nobody was online lack.
+ * latest and whether this device holds it; Rotate for those who manage the
+ * server, or anyone while a replacement is pending; and Check Now, which hands
+ * out keys members who joined while nobody was online lack.
  */
 @Composable
 fun EncryptionPage(serverId: String) {
     val c = Nx.colors
     val scope = rememberCoroutineScope()
     val users by Nexa.users.byId.collectAsState()
+    val servers by Nexa.servers.byId.collectAsState()
+    val managesServer = Nexa.servers.canI(servers[serverId], P.MANAGE_SERVER)
     var info by remember { mutableStateOf<List<ServerKeyInfo>?>(null) }
     var failed by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf<String?>(null) }
@@ -137,14 +141,16 @@ fun EncryptionPage(serverId: String) {
                 held != null -> t("server.encryption.youHoldAnOlderKeyWaiting")
                 else -> t("server.encryption.youDonTHoldThisKey")
             }
+            // the server takes a new key by hand only from those who manage it; anyone can answer a pending replacement
+            val mayRotate = managesServer || k.flags?.needsRotation == true
             KeyCard("KeyRound", if (k.flags?.needsRotation == true) c.warning else c.positive, k.name, sub, subWords = latest?.let { fish.nexa.ui.chat.PersonWords(sub, listOf(it.createdBy to Names.display(users[it.createdBy]))) }) {
-                NxButton(
+                if (mayRotate) NxButton(
                     t("server.encryption.rotate"), { rotate(k.convId) },
                     kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "RefreshCw",
                     enabled = holdLatest && busy != k.convId, loading = busy == k.convId,
                 )
             }
-            if (!holdLatest) Hint(t("server.encryption.onlyHoldersCanRotate"), Modifier.padding(start = 4.dp, bottom = 8.dp), top = 0.dp)
+            if (mayRotate && !holdLatest) Hint(t("server.encryption.onlyHoldersCanRotate"), Modifier.padding(start = 4.dp, bottom = 8.dp), top = 0.dp)
         }
         Box(Modifier.fillMaxWidth().padding(vertical = 16.dp).height(1.dp).background(c.borderSubtle))
         KeyCard("ShieldCheck", c.positive, t("server.encryption.shareMissingKeys"), t("server.encryption.membersWhoJoinedWhileNobodyWith")) {

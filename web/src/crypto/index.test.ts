@@ -41,6 +41,7 @@ describe("crypto module surface", () => {
       "newRootKey",
       "channelKey",
       "voiceFrameKey",
+      "keyCommitment",
       "KeyRing",
       // message
       "aadBytes",
