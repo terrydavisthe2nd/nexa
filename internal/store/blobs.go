@@ -118,8 +118,9 @@ func (s *Store) DeleteBlob(ctx context.Context, id ids.ID) (bool, error) {
 var imageColumns = map[string]bool{
 	"users.avatar_id": true, "users.banner_id": true,
 	"servers.icon_id": true, "servers.banner_id": true,
-	"channels.icon_id":   true,
-	"webhooks.avatar_id": true,
+	"channels.icon_id":     true,
+	"webhooks.avatar_id":   true,
+	"applications.icon_id": true, "applications.cover_id": true,
 }
 
 // SwapImage points an image column of one row at newID (nil clears it) and

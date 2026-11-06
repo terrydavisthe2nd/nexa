@@ -602,3 +602,27 @@ func TestBulkOverwriteCountsOnlyTheNewList(t *testing.T) {
 		t.Fatalf("101 commands: %d, want 400", res.StatusCode)
 	}
 }
+
+// Every app icon and cover once answered 500: SwapImage refused the columns.
+func TestAppPicturesSaveAndClear(t *testing.T) {
+	_, ts := newTestServer(t)
+	token, _ := register(t, ts, "appowner")
+	app, _ := makeApp(t, ts, token, "Pictured")
+	path := "/api/v1/applications/" + app["id"].(string)
+	uri := "data:image/png;base64," + base64.StdEncoding.EncodeToString(pngBytes(64, 64))
+	for _, f := range []struct{ field, col string }{{"icon", "icon_id"}, {"cover_image", "cover_id"}} {
+		res, body := do(t, ts, "PATCH", path, token, map[string]any{f.field: uri})
+		if res.StatusCode != 200 {
+			t.Fatalf("set %s: %d %v", f.field, res.StatusCode, body)
+		}
+		if _, got := do(t, ts, "GET", path, token, nil); got[f.col] == nil {
+			t.Fatalf("%s not saved: %v", f.col, got)
+		}
+		if res, body = do(t, ts, "PATCH", path, token, map[string]any{f.field: nil}); res.StatusCode != 200 {
+			t.Fatalf("clear %s: %d %v", f.field, res.StatusCode, body)
+		}
+		if _, got := do(t, ts, "GET", path, token, nil); got[f.col] != nil {
+			t.Fatalf("%s not cleared: %v", f.col, got)
+		}
+	}
+}
