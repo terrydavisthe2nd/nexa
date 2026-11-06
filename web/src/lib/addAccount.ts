@@ -28,3 +28,12 @@ export async function addSignedIn(out: SignedIn): Promise<void> {
   if (before && before.token !== out.token) void logOut(before.token);
   await switchAccount(out.me.id);
 }
+
+/**
+ * Keeps an account just created beside the one open here, without switching yet:
+ * its recovery key still has to be saved, and a reload meanwhile must not lose it.
+ */
+export async function keepCreated(out: SignedIn): Promise<void> {
+  await keystore.saveIdentity(out.me.id, out.identity);
+  rememberAccount(out.me, out.token);
+}

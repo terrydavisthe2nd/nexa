@@ -166,6 +166,34 @@ export async function passwordSignIn(username: string, password: string): Promis
   return { mfa: false, out: await open(res) };
 }
 
+/**
+ * Makes a new account without touching the one open here: the sign-up page goes
+ * on with the result, Add Another Account keeps it beside this one. Every key is
+ * made here and only sealed copies leave the device.
+ */
+export async function createAccount(username: string, displayName: string, password: string, extra?: { invite_code?: string; registration_key?: string }): Promise<{ out: SignedIn; recoveryKey: string }> {
+  const salt = randomBytes(16);
+  const params = DEFAULT_KDF;
+  const { authKey, encKey } = await deriveAll(password, salt, params);
+  const identity = generateIdentity();
+  const recovery = newRecoveryKey();
+  const rk = recoveryToKeys(recovery.bytes);
+  const body = {
+    username,
+    display_name: displayName,
+    auth_key: b64.enc(authKey),
+    kdf_salt: b64.enc(salt),
+    kdf_params: params,
+    public_key: b64.enc(identity.publicKey),
+    enc_private_key: b64.enc(await wrapPrivateKey(identity.privateKey, encKey)),
+    enc_private_key_recovery: b64.enc(await wrapPrivateKey(identity.privateKey, rk.encKey)),
+    recovery_auth_key: b64.enc(rk.authKey),
+    ...(extra ?? {}),
+  };
+  const res = await guarded("register", (captcha) => authApi.register(body, captcha));
+  return { out: { me: res.user, token: res.token, identity }, recoveryKey: recovery.display };
+}
+
 export const useAuth = create<AuthState>()((set, get) => ({
   status: "idle",
   me: null,
@@ -219,27 +247,9 @@ export const useAuth = create<AuthState>()((set, get) => ({
   },
 
   register: async (username, displayName, password, extra) => {
-    const salt = randomBytes(16);
-    const params = DEFAULT_KDF;
-    const { authKey, encKey } = await deriveAll(password, salt, params);
-    const identity = generateIdentity();
-    const recovery = newRecoveryKey();
-    const rk = recoveryToKeys(recovery.bytes);
-    const body = {
-      username,
-      display_name: displayName,
-      auth_key: b64.enc(authKey),
-      kdf_salt: b64.enc(salt),
-      kdf_params: params,
-      public_key: b64.enc(identity.publicKey),
-      enc_private_key: b64.enc(await wrapPrivateKey(identity.privateKey, encKey)),
-      enc_private_key_recovery: b64.enc(await wrapPrivateKey(identity.privateKey, rk.encKey)),
-      recovery_auth_key: b64.enc(rk.authKey),
-      ...(extra ?? {}),
-    };
-    const res = await guarded("register", (captcha) => authApi.register(body, captcha));
-    await finishLogin(set, res.user, res.token, identity);
-    return { recoveryKey: recovery.display };
+    const { out, recoveryKey } = await createAccount(username, displayName, password, extra);
+    await finishLogin(set, out.me, out.token, out.identity);
+    return { recoveryKey };
   },
 
   login: async (username, password) => {

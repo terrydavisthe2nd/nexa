@@ -341,8 +341,11 @@ class Auth(private val nx: Nexa) {
         begin(me, identity)
     }
 
-    /** A new account: every key is made here and only sealed copies leave the device. Returns the recovery key, shown once. */
-    suspend fun register(username: String, displayName: String, password: String, inviteCode: String?, registrationKey: String?): String {
+    /**
+     * A new account, without touching the one open here: every key is made here and
+     * only sealed copies leave the device. Comes with the recovery key, shown once.
+     */
+    suspend fun createAccount(username: String, displayName: String, password: String, inviteCode: String?, registrationKey: String?): Pair<SignedIn, String> {
         val salt = Bytes.random(16)
         val p = Kdf.DEFAULT
         val (authKey, encKey) = stretch(password, salt, p)
@@ -366,12 +369,27 @@ class Auth(private val nx: Nexa) {
         }
         val me = res.user ?: throw ApiError(200, "bad_response", "The server's answer could not be read.")
         val token = res.token ?: throw ApiError(200, "bad_response", "The server's answer could not be read.")
-        nx.api.token = token
-        nx.secure.putString("token", token)
-        nx.secure.putString("account", me.id)
-        saveIdentity(me.id, identity)
-        pendingRegistration = me to identity
-        return recDisplay
+        return SignedIn(me, token, identity) to recDisplay
+    }
+
+    /** The signed-out app's sign-up: the new account becomes the one open here once its key is saved. */
+    suspend fun register(username: String, displayName: String, password: String, inviteCode: String?, registrationKey: String?): String {
+        val (out, recovery) = createAccount(username, displayName, password, inviteCode, registrationKey)
+        nx.api.token = out.token
+        nx.secure.putString("token", out.token)
+        nx.secure.putString("account", out.me.id)
+        saveIdentity(out.me.id, out.identity)
+        pendingRegistration = out.me to out.identity
+        return recovery
+    }
+
+    /**
+     * Keeps an account just created beside the one open here, without switching yet:
+     * its recovery key still has to be saved, and losing the app meanwhile must not lose it.
+     */
+    fun keepCreated(out: SignedIn) {
+        saveIdentity(out.me.id, out.identity)
+        Accounts.remember(out.me, out.token)
     }
 
     /** Held until the person has saved their recovery key, then the app opens. */

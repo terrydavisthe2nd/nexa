@@ -7913,6 +7913,8 @@
   "whatsNew.r20261105.stickerPickerTitle": "パックを使いこなせるスタンプピッカー",
   "whatsNew.r20261105.stickerSettingsBody": "設定の「絵文字とスタンプ」でパックを一覧でき、自分のパックには専用ページができました。スタンプを先頭に表示し、複数選択や個別の編集ができます。",
   "whatsNew.r20261105.stickerSettingsTitle": "パックの新しい管理画面",
+  "whatsNew.r202611052.createAccountBody": "別のアカウントを追加から、新しいアカウントも作成できるようになりました。名前のメニューを開き、アカウントの切り替えを選んでください。",
+  "whatsNew.r202611052.createAccountTitle": "ログインしたまま新しいアカウントを作成",
   "widgets.about.books": "いちばん好きな本を12冊まで。",
   "widgets.about.countdown": "大切な日までをカウントダウンします。",
   "widgets.about.localtime": "あなたのいる場所の時刻を表示します。",

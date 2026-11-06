@@ -828,8 +828,10 @@ it:
   process.
 - More than one account (web `lib/accounts.ts`, Android `data/Accounts`): up to five signed-in accounts keep
   their tokens in a list and their keys where they always were. Only one runs; switching ends the call and
-  connection and reopens the app where that account last was. Add Another Account signs in without touching
-  the open account. Logging out goes on with the next saved account.
+  connection and reopens the app where that account last was. Add Another Account signs in, or creates an account
+  (`createAccount`, the same form as sign-up: web `pages/NewAccountForm.tsx`, Android `NewAccountFields`), without
+  touching the open account. A new account is kept at once and switched to only after its recovery key is saved, and
+  neither that step nor the request before it can be closed. Logging out goes on with the next saved account.
 
 ### Nexa, moderation and safety
 

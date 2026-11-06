@@ -443,26 +443,9 @@ fun RecoveryKeyPanel(value: String, confirm: String, doneLabel: String, onDone: 
 
 @Composable
 fun RegisterScreen(onLogin: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    var username by remember { mutableStateOf("") }
-    var display by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var confirm by remember { mutableStateOf("") }
-    var inviteKey by remember { mutableStateOf("") }
-    var inviteOpen by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    var nameTaken by remember { mutableStateOf<String?>(null) }
-    var displayTaken by remember { mutableStateOf<String?>(null) }
     var recovery by remember { mutableStateOf<String?>(null) }
     var instance by remember { mutableStateOf<InstanceInfo?>(Nexa.auth.instance.value) }
     LaunchedEffect(Unit) { Nexa.auth.loadInstance()?.let { instance = it } }
-
-    val uname = username.trim().lowercase()
-    val uProblem = if (uname.isNotEmpty()) usernameProblem(uname) else null
-    val mismatch = confirm.isNotEmpty() && confirm != password
-    val ready = uProblem == null && uname.length >= 2 && display.isNotBlank() && password.length >= 8 && password == confirm
 
     recovery?.let { key ->
         AuthLayout(t("register.saveYourRecoveryKey"), t("register.yourMessagesAreEndToEnd")) {
@@ -478,6 +461,31 @@ fun RegisterScreen(onLogin: () -> Unit) {
         return
     }
 
+    AuthLayout(t("register.createAnAccount")) {
+        NewAccountFields(instance, { name, shown, pass, key -> recovery = Nexa.auth.register(name, shown, pass, key, key) }, onLogin)
+    }
+}
+
+/** The new account form (web NewAccountForm), on the sign-up screen and in Add Another Account. */
+@Composable
+fun NewAccountFields(instance: InstanceInfo?, create: suspend (username: String, displayName: String, password: String, key: String?) -> Unit, onLogin: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var username by remember { mutableStateOf("") }
+    var display by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var inviteKey by remember { mutableStateOf("") }
+    var inviteOpen by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var nameTaken by remember { mutableStateOf<String?>(null) }
+    var displayTaken by remember { mutableStateOf<String?>(null) }
+    val uname = username.trim().lowercase()
+    val uProblem = if (uname.isNotEmpty()) usernameProblem(uname) else null
+    val mismatch = confirm.isNotEmpty() && confirm != password
+    val ready = uProblem == null && uname.length >= 2 && display.isNotBlank() && password.length >= 8 && password == confirm
+
     fun submit() {
         if (busy || !ready) return
         busy = true
@@ -486,7 +494,7 @@ fun RegisterScreen(onLogin: () -> Unit) {
         scope.launch {
             try {
                 val key = inviteKey.trim().takeIf { it.isNotEmpty() }
-                recovery = Nexa.auth.register(uname, display.trim(), password, key, key)
+                create(uname, display.trim(), password, key)
             } catch (e: Exception) {
                 val code = (e as? ApiError)?.code ?: ""
                 when (code) {
@@ -507,32 +515,30 @@ fun RegisterScreen(onLogin: () -> Unit) {
         }
     }
 
-    AuthLayout(t("register.createAnAccount")) {
-        error?.let { ErrorBox(it) }
-        NxTextField(username, { username = it.take(32); nameTaken = null }, label = t("settings.account.username"), required = true, error = uProblem ?: nameTaken, hint = t("register.lowercaseLettersNumbersUnderscoresAndDots"))
-        NxTextField(display, { display = it.take(32); displayTaken = null }, label = t("register.displayName"), required = true, error = displayTaken, hint = t("register.howYourNameAppearsToOthers"), capitalize = true)
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            NxTextField(password, { password = it }, label = t("chat.lockedChannel.password"), required = true, password = true)
-            StrengthMeter(password)
-        }
-        NxTextField(confirm, { confirm = it }, label = t("register.confirmPassword"), required = true, password = true, error = if (mismatch) t("settings.account.passwordsDoNotMatch") else null, imeAction = if (instance?.registration == "invite") ImeAction.Next else ImeAction.Done, onIme = { submit() })
-        if (instance?.registration == "invite") {
-            NxTextField(inviteKey, { inviteKey = it }, label = t("register.inviteRegistrationKey"), required = true, hint = t("register.youNeedAnInviteOrRegistration"))
-        } else {
-            NxButton(t("register.haveAnInviteOrRegistrationKey"), { inviteOpen = !inviteOpen }, kind = ButtonKind.LINK, icon = if (inviteOpen) "ChevronDown" else "ChevronRight")
-            if (inviteOpen) NxTextField(inviteKey, { inviteKey = it }, label = t("register.inviteRegistrationKey"))
-        }
-        NxButton(t("settings.security.continue"), { submit() }, size = ButtonSize.LG, block = true, loading = busy, enabled = ready || busy)
-        if (progress.isNotEmpty()) Note(progress, center = true)
-        // the agreement, with the two documents a tap away
-        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Note(t("legal.gatePrivacy"))
-            NxButton(t("legal.termsTitle"), { fish.nexa.ui.legal.Legal.openDocument("terms") }, kind = ButtonKind.LINK, inline = true)
-            Txt("·", style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f)), color = Nx.colors.textMuted)
-            NxButton(t("legal.privacyTitle"), { fish.nexa.ui.legal.Legal.openDocument("privacy") }, kind = ButtonKind.LINK, inline = true)
-        }
-        Foot(null, t("register.alreadyHaveAnAccount"), onLogin)
+    error?.let { ErrorBox(it) }
+    NxTextField(username, { username = it.take(32); nameTaken = null }, label = t("settings.account.username"), required = true, error = uProblem ?: nameTaken, hint = t("register.lowercaseLettersNumbersUnderscoresAndDots"))
+    NxTextField(display, { display = it.take(32); displayTaken = null }, label = t("register.displayName"), required = true, error = displayTaken, hint = t("register.howYourNameAppearsToOthers"), capitalize = true)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        NxTextField(password, { password = it }, label = t("chat.lockedChannel.password"), required = true, password = true)
+        StrengthMeter(password)
     }
+    NxTextField(confirm, { confirm = it }, label = t("register.confirmPassword"), required = true, password = true, error = if (mismatch) t("settings.account.passwordsDoNotMatch") else null, imeAction = if (instance?.registration == "invite") ImeAction.Next else ImeAction.Done, onIme = { submit() })
+    if (instance?.registration == "invite") {
+        NxTextField(inviteKey, { inviteKey = it }, label = t("register.inviteRegistrationKey"), required = true, hint = t("register.youNeedAnInviteOrRegistration"))
+    } else {
+        NxButton(t("register.haveAnInviteOrRegistrationKey"), { inviteOpen = !inviteOpen }, kind = ButtonKind.LINK, icon = if (inviteOpen) "ChevronDown" else "ChevronRight")
+        if (inviteOpen) NxTextField(inviteKey, { inviteKey = it }, label = t("register.inviteRegistrationKey"))
+    }
+    NxButton(t("settings.security.continue"), { submit() }, size = ButtonSize.LG, block = true, loading = busy, enabled = ready || busy)
+    if (progress.isNotEmpty()) Note(progress, center = true)
+    // the agreement, with the two documents a tap away
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Note(t("legal.gatePrivacy"))
+        NxButton(t("legal.termsTitle"), { fish.nexa.ui.legal.Legal.openDocument("terms") }, kind = ButtonKind.LINK, inline = true)
+        Txt("·", style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f)), color = Nx.colors.textMuted)
+        NxButton(t("legal.privacyTitle"), { fish.nexa.ui.legal.Legal.openDocument("privacy") }, kind = ButtonKind.LINK, inline = true)
+    }
+    Foot(null, t("register.alreadyHaveAnAccount"), onLogin)
 }
 
 @Composable

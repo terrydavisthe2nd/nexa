@@ -32,6 +32,8 @@ import fish.nexa.data.SignedIn
 import fish.nexa.net.ApiError
 import fish.nexa.ui.Icon
 import fish.nexa.ui.auth.ErrorBox
+import fish.nexa.ui.auth.NewAccountFields
+import fish.nexa.ui.auth.RecoveryKeyPanel
 import fish.nexa.ui.components.Avatar
 import fish.nexa.ui.components.ButtonKind
 import fish.nexa.ui.components.ButtonSize
@@ -113,13 +115,31 @@ private fun AccountOption(a: Accounts.Saved, current: Boolean, onSwitch: () -> U
     }
 }
 
+/** An account just made here: its key is shown once, so this stays until it has been saved, then the app switches. */
+private fun openNewAccountKeySheet(id: String, key: String) {
+    openSheet("add-account-key", title = t("register.saveYourRecoveryKey"), canClose = { false }, closeButton = false) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Txt(t("register.yourMessagesAreEndToEnd"), style = Nx.type.bodySmall, color = Nx.colors.textMuted)
+            RecoveryKeyPanel(key, t("register.iHaveSavedMyRecoveryKey"), t("register.continueToNexa")) { switchAccount(id) }
+        }
+    }
+}
+
 /**
  * Add Another Account, over the app (web: AddAccountModal): a password (and
  * its code) or a passkey signs another account in without leaving this one,
- * then the app switches to it.
+ * then the app switches to it. Create an Account makes a new one the same way,
+ * once its recovery key has been saved.
  */
 fun openAddAccountSheet() {
-    openSheet("add-account", title = t("accounts.addAnotherAccount")) { close ->
+    var creating by mutableStateOf(false)
+    // closing while the account is being made would lose its recovery key
+    var making by mutableStateOf(false)
+    openSheet(
+        "add-account",
+        canClose = { !making },
+        heading = { fish.nexa.ui.layers.SheetTitle(if (creating) t("register.createAnAccount") else t("accounts.addAnotherAccount")) },
+    ) { close ->
         val c = Nx.colors
         val activity = androidx.activity.compose.LocalActivity.current
         var username by remember { mutableStateOf("") }
@@ -179,11 +199,27 @@ fun openAddAccountSheet() {
             run("code", t("login.thatCodeDidNotWork")) { n.finish(if (useBackup) null else code, if (useBackup) code else null) }
         }
 
+        val instance by Nexa.auth.instance.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(Unit) { Nexa.auth.loadInstance() }
+
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             fish.nexa.ui.chat.PersonText(Nexa.users.meId, t("accounts.addHint", "name" to fish.nexa.ui.chat.PERSON_SLOT), (Nexa.users.me.value?.name ?: ""), style = Nx.type.bodySmall, color = c.textMuted)
-            error?.let { ErrorBox(it) }
+            error?.takeIf { !creating }?.let { ErrorBox(it) }
             val n = needs
-            if (n != null) {
+            if (creating) {
+                NewAccountFields(instance, { name, shown, pass, key ->
+                    making = true
+                    try {
+                        val (out, recovery) = Nexa.auth.createAccount(name, shown, pass, key, key)
+                        Nexa.auth.keepCreated(out)
+                        making = false
+                        close()
+                        openNewAccountKeySheet(out.me.id, recovery)
+                    } finally {
+                        making = false
+                    }
+                }, { creating = false })
+            } else if (n != null) {
                 Txt(if (useBackup) t("login.enterOneOfTheBackupCodes") else t("login.enterTheSixDigitCodeFrom"), style = Nx.type.bodySmall, color = c.textMuted)
                 NxTextField(
                     code, { v -> code = if (useBackup) v.uppercase().take(20) else v.filter { it.isDigit() || it == ' ' }.take(7) },
@@ -204,6 +240,9 @@ fun openAddAccountSheet() {
                 if (Passkeys.supported && activity != null) {
                     NxButton(t("passkeys.logInWithAPasskey"), { run("passkey", t("passkeys.couldNotSignIn")) { Passkeys.signIn(activity).let { (me, token, id) -> SignedIn(me, token, id) } } },
                         kind = ButtonKind.SECONDARY, size = ButtonSize.LG, block = true, icon = "KeyRound", loading = busy == "passkey")
+                }
+                if (instance?.registration != "closed") {
+                    NxButton(t("register.createAnAccount"), { creating = true; error = null }, kind = ButtonKind.SECONDARY, size = ButtonSize.LG, block = true)
                 }
             }
         }
