@@ -77,6 +77,11 @@ class ConnectionService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // told to stop while this start was on its way (see stop)
+        if (arrivedToStop()) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         // after a reboot or a restart by the system, sign back in from what is kept on the device
         if (Nexa.auth.state.value == AuthState.Loading) Nexa.scope.launch { Nexa.auth.bootstrap() }
         else Nexa.session.wake()
@@ -86,17 +91,39 @@ class ConnectionService : Service() {
     companion object {
         private const val ID = 7001
 
+        /** Starts asked for that onStartCommand has not reached yet. */
+        private var starting = 0
+        private var stopAsked = false
+
+        @Synchronized
         fun start(context: Context) {
             if (!Background.enabled) return
             try {
                 ContextCompat.startForegroundService(context, Intent(context, ConnectionService::class.java))
+                starting++
+                stopAsked = false
             } catch (_: Exception) {
                 // not allowed from the background right now; the app starts it next time it opens
             }
         }
 
+        /**
+         * Android ends the app when a service started for the foreground is
+         * stopped before it got there, so a start still on its way is left to
+         * arrive, keep that promise and stop itself. A session found revoked
+         * just after a reboot or an update did this: a start from BootReceiver,
+         * then a stop from signing out.
+         */
+        @Synchronized
         fun stop(context: Context) {
-            context.stopService(Intent(context, ConnectionService::class.java))
+            if (starting > 0) stopAsked = true
+            else context.stopService(Intent(context, ConnectionService::class.java))
+        }
+
+        @Synchronized
+        private fun arrivedToStop(): Boolean {
+            if (starting > 0) starting--
+            return stopAsked && starting == 0
         }
     }
 }

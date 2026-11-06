@@ -1507,7 +1507,9 @@ talks to the server as deployed, so it never depends on unreleased server change
 - GIF favourites (`media/GifFavorites`): a link favourite is re-signed by `MediaLinks.fresh` (saved links run
   out after a day); only a link the server refuses to sign or a file that cannot be opened counts as gone.
 - There is no push service: `notify/ConnectionService` keeps the connection open in the background (on unless
-  turned off) and `Notifier` raises alerts.
+  turned off) and `Notifier` raises alerts. Android ends the app if a service started for the foreground is stopped before it
+  gets there, so `ConnectionService.stop` leaves a start still on its way to arrive, go foreground and stop itself;
+  a session found revoked just after a reboot or an update once did exactly that.
 - The exported share target takes only external `content:` URIs, at most ten; `file:` URIs and Nexa's own
   FileProvider authority are refused before staging, so other apps cannot borrow Nexa's file access.
 - Session reset cancels pending notification posts, removes personal notifications and their history
