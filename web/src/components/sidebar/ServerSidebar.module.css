@@ -94,6 +94,15 @@
   .row:hover:has(.action) .callTimer { display: none; }
 }
 @media (hover: none) { .catAdd { display: none; } }
+/* A voice channel's chat button is the exception: a press on the row joins the
+   call, so a touch screen has no other way to its chat. It is out in the open,
+   with a finger's room, and its neighbours stay in the long-press menu. */
+@media (hover: none) {
+  .actions:has(.voiceChat) { display: flex; gap: 0; }
+  .actions:has(.voiceChat) .action:not(.voiceChat) { display: none; }
+  .voiceChat { width: 40px; height: 40px; padding: 0; align-items: center; justify-content: center; }
+  .voiceChat svg { width: 18px; height: 18px; }
+}
 /* and from the keyboard: whatever a row or a category offers shows while focus
    is on it, so Tab can reach Invite, Edit and the category's "+" */
 .row:focus-within .actions { display: flex; }

@@ -8195,6 +8195,7 @@
   "voice.channels.stereoHint": "Garde séparés les canaux gauche et droit de votre micro (128 kbps). Pour une entrée stéréo, comme une interface audio ou un câble virtuel qui transporte vos propres effets.",
   "voice.channels.stereoNote": "L'annulation d'écho, le contrôle automatique du gain et la suppression de bruit standard fusionneraient la gauche et la droite en un seul canal : ils restent donc désactivés tant que la voix stéréo est activée. Portez un casque pour que personne ne s'entende en retour.",
   "voice.channels.title": "Stéréo et mono",
+  "voiceChat.open": "Ouvrir le chat",
   "whatsNew.r20261029.maintenanceBody": "Un compte à rebours apparaît 2 heures et 30 minutes avant un redémarrage programmé du serveur pour vous permettre de prévoir une courte interruption.",
   "whatsNew.r20261029.maintenanceTitle": "Avis de Maintenance",
   "whatsNew.r20261031.callSoundsBody": "Couper ou réactiver le son, et démarrer ou arrêter un partage d’écran ont maintenant chacun leur propre son. Vous pouvez les désactiver ou les remplacer dans Paramètres, Sons.",

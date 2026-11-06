@@ -748,7 +748,10 @@ it:
   `REALTIME_TURN_DAILY_GB` of measured relay.
 - A server voice channel has its own chat (web `components/voice/VoiceRoom.tsx`, Android
   `ui/voice/VoiceRoom.kt`). It is the active channel, and marked read, only while shown, and voice channels
-  count towards unread state and Mark as Read.
+  count towards unread state and Mark as Read. Its row in the channel list has an Open Chat button that opens
+  the room with the chat showing and joins nothing, for those with View Channel and Connect: on hover or focus
+  with a mouse, always on touch, where a press on the row joins and there is no other way in. Pressing the row
+  shows the call again (web: the `voiceChat` navigation state of that visit; Android: `VoiceChatAsked`).
 - Call timers count from `call_since` on voice states through the server clock offset, falling back to the
   earliest `joined_at` (web `lib/callTimer.ts`, Android `data/CallTimer`); nothing counts while ringing.
 - Voice moderation: `PATCH /servers/{id}/members/{uid}/voice`, checked in the person's current channel (a move

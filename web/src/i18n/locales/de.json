@@ -8079,6 +8079,7 @@
   "voice.channels.stereoHint": "Hält den linken und rechten Kanal deines Mikrofons getrennt (128 kbps). Für einen Stereo-Eingang, etwa ein Audio-Interface oder ein virtuelles Kabel mit deinen eigenen Effekten.",
   "voice.channels.stereoNote": "Echounterdrückung, automatische Verstärkung und die Standard-Rauschunterdrückung würden links und rechts zu einem Kanal machen, deshalb bleiben sie aus, solange die Stereo-Stimme an ist. Nutze Kopfhörer, damit niemand sich selbst hört.",
   "voice.channels.title": "Stereo & Mono",
+  "voiceChat.open": "Chat öffnen",
   "whatsNew.r20261029.maintenanceBody": "Ein Countdown erscheint 2 Stunden und 30 Minuten vor einem geplanten Serverneustart, damit du die kurze Unterbrechung einplanen kannst.",
   "whatsNew.r20261029.maintenanceTitle": "Wartungshinweise",
   "whatsNew.r20261031.callSoundsBody": "Taubschalten, Aufheben und das Starten oder Beenden einer Bildschirmübertragung haben jetzt eigene Klänge. Du kannst sie unter Einstellungen, Klänge ausschalten oder austauschen.",

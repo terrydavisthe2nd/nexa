@@ -27,7 +27,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +56,16 @@ import fish.nexa.voice.Voice
 private const val CHAT_PREF = "chat_open"
 
 /**
+ * The voice channel whose chat was asked for: by the channel list's chat button
+ * (no call started), a link to one of its messages or the header's button. Kept
+ * out here because the list's press has to reach a page already on screen, and
+ * pressing the channel's row, which joins, clears it to show the call again.
+ */
+object VoiceChatAsked {
+    var channelId by mutableStateOf<String?>(null)
+}
+
+/**
  * ServerPage.tsx's VoiceRoom (VoiceRoom.tsx): a server's voice channel, the
  * call filling the page and the channel's own chat. From 1100 dp the chat
  * stands beside the call and whether it is open is remembered; narrower, it
@@ -78,18 +87,21 @@ fun VoiceChannelPage(channel: Channel, openChat: Boolean = false) {
     }
     val prefs = remember { Nexa.app.getSharedPreferences("voice_room", android.content.Context.MODE_PRIVATE) }
     val roomy = Nav.roomy
-    var wideOpen by remember { mutableStateOf(prefs.getBoolean(CHAT_PREF, false) || openChat) }
-    // a narrow screen's chat belongs to the channel it was opened in; a link to one of its messages opens it
-    var narrowOpen by rememberSaveable(channel.id) { mutableStateOf(openChat) }
-    val open = if (roomy) wideOpen else narrowOpen
+    var wideOpen by remember { mutableStateOf(prefs.getBoolean(CHAT_PREF, false)) }
+    // a link to one of its messages opens the chat, as the channel list's button does
+    remember(channel.id, openChat) { if (openChat) VoiceChatAsked.channelId = channel.id }
+    val asked = VoiceChatAsked.channelId == channel.id
+    val open = asked || (roomy && wideOpen)
+    fun close() { if (asked) VoiceChatAsked.channelId = null }
     fun toggle() {
-        if (!roomy) narrowOpen = !narrowOpen
+        if (!roomy) { if (open) close() else VoiceChatAsked.channelId = channel.id }
         else {
-            wideOpen = !wideOpen
+            if (open) close()
+            wideOpen = !open
             prefs.edit().putBoolean(CHAT_PREF, wideOpen).apply()
         }
     }
-    BackHandler(enabled = open && !roomy) { narrowOpen = false }
+    BackHandler(enabled = open && !roomy) { close() }
     // While the chat shows, this is the channel being read: what arrives is
     // marked read, and its notifications stay quiet.
     DisposableEffect(open, channel.id) {
@@ -119,7 +131,7 @@ fun VoiceChannelPage(channel: Channel, openChat: Boolean = false) {
                 // under a chat that covers it, the call is hidden from TalkBack
                 VoiceView(channel.id, Modifier.fillMaxSize().then(if (open && !roomy) Modifier.semantics { hideFromAccessibility() } else Modifier))
                 if (!roomy) androidx.compose.animation.AnimatedVisibility(open, enter = fadeIn() + slideInVertically { it / 24 }, exit = fadeOut()) {
-                    VoiceChat(channel, onClose = { narrowOpen = false })
+                    VoiceChat(channel, onClose = { close() })
                 }
             }
             if (roomy && open) {

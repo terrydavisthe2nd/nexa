@@ -8196,6 +8196,7 @@
   "voice.channels.stereoHint": "Mantém separados os canais esquerdo e direito do microfone (128 kbps). Para uma entrada estéreo, como uma interface de áudio ou um cabo virtual com seus próprios efeitos.",
   "voice.channels.stereoNote": "O cancelamento de eco, o controle automático de ganho e a supressão de ruído padrão transformariam esquerda e direita em um só canal, então ficam desligados enquanto a voz estéreo estiver ligada. Use fones de ouvido para que ninguém ouça a própria voz de volta.",
   "voice.channels.title": "Estéreo e Mono",
+  "voiceChat.open": "Abrir chat",
   "whatsNew.r20261029.maintenanceBody": "Uma contagem regressiva aparece 2 horas e 30 minutos antes de uma reinicialização programada do servidor para você se preparar para uma breve interrupção.",
   "whatsNew.r20261029.maintenanceTitle": "Avisos de Manutenção",
   "whatsNew.r20261031.callSoundsBody": "Ensurdecer, desensurdecer e iniciar ou encerrar um compartilhamento de tela agora tocam sons próprios. Você pode desligá-los ou trocá-los em Configurações, Sons.",

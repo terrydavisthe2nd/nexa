@@ -8079,6 +8079,7 @@
   "voice.channels.stereoHint": "Håller mikrofonens vänstra och högra kanal åtskilda (128 kbps). För en stereoingång, till exempel ett ljudgränssnitt eller en virtuell kabel med dina egna effekter.",
   "voice.channels.stereoNote": "Ekodämpning, automatisk förstärkning och standardbrusreducering skulle göra vänster och höger till en kanal, så de är avstängda så länge stereoröst är på. Använd hörlurar så att ingen hör sig själv.",
   "voice.channels.title": "Stereo och mono",
+  "voiceChat.open": "Öppna chatt",
   "whatsNew.r20261029.maintenanceBody": "En nedräkning visas 2 timmar och 30 minuter före en planerad omstart av servern så att du kan planera för ett kort avbrott.",
   "whatsNew.r20261029.maintenanceTitle": "Underhållsmeddelanden",
   "whatsNew.r20261031.callSoundsBody": "Att stänga av och slå på ljudet och att starta eller avsluta en skärmdelning spelar nu egna ljud. Du kan stänga av eller byta dem under Inställningar, Ljud.",

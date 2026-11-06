@@ -1,6 +1,6 @@
 import { MessageSquareText, X } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useLayoutEffect, useState } from "react";
+import { useLocation, useParams } from "react-router-dom";
 import type { Channel } from "@/api/types";
 import { ChannelTalk } from "@/components/chat/ChatView";
 import { ChannelGlyph } from "@/components/common/ChannelGlyph";
@@ -34,12 +34,16 @@ export function VoiceRoom({ channel }: { channel: Channel }) {
     storage.set(CHAT_KEY, wideOpen ? "0" : "1");
     setWideOpen(!wideOpen);
   };
-  // a narrow screen's chat belongs to the channel it was opened in; a link to one of its messages opens it there
+  // A narrow screen's chat belongs to the visit that opened it: a link to one of
+  // its messages or the channel list's chat button opens it, with no call
+  // started, and pressing the channel's row (which joins) shows the call again.
   const { messageId } = useParams();
-  useEffect(() => {
-    setNarrowOpen(!!messageId);
-    if (messageId) setWideOpen(true);
-  }, [channel.id, messageId]);
+  const { key: visit, state } = useLocation();
+  const asked = !!messageId || (state as { voiceChat?: boolean } | null)?.voiceChat === true;
+  useLayoutEffect(() => {
+    setNarrowOpen(asked);
+    if (asked) setWideOpen(true);
+  }, [channel.id, visit, asked]);
   // While the chat shows, this is the channel being read: what arrives is
   // marked read, and its notifications stay quiet.
   const setActiveChannel = useUI((u) => u.setActiveChannel);

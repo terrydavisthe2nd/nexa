@@ -335,6 +335,7 @@ private fun ChannelRow(serverId: String, ch: Channel, selected: Boolean, threads
                             // a link channel opens its address and leaves the open channel where it is
                             ch.isLink -> LinkChannels.open(ch)
                             ch.isVoice -> {
+                                fish.nexa.ui.voice.VoiceChatAsked.channelId = null
                                 Nav.go(Route.Server(serverId, ch.id))
                                 joinVoice(ch.id)
                             }
@@ -372,6 +373,8 @@ private fun ChannelRow(serverId: String, ch: Channel, selected: Boolean, threads
                 if (ch.isVoice && ch.userLimit > 0) Txt("${people.size}/${ch.userLimit}", style = Nx.type.hint, color = c.textMuted, maxLines = 1)
                 // a link channel leads out of the app, which the arrow says before it is pressed
                 if (ch.isLink) Icon("ArrowUpRight", if (pressed) c.text else c.textMuted, size = 14.dp, modifier = Modifier.padding(end = 4.dp))
+                // a voice channel's chat, without joining its call; reading it needs Connect too
+                if (ch.isVoice && Nexa.servers.canI(Nexa.servers.get(serverId), P.VIEW_CHANNEL or P.CONNECT, ch.id)) VoiceChatButton(serverId, ch.id)
                 if (mentions > 0) CountBadge(mentions, Modifier.padding(start = 4.dp))
             }
         }
@@ -382,6 +385,22 @@ private fun ChannelRow(serverId: String, ch: Channel, selected: Boolean, threads
         }
         for ((i, th) in threads.withIndex()) ThreadRow(serverId, th, th.id == activeId, first = i == 0, last = i == threads.lastIndex)
     }
+}
+
+/** Opens a voice channel's chat with no call started; a press on the row itself joins. */
+@Composable
+private fun VoiceChatButton(serverId: String, channelId: String) {
+    val label = t("voiceChat.open")
+    Box(
+        Modifier
+            .size(40.dp)
+            .pressable(remember { MutableInteractionSource() }) {
+                fish.nexa.ui.voice.VoiceChatAsked.channelId = channelId
+                Nav.go(Route.Server(serverId, channelId))
+            }
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { Icon("MessageSquareText", Nx.colors.textMuted, size = 18.dp) }
 }
 
 /**

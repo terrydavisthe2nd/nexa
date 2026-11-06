@@ -1,5 +1,5 @@
 import { useMediaAnimation } from "@/lib/mediaAnimation";
-import { ArrowUpRight, ChevronDown, Plus, Settings, UserPlus, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, MessageSquareText, Plus, Settings, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { Channel } from "@/api/types";
@@ -400,6 +400,22 @@ export function ServerSidebar({ serverId }: { serverId: string }) {
           {ch.type === "link" ? <ArrowUpRight size={14} className={s.leaves} aria-hidden="true" /> : null}
         </button>
         <span className={s.actions}>
+          {/* a voice channel's chat, without joining its call; reading it needs Connect too */}
+          {ch.type === "voice" && canI(st, P.VIEW_CHANNEL | P.CONNECT, ch.id) ? (
+            <Tooltip text={t("voiceChat.open")} side="top">
+              <button
+                className={[s.action, s.voiceChat].join(" ")}
+                aria-label={t("voiceChat.open")}
+                data-testid="voice-chat-open"
+                onClick={() => {
+                  nav(`/channels/${serverId}/${ch.id}`, { state: { voiceChat: true } });
+                  useUI.getState().setLeftOpen(false);
+                }}
+              >
+                <MessageSquareText size={16} />
+              </button>
+            </Tooltip>
+          ) : null}
           {ch.type !== "link" && canI(st, P.CREATE_INSTANT_INVITE, ch.id) ? (
             <Tooltip text={t("server.invites.createInvite")} side="top">
               <button className={s.action} aria-label={t("server.invites.createInvite")} onClick={() => openModal("invite", { serverId, channelId: ch.id })}><UserPlus size={16} /></button>

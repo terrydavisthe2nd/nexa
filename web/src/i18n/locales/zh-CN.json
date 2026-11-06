@@ -7825,6 +7825,7 @@
   "voice.channels.stereoHint": "让麦克风的左右声道保持独立(128 kbps)。适用于立体声输入,例如音频接口或传送你自己效果的虚拟声卡。",
   "voice.channels.stereoNote": "回声消除、自动增益控制和标准降噪会把左右声道合成一个,所以在立体声语音开启期间它们保持关闭。请戴上耳机,以免别人听到自己的回声。",
   "voice.channels.title": "立体声与单声道",
+  "voiceChat.open": "打开聊天",
   "whatsNew.r20261029.maintenanceBody": "计划重启服务器前 2 小时 30 分钟会显示倒计时，方便你提前安排，避免短暂中断带来的影响。",
   "whatsNew.r20261029.maintenanceTitle": "维护通知",
   "whatsNew.r20261031.callSoundsBody": "关闭和打开听筒、开始和结束屏幕共享现在都有各自的提示音。你可以在设置的声音中关闭或替换它们。",
