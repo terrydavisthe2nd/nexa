@@ -134,6 +134,8 @@ export class GameService extends EventEmitter {
   private dismissed: Set<string>;
   /** The system has said which programs have windows at least once, so a look it does not answer is a hiccup. */
   private windowsAnswered = false;
+  /** Games running with no window at the last look. One that gets a window starts being played then, not when its process started. */
+  private readonly windowless = new Set<string>();
   private windowsSaid = "";
   /** Programs behaving like games, by what they run, and how many looks in a row. */
   private readonly watched = new Map<string, { name: string; exe: string; count: number }>();
@@ -317,9 +319,10 @@ export class GameService extends EventEmitter {
    * this; a look it fails to answer after that changes nothing either way, so a game
    * in the menu bar does not show for a moment because the check failed once.
    */
-  private async dropWindowless(found: Map<string, { match: Match; pids: Set<number> }>, parents: Parents): Promise<void> {
+  private async dropWindowless(found: Map<string, { match: Match; pids: Set<number>; startedAt?: number }>, parents: Parents): Promise<void> {
     if (!this.lister.gameWindows) return;
     const keys = [...found.keys()].filter((k) => found.get(k)?.match.source !== "custom");
+    for (const key of this.windowless) if (!keys.includes(key)) this.windowless.delete(key);
     if (keys.length === 0) return;
     const owners = await this.lister.gameWindows().catch(() => null);
     const before = keys.map((k) => `${k}:${[...(found.get(k)?.pids ?? [])].join("+")}`);
@@ -327,7 +330,12 @@ export class GameService extends EventEmitter {
       const seen = found.get(key);
       if (!seen) continue;
       const counts = owners ? [...owners].some((owner) => startedBy(owner, seen.pids, parents)) : !this.windowsAnswered || this.playing.has(key);
-      if (!counts) found.delete(key);
+      if (!counts) {
+        found.delete(key);
+        this.windowless.add(key);
+      } else if (this.windowless.delete(key)) {
+        delete seen.startedAt;
+      }
     }
     if (owners) this.windowsAnswered = true;
     const said = JSON.stringify({ games: before, owners: owners ? owners.size : "no answer", kept: [...found.keys()] });

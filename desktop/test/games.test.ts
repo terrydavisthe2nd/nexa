@@ -319,6 +319,31 @@ describe("the service", () => {
     s.stop();
   });
 
+  it("times a game from its window when its process sat in the menu bar without one", async () => {
+    const roblox: Proc = { pid: 80, ppid: 1, path: "/Applications/Roblox.app/Contents/MacOS/RobloxPlayer", startedAt: 1 };
+    let owners = new Set<number>();
+    const lister = { list: async () => [roblox], windows: async () => new Map(), gameWindows: async () => owners };
+    const start = (s: GameService) => s.activities()[0]?.timestamps?.start;
+    const { s } = service({ list: [] }, { lister });
+    await s.scan();
+    owners = new Set([80]);
+    await s.scan();
+    const opened = start(s)!;
+    expect(opened).toBeGreaterThan(1);
+    owners = new Set();
+    await s.scan();
+    owners = new Set([80]);
+    await s.scan();
+    expect(start(s)).toBe(opened); // a moment without one is the same session
+    s.stop();
+
+    // already open when the app started: its process says how long it has been going
+    const open = service({ list: [] }, { lister });
+    await open.s.scan();
+    expect(start(open.s)).toBe(1);
+    open.s.stop();
+  });
+
   it("counts a game only while it has a window, as Roblox in the menu bar has none", async () => {
     const roblox: Proc = { pid: 80, ppid: 1, path: "/Applications/Roblox.app/Contents/MacOS/RobloxPlayer", startedAt: 1 };
     let owners: Set<number> | null = new Set([999]);

@@ -1374,7 +1374,8 @@ and must stay in step and compatible with installed apps (anything new is option
   ms of osascript) at every look with a game recognised; a game gone is looked for once more after 2 s. What is
   recognised counts only while it, or something it started, has a normal window (`gameWindows`, `dropWindowless`),
   because Roblox keeps a player process in the menu bar with no window: closing its window replaces the player with a
-  hidden one, and the next window opens in that same process. Games added by hand are exempt. A system that has never
+  hidden one, and the next window opens in that same process, so a game seen without a window times its play from
+  when the window appears, not from its process's start. Games added by hand are exempt. A system that has never
   answered the check holds nothing back; once it has answered, a look it fails to answer changes nothing either way.
   Linux has no such check, since `_NET_WM_PID` is not always set and native Wayland windows cannot be seen. Evidence, best first (`match.ts`): a game the person added; exact programs (Steam's non-Steam shortcuts,
   Heroic's added games); Steam's own launch line; Steam's manifests; records of what launchers installed (Epic,
