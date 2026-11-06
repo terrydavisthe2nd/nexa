@@ -1370,11 +1370,13 @@ and must stay in step and compatible with installed apps (anything new is option
   `devicechange`, which would wake the browser's media services.
 - Game detection (from 1.2.11; `src/main/games/`, Settings, Activity, on by default and off with the Rich Presence
   switch): what is running stays on the computer; only the name of a game found, and the store's id that names it
-  exactly, leaves it, as an activity with `detected: true`. A look every 5 s; a game gone is looked for once more
-  after 2 s. What is recognised counts only while it, or something it started, has a normal window (`gameWindows`,
-  `dropWindowless`), because Roblox keeps its player process in the menu bar with no window after a game ends. Games
-  added by hand are exempt, an unanswered check holds nothing back, and Linux has no such check, since `_NET_WM_PID`
-  is not always set and native Wayland windows cannot be seen. Evidence, best first (`match.ts`): a game the person added; exact programs (Steam's non-Steam shortcuts,
+  exactly, leaves it, as an activity with `detected: true`. A look every 3 s, and the window check (on a Mac about 70
+  ms of osascript) at every look with a game recognised; a game gone is looked for once more after 2 s. What is
+  recognised counts only while it, or something it started, has a normal window (`gameWindows`, `dropWindowless`),
+  because Roblox keeps a player process in the menu bar with no window: closing its window replaces the player with a
+  hidden one, and the next window opens in that same process. Games added by hand are exempt. A system that has never
+  answered the check holds nothing back; once it has answered, a look it fails to answer changes nothing either way.
+  Linux has no such check, since `_NET_WM_PID` is not always set and native Wayland windows cannot be seen. Evidence, best first (`match.ts`): a game the person added; exact programs (Steam's non-Steam shortcuts,
   Heroic's added games); Steam's own launch line; Steam's manifests; records of what launchers installed (Epic,
   Legendary and Heroic, Windows' uninstall list for Battle.net, EA, Ubisoft, Riot, Rockstar and Amazon); store folder
   layouts; what the system lists as a game (Linux desktop entries, Lutris, a Mac app's `LSApplicationCategoryType`);

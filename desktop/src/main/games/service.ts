@@ -56,12 +56,12 @@ interface Playing {
   missed: number;
 }
 
-const SCAN_MS = 5_000;
+const SCAN_MS = 3_000;
 /** A game gone is looked for once more this soon, so a restart or a launcher handing over shows nothing, and an exit is quick. */
 const RECHECK_MS = 2_000;
 const LIBRARY_MS = 5 * 60_000;
 /** Which looks also check how programs behave: asking the system about windows and the graphics card costs more than listing processes. */
-const BEHAVIOUR_EVERY = 6;
+const BEHAVIOUR_EVERY = 10;
 /** Looks in a row a program must behave like a game, so a moment of it asks nothing. */
 const LOOKS_TO_ASK = 2;
 const LISTS_MS = 6 * 3600_000;
@@ -132,11 +132,9 @@ export class GameService extends EventEmitter {
   private stopped = true;
   private looks = 0;
   private dismissed: Set<string>;
-  private owners: Set<number> | null = null;
-  private ownersAt = 0;
+  /** The system has said which programs have windows at least once, so a look it does not answer is a hiccup. */
+  private windowsAnswered = false;
   private windowsSaid = "";
-  /** Games recognised at the last look, window or not, so a new one is checked at once. */
-  private candidates = new Set<string>();
   /** Programs behaving like games, by what they run, and how many looks in a row. */
   private readonly watched = new Map<string, { name: string; exe: string; count: number }>();
   private suggested = new Map<string, GameSuggestion & { match: string }>();
@@ -314,27 +312,24 @@ export class GameService extends EventEmitter {
    * A game's program can run with no window at all: Roblox stays in the menu bar
    * after a game ends, with the same process the game ran in. So what is
    * recognised counts as being played only while it, or something it started, has a
-   * normal window. A game someone added is what they said it is, and where the
-   * system cannot say, nothing is held back: a game must not vanish because of this.
+   * normal window. A game someone added is what they said it is. Where the system
+   * has never said, nothing is held back, since a game must not vanish because of
+   * this; a look it fails to answer after that changes nothing either way, so a game
+   * in the menu bar does not show for a moment because the check failed once.
    */
   private async dropWindowless(found: Map<string, { match: Match; pids: Set<number> }>, parents: Parents): Promise<void> {
     if (!this.lister.gameWindows) return;
     const keys = [...found.keys()].filter((k) => found.get(k)?.match.source !== "custom");
-    const fresh = keys.some((k) => !this.candidates.has(k));
-    this.candidates = new Set(keys);
     if (keys.length === 0) return;
-    if (fresh || this.clock() - this.ownersAt >= (this.lister.gameWindowsMs ?? 0)) {
-      this.owners = await this.lister.gameWindows().catch(() => null);
-      this.ownersAt = this.clock();
-    }
-    const owners = this.owners;
+    const owners = await this.lister.gameWindows().catch(() => null);
     const before = keys.map((k) => `${k}:${[...(found.get(k)?.pids ?? [])].join("+")}`);
-    if (owners) {
-      for (const key of keys) {
-        const seen = found.get(key);
-        if (seen && ![...owners].some((owner) => startedBy(owner, seen.pids, parents))) found.delete(key);
-      }
+    for (const key of keys) {
+      const seen = found.get(key);
+      if (!seen) continue;
+      const counts = owners ? [...owners].some((owner) => startedBy(owner, seen.pids, parents)) : !this.windowsAnswered || this.playing.has(key);
+      if (!counts) found.delete(key);
     }
+    if (owners) this.windowsAnswered = true;
     const said = JSON.stringify({ games: before, owners: owners ? owners.size : "no answer", kept: [...found.keys()] });
     if (said !== this.windowsSaid) {
       this.windowsSaid = said;

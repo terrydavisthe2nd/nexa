@@ -24,8 +24,6 @@ export interface ProcessLister {
    * A platform where this cannot be trusted has no such method, and nothing is held back there.
    */
   gameWindows?(): Promise<Set<number> | null>;
-  /** How long an answer from gameWindows stays good, where asking costs a process of its own. */
-  gameWindowsMs?: number;
   /** A system call never came back, so the process can only end by being ended. */
   stuck?: boolean;
 }
@@ -243,9 +241,6 @@ export function parsePs(text: string, now: number): Proc[] {
 }
 
 export class MacLister implements ProcessLister {
-  /** Asking takes starting osascript, so it waits a little between looks. */
-  readonly gameWindowsMs = 10_000;
-
   constructor(private readonly log?: (msg: string, extra?: Record<string, unknown>) => void) {}
 
   gameWindows(): Promise<Set<number> | null> {

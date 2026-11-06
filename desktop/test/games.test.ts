@@ -295,14 +295,14 @@ describe("the service", () => {
     );
     await s.scan();
     expect(s.state().suggestions).toEqual([]); // one look is not enough
-    for (let i = 0; i < 6; i++) await s.scan();
+    for (let i = 0; i < 10; i++) await s.scan();
     const [asked] = s.state().suggestions;
     expect(asked).toMatchObject({ name: "Nightfall Hollow", exe: "nf" });
     expect(s.activities()).toEqual([]);
     s.answer(asked!.id, false);
     expect(s.state().suggestions).toEqual([]);
     expect(JSON.stringify(saved)).toContain("nightfall hollow/nf");
-    for (let i = 0; i < 13; i++) await s.scan();
+    for (let i = 0; i < 21; i++) await s.scan();
     expect(s.state().suggestions).toEqual([]); // no means never asking again
     s.stop();
   });
@@ -326,6 +326,9 @@ describe("the service", () => {
     const { s } = service({ list: [] }, { lister });
     await s.scan();
     expect(s.activities()).toEqual([]); // in the tray
+    owners = null;
+    await s.scan();
+    expect(s.activities()).toEqual([]); // one check failing must not show it
     owners = new Set([80]);
     await s.scan();
     expect(s.activities()).toMatchObject([{ name: "Roblox" }]); // in a game
@@ -340,6 +343,10 @@ describe("the service", () => {
     await s.scan();
     expect(s.activities()).toHaveLength(1); // the system not saying must never hide a game
     s.stop();
+    const silent = service({ list: [] }, { lister: { ...lister, gameWindows: async () => null } });
+    await silent.s.scan();
+    expect(silent.s.activities()).toHaveLength(1); // nor when it has never said
+    silent.s.stop();
 
     // Steam started the game and owns a window: that window is not the game's
     const game: Proc = { pid: 50, ppid: 70, path: "/g/steamapps/common/Counter-Strike Global Offensive/cs2" };
