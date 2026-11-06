@@ -29,6 +29,16 @@ class GifFavoritesSyncTest {
     }
 
     @Test
+    fun anotherDevicesFavouriteStickerSurvivesThisDevicesSave() {
+        fun stickers(vararg ids: String) = JsonObject(mapOf("favoriteStickers" to JsonArray(ids.map { kotlinx.serialization.json.JsonPrimitive(it) })))
+        val change = stickers("mine", "old")
+        val edits = SettingsStore.stickerEdits(stickers("old", "gone"), change)
+        val arriving = stickers("theirs", "old", "gone")
+        val merged = SettingsStore.layerStickers(SettingsStore.merge(arriving, change), arriving, change, edits)
+        assertEquals(listOf("mine", "theirs", "old"), (merged["favoriteStickers"] as JsonArray).map { it.jsonPrimitive.content })
+    }
+
+    @Test
     fun aChangeElsewhereIsLeftAloneWhenNothingChangedHere() {
         val arriving = doc("x.gif")
         val unsaved = JsonObject(mapOf("theme" to JsonPrimitive("light")))

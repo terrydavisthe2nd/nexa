@@ -1,18 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { Compass, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { expressions as expressionsApi } from "@/api/expressions";
 import type { StickerPack } from "@/api/types";
 
 import { Button } from "@/components/common/Button";
-import { Spinner } from "@/components/common/Spinner";
-import { StickerView } from "@/components/stickers/StickerView";
-import { LazySticker } from "@/components/stickers/StickerTile";
 import { CreatePackModal, type ImportCounts } from "@/components/modals/CreatePackModal";
-import { TextInput } from "@/components/common/TextInput";
-import { PackEditor, packCount, packCover } from "@/components/server/PackEditor";
-import { canRemovePack, confirmRemovePack } from "@/lib/packRemoval";
+import { PackEditor, type PackGroup } from "@/components/server/PackEditor";
+import { canRemovePack } from "@/lib/packRemoval";
 import { useAuth } from "@/stores/auth";
-import { useExpressions, packImageUrl } from "@/stores/expressions";
+import { useExpressions } from "@/stores/expressions";
 import { useServers } from "@/stores/servers";
 import { useUI } from "@/stores/ui";
 import { unlessUnsaved } from "@/stores/unsaved";
@@ -20,43 +18,32 @@ import st from "./Settings.module.css";
 import s from "@/components/server/PackEditor.module.css";
 
 import { t as tr_ } from "@/i18n";
-/** User settings → Sticker Packs: your own packs, installed packs, and a Discover tab for public ones. */
+
+/** User settings, Emoji & Stickers: every pack this account has, and a page for each of its own. */
 export default function StickersPage({ initialPackId }: { initialPackId?: string | undefined }) {
   const meId = useAuth((a) => a.me?.id);
   const packs = useExpressions((x) => x.packs);
   const servers = useServers((x) => x.byId);
   const upsertPack = useExpressions((x) => x.upsertPack);
   const toast = useUI((u) => u.toast);
-  const [tab, setTab] = useState<"stickers" | "emoji" | "discover">("stickers");
+  const closeModal = useUI((u) => u.closeModal);
+  const navigate = useNavigate();
   const [selected, setSelected] = useState<string | null>(initialPackId ?? null);
-  const [q, setQ] = useState("");
-  const [found, setFound] = useState<StickerPack[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const [creating, setCreating] = useState<null | "sticker" | "emoji">(null);
-  const kind = tab === "emoji" ? "emoji" : "sticker";
-  const mine = useMemo(
-    () =>
-      Object.values(packs)
-        // a server's packs live in its settings, unless one was installed from a server you are not in
-        .filter((p) => ((!p.server_id && (p.owner_user_id === meId || p.installed)) || canRemovePack(p, meId)) && (p.kind ?? "sticker") === kind)
-        .sort((a, b) => Number(b.owner_user_id === meId) - Number(a.owner_user_id === meId) || b.updated_at - a.updated_at),
-    [packs, meId, kind, servers],
-  );
-
-  useEffect(() => {
-    if (tab !== "discover") return;
-    let alive = true;
-    const t = setTimeout(() => {
-      expressionsApi
-        .publicPacks(q)
-        .then((list) => alive && setFound(list))
-        .catch(() => alive && setFound([]));
-    }, q ? 300 : 0);
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
-  }, [tab, q]);
+  const opened = selected ? packs[selected] : undefined;
+  const [tab, setTab] = useState<"sticker" | "emoji">(opened?.kind === "emoji" ? "emoji" : "sticker");
+  const kind = tab;
+  const groups = useMemo((): PackGroup[] => {
+    const list = Object.values(packs).filter((p) => (p.kind ?? "sticker") === kind).sort((a, b) => b.updated_at - a.updated_at);
+    const own = list.filter((p) => !p.server_id && p.owner_user_id === meId);
+    const installed = list.filter((p) => !own.includes(p) && (canRemovePack(p, meId) || (!p.server_id && p.installed)));
+    const fromServers = list.filter((p) => !own.includes(p) && !installed.includes(p) && !!p.server_id);
+    return [
+      { id: "own", title: tr_("settings.stickers.yourPacks"), packs: own },
+      { id: "installed", title: tr_("expressions.installed"), packs: installed },
+      { id: "servers", title: tr_("settings.stickers.fromYourServers"), packs: fromServers, note: (p) => servers[p.server_id ?? ""]?.server.name ?? null },
+    ];
+  }, [packs, meId, kind, servers]);
 
   const create = async (name: string) => {
     try {
@@ -79,16 +66,9 @@ export default function StickersPage({ initialPackId }: { initialPackId?: string
     if (counts.failed > 0) msg += " " + tr_("settings.stickers.importedFailed", { failed: counts.failed });
     toast(msg, "success");
   };
-  const install = async (p: StickerPack) => {
-    setBusy(p.id);
-    try {
-      upsertPack(await expressionsApi.install(p.id));
-      setFound((cur) => cur?.map((x) => (x.id === p.id ? { ...x, installed: true } : x)) ?? null);
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : tr_("modals.stickerPack.couldNotInstallThePack"), "error");
-    } finally {
-      setBusy(null);
-    }
+  const findMore = () => {
+    closeModal();
+    navigate(`/channels/@discover?tab=${kind === "emoji" ? "emoji" : "stickers"}`);
   };
 
   // Left and Right move along the tabs, as a tab strip does everywhere else.
@@ -105,75 +85,52 @@ export default function StickersPage({ initialPackId }: { initialPackId?: string
     next?.focus();
   };
 
+  const openPack = selected ? packs[selected] : undefined;
+  const onPackPage = !!openPack && openPack.owner_user_id === meId;
+
   return (
     <>
-      <h2 data-setting="packs" className={st.title}>{tr_("settings.stickers.expressionPacks")}</h2>
-      <p className={st.hint}>{tr_("settings.stickers.buildYourOwnEmojiAndSticker")}</p>
-      {/* A tab strip, said as one: which of the three is open was only a colour. */}
-      <div className={s.tabs} style={{ marginTop: 16 }} role="tablist" aria-label={tr_("settings.stickers.expressionPacks")}>
-        {([
-          ["stickers", tr_("pickers.expressionPicker.stickers"), "packs-stickers"],
-          ["emoji", tr_("modals.customStatus.emoji"), "packs-emoji"],
-          ["discover", tr_("settings.stickers.discover"), "packs-discover"],
-        ] as const).map(([id, label, nav]) => (
-          <button
-            key={id}
-            className={s.tab}
-            role="tab"
-            aria-selected={tab === id}
-            tabIndex={tab === id ? 0 : -1}
-            data-on={tab === id}
-            data-nav={nav}
-            onKeyDown={onTabKey}
-            // a pack's unsaved name or description would go with the pack editor, so the tabs ask first, as pages do
-            onClick={tab === id ? undefined : unlessUnsaved(() => {
-              setTab(id);
-              if (id !== "discover") setSelected(null);
-            })}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {tab !== "discover" ? (
-        <PackEditor
-          packs={mine}
-          selectedId={selected}
-          onSelect={setSelected}
-          canManage={(p) => p.owner_user_id === meId}
-          canRemove={(p) => canRemovePack(p, meId)}
-          onCreate={unlessUnsaved(() => setCreating(kind))}
-          createLabel={kind === "emoji" ? tr_("settings.stickers.createEmojiPack") : tr_("settings.stickers.createStickerPack")}
-          emptyText={kind === "emoji" ? tr_("settings.stickers.noEmojiPacksYet") : tr_("settings.stickers.noStickerPacksYet")}
-        />
-      ) : (
+      {onPackPage ? null : (
         <>
-          <TextInput value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr_("settings.stickers.searchPublicPacks")} autoFocus />
-          {found === null ? <div style={{ marginTop: 16 }}><Spinner /></div> : null}
-          {found && found.length === 0 ? <div className={s.empty}>{q ? tr_("settings.stickers.noPublicPacksMatch") : tr_("settings.stickers.noPublicPacksYet")}</div> : null}
-          <div className={s.browseGrid}>
-            {found?.map((p) => {
-              const cover = packCover(p);
-              return (
-                <div key={p.id} className={s.browseCard} data-pack={p.id}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span className={s.cover}>{cover ? <StickerView format={cover.format} src={packImageUrl(p, cover)} alt="" /> : p.name.slice(0, 1).toUpperCase()}</span>
-                    <span className={s.packText}>
-                      <span className={s.packName}>{p.name}</span>
-                      <span className={s.packSub}>{packCount(p)}</span>
-                    </span>
-                  </div>
-                  {p.description ? <span className={s.packSub}>{p.description}</span> : null}
-                  <div className={s.browseStickers}>{p.stickers.slice(0, 4).map((x) => <LazySticker key={x.id} sticker={x} pack={p} alt={x.name} />)}</div>
-                  {p.owner_user_id === meId ? <Button size="sm" variant="secondary" onClick={() => { setSelected(p.id); setTab((p.kind ?? "sticker") === "emoji" ? "emoji" : "stickers"); }}>{tr_("pickers.stickerPicker.edit")}</Button> : p.installed ? (
-                    canRemovePack(p, meId) ? <Button size="sm" variant="secondary" onClick={() => confirmRemovePack(p, () => setFound((cur) => cur?.map((x) => (x.id === p.id ? { ...x, installed: false } : x)) ?? null))}>{tr_("composer.composer.remove")}</Button> : <Button size="sm" variant="secondary" disabled>{tr_("settings.stickers.installed")}</Button>
-                  ) : <Button size="sm" loading={busy === p.id} onClick={() => void install(p)}>{tr_("settings.stickers.install")}</Button>}
-                </div>
-              );
-            })}
+          <h2 data-setting="packs" className={st.title}>{tr_("settings.groups.emojiStickers")}</h2>
+          <p className={st.hint}>{tr_("settings.stickers.buildYourOwnEmojiAndSticker")}</p>
+          <div className={s.kinds} role="tablist" aria-label={tr_("settings.groups.emojiStickers")}>
+            {([
+              ["sticker", tr_("pickers.expressionPicker.stickers"), "packs-stickers"],
+              ["emoji", tr_("modals.customStatus.emoji"), "packs-emoji"],
+            ] as const).map(([id, label, nav]) => (
+              <button
+                key={id}
+                className={s.kind}
+                role="tab"
+                aria-selected={tab === id}
+                tabIndex={tab === id ? 0 : -1}
+                data-on={tab === id}
+                data-nav={nav}
+                onKeyDown={onTabKey}
+                onClick={tab === id ? undefined : () => { setTab(id); setSelected(null); }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </>
       )}
+      <PackEditor
+        groups={groups}
+        selectedId={selected}
+        onSelect={setSelected}
+        canManage={(p) => p.owner_user_id === meId}
+        canRemove={(p) => canRemovePack(p, meId)}
+        backLabel={tr_("settings.groups.emojiStickers")}
+        actions={
+          <>
+            <Button size="sm" onClick={unlessUnsaved(() => setCreating(kind))} data-testid="create-pack"><Plus size={14} aria-hidden="true" /> {kind === "emoji" ? tr_("settings.stickers.createEmojiPack") : tr_("settings.stickers.createStickerPack")}</Button>
+            <Button size="sm" variant="secondary" onClick={findMore} data-testid="find-more-packs"><Compass size={14} aria-hidden="true" /> {tr_("pickers.stickerPicker.findMorePacks")}</Button>
+          </>
+        }
+        emptyText={kind === "emoji" ? tr_("settings.stickers.noEmojiPacksYet") : tr_("settings.stickers.noStickerPacksYet")}
+      />
       {creating ? <CreatePackModal kind={creating} onClose={() => setCreating(null)} onCreate={create} onImported={imported} /> : null}
     </>
   );

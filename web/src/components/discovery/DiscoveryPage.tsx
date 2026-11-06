@@ -1,9 +1,9 @@
 import { openReport } from "@/lib/reporting";
 import { PersonName } from "@/components/common/PersonName";
 import { useMediaAnimation } from "@/lib/mediaAnimation";
-import { TriangleAlert, Compass, Users, X } from "lucide-react";
+import { TriangleAlert, Compass, Smile, Sticker, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { discovery as discoveryApi, type DiscoveryQuery } from "@/api/discovery";
 import type { DiscoveryCard, PublicUser } from "@/api/types";
@@ -25,6 +25,7 @@ import { useServers } from "@/stores/servers";
 import { useUI } from "@/stores/ui";
 import { useUsers } from "@/stores/users";
 import chat from "@/components/chat/Chat.module.css";
+import { PackDiscovery } from "./PackDiscovery";
 import s from "./Discovery.module.css";
 
 type Sort = NonNullable<DiscoveryQuery["sort"]>;
@@ -194,7 +195,7 @@ function ServerSheet({ card, onClose }: { card: DiscoveryCard; onClose: () => vo
  * and tags, filed by category, and sorted by size or by how new it is to the
  * list. Anyone can list a server; nothing has to be earned first.
  */
-export default function DiscoveryPage() {
+function ServerDiscovery() {
   const [q, setQ] = useState("");
   const [showNSFW, setShowNSFW] = useState(false);
   const [category, setCategory] = useState("");
@@ -271,14 +272,7 @@ export default function DiscoveryPage() {
 
   const filtered = !!(q.trim() || category || tag || language || size !== "any");
   return (
-    <div className={s.page}>
-      <header className={chat.header}>
-        <PageHeaderButtons />
-        <span className={chat.hIcon}><Compass size={22} /></span>
-        <span className={chat.hName}>{t("discovery.title")}</span>
-      </header>
-      <div className={s.scroll}>
-        <div className={s.inner}>
+    <>
           <div className={s.lead}>
             <h1>{t("discovery.heading")}</h1>
             <p>{t("discovery.lead")}</p>
@@ -353,9 +347,63 @@ export default function DiscoveryPage() {
             </div>
           ) : null}
           {next !== null ? <button type="button" className={s.more} onClick={() => void load(next)}>{t("discovery.more")}</button> : null}
+      {open ? <ServerSheet card={open} onClose={() => setOpen(null)} /> : null}
+    </>
+  );
+}
+
+type Section = "servers" | "stickers" | "emoji";
+const SECTIONS: { id: Section; label: string; icon: typeof Compass }[] = [
+  { id: "servers", label: "discovery.tab.servers", icon: Compass },
+  { id: "stickers", label: "pickers.expressionPicker.stickers", icon: Sticker },
+  { id: "emoji", label: "modals.customStatus.emoji", icon: Smile },
+];
+
+/**
+ * The Discover tab: servers to join, and sticker and emoji packs to install.
+ * Which part is open is in the address, so the picker and Settings can link to
+ * it. A part once opened stays mounted, so coming back keeps its search.
+ */
+export default function DiscoveryPage() {
+  const [params, setParams] = useSearchParams();
+  const asked = params.get("tab");
+  const section: Section = asked === "stickers" || asked === "emoji" ? asked : "servers";
+  const [seen, setSeen] = useState<Set<Section>>(() => new Set([section]));
+  if (!seen.has(section)) setSeen(new Set(seen).add(section));
+  const choose = (id: Section) => setParams(id === "servers" ? {} : { tab: id }, { replace: true });
+  const onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const dir = document.documentElement.dir === "rtl" ? -step : step;
+    const at = SECTIONS.findIndex((x) => x.id === section);
+    const next = SECTIONS[Math.min(SECTIONS.length - 1, Math.max(0, at + dir))]!;
+    choose(next.id);
+    e.currentTarget.parentElement?.querySelector<HTMLElement>(`[data-section="${next.id}"]`)?.focus();
+  };
+  return (
+    <div className={s.page}>
+      <header className={chat.header}>
+        <PageHeaderButtons />
+        <span className={chat.hIcon}><Compass size={22} /></span>
+        <span className={chat.hName}>{t("discovery.title")}</span>
+      </header>
+      <div className={s.scroll}>
+        <div className={s.inner}>
+          <div className={s.sections} role="tablist" aria-label={t("discovery.title")}>
+            {SECTIONS.map(({ id, label, icon: Icon }) => (
+              <button key={id} type="button" role="tab" className={s.section} aria-selected={section === id} tabIndex={section === id ? 0 : -1} data-section={id} data-testid={`discovery-tab-${id}`} onKeyDown={onKey} onClick={() => choose(id)}>
+                <Icon size={16} aria-hidden="true" />
+                {t(label)}
+              </button>
+            ))}
+          </div>
+          {/* each stays as it was left; what is not open is not drawn */}
+          <div className={s.sectionBody} hidden={section !== "servers"}>{seen.has("servers") ? <ServerDiscovery /> : null}</div>
+          {seen.has("stickers") ? <div className={s.sectionBody} hidden={section !== "stickers"}><PackDiscovery kind="sticker" /></div> : null}
+          {seen.has("emoji") ? <div className={s.sectionBody} hidden={section !== "emoji"}><PackDiscovery kind="emoji" /></div> : null}
         </div>
       </div>
-      {open ? <ServerSheet card={open} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }

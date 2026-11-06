@@ -24,7 +24,7 @@ import { IncomingCallHost } from "@/components/voice/IncomingCall";
 import { ShareScreenModal } from "@/components/voice/ShareScreenModal";
 import { ScreenPermission } from "@/components/desktop/DisplayPicker";
 import { GuestLinkModal } from "@/components/voice/GuestLinkModal";
-import type { StickerInfo } from "@/api/types";
+import type { StickerPack } from "@/api/types";
 import type { AppForm } from "@/api/apps";
 import { StickerPackModal } from "./StickerPackModal";
 import { BlockDialog } from "@/components/profile/BlockDialog";
@@ -132,7 +132,7 @@ function ModalEntry({ modal }: { modal: ModalState }) {
       {modal?.kind === "createPoll" ? <CreatePollModal onClose={close} channelId={String(modal.props?.["channelId"])} /> : null}
       {modal?.kind === "follow" ? <FollowDialog onClose={close} channelId={String(modal.props?.["channelId"])} /> : null}
       {modal?.kind === "createThread" ? <CreateThreadModal onClose={close} channelId={String(modal.props?.["channelId"])} messageId={modal.props?.["messageId"] as string | undefined} /> : null}
-      {modal?.kind === "stickerPack" ? <StickerPackModal onClose={close} info={modal.props?.["info"] as StickerInfo} stickerId={String(modal.props?.["stickerId"])} /> : null}
+      {modal?.kind === "stickerPack" ? <StickerPackModal onClose={close} packId={String(modal.props?.["packId"])} pack={modal.props?.["pack"] as StickerPack | undefined} stickerId={modal.props?.["stickerId"] as string | undefined} /> : null}
       {modal?.kind === "serverProfile" ? <ServerProfileModal onClose={close} serverId={String(modal.props?.["serverId"])} userId={modal.props?.["userId"] as string | undefined} /> : null}
       {modal?.kind === "block" ? <BlockDialog onClose={close} userId={String(modal.props?.["userId"])} /> : null}
       {modal?.kind === "folderSettings" ? <FolderSettingsModal onClose={close} folderId={modal.props?.["folderId"] as string | undefined} serverIds={modal.props?.["serverIds"] as string[] | undefined} /> : null}

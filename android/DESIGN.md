@@ -166,6 +166,7 @@ From the owner (CLAUDE.md and standing feedback):
 | Full-message reporting, the stepped report form, Your Reports and the one-page staff report with a return path from related staff pages | Done: ReportModal, ReportsTab, YourReportsPage and reportNavigation on the web |
 | Dialogs, sheets, Settings and the picture viewer fade or slide away when closed instead of vanishing | Done: lib/leaveCopy.ts (Modal, SettingsLayer, Lightbox, toasts) |
 | The picture viewer moves sideways between a message's pictures | Done: Lightbox's `data-step` slides the next one in from that side |
+| Holding a sticker in the picker shows it big and moving over its menu | Done: StickerPeek in StickerPicker |
 
 Report forms are steps, as on the web: the reasons as one panel of rows (glyph tinted by urgency, name, what it covers; a press goes on), then the details (the chosen reason with Change, an emergency note for urgent reasons, What Staff Will See, What Happened?, the sharing notice), then the receipt with Block and Your Reports. Message previews and staff evidence use MessageRow, with readonly polls and retained files supplied to the staff row. Only Something Else reports take screenshots.
 

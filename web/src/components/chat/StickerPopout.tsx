@@ -145,7 +145,7 @@ export function StickerPopout({ sticker, anchor, onClose }: { sticker: MessageSt
           data-testid="view-sticker-pack"
           onClick={() => {
             onClose();
-            openModal("stickerPack", { info, stickerId: sticker.id });
+            openModal("stickerPack", { packId: info.pack.id, pack: info.pack, stickerId: sticker.id });
           }}
         >
           {t("chat.stickerPopout.viewPack")}

@@ -3,6 +3,7 @@ import { users } from "@/api/users";
 import { randomBytes } from "@/crypto/bytes";
 import { decryptSettings, encryptSettings } from "@/lib/settingsCrypto";
 import { toggleFavoriteGif } from "@/lib/gifFavorites";
+import { toggleFavoriteSticker } from "@/lib/stickerFavorites";
 import { useSettings } from "./settings";
 
 const key = randomBytes(32);
@@ -108,6 +109,17 @@ describe("settings sync", () => {
     const urls = (server.doc["favoriteGifs"] as { url: string }[]).map((f) => f.url);
     expect(urls).toEqual(["https://a.example/mine.gif", "https://a.example/theirs.gif", "https://a.example/old.gif"]);
     expect(useSettings.getState().settings.favoriteGifs.map((f) => f.url)).toEqual(urls);
+  });
+
+  it("keeps a sticker favourited on another device when this one favourites another", async () => {
+    const server = fakeServer({ favoriteStickers: ["old", "gone"] });
+    await loadFrom(server);
+    server.doc = { ...server.doc, favoriteStickers: ["theirs", ...(server.doc["favoriteStickers"] as string[])] };
+    server.version += 1;
+    toggleFavoriteSticker("mine");
+    toggleFavoriteSticker("gone");
+    await useSettings.getState().flush();
+    expect(server.doc["favoriteStickers"]).toEqual(["mine", "theirs", "old"]);
   });
 
   it("sends a change still waiting when the store is reset straight after", async () => {

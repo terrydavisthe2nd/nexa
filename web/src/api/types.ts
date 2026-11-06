@@ -522,6 +522,12 @@ export interface Sticker {
   animated: boolean;
 }
 
+export interface DiscoverPacksPage {
+  packs: StickerPack[];
+  has_more: boolean;
+  next_offset?: number;
+}
+
 export interface StickerPack {
   id: Snowflake;
   /** "sticker" for the big ones you post, "emoji" for the small ones you type. */
@@ -536,6 +542,12 @@ export interface StickerPack {
   updated_at: number;
   stickers: Sticker[];
   installed: boolean;
+  /** How many the whole pack holds, where `stickers` is only a preview (Discovery). */
+  sticker_count?: number;
+  /** How many people installed it, where someone is deciding whether to. */
+  install_count?: number;
+  /** Who made it, where a pack is looked at on its own. */
+  owner?: PublicUser;
 }
 
 /** Where a sticker seen in a message comes from: only ever a public pack. */

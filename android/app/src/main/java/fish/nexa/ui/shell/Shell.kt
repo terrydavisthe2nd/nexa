@@ -232,7 +232,7 @@ fun MainShell() {
                     is Route.NexaBug -> fish.nexa.ui.nexa.NexaBugPage(route.reportId)
                     is Route.Notes -> fish.nexa.ui.notes.NotesPage(route)
                     is Route.Support -> fish.nexa.ui.support.SupportPage()
-                    is Route.Discover -> fish.nexa.ui.discovery.DiscoverPage()
+                    is Route.Discover -> fish.nexa.ui.discovery.DiscoverPage(route.section)
                     is Route.Admin -> fish.nexa.ui.moderation.AdminPanel(route)
                 }
             }

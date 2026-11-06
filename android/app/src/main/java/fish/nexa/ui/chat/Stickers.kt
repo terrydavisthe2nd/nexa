@@ -72,11 +72,6 @@ import okhttp3.Request
 import java.util.zip.GZIPInputStream
 import kotlin.math.roundToInt
 
-/** Where "View Sticker Pack" goes: set by the sticker pack dialog when it exists, so the popout offers it only then. */
-object StickerPacks {
-    var open: ((packId: String, stickerId: String) -> Unit)? = null
-}
-
 /** A sticker's drawing: a picture (animated or not), a Lottie animation (.tgs), or a looping silent video (.webm). */
 @Composable
 fun StickerMedia(format: String?, url: String, alt: String, size: Dp, modifier: Modifier = Modifier) {
@@ -249,10 +244,9 @@ private fun openStickerPopout(sticker: StickerRef, format: String?, ref: AnchorR
                 }
             }
             NxButton(t("reports.report"), { close(); fish.nexa.ui.reports.openReport(fish.nexa.data.ReportContext(kind = "sticker", id = sticker.id)) }, kind = fish.nexa.ui.components.ButtonKind.GHOST, size = ButtonSize.SM, block = true)
-            val opener = StickerPacks.open
             when {
                 !loaded -> Box(Modifier.fillMaxWidth().background(c.bgFloating), contentAlignment = Alignment.Center) { Spinner(size = 16.dp) }
-                packId != null && opener != null -> NxButton(t("chat.stickerPopout.viewPack"), { close(); opener(packId, sticker.id) }, size = ButtonSize.SM, block = true)
+                packId != null -> NxButton(t("chat.stickerPopout.viewPack"), { close(); fish.nexa.ui.stickers.openPackSheet(packId, info?.pack, sticker.id) }, size = ButtonSize.SM, block = true)
             }
         }
     }

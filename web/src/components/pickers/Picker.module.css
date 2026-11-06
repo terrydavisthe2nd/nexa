@@ -61,14 +61,53 @@
 .cellImg { width: 32px; height: 32px; object-fit: contain; }
 /* one emoji cut from a sprite sheet; its size and place come with the cell */
 .sprite { display: block; flex: none; background-repeat: no-repeat; pointer-events: none; }
-.sectionRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sectionRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .sectionLink { font-size: 12px; font-weight: 600; color: var(--text-brand); text-transform: none; }
 .sectionLink:hover { text-decoration: underline; }
 .sectionLink[data-danger="true"] { color: var(--text-danger); }
 .sectionName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stickerGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; padding: 4px 8px 12px; }
-.stickerCell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); background: var(--sheen), var(--bg-surface); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border-subtle); cursor: pointer; overflow: hidden; transition: transform var(--dur) var(--ease-spring), box-shadow var(--transition); }
+.stickerWrap { position: relative; min-width: 0; }
+.stickerCell { width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); background: var(--sheen), var(--bg-surface); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border-subtle); cursor: pointer; overflow: hidden; transition: transform var(--dur) var(--ease-spring), box-shadow var(--transition); }
 .stickerCell:hover { transform: translateY(-2px) scale(1.02); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border-strong), var(--shadow-medium); }
+/* sent with the picker staying open: the tile answers, since nothing else on it changes */
+.stickerCell[data-sent] { animation: stickerSent 260ms var(--ease-spring); }
+@keyframes stickerSent { 40% { transform: scale(0.88); } 100% { transform: none; } }
+/* the same corner star a GIF has: there when pointed at, and always on a favourite */
+.stickerStar { position: absolute; top: 4px; inset-inline-end: 4px; display: flex; padding: 4px; border-radius: 50%; background: rgba(0, 0, 0, 0.6); color: #fff; opacity: 0; }
+.stickerWrap:focus-within .stickerStar { opacity: 1; }
+@media (hover: hover) { .stickerWrap:hover .stickerStar { opacity: 1; } .stickerStar:hover { color: var(--warning); } }
+.stickerStar[data-on] { opacity: 1; color: var(--warning); }
+/* among the favourites every one has it: there it only shows to take away */
+[data-part="favorites"] .stickerStar[data-on] { opacity: 0; }
+[data-part="favorites"] .stickerWrap:focus-within .stickerStar { opacity: 1; }
+@media (hover: hover) { [data-part="favorites"] .stickerWrap:hover .stickerStar { opacity: 1; } }
+/* on a touch screen a press on the corner still sends: the menu is where a star comes and goes */
+@media (hover: none) { .stickerStar { pointer-events: none; } .stickerStar:not([data-on]) { display: none; } }
+.stickerGridMore { padding-top: 0; }
+/* a pack's heading: fold it, what it is, where it came from, and everything else behind one menu */
+.packHead { padding-inline-end: 0; }
+.packToggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; min-height: 28px; color: var(--text); font: inherit; font-weight: 700; text-align: start; }
+.packToggle:hover { color: var(--text-strong); }
+.packChevron { flex: none; color: var(--text-muted); transition: transform var(--dur) var(--ease-out); }
+.packChevron[data-open="false"] { transform: rotate(-90deg); }
+[dir="rtl"] .packChevron[data-open="false"] { transform: rotate(90deg); }
+.packSource { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.packMore { flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radius-xs); color: var(--icon); }
+.packMore:hover { background: var(--bg-hover); color: var(--text); }
+/* the strip under the grid */
+.stickerBar { gap: 8px; }
+.stickerBarArt { flex: none; width: 28px; height: 28px; object-fit: contain; }
+.stickerBar .name { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stickerBarPack { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 13px; text-align: end; }
+.stickerBarHint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 13px; }
+/* a finger cannot point and has no Shift, so a held sticker says all of this instead */
+@media (hover: none) { .stickerBar { display: none; } }
+/* a held sticker, over its menu on a phone */
+.stickerPeek { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0 8px; text-align: center; }
+.stickerPeekArt { width: 160px; height: 160px; object-fit: contain; margin-bottom: 6px; }
+.stickerPeekName { font-family: var(--font-display); font-size: 17px; font-weight: 690; color: var(--text-strong); max-width: 100%; overflow-wrap: anywhere; }
+.stickerPeekPack { font-size: 13px; font-weight: 500; color: var(--text-muted); max-width: 100%; overflow-wrap: anywhere; }
 /* the whole cell: a canvas-drawn sticker takes the size of its box, and has none of its own */
 .stickerCell [data-sticker-media] { width: 100%; height: 100%; object-fit: contain; }
 .catImg { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; overflow: hidden; }
@@ -99,6 +138,9 @@
 @media (pointer: coarse) {
   .tab { padding: 8px 12px; }
   .cat, .close { width: 40px; height: 40px; }
+  .sectionLink { min-height: 32px; }
+  .packToggle { min-height: 36px; }
+  .packMore { width: 40px; height: 36px; }
 }
 
 .section { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

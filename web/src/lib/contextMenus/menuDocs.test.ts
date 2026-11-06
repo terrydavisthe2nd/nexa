@@ -60,6 +60,7 @@ const WHERE: Record<string, string> = {
   serverBulk: "Several servers picked in the server rail",
   serverProfilePick: "Picking a server, in Settings, Profiles",
   stickerOrder: "Moving a sticker, in a sticker pack's editor",
+  pickerSticker: "A sticker in the sticker picker",
   stickerPack: "A sticker pack in the sticker picker",
   subchat: "A sub-conversation of a direct message",
   systemMessage: "A message the app writes itself (a join, a pin, a call)",

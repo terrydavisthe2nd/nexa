@@ -218,7 +218,7 @@ private fun PickerSheet(layer: Layer, opener: Pickers.Opener, close: () -> Unit)
                         opener.onEmoji(picked)
                         if (opener.closeOnEmoji) close()
                     }
-                    Pickers.Tab.STICKERS -> StickerTab(opener.serverId) { s ->
+                    Pickers.Tab.STICKERS -> StickerTab(opener.serverId, close) { s ->
                         close()
                         opener.onSticker?.invoke(s)
                     }
@@ -521,105 +521,5 @@ private fun ToneButton(tone: Int) {
 }
 
 // ---------------------------------------------------------------------------
-// stickers
-
-@Composable
-private fun StickerTab(serverId: String?, pick: (Sticker) -> Unit) {
-    val c = Nx.colors
-    var query by remember { mutableStateOf("") }
-    val packs by Nexa.expressions.packs.collectAsState()
-    val recent by Nexa.expressions.recentStickers.collectAsState()
-    val me = Nexa.users.meId
-    val stickerPacks = packs.values.filter { it.kind == "sticker" }
-    // This Server, My Packs, Installed, Other Servers; newest updated first in each
-    val groups = listOf(
-        t("expressions.thisServer") to stickerPacks.filter { serverId != null && it.serverId == serverId },
-        t("expressions.myPacks") to stickerPacks.filter { it.serverId == null && it.ownerUserId == me },
-        t("expressions.installed") to stickerPacks.filter { it.serverId == null && it.ownerUserId != me && it.installed },
-        t("expressions.otherServers") to stickerPacks.filter { it.serverId != null && it.serverId != serverId },
-    ).map { (title, list) -> title to list.sortedByDescending { it.updatedAt } }.filter { it.second.isNotEmpty() }
-    val q = query.trim().lowercase()
-    Column(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)) {
-            NxTextField(query, { query = it }, placeholder = t("pickers.stickerPicker.searchStickers"))
-        }
-        if (stickerPacks.isEmpty()) {
-            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Txt(t("pickers.stickerPicker.noStickerPacksYet"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f)), color = c.textMuted)
-                fish.nexa.ui.components.NxButton(t("pickers.stickerPicker.createOrInstallAPack"), { fish.nexa.ui.settings.Settings.open("stickers") }, kind = fish.nexa.ui.components.ButtonKind.LINK, inline = true)
-            }
-            return@Column
-        }
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val cols = maxOf(2, ((maxWidth - 16.dp) / 104.dp).toInt())
-            LazyVerticalGrid(GridCells.Fixed(cols), modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                fun heading(title: String, key: String, small: Boolean) {
-                    item(key = "h:$key", span = { GridItemSpan(maxLineSpan) }) {
-                        Txt(
-                            title,
-                            style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(if (small) 13f else 12.5f), fontWeight = FontWeight(if (small) 600 else 700)),
-                            color = if (small) c.text else c.textMuted, maxLines = 1,
-                            modifier = Modifier.padding(start = 4.dp, top = if (small) 4.dp else 12.dp, bottom = 4.dp),
-                        )
-                    }
-                }
-                fun tiles(list: List<Sticker>, key: String) {
-                    items(list.size, key = { "$key:" + list[it].id }) { i -> StickerTile(list[i]) { pick(list[i]) } }
-                }
-                fun matches(s: Sticker) = q.isEmpty() || s.name.lowercase().contains(q) || s.tags.lowercase().contains(q)
-                if (q.isEmpty() && recent.isNotEmpty()) {
-                    heading(t("pickers.stickerPicker.recent"), "recent", small = false)
-                    tiles(recent, "recent")
-                }
-                var any = false
-                // the groups (This Server, My Packs, Installed, Other Servers), each pack under its own name
-                for ((title, list) in groups) {
-                    val shown = list.map { it to it.stickers.filter(::matches) }.filter { it.second.isNotEmpty() || q.isEmpty() }
-                    if (shown.isEmpty()) continue
-                    heading(title, "g:$title", small = false)
-                    for ((p, stickers) in shown) {
-                        heading(p.name, "p:${p.id}", small = true)
-                        if (stickers.isEmpty()) item(key = "e:${p.id}", span = { GridItemSpan(maxLineSpan) }) {
-                            Txt(t("pickers.stickerPicker.thisPackIsEmpty"), style = Nx.type.hint, color = c.textMuted, modifier = Modifier.padding(4.dp))
-                        } else {
-                            any = true
-                            tiles(stickers, "p:${p.id}")
-                        }
-                    }
-                }
-                if (q.isNotEmpty() && !any) item(key = "none", span = { GridItemSpan(maxLineSpan) }) {
-                    Txt(t("pickers.stickerPicker.noStickersMatch"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(14f)), color = c.textMuted, modifier = Modifier.padding(24.dp))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StickerTile(s: Sticker, onClick: () -> Unit) {
-    @Suppress("UNUSED_VARIABLE") val mediaAnimationPreferences = fish.nexa.Nexa.settings.doc.collectAsState().value
-    val c = Nx.colors
-    val shape = Radii.Md
-    val density = LocalDensity.current.density
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(96.dp)
-            .graphicsLayer { val k = if (pressed) 0.96f else 1f; scaleX = k; scaleY = k }
-            .ring(shape, c.borderSubtle)
-            .background(c.bgSurface, shape)
-            .background(sheen(c), shape)
-            .topEdge(shape, c.edgeLight)
-            .clip(shape)
-            .pressable(interaction, onClick = onClick)
-            .semantics { contentDescription = s.name },
-        contentAlignment = Alignment.Center,
-    ) {
-        AsyncImage(Media.stickerUrl(s.blobId, 96, density) + if (s.animated || s.format == "tgs" || s.format == "webm") "&still=1" else "", s.name, Modifier.fillMaxSize().padding(8.dp))
-    }
-}
-
 @Composable
 private fun GifTab(pick: (Pickers.Gif) -> Unit) = GifPicker(pick)

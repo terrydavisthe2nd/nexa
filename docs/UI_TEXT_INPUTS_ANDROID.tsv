@@ -78,7 +78,6 @@ android/app/src/main/java/fish/nexa/ui/people/FriendsPage.kt:591	BasicTextField	
 android/app/src/main/java/fish/nexa/ui/people/FriendsPage.kt:612	NxTextField	note	message
 android/app/src/main/java/fish/nexa/ui/people/MemberActions.kt:216	NxTextField	reason	staff
 android/app/src/main/java/fish/nexa/ui/pickers/ExpressionPicker.kt:342	NxTextField	query	local
-android/app/src/main/java/fish/nexa/ui/pickers/ExpressionPicker.kt:543	NxTextField	query	local
 android/app/src/main/java/fish/nexa/ui/pickers/Gifs.kt:121	NxTextField	query	local
 android/app/src/main/java/fish/nexa/ui/profile/ProfileCard.kt:658	BasicTextField	text	local
 android/app/src/main/java/fish/nexa/ui/profile/ProfileCard.kt:931	BasicTextField	text	message
@@ -98,10 +97,6 @@ android/app/src/main/java/fish/nexa/ui/server/Prompt.kt:40	NxTextField	values[f.
 android/app/src/main/java/fish/nexa/ui/server/RolesPage.kt:472	NxTextField	name	server
 android/app/src/main/java/fish/nexa/ui/server/ServerPages.kt:437	NxTextField	typed	local
 android/app/src/main/java/fish/nexa/ui/server/ServerTagPage.kt:226	NxTextField	draft.text	server
-android/app/src/main/java/fish/nexa/ui/server/StickersPage.kt:382	NxTextField	name	expression
-android/app/src/main/java/fish/nexa/ui/server/StickersPage.kt:383	NxTextField	description	expression
-android/app/src/main/java/fish/nexa/ui/server/StickersPage.kt:415	NxTextField	s.name	expression
-android/app/src/main/java/fish/nexa/ui/server/StickersPage.kt:418	NxTextField	s.tags	expression
 android/app/src/main/java/fish/nexa/ui/server/VanityLink.kt:194	BasicTextField	draft	server
 android/app/src/main/java/fish/nexa/ui/settings/AboutMe.kt:107	BasicTextField	state	profile
 android/app/src/main/java/fish/nexa/ui/settings/AccountPages.kt:212	NxTextField	value	identity
@@ -140,13 +135,12 @@ android/app/src/main/java/fish/nexa/ui/settings/SecurityPage.kt:558	NxTextField	
 android/app/src/main/java/fish/nexa/ui/settings/SecurityPage.kt:562	NxTextField	again	credential
 android/app/src/main/java/fish/nexa/ui/settings/Settings.kt:438	BasicTextField	value = query	local
 android/app/src/main/java/fish/nexa/ui/settings/SoundsPage.kt:616	NxTextField	name	local
-android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:279	NxTextField	form.name	expression
-android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:280	NxTextField	form.description	expression
-android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:462	NxTextField	name	expression
-android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:463	NxTextField	tags	expression
-android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:618	NxTextField	name	expression
-android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:625	NxTextField	link	expression
-android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:705	NxTextField	q	local
+android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:450	NxTextField	name	expression
+android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:451	NxTextField	description	expression
+android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:630	NxTextField	name	expression
+android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:631	NxTextField	tags	expression
+android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:809	NxTextField	name	expression
+android/app/src/main/java/fish/nexa/ui/settings/StickersPage.kt:816	NxTextField	link	expression
 android/app/src/main/java/fish/nexa/ui/settings/ThemeBuilder.kt:145	NxTextField	draft.name	theme
 android/app/src/main/java/fish/nexa/ui/settings/ThemeBuilder.kt:457	NxTextField	text	nontext
 android/app/src/main/java/fish/nexa/ui/settings/ThemeBuilder.kt:722	NxTextField	text	theme

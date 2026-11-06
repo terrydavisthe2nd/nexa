@@ -79,6 +79,7 @@ var muteAllowed = map[string]bool{
 	"DELETE /api/v1/users/@me/blocks/{id}":                              true,
 	"PUT /api/v1/stickers/packs/{id}/install":                           true,
 	"DELETE /api/v1/stickers/packs/{id}/install":                        true,
+	"DELETE /api/v1/stickers/recent":                                    true, // only what they sent themselves
 	"POST /api/v1/channels/{id}/call/decline":                           true,
 	"POST /api/v1/channels/{id}/unlock":                                 true,
 	"POST /api/v1/servers/{id}/leave":                                   true,

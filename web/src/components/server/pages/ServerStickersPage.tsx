@@ -5,6 +5,8 @@ import { P } from "@/lib/perms";
 import { useExpressions } from "@/stores/expressions";
 import { canI, useServers } from "@/stores/servers";
 import { useUI } from "@/stores/ui";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/common/Button";
 import st from "@/components/settings/Settings.module.css";
 import { PackEditor } from "../PackEditor";
 import { promptText } from "@/components/modals/PromptModal";
@@ -34,9 +36,22 @@ export default function ServerStickersPage({ serverId }: { serverId: string }) {
 
   return (
     <>
-      <h2 className={st.title}>{t("pickers.expressionPicker.stickers")}</h2>
-      <p className={st.hint}>{t("server.serverStickers.stickerPacksThatBelongToThis")}</p>
-      <PackEditor packs={list} selectedId={selected} onSelect={setSelected} canManage={() => manage} onCreate={manage ? () => void create() : undefined} createLabel={t("server.serverStickers.createServerPack")} emptyText={manage ? t("server.serverStickers.thisServerHasNoStickerPacks") : t("server.serverStickers.thisServerHasNoStickerPacks2")} />
+      {/* a pack's page says what it is itself */}
+      {selected && manage && list.some((p) => p.id === selected) ? null : (
+        <>
+          <h2 className={st.title}>{t("pickers.expressionPicker.stickers")}</h2>
+          <p className={st.hint}>{t("server.serverStickers.stickerPacksThatBelongToThis")}</p>
+        </>
+      )}
+      <PackEditor
+        groups={[{ id: "server", packs: list }]}
+        selectedId={selected}
+        onSelect={setSelected}
+        canManage={() => manage}
+        backLabel={t("pickers.expressionPicker.stickers")}
+        actions={manage ? <Button size="sm" onClick={() => void create()} data-testid="create-pack"><Plus size={14} aria-hidden="true" /> {t("server.serverStickers.createServerPack")}</Button> : undefined}
+        emptyText={manage ? t("server.serverStickers.thisServerHasNoStickerPacks") : t("server.serverStickers.thisServerHasNoStickerPacks2")}
+      />
     </>
   );
 }

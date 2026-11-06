@@ -1,0 +1,8 @@
+/* Grid rows animate to a height nobody had to measure. */
+.unfold { display: grid; grid-template-rows: 1fr; }
+.unfold[data-moved] { transition: grid-template-rows var(--dur) var(--ease-out); }
+@starting-style { .unfold[data-moved][data-open="true"] { grid-template-rows: 0fr; } }
+.unfold[data-open="false"] { grid-template-rows: 0fr; }
+.inner { min-height: 0; overflow: hidden; }
+.unfold[data-open="true"]:not([data-moved]) .inner { overflow: visible; }
+@media (prefers-reduced-motion: reduce) { .unfold[data-moved] { transition: none; } }

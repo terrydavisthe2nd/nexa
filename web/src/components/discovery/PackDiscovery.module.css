@@ -1,0 +1,32 @@
+/* A pack on Discovery. Its colour is the cover's, as a server's card takes its icon's. */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px; }
+.card { position: relative; display: flex; flex-direction: column; min-width: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-raised); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border-subtle); transition: transform var(--dur) var(--ease-out), box-shadow var(--transition); }
+.card:hover { transform: translateY(-2px); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border-strong), var(--shadow-medium); }
+.card:has(.hit:focus-visible) { box-shadow: 0 0 0 2px var(--focus-ring); }
+.hit { position: absolute; inset: 0; z-index: 1; }
+.hit:focus-visible { outline: none; }
+/* a sheet of loose stickers: the one bold thing here, and only here. Each sits at its own slight tilt, as stuck on by hand. */
+.sheet { position: relative; display: flex; align-items: center; justify-content: center; height: 124px; padding: 8px 12px; overflow: hidden; background: var(--sheen), color-mix(in srgb, var(--tint) 34%, var(--bg-raised)); }
+.item { flex: 1 1 0; min-width: 0; max-width: 92px; aspect-ratio: 1; margin-inline: -3px; filter: drop-shadow(0 4px 6px color-mix(in srgb, var(--shade) 55%, transparent)); }
+.item[data-at="0"] { rotate: -5deg; }
+.item[data-at="1"] { rotate: 3deg; translate: 0 5px; }
+.item[data-at="2"] { rotate: -2deg; translate: 0 -4px; }
+.item[data-at="3"] { rotate: 6deg; translate: 0 3px; }
+.card[data-kind="emoji"] .sheet { flex-wrap: wrap; align-content: center; gap: 6px 10px; }
+.card[data-kind="emoji"] .item { flex: none; width: 38px; max-width: none; margin: 0; }
+.card[data-kind="emoji"] .item[data-at] { translate: none; }
+.art { display: block; width: 100%; height: 100%; }
+.art [data-sticker-media] { width: 100%; height: 100%; object-fit: contain; }
+.more { position: absolute; bottom: 8px; inset-inline-end: 10px; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--shade) 72%, transparent); color: var(--text-strong); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.body { display: flex; flex-direction: column; gap: 4px; flex: 1; padding: 12px 16px 14px; }
+.name { margin: 0; font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--text-strong); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.facts { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.by { min-width: 0; font-size: 13px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desc { margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: var(--text-subtle); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.action { position: relative; z-index: 2; margin-top: auto; padding-top: 10px; }
+@media (max-width: 767px) {
+  .grid { grid-template-columns: 1fr; gap: 12px; }
+  .sheet { height: 112px; }
+  .item { max-width: 84px; }
+}
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } .card:hover { transform: none; } }

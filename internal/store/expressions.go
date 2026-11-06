@@ -38,6 +38,13 @@ type StickerPack struct {
 	Stickers       []*Sticker `json:"stickers"`
 	// Installed is set for listings from the viewer's perspective.
 	Installed bool `json:"installed"`
+	// StickerCount is how many the whole pack holds where Stickers is only a
+	// preview (Discovery). InstallCount is how many people installed it, set
+	// where someone is deciding whether to, or for whoever made it. Owner is
+	// who made it. All three are left out of what the gateway sends.
+	StickerCount *int        `json:"sticker_count,omitempty"`
+	InstallCount *int        `json:"install_count,omitempty"`
+	Owner        *PublicUser `json:"owner,omitempty"`
 }
 
 // Sticker is one image in a pack.
@@ -366,6 +373,130 @@ func (s *Store) PublicPacks(ctx context.Context, uid ids.ID, q string, limit int
 	return packs, nil
 }
 
+// DiscoverPreview is how many stickers Discovery sends for each pack: enough
+// for its card. The pack's own page asks for the rest.
+const DiscoverPreview = 8
+
+// DiscoverQuery is what Discovery's pack sections ask for.
+type DiscoverQuery struct {
+	Q      string
+	Kind   string // "sticker" or "emoji"
+	Sort   string // "popular" (the default), "newest" or "updated"
+	Offset int
+	Limit  int
+}
+
+// DiscoverPacks lists public packs with something in them for Discovery,
+// searched by the pack's name and description and its stickers' names and
+// tags, each with a preview of its stickers (the cover first) and its counts.
+// It says whether there are more after this page.
+func (s *Store) DiscoverPacks(ctx context.Context, uid ids.ID, q DiscoverQuery) ([]*StickerPack, bool, error) {
+	limit := q.Limit
+	if limit <= 0 || limit > 48 {
+		limit = 24
+	}
+	kind := "sticker"
+	if q.Kind == "emoji" {
+		kind = "emoji"
+	}
+	where := `WHERE p.public = 1 AND p.kind = ? AND EXISTS (SELECT 1 FROM stickers x WHERE x.pack_id = p.id)`
+	args := []any{kind}
+	if text := strings.TrimSpace(q.Q); text != "" {
+		if len(text) > maxSearchQuery {
+			text = text[:maxSearchQuery]
+		}
+		like := "%" + escapeLike(strings.ToLower(text)) + "%"
+		lower := s.db.Dialect.Lower
+		where += ` AND (` + lower("p.name") + ` LIKE ? ESCAPE '\' OR ` + lower("p.description") + ` LIKE ? ESCAPE '\'
+			OR EXISTS (SELECT 1 FROM stickers x WHERE x.pack_id = p.id AND (` + lower("x.name") + ` LIKE ? ESCAPE '\' OR ` + lower("x.tags") + ` LIKE ? ESCAPE '\')))`
+		args = append(args, like, like, like, like)
+	}
+	var order string
+	switch q.Sort {
+	case "newest":
+		order = `p.created_at DESC, p.id DESC`
+	case "updated":
+		order = `p.updated_at DESC, p.id DESC`
+	default:
+		order = `(SELECT count(*) FROM sticker_installs i WHERE i.pack_id = p.id) DESC, p.updated_at DESC, p.id DESC`
+	}
+	offset := max(q.Offset, 0)
+	args = append(args, limit+1, offset)
+	packs, err := s.packsQuery(ctx, where+` ORDER BY `+order+` LIMIT ? OFFSET ?`, args...)
+	if err != nil {
+		return nil, false, err
+	}
+	more := len(packs) > limit
+	if more {
+		packs = packs[:limit]
+	}
+	installed, err := s.installedSet(ctx, uid)
+	if err != nil {
+		return nil, false, err
+	}
+	list := make([]ids.ID, 0, len(packs))
+	for _, p := range packs {
+		p.Installed = installed[p.ID]
+		count := len(p.Stickers)
+		p.StickerCount = &count
+		p.Stickers = previewStickers(p)
+		list = append(list, p.ID)
+	}
+	counts, err := s.PackInstallCounts(ctx, list)
+	if err != nil {
+		return nil, false, err
+	}
+	for _, p := range packs {
+		n := counts[p.ID]
+		p.InstallCount = &n
+	}
+	return packs, more, nil
+}
+
+// previewStickers is the pack's cover followed by its first stickers.
+func previewStickers(p *StickerPack) []*Sticker {
+	out := make([]*Sticker, 0, DiscoverPreview)
+	if p.CoverStickerID != nil {
+		for _, st := range p.Stickers {
+			if st.ID == *p.CoverStickerID {
+				out = append(out, st)
+				break
+			}
+		}
+	}
+	for _, st := range p.Stickers {
+		if len(out) >= DiscoverPreview {
+			break
+		}
+		if p.CoverStickerID == nil || st.ID != *p.CoverStickerID {
+			out = append(out, st)
+		}
+	}
+	return out
+}
+
+// PackInstallCounts says how many people installed each pack.
+func (s *Store) PackInstallCounts(ctx context.Context, list []ids.ID) (map[ids.ID]int, error) {
+	out := make(map[ids.ID]int, len(list))
+	err := chunked(list, func(part []ids.ID) error {
+		rows, err := s.db.R.QueryContext(ctx, `SELECT pack_id, count(*) FROM sticker_installs WHERE pack_id IN (`+placeholders(len(part))+`) GROUP BY pack_id`, idArgs(part)...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id int64
+			var n int
+			if err := rows.Scan(&id, &n); err != nil {
+				return err
+			}
+			out[ids.ID(id)] = n
+		}
+		return rows.Err()
+	})
+	return out, err
+}
+
 func (s *Store) installedSet(ctx context.Context, uid ids.ID) (map[ids.ID]bool, error) {
 	rows, err := s.db.R.QueryContext(ctx, `SELECT pack_id FROM sticker_installs WHERE user_id = ?`, int64(uid))
 	if err != nil {
@@ -506,6 +637,12 @@ func (s *Store) TouchRecentSticker(ctx context.Context, uid, sid ids.ID) error {
 			int64(uid), int64(uid), MaxRecentStickers)
 		return err
 	})
+}
+
+// ClearRecentStickers empties uid's recent row.
+func (s *Store) ClearRecentStickers(ctx context.Context, uid ids.ID) error {
+	_, err := s.db.W.ExecContext(ctx, `DELETE FROM recent_stickers WHERE user_id = ?`, int64(uid))
+	return err
 }
 
 // RecentStickers lists uid's last-used stickers, newest first.

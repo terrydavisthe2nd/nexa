@@ -39,7 +39,7 @@ sealed interface Route {
     /** `/channels/@me/support`: Nexa's plans, and gifts. */
     data object Support : Route
     /** `/channels/@discover`: servers anyone can join. */
-    data object Discover : Route
+    data class Discover(val section: String = "servers") : Route
 
     val isHome get() = this is Friends || this is Dm || this is NexaConvo || this is NexaCase || this is NexaBug || this is Notes || this is Support
 
@@ -54,7 +54,7 @@ sealed interface Route {
         is Server -> if (channelId != null) "/channels/$serverId/$channelId" else "/channels/$serverId"
         is Admin -> "/channels/@admin/$path"
         Support -> "/channels/@me/support"
-        Discover -> "/channels/@discover"
+        is Discover -> if (section == "servers") "/channels/@discover" else "/channels/@discover?tab=$section"
     }
 }
 
@@ -168,7 +168,7 @@ object Nav {
                 else -> return false
             }
             "@admin" -> Route.Admin(parts.drop(2).filter { Regex("^[a-z]+$|^\\d{1,20}$").matches(it) }.joinToString("/").ifEmpty { "reports" })
-            "@discover" -> Route.Discover
+            "@discover" -> Route.Discover(path.substringAfter("tab=", "servers").substringBefore('&').substringBefore('#').takeIf { it == "stickers" || it == "emoji" } ?: "servers")
             else -> if (id.matches(parts[1])) Route.Server(parts[1], parts.getOrNull(2)?.takeIf { id.matches(it) }, parts.getOrNull(3)?.takeIf { id.matches(it) }) else return false
         }
         go(next)

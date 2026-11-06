@@ -1,23 +1,46 @@
-/* a public sticker pack opened from one of its stickers */
-.top { display: flex; align-items: center; gap: 16px; padding: 12px; border-radius: var(--radius-sm); background: var(--bg-surface); }
-.big { width: 120px; height: 120px; flex: none; object-fit: contain; }
-.info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.stickerName { font-family: var(--font-display); font-size: 19px; font-weight: 690; letter-spacing: -0.006em; color: var(--text-strong); overflow-wrap: anywhere; }
-.creator { font-size: 14px; color: var(--text-muted); }
+/* A whole pack: the chosen sticker big on the pack's own colour, and every sticker beside it. */
+.modal { max-height: min(86vh, 720px); }
+.layout { display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 20px; min-height: min(58vh, 520px); }
+.stage { position: sticky; top: 0; align-self: start; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 14px 14px; border-radius: var(--radius-lg); background: var(--sheen), color-mix(in srgb, var(--tint) 26%, var(--bg-raised)); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--panel-edge); }
+.big { width: 176px; height: 176px; object-fit: contain; filter: drop-shadow(0 8px 14px color-mix(in srgb, var(--shade) 60%, transparent)); }
+.bigEmoji { width: 96px; height: 96px; margin-block: 40px; object-fit: contain; }
+.stageText { width: 100%; text-align: center; min-width: 0; }
+.stickerName { font-family: var(--font-display); font-size: 18px; font-weight: 690; letter-spacing: -0.006em; color: var(--text-strong); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.tags { margin-top: 2px; font-size: 12.5px; color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stageActions { width: 100%; display: flex; flex-direction: column; gap: 2px; }
+.stageBtn { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 0 8px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; color: var(--text-subtle); }
+.stageBtn:hover { background: color-mix(in srgb, var(--text-strong) 8%, transparent); color: var(--text-strong); }
+.stageBtn[data-on] { color: var(--text-warning); }
+.main { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.head { display: flex; flex-direction: column; gap: 4px; }
+.facts { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13.5px; color: var(--text-muted); }
+.desc { margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: var(--text-subtle); overflow-wrap: anywhere; }
 .creatorLink { color: var(--text); font-weight: 600; }
 .creatorLink:hover { text-decoration: underline; }
-.desc { font-size: 14px; color: var(--text-muted); line-height: 1.4; overflow-wrap: anywhere; }
-.label { margin: 16px 0 8px; font-size: 13px; font-weight: 650; letter-spacing: 0.005em; color: var(--text-subtle); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; max-height: min(44vh, 360px); overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
-.tile { aspect-ratio: 1; padding: 8px; border-radius: var(--radius-sm); background: var(--bg-surface); display: flex; align-items: center; justify-content: center; }
-.tile:hover { background: var(--bg-hover); }
-.tile[data-on="true"] { outline: 2px solid var(--brand); outline-offset: -2px; }
-.tile [data-sticker-media] { width: 100%; height: 100%; object-fit: contain; }
-@media (max-width: 600px) {
-  .top { flex-direction: column; text-align: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; align-content: start; }
+.grid[data-kind="emoji"] { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+.tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 8px 6px 6px; border-radius: var(--radius-md); background: var(--sheen), var(--bg-surface); box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border-subtle); }
+.tile:hover { box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 1px var(--border-strong); }
+.tile[data-on="true"] { box-shadow: inset 0 1px 0 var(--edge-light), 0 0 0 2px var(--focus-ring); }
+.tileArt { width: 100%; aspect-ratio: 1; }
+.tileArt [data-sticker-media] { width: 100%; height: 100%; object-fit: contain; }
+.grid[data-kind="emoji"] .tileArt { width: 48px; }
+.tileName { width: 100%; font-size: 12px; font-weight: 550; text-align: center; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.footStart { margin-inline-end: auto; }
+.note { margin: 0; color: var(--text-muted); font-size: 14px; }
+.loading { display: flex; justify-content: center; padding: 32px; }
+.loadingMore { grid-column: 1 / -1; display: flex; justify-content: center; padding: 12px; }
+@media (max-width: 720px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 14px; min-height: 0; }
+  .stage { position: static; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 12px; }
   .big { width: 96px; height: 96px; }
-  .grid { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
+  .bigEmoji { width: 64px; height: 64px; margin-block: 16px; }
+  .stageText { width: auto; flex: 1 1 120px; text-align: start; }
+  .stageActions { flex-direction: row; flex-wrap: wrap; }
+  .stageBtn { flex: 1 1 auto; min-height: 40px; }
+  .main { display: contents; }
+  .head { order: -1; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+  /* three buttons do not fit a phone's width with all their words: the link keeps its icon */
+  .copyWords { display: none; }
 }
-
-/* Bound labels supplied by other people and apps. */
-.stickerName { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }

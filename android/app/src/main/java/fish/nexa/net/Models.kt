@@ -513,7 +513,16 @@ data class StickerPack(
     @SerialName("updated_at") val updatedAt: Long = 0,
     val stickers: List<Sticker> = emptyList(),
     val installed: Boolean = false,
+    /** How many the whole pack holds, where [stickers] is only a preview (Discovery). */
+    @SerialName("sticker_count") val stickerCount: Int? = null,
+    /** How many people installed it, where someone is deciding whether to. */
+    @SerialName("install_count") val installCount: Int? = null,
+    /** Who made it, where a pack is looked at on its own. */
+    val owner: PublicUser? = null,
 )
+
+@Serializable
+data class DiscoverPacksPage(val packs: List<StickerPack> = emptyList(), @SerialName("has_more") val hasMore: Boolean = false, @SerialName("next_offset") val nextOffset: Int? = null)
 
 @Serializable
 data class StickerInfo(val sticker: Sticker, val pack: StickerPack, val users: List<PublicUser> = emptyList())

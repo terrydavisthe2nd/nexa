@@ -51,6 +51,8 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
     // just favourited elsewhere (web settings.ts ListEdits.gifs).
     private var dirtyGifs: Map<String, JsonObject?>? = null
     private var sendingGifs: Map<String, JsonObject?>? = null
+    private var dirtyStickers: Map<String, Boolean>? = null
+    private var sendingStickers: Map<String, Boolean>? = null
     private var failures = 0
     private var debounce: Job? = null
     private val saveLock = Mutex()
@@ -71,7 +73,7 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
             if (_loaded.value && ver < version) return
             val base = if (parsed != null) merge(DEFAULTS, parsed) else DEFAULTS
             val unsaved = mergeChanges(sending, dirty)
-            _doc.value = if (unsaved != null) layerGifs(merge(base, unsaved), base, unsaved, mergeGifEdits(sendingGifs, dirtyGifs)) else base
+            _doc.value = if (unsaved != null) layerStickers(layerGifs(merge(base, unsaved), base, unsaved, mergeGifEdits(sendingGifs, dirtyGifs)), base, unsaved, mergeStickerEdits(sendingStickers, dirtyStickers)) else base
             version = ver
             _loaded.value = true
         }
@@ -99,6 +101,7 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
     fun patch(partial: JsonObject) {
         synchronized(this) {
             gifEdits(_doc.value, partial)?.let { dirtyGifs = mergeGifEdits(dirtyGifs, it) }
+            stickerEdits(_doc.value, partial)?.let { dirtyStickers = mergeStickerEdits(dirtyStickers, it) }
             _doc.value = merge(_doc.value, partial)
             dirty = mergeChanges(dirty, partial)
         }
@@ -134,6 +137,8 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
                     dirty = null
                     sendingGifs = dirtyGifs
                     dirtyGifs = null
+                    sendingStickers = dirtyStickers
+                    dirtyStickers = null
                     _doc.value
                 }
                 try {
@@ -144,6 +149,7 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
                     synchronized(this) {
                         sending = null
                         sendingGifs = null
+                        sendingStickers = null
                         failures = 0
                         version = (res.jsonObject["version"] as? JsonPrimitive)?.contentOrNull?.toLongOrNull() ?: version
                     }
@@ -153,6 +159,8 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
                         sending = null
                         dirtyGifs = mergeGifEdits(sendingGifs, dirtyGifs)
                         sendingGifs = null
+                        dirtyStickers = mergeStickerEdits(sendingStickers, dirtyStickers)
+                        sendingStickers = null
                     }
                     if (e.status == 409 && failures < 3) {
                         failures++
@@ -182,6 +190,8 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
             sending = null
             dirtyGifs = null
             sendingGifs = null
+            dirtyStickers = null
+            sendingStickers = null
             failures = 0
             _doc.value = DEFAULTS
             version = 0
@@ -256,7 +266,7 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
             put("shareActivity", true); put("autoIdle", true); put("keybinds", JsonObject(emptyMap())); put("backgroundKeybinds", true)
             put("sendTyping", true); put("customTyping", true); put("typingAvatars", true); put("typingChannels", true); put("seasonalSnow", true); put("sidebarWidth", 240); put("showMembers", true)
             put("recentEmoji", JsonArray(emptyList())); put("smartEmoji", true); put("emojiUsage", JsonObject(emptyMap())); put("emojiLearned", false)
-            put("favoriteGifs", JsonArray(emptyList())); put("skinTone", 0)
+            put("favoriteGifs", JsonArray(emptyList())); put("favoriteStickers", JsonArray(emptyList())); put("collapsedStickerPacks", JsonArray(emptyList())); put("skinTone", 0)
             put("notifications", DEFAULT_NOTIFICATIONS)
             put("sounds", buildJsonObject { put("pack", "nexa"); put("volume", 100); put("off", JsonArray(emptyList())); put("packs", JsonArray(emptyList())) })
             put("drafts", JsonObject(emptyMap())); put("voice", DEFAULT_VOICE)
@@ -344,6 +354,37 @@ class SettingsStore(private val api: Api, private val scope: CoroutineScope) {
             val kept = gifList(base).filter { gifKey(gifUrl(it)) !in changed }
             return JsonObject(LinkedHashMap(merged).apply { put("favoriteGifs", JsonArray((added + kept).take(500))) })
         }
+
+        private fun stickerIds(doc: JsonObject?): List<String> = (doc?.get("favoriteStickers") as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()
+
+        /** The favourite stickers a change starred (true) or took away (false), or null when it leaves them alone. */
+        fun stickerEdits(before: JsonObject, change: JsonObject): Map<String, Boolean>? {
+            if (change["favoriteStickers"] !is JsonArray) return null
+            val was = stickerIds(before).toSet()
+            val now = stickerIds(change).toSet()
+            val out = LinkedHashMap<String, Boolean>()
+            for (id in now) if (id !in was) out[id] = true
+            for (id in was) if (id !in now) out[id] = false
+            return out.ifEmpty { null }
+        }
+
+        fun mergeStickerEdits(a: Map<String, Boolean>?, b: Map<String, Boolean>?): Map<String, Boolean>? {
+            if (a == null) return b
+            if (b == null) return a
+            return LinkedHashMap(a).apply { putAll(b) }
+        }
+
+        /** As [layerGifs]: favourite stickers saved whole would drop one starred on another device a moment before. */
+        fun layerStickers(merged: JsonObject, base: JsonObject, unsaved: JsonObject, edits: Map<String, Boolean>?): JsonObject {
+            if (unsaved["favoriteStickers"] !is JsonArray) return merged
+            val changed = edits ?: emptyMap()
+            val added = stickerIds(unsaved).filter { changed[it] == true }
+            val kept = stickerIds(base).filter { it !in changed }
+            return JsonObject(LinkedHashMap(merged).apply { put("favoriteStickers", JsonArray((added + kept).take(MAX_FAVORITE_STICKERS).map { JsonPrimitive(it) })) })
+        }
+
+        /** How many favourite stickers are kept (web MAX_FAVORITE_STICKERS). */
+        const val MAX_FAVORITE_STICKERS = 200
 
         fun mergeChanges(a: JsonObject?, b: JsonObject?): JsonObject? {
             if (a == null) return b

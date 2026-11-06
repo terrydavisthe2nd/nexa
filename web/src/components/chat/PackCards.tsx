@@ -1,6 +1,5 @@
 import { PackageX, RotateCw } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { expressions as expressionsApi } from "@/api/expressions";
 import type { StickerPack } from "@/api/types";
 import { Button } from "@/components/common/Button";
@@ -81,10 +80,10 @@ function PackCard({ pack }: { pack: StickerPack }) {
   const meId = useAuth((a) => a.me?.id);
   const upsertPack = useExpressions((x) => x.upsertPack);
   const toast = useUI((u) => u.toast);
-  const navigate = useNavigate();
+  const openModal = useUI((u) => u.openModal);
   const [busy, setBusy] = useState(false);
   const cover = packCover(pack);
-  const open = () => navigate(`/stickers/pack/${pack.id}`);
+  const open = () => openModal("stickerPack", { packId: pack.id, pack });
   const install = async () => {
     setBusy(true);
     try {
@@ -114,7 +113,7 @@ function PackCard({ pack }: { pack: StickerPack }) {
         </div>
         <div className={v.cardActions}>
           {added ? (
-            <Button size="sm" variant="secondary" onClick={open}>{t("chat.embeds.open")}</Button>
+            <Button size="sm" variant="secondary" onClick={open}>{t("pickers.stickerPicker.viewPack")}</Button>
           ) : (
             <Button size="sm" loading={busy} onClick={() => void install()}>{t("stickerPack.installPack")}</Button>
           )}

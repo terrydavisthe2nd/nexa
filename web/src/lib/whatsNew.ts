@@ -31,6 +31,9 @@ export const RELEASES: Release[] = [
       { icon: Gamepad2, title: "whatsNew.r20261105.gameDetectionTitle", body: "whatsNew.r20261105.gameDetectionBody" },
       { icon: ScanEye, title: "whatsNew.r20261105.gameAskTitle", body: "whatsNew.r20261105.gameAskBody" },
       { icon: Sparkles, title: "whatsNew.r20261105.gameShareTitle", body: "whatsNew.r20261105.gameShareBody" },
+      { icon: Sticker, title: "whatsNew.r20261105.stickerPickerTitle", body: "whatsNew.r20261105.stickerPickerBody" },
+      { icon: Compass, title: "whatsNew.r20261105.stickerDiscoverTitle", body: "whatsNew.r20261105.stickerDiscoverBody" },
+      { icon: Images, title: "whatsNew.r20261105.stickerSettingsTitle", body: "whatsNew.r20261105.stickerSettingsBody" },
     ],
   },
   {

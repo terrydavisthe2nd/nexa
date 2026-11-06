@@ -56,7 +56,7 @@ and markdown boundaries constrain ink inside Compose constraints.
   callers are forum post body, server description and channel topic/guidelines.
   Inline profile wrappers bind display name, nickname, pronouns and About Me.
 - Dynamic web prompts: `server/pages/EmojiPage` (emoji name),
-  `ServerStickersPage` (pack name), `server/PackEditor` (sticker name/tags),
+  `ServerStickersPage` (pack name), `server/PackEditor` (pack search, staged and edited sticker names and tags),
   `server/memberBulk` (reason), `moderation/PackPage` (approval reason),
   `CaseWorkspace` (lift reason). Android `server/EmojiPage`, `server/StickersPage`,
   `chat/Members`, `moderation/Expressions` and `Cases` have the equivalent prompts.

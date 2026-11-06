@@ -173,6 +173,10 @@ export interface Settings {
   /** The emoji this account had already sent before smart suggestions came have been counted (lib/emojiSuggest.ts learnEmojiHistory). */
   emojiLearned: boolean;
   favoriteGifs: FavoriteGif[];
+  /** Stickers starred in the picker, by id, newest first. One whose pack is not on this account stays out of sight until it is. */
+  favoriteStickers: string[];
+  /** Sticker packs folded away in the picker. */
+  collapsedStickerPacks: string[];
   skinTone: number;
   /**
    * desktop: notifications in a browser, which has to be allowed first.
@@ -289,6 +293,8 @@ export const DEFAULT_SETTINGS: Settings = {
   emojiUsage: {},
   emojiLearned: false,
   favoriteGifs: [],
+  favoriteStickers: [],
+  collapsedStickerPacks: [],
   skinTone: 0,
   notifications: { desktop: false, app: true, sounds: true, perChannel: {}, muted: [], preview: "full" },
   sounds: DEFAULT_SOUNDS,
@@ -396,6 +402,9 @@ function mergeSettings(base: Settings, incoming: unknown): Settings {
     seasonalSnow: typeof inc.seasonalSnow === "boolean" ? inc.seasonalSnow : base.seasonalSnow,
     typingChannels: typeof inc.typingChannels === "boolean" ? inc.typingChannels : base.typingChannels,
 
+    favoriteStickers: Array.isArray(inc.favoriteStickers) ? inc.favoriteStickers.filter((id): id is string => typeof id === "string").slice(0, MAX_FAVORITE_STICKERS) : base.favoriteStickers,
+    collapsedStickerPacks: Array.isArray(inc.collapsedStickerPacks) ? inc.collapsedStickerPacks.filter((id): id is string => typeof id === "string") : base.collapsedStickerPacks,
+
     searchIndex: typeof inc.searchIndex === "boolean" ? inc.searchIndex : base.searchIndex,
     // no more than search/recent.ts keeps, whatever an older or odd copy holds
     searchRecent: Array.isArray(inc.searchRecent) ? inc.searchRecent.filter((q): q is string => typeof q === "string" && q.length <= 200).slice(0, 8) : base.searchRecent,
@@ -422,10 +431,14 @@ export interface ListEdits {
    * favourited on another device a moment before, and that GIF was gone.
    */
   gifs: Map<string, FavoriteGif | null>;
+  /** Favourite stickers by id, the same way: true for starred here, false for taken away here. */
+  stickers: Map<string, boolean>;
 }
 
 /** How many favourite GIFs are kept; past this the oldest drop off. */
 export const MAX_FAVORITE_GIFS = 500;
+/** How many favourite stickers are kept. */
+export const MAX_FAVORITE_STICKERS = 200;
 
 /** The entries a change to `notifications` or `favoriteGifs` added, removed or changed. */
 export function editsOf(beforeAll: Settings, change: Partial<Settings>): ListEdits | null {
@@ -437,6 +450,13 @@ export function editsOf(beforeAll: Settings, change: Partial<Settings>): ListEdi
     const now = new Map(change.favoriteGifs.map((f) => [mediaKey(f.url), f] as const));
     for (const [key, f] of now) if (!was.has(key)) gifs.set(key, f);
     for (const key of was) if (!now.has(key)) gifs.set(key, null);
+  }
+  const stickers = new Map<string, boolean>();
+  if (change.favoriteStickers) {
+    const was = new Set(beforeAll.favoriteStickers);
+    const now = new Set(change.favoriteStickers);
+    for (const id of now) if (!was.has(id)) stickers.set(id, true);
+    for (const id of was) if (!now.has(id)) stickers.set(id, false);
   }
   const muted = new Map<string, boolean>();
   if (after.muted) {
@@ -450,13 +470,13 @@ export function editsOf(beforeAll: Settings, change: Partial<Settings>): ListEdi
     for (const [id, level] of Object.entries(after.perChannel)) if (before.perChannel[id] !== level) levels.set(id, true);
     for (const id of Object.keys(before.perChannel)) if (!(id in after.perChannel)) levels.set(id, false);
   }
-  return muted.size || levels.size || gifs.size ? { muted, levels, gifs } : null;
+  return muted.size || levels.size || gifs.size || stickers.size ? { muted, levels, gifs, stickers } : null;
 }
 
 /** Two batches of edits as one, the later winning entry by entry. */
 function mergeEdits(a: ListEdits | null, b: ListEdits | null): ListEdits | null {
   if (!a || !b) return a ?? b;
-  return { muted: new Map([...a.muted, ...b.muted]), levels: new Map([...a.levels, ...b.levels]), gifs: new Map([...a.gifs, ...b.gifs]) };
+  return { muted: new Map([...a.muted, ...b.muted]), levels: new Map([...a.levels, ...b.levels]), gifs: new Map([...a.gifs, ...b.gifs]), stickers: new Map([...a.stickers, ...b.stickers]) };
 }
 
 /**
@@ -477,6 +497,12 @@ export function layerUnsaved(base: Settings, unsaved: Partial<Settings>, edits: 
     const added = unsaved.favoriteGifs.filter((f) => !!changed.get(mediaKey(f.url)));
     const kept = base.favoriteGifs.filter((f) => !changed.has(mediaKey(f.url)));
     merged.favoriteGifs = [...added, ...kept].slice(0, MAX_FAVORITE_GIFS);
+  }
+  if (unsaved.favoriteStickers) {
+    const changed = edits?.stickers ?? new Map<string, boolean>();
+    const added = unsaved.favoriteStickers.filter((id) => changed.get(id));
+    const kept = base.favoriteStickers.filter((id) => !changed.has(id));
+    merged.favoriteStickers = [...added, ...kept].slice(0, MAX_FAVORITE_STICKERS);
   }
   const mine = unsaved.notifications;
   if (!mine) return merged;
@@ -661,7 +687,7 @@ export const useSettings = create<SettingsState>()((set, get) => {
       await get().load(res?.blob ?? null, res?.version ?? 0);
     },
     patch: (partial) => {
-      if (partial.notifications || partial.favoriteGifs) dirtyEdits = mergeEdits(dirtyEdits, editsOf(get().settings, partial));
+      if (partial.notifications || partial.favoriteGifs || partial.favoriteStickers) dirtyEdits = mergeEdits(dirtyEdits, editsOf(get().settings, partial));
       set((s) => ({ settings: mergeSettings(s.settings, partial) }));
       dirty = mergeChanges(dirty, partial);
       if (saveTimer) clearTimeout(saveTimer);

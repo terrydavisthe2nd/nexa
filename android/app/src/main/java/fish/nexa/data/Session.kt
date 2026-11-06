@@ -298,6 +298,7 @@ class Session(private val nx: Nexa) {
                 if (d.bool("deleted") || pack == null) nx.expressions.removePack(id) else nx.expressions.upsertPack(pack)
             }
             "sticker_recent" -> decode((d as? JsonObject)?.get("sticker"), Sticker.serializer())?.let { nx.expressions.useRecent(it) }
+            "sticker_recent_clear" -> nx.expressions.setRecent(emptyList())
             "presence" -> decode(d, Presence.serializer())?.let { nx.presence.set(it) }
             // this account's subscription or boosts changed; only a page that has read them reads them again
             "billing_update" -> if (Plans.billing.value != null) nx.scope.launch { Plans.load() }

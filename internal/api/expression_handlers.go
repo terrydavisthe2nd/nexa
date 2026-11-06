@@ -38,6 +38,8 @@ func (s *Server) expressionRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/stickers/packs", s.stepUpUser(s.stepBuild, s.handlePackCreate))
 	mux.Handle("GET /api/v1/stickers/recent", s.authed(s.handleRecents))
 	mux.Handle("POST /api/v1/stickers/recent", s.authed(s.handleRecentTouch))
+	mux.Handle("DELETE /api/v1/stickers/recent", s.authed(s.handleRecentClear))
+	mux.Handle("GET /api/v1/stickers/discover", s.userLimited(s.limSearch, s.handlePacksDiscover))
 	mux.Handle("GET /api/v1/stickers/packs/public", s.authed(s.handlePacksPublic))
 	mux.Handle("GET /api/v1/stickers/packs/{id}", s.authed(s.handlePackGet))
 	mux.Handle("PATCH /api/v1/stickers/packs/{id}", s.authed(s.handlePackPatch))
@@ -104,6 +106,17 @@ func (s *Server) handleRecentTouch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Bcast.EmitUsers([]ids.ID{me.ID}, "sticker_recent", map[string]any{"sticker": st})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleRecentClear empties the caller's recent row on all their devices.
+func (s *Server) handleRecentClear(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserFrom(r.Context())
+	if err := s.Store.ClearRecentStickers(r.Context(), me.ID); err != nil {
+		WriteError(w, err)
+		return
+	}
+	s.Bcast.EmitUsers([]ids.ID{me.ID}, "sticker_recent_clear", map[string]any{})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -328,6 +341,53 @@ func (s *Server) handlePacksPublic(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, list)
 }
 
+// handlePacksDiscover is Discovery's pack sections: a page of public packs of
+// one kind, each with a preview of its stickers, its counts and who made it.
+func (s *Server) handlePacksDiscover(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserFrom(r.Context())
+	q := r.URL.Query()
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	packs, more, err := s.Store.DiscoverPacks(r.Context(), me.ID, store.DiscoverQuery{Q: q.Get("q"), Kind: q.Get("kind"), Sort: q.Get("sort"), Offset: offset, Limit: limit})
+	if err != nil {
+		WriteError(w, err)
+		return
+	}
+	s.fillPackOwners(r.Context(), packs)
+	out := map[string]any{"packs": packs, "has_more": more}
+	if more {
+		out["next_offset"] = max(offset, 0) + len(packs)
+	}
+	WriteJSON(w, http.StatusOK, out)
+}
+
+// fillPackOwners says who made each pack. One that cannot be found stays
+// without a name; the rest of the answer is still good.
+func (s *Server) fillPackOwners(ctx context.Context, packs []*store.StickerPack) {
+	want := make([]ids.ID, 0, len(packs))
+	for _, p := range packs {
+		if p.OwnerUserID != nil {
+			want = append(want, *p.OwnerUserID)
+		}
+	}
+	if len(want) == 0 {
+		return
+	}
+	byID, err := s.Store.UsersByIDs(ctx, want)
+	if err != nil {
+		return
+	}
+	for _, p := range packs {
+		if p.OwnerUserID == nil {
+			continue
+		}
+		if u := byID[*p.OwnerUserID]; u != nil {
+			public := u.Public()
+			p.Owner = &public
+		}
+	}
+}
+
 func cleanPackFields(name, desc string) (string, string, *Error) {
 	n, ok := CleanText(strings.Join(strings.Fields(name), " "), maxPackName)
 	if !ok || n == "" {
@@ -426,6 +486,12 @@ func (s *Server) handlePackGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.Installed = installed
+	// who made it and how many have it: what someone looking at the pack would ask
+	s.fillPackOwners(r.Context(), []*store.StickerPack{p})
+	if counts, err := s.Store.PackInstallCounts(r.Context(), []ids.ID{p.ID}); err == nil {
+		n := counts[p.ID]
+		p.InstallCount = &n
+	}
 	WriteJSON(w, http.StatusOK, p)
 }
 

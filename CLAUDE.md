@@ -993,6 +993,34 @@ several games with exactly one name, the most rated wins (`mostRated`): IGDB lis
 - Without `STRIPE_SECRET_KEY` plans cannot be bought (`billing_off`), but the limits hold. Web `lib/plans.ts`,
   `stores/billing.ts`, `components/support/`; Android `data/Plans`, `ui/support/Support.kt`.
 
+### Sticker and emoji packs
+
+- Discovery's parts (`?tab=stickers` or `emoji` on `/channels/@discover`, Android `Route.Discover(section)`; a part
+  once opened stays mounted and keeps its search): web `discovery/PackDiscovery.tsx`, Android
+  `ui/discovery/DiscoverPacks.kt`. `GET /api/v1/stickers/discover` (`Store.DiscoverPacks`, `limSearch`) lists only
+  public packs with something in them, of one kind, found by the pack's words and its stickers' names and tags,
+  with at most `DiscoverPreview` stickers each plus `sticker_count`, `install_count` and `owner`. So a pack from
+  there is only a preview: anything showing a whole pack loads it. `GET /stickers/packs/public` stays for older apps.
+- View Pack is the one full view of a pack, from Discovery, a pack link's card, a sticker's popout and the picker:
+  web `modals/StickerPackModal.tsx` (modal `stickerPack`: `packId`, optional `pack`, `stickerId`), Android
+  `ui/stickers/PackSheet.kt`. Each card's and page's colour is the cover's (web `useDominantColor`, Android
+  `rememberPackTint`, the same algorithm); the tilted sheet on a Discovery card is the only place stickers tilt.
+- The picker (web `pickers/StickerPicker.tsx`, Android `ui/pickers/StickerTab.kt`): favourites, two rows of recents
+  with Show All, then every pack under one heading naming where it came from. The rail follows the part scrolled to
+  and ends in Find More Packs. The owner chose not to have smaller tiles, or a custom pack order or hiding
+  (2026-11-05). Favourites and folded packs are the synced `favoriteStickers` and `collapsedStickerPacks`, by id, so
+  one whose pack is gone stays out of sight until it returns. `DELETE /stickers/recent` clears the row on every device
+  with `sticker_recent_clear`, a new event since older apps would crash on a `sticker_recent` without a sticker. On a
+  computer the bar under the grid names the sticker pointed at, and Shift+click sends and keeps the picker open
+  (`StickerPick.keepOpen`). On a phone holding a sticker shows it big and moving over its menu.
+- Settings (web `settings/StickersPage.tsx` and `server/PackEditor.tsx`; Android `ui/settings/StickersPage.kt`): a list
+  by group (Your Packs, Installed, From Your Servers), and for a pack you can change a page of its own with the stickers
+  first (`PackBody` on Android, `PackPage` on the web, both also behind Server Settings, Stickers). A pack you cannot
+  change opens View Pack instead. A tile opens that sticker's dialog; Select deletes several, one request each. The web
+  stages files with their names before upload, and Android uploads what is picked.
+- `web/src/components/stickers/Unfold.tsx` unfolds what an expander brings back, and animates only when pressed, so a
+  picker opening draws in place.
+
 ### Mentions
 
 - Web `components/mentions/MentionsModal.tsx`, `lib/mentions.ts`; Android `ui/chat/Mentions.kt`.
@@ -1157,8 +1185,9 @@ lazily (`lib/lazyChunk.ts`); a dialog with lazy pages makes them with `readyPage
 - Stores (`stores/`, zustand), among them `auth`, `settings`, `messages`, `channels`, `servers`, `users`,
   `voice`, `ui` (modals), `typing`, `threadLast`, `voiceDrag`, `appCommands`. `settings` (sealed, synced with
   an optimistic version): a save that loses the race lays only this device's own edits over the newer copy,
-  and the notification lists and `favoriteGifs` are merged entry by entry through `ListEdits` (Android
-  `SettingsStore.gifEdits`, `layerGifs`), since saving those whole dropped other devices' entries.
+  and the notification lists, `favoriteGifs` and `favoriteStickers` are merged entry by entry through `ListEdits`
+  (Android `SettingsStore.gifEdits`, `layerGifs`, `stickerEdits`, `layerStickers`), since saving those whole
+  dropped other devices' entries.
 - Folders: `crypto/`, `markdown/`, `search/` (a sealed full-text index of what this device decrypted, in a
   worker), `voice/`, `lib/` (one concern per file, plus `look/`, `notes/`, `automod/`, `spell/`),
   `components/` by area, `pages/` (one per route), `styles/` (`tokens.css` holds every theme token), `i18n/`

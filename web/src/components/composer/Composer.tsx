@@ -955,8 +955,8 @@ export function Composer({ channel }: { channel: Channel }) {
             const opts: SendOptions = { ...takeReply(), embeds: [{ url: g.url, type: "gif", image: g.url, ...(g.w ? { image_w: g.w } : {}), ...(g.h ? { image_h: g.h } : {}) }] };
             void sendMessage(channel.id, g.url, opts);
           }} />}
-          stickers={<StickerPicker serverId={channel.server_id} onlyServer={ownStickersOnly} onPick={({ sticker }) => {
-            setPicker(false);
+          stickers={<StickerPicker serverId={channel.server_id} onlyServer={ownStickersOnly} onPick={({ sticker, keepOpen }) => {
+            if (!keepOpen) setPicker(false);
             if (remaining > 0) return toast(tr_("composer.composer.slowModeOnSeconds", { seconds: remaining }), "error");
             // The send settles first so a failed send never lands in recents;
             // the row updates at once here and again over the gateway, which

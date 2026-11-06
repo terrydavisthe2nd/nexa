@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,7 +66,18 @@ import fish.nexa.ui.components.Txt
 import fish.nexa.ui.components.pressable
 import fish.nexa.ui.layers.MenuItem
 import fish.nexa.ui.layers.openMenu
+import fish.nexa.ui.stickers.StickerSettings
+import fish.nexa.ui.stickers.StickerStill
+import fish.nexa.ui.stickers.canRemovePack
+import fish.nexa.ui.stickers.confirmRemovePack
+import fish.nexa.ui.stickers.isEmojiPack
+import fish.nexa.ui.stickers.openPackSheet
+import fish.nexa.ui.stickers.packCount
+import fish.nexa.ui.stickers.packCover
+import fish.nexa.ui.stickers.packUrl
+import fish.nexa.ui.stickers.rememberPackTint
 import fish.nexa.ui.t
+import fish.nexa.ui.theme.mixOklab
 import fish.nexa.ui.theme.Nx
 import fish.nexa.ui.theme.Radii
 import fish.nexa.ui.theme.ring
@@ -91,33 +104,28 @@ import java.net.URLEncoder
 private val ACCEPT_IMAGE = setOf("image/png", "image/gif", "image/webp", "image/apng")
 private const val MAX_STICKER = 5L * 1024 * 1024
 private const val MAX_EMOJI = 2L * 1024 * 1024
+/** How many a pack holds before its page offers a search of its own. */
+private const val SEARCH_FROM = 24
 
-private fun isEmoji(p: StickerPack) = p.kind == "emoji"
-private fun packCover(p: StickerPack): Sticker? = p.stickers.firstOrNull { it.id == p.coverStickerId } ?: p.stickers.firstOrNull()
-private fun packCount(p: StickerPack) = if (isEmoji(p)) t("server.packEditor.emojiCount", "count" to p.stickers.size) else t("server.packEditor.stickerCount", "count" to p.stickers.size)
-private fun packUrl(id: String) = "${Nexa.api.baseUrl}/stickers/pack/$id"
-
-/** canRemovePack: installed, not mine, and not a pack of a server I am in (those are managed there). */
-private fun canRemove(p: StickerPack, me: String?): Boolean = p.installed && p.ownerUserId != me && (p.serverId == null || Nexa.servers.get(p.serverId) == null)
+private fun isEmoji(p: StickerPack) = isEmojiPack(p)
+private fun canRemove(p: StickerPack, me: String?) = canRemovePack(p, me)
 
 private suspend fun fetchPack(id: String): StickerPack = Nexa.api.get("/stickers/packs/$id", StickerPack.serializer()).also { Nexa.expressions.upsertPack(it) }
 
-/** A sticker's or an emoji's picture, still (the server renders a moving one's first frame). */
-@Composable
-private fun ItemImage(s: Sticker, emoji: Boolean, size: Dp, modifier: Modifier = Modifier) {
-    @Suppress("UNUSED_VARIABLE") val mediaAnimationPreferences = fish.nexa.Nexa.settings.doc.collectAsState().value
-    val density = LocalDensity.current.density
-    val moving = s.animated || s.format == "tgs" || s.format == "webm"
-    val url = if (emoji) Media.emojiUrl(s.blobId, size.value.toInt(), density, still = moving) else Media.stickerUrl(s.blobId, size.value.toInt(), density) + if (moving) "&still=1" else ""
-    AsyncImage(model = url, contentDescription = s.name, imageLoader = Media.loader, modifier = modifier, contentScale = ContentScale.Fit)
-}
-
-/** 3.11 Emoji & Stickers: your packs of each kind, and public packs to install. */
+/** Emoji & Stickers: every pack this account has, and a page for each of its own. */
 @Composable
 fun StickersPage() {
     val host = LocalAnchors.current
-    var tab by remember { mutableStateOf("stickers") }
+    var tab by remember { mutableStateOf("sticker") }
     var editing by remember { mutableStateOf<String?>(null) }
+    // a link to one pack's page from wherever it was seen
+    val asked = StickerSettings.requested
+    LaunchedEffect(asked) {
+        if (asked != null) {
+            editing = asked
+            StickerSettings.requested = null
+        }
+    }
     // a pack opens as a level of its own; back comes to the list
     DisposableEffect(editing) {
         host?.inner = if (editing != null) ({ PackEditing.close(); editing = null }) else null
@@ -130,82 +138,108 @@ fun StickersPage() {
         PackView(open, onBack = { Unsaved.unlessUnsaved { PackEditing.close(); editing = null } })
         return
     }
-    PageTitle(t("settings.stickers.expressionPacks"))
+    PageTitle(t("settings.groups.emojiStickers"))
     Hint(t("settings.stickers.buildYourOwnEmojiAndSticker"), Modifier.padding(bottom = 14.dp).settingAnchor("packs"))
     Segmented(
-        listOf(t("pickers.expressionPicker.stickers") to "stickers", t("modals.customStatus.emoji") to "emoji", t("settings.stickers.discover") to "discover"), tab,
+        listOf(t("pickers.expressionPicker.stickers") to "sticker", t("modals.customStatus.emoji") to "emoji"), tab,
         { tab = it },
         label = t("settings.groups.emojiStickers"),
     )
-    Column(Modifier.padding(top = 16.dp)) {
-        when (tab) {
-            "discover" -> Discover { p ->
-                tab = if (isEmoji(p)) "emoji" else "stickers"
-                editing = p.id
-            }
-            else -> MyPacks(if (tab == "emoji") "emoji" else "sticker") { editing = it }
-        }
-    }
+    Column(Modifier.padding(top = 16.dp)) { Library(tab) { editing = it } }
 }
 
+/** The list: the pack's cover and what it is, in a panel to each group. */
 @Composable
-private fun MyPacks(kind: String, onOpen: (String) -> Unit) {
+private fun Library(kind: String, onOpen: (String) -> Unit) {
     val c = Nx.colors
     val me = Nexa.users.me.collectAsState().value?.id
     val packs by Nexa.expressions.packs.collectAsState()
-    val mine = packs.values
-        .filter { it.kind == kind && ((it.serverId == null && (it.ownerUserId == me || it.installed)) || canRemove(it, me)) }
-        .sortedWith(compareByDescending<StickerPack> { it.ownerUserId == me }.thenByDescending { it.updatedAt })
-    NxButton(
-        t(if (kind == "emoji") "settings.stickers.createEmojiPack" else "settings.stickers.createStickerPack"),
-        { openCreatePack(kind, onOpen) }, icon = "Plus", block = true,
-    )
-    Column(Modifier.padding(top = 14.dp)) {
-        if (mine.isEmpty()) EmptyBox(t(if (kind == "emoji") "settings.stickers.noEmojiPacksYet" else "settings.stickers.noStickerPacksYet"))
-        for (p in mine) {
-            val removable = canRemove(p, me)
-            val tag = when {
-                removable -> " · " + t("settings.stickers.installedTag")
-                p.public -> " · " + t("settings.stickers.publicTag")
-                else -> ""
-            }
-            PackRow(p, packCount(p) + tag, onClick = { onOpen(p.id) }) {
-                if (removable) IconButton("X", t("pickers.stickerPicker.removePack"), { confirmRemovePack(p) }, tint = c.textMuted, size = 40.dp, iconSize = 18.dp)
-            }
+    var q by remember(kind) { mutableStateOf("") }
+    val list = packs.values.filter { it.kind == kind }.sortedByDescending { it.updatedAt }
+    val own = list.filter { it.serverId == null && it.ownerUserId == me }
+    val installed = list.filter { it !in own && (canRemove(it, me) || (it.serverId == null && it.installed)) }
+    val fromServers = list.filter { it !in own && it !in installed && it.serverId != null }
+    val query = q.trim().lowercase()
+    fun shown(of: List<StickerPack>) = if (query.isEmpty()) of else of.filter { it.name.lowercase().contains(query) }
+    if (list.size > 3) Box(Modifier.padding(bottom = 10.dp)) { fish.nexa.ui.server.SearchBox(q, { q = it }, t("settings.stickers.searchYourPacks")) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        NxButton(
+            t(if (kind == "emoji") "settings.stickers.createEmojiPack" else "settings.stickers.createStickerPack"),
+            { openCreatePack(kind, onOpen) }, icon = "Plus", size = ButtonSize.SM, modifier = Modifier.weight(1f), block = true,
+        )
+        NxButton(t("pickers.stickerPicker.findMorePacks"), {
+            fish.nexa.ui.layers.Layers.close("settings")
+            fish.nexa.ui.nav.Nav.go(fish.nexa.ui.nav.Route.Discover(if (kind == "emoji") "emoji" else "stickers"))
+        }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "Compass", modifier = Modifier.weight(1f), block = true)
+    }
+    if (list.isEmpty()) Box(Modifier.padding(top = 14.dp)) { EmptyBox(t(if (kind == "emoji") "settings.stickers.noEmojiPacksYet" else "settings.stickers.noStickerPacksYet")) }
+    else if (shown(own).isEmpty() && shown(installed).isEmpty() && shown(fromServers).isEmpty()) Box(Modifier.padding(top = 14.dp)) { EmptyBox(t("settings.stickers.noPacksMatch")) }
+    PackGroup(t("settings.stickers.yourPacks"), shown(own), manage = true, removable = { false }, note = { null }, onOpen)
+    PackGroup(t("expressions.installed"), shown(installed), manage = false, removable = { canRemove(it, me) }, note = { null }, onOpen)
+    PackGroup(t("settings.stickers.fromYourServers"), shown(fromServers), manage = false, removable = { false }, note = { p -> p.serverId?.let { Nexa.servers.get(it)?.server?.name } }, onOpen)
+}
+
+@Composable
+internal fun PackGroup(title: String?, packs: List<StickerPack>, manage: Boolean, removable: (StickerPack) -> Boolean, note: (StickerPack) -> String?, onOpen: (String) -> Unit) {
+    if (packs.isEmpty()) return
+    val c = Nx.colors
+    val shape = Radii.Lg
+    if (title != null) Row(Modifier.padding(top = 20.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Txt(title, style = Nx.type.name.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(650)), color = c.textStrong)
+        Txt(packs.size.toString(), style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f), fontWeight = FontWeight(500)), color = c.textMuted)
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .ring(shape, c.panelEdge)
+            .background(c.bgSurface, shape)
+            .background(sheen(c), shape)
+            .topEdge(shape, c.edgeLight)
+            .clip(shape),
+    ) {
+        packs.forEachIndexed { i, p ->
+            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(c.borderSubtle))
+            PackRow(p, manage, removable(p), note(p)) { if (manage) onOpen(p.id) else openPackSheet(p.id, p) }
         }
     }
 }
 
-/** A pack in a list: its cover, name and count. */
+/** A pack is public or private: the words and the icon to go with them. */
 @Composable
-private fun PackRow(p: StickerPack, sub: String, onClick: () -> Unit, end: @Composable () -> Unit) {
+private fun Visibility(public: Boolean, tint: androidx.compose.ui.graphics.Color, size: Float = 13f) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(if (public) "Globe" else "Lock", tint, size = 12.dp)
+        Txt(t(if (public) "settings.stickers.publicBadge" else "settings.stickers.privateBadge"), style = Nx.type.hint.copy(fontSize = Nx.type.sp(size)), color = tint, maxLines = 1)
+    }
+}
+
+@Composable
+private fun PackRow(p: StickerPack, manage: Boolean, removable: Boolean, note: String?, onClick: () -> Unit) {
     val c = Nx.colors
-    val shape = Radii.Md
     Row(
         Modifier
-            .padding(bottom = 8.dp)
             .fillMaxWidth()
-            .ring(shape, c.borderSubtle)
-            .background(c.bgSurface, shape)
-            .background(sheen(c), shape)
-            .topEdge(shape, c.edgeLight)
-            .clip(shape)
             .pressable(remember { MutableInteractionSource() }, onClick = onClick)
-            .heightIn(min = 64.dp)
-            .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            .heightIn(min = 68.dp)
+            .padding(start = 14.dp, end = if (removable) 2.dp else 14.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(44.dp).sunken(Radii.Sm, c).ring(Radii.Sm, c.borderSubtle), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(48.dp).sunken(Radii.Sm, c).ring(Radii.Sm, c.borderSubtle), contentAlignment = Alignment.Center) {
             val cover = packCover(p)
-            if (cover != null) ItemImage(cover, isEmoji(p), 40.dp, Modifier.size(36.dp))
+            if (cover != null) StickerStill(cover, isEmoji(p), 48.dp, Modifier.size(if (isEmoji(p)) 30.dp else 44.dp))
             else Txt(p.name.take(1).uppercase(), style = Nx.type.body.copy(fontWeight = FontWeight(700)), color = c.textMuted)
         }
-        Column(Modifier.weight(1f)) {
-            Txt(p.name, style = Nx.type.body.copy(fontWeight = FontWeight(600)), color = c.textStrong, maxLines = 1)
-            Txt(sub, style = Nx.type.hint.copy(fontSize = Nx.type.sp(12.5f)), color = c.textMuted, maxLines = 1)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Txt(p.name, style = Nx.type.body.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(600)), color = c.textStrong, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Txt(packCount(p), style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f)), color = c.textMuted, maxLines = 1)
+                if (manage) Visibility(p.public, if (p.public) c.textSubtle else c.textMuted)
+                if (note != null) Txt(note, style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f)), color = c.textMuted, maxLines = 1)
+            }
         }
-        end()
+        if (manage) Icon(if (LocalLayoutDirection.current == LayoutDirection.Rtl) "ChevronLeft" else "ChevronRight", c.textMuted, size = 18.dp)
+        if (removable) IconButton("X", t("pickers.stickerPicker.removeName", "name" to p.name), { confirmRemovePack(p) }, tint = c.icon, size = 48.dp, iconSize = 16.dp)
     }
 }
 
@@ -228,42 +262,61 @@ object PackEditing {
     }
 }
 
+/** One pack you can change: its stickers first, since they are what you came for, then what it is called and who can have it. */
 @Composable
 private fun PackView(packId: String, onBack: () -> Unit) {
-    val c = Nx.colors
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
     val me = Nexa.users.me.collectAsState().value?.id
     val packs by Nexa.expressions.packs.collectAsState()
     val pack = packs[packId]
-    LaunchedEffect(packId) { runCatching { fetchPack(packId) } }
+    var installs by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(packId) { runCatching { installs = fetchPack(packId).installCount } }
     BackRowTo(t("settings.groups.emojiStickers"), onBack)
     if (pack == null) {
         Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Spinner() }
         return
     }
-    NxButton(t("reports.report"), { fish.nexa.ui.reports.openReport(fish.nexa.data.ReportContext(kind = "pack", id = pack.id)) }, kind = ButtonKind.GHOST)
-    val emoji = isEmoji(pack)
-    val manage = pack.ownerUserId == me
-    if (!manage) {
-        PageTitle(pack.name)
-        if (pack.description.isNotBlank()) Hint(pack.description, Modifier.padding(bottom = 12.dp))
-        Txt(packCount(pack), style = Nx.type.bodySmall, color = c.textMuted)
-        if (canRemove(pack, me)) NxButton(t("server.packEditor.remove"), { confirmRemovePack(pack) }, kind = ButtonKind.DANGER, size = ButtonSize.SM, modifier = Modifier.padding(top = 10.dp))
-        ItemGrid(pack, emoji, null)
+    // only your own packs have a page; any other opened by a link is just looked at
+    if (pack.ownerUserId != me) {
+        LaunchedEffect(packId) {
+            onBack()
+            openPackSheet(packId, pack)
+        }
         return
     }
     val form = PackEditing.form?.takeIf { it.packId == packId } ?: PackForm(packId, pack.name, pack.description).also { PackEditing.form = it }
-    var uploading by remember { mutableIntStateOf(0) }
+    PackBody(pack, installs, form.name, { form.name = it }, form.description, { form.description = it }) {
+        PackEditing.close()
+        onBack()
+    }
+}
+
+/**
+ * What a pack you can change has on its page, in User Settings and Server
+ * Settings alike: its colour, its stickers first, then what it is called and who
+ * can have it. The frame around it keeps the name and description being edited.
+ */
+@Composable
+internal fun PackBody(pack: StickerPack, installs: Int?, name: String, onName: (String) -> Unit, description: String, onDescription: (String) -> Unit, onDeleted: () -> Unit) {
+    val c = Nx.colors
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current.density
+    val emoji = isEmoji(pack)
+    var total by remember { mutableIntStateOf(0) }
+    var doneCount by remember { mutableIntStateOf(0) }
+    var q by remember { mutableStateOf("") }
+    var picking by remember { mutableStateOf(false) }
+    val chosen = remember { mutableStateListOf<String>() }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
             var done = 0
-            uploading = uris.size
+            total = uris.size
+            doneCount = 0
             try {
                 for (uri in uris) {
                     if (uploadItem(ctx, pack, uri)) done++
-                    uploading--
+                    doneCount++
                 }
                 fetchPack(pack.id)
                 if (done > 0) Nexa.ui.toast(t(if (emoji) "server.packEditor.emojiAdded" else "server.packEditor.stickersAdded", "count" to done), "success")
@@ -271,60 +324,169 @@ private fun PackView(packId: String, onBack: () -> Unit) {
                 Nexa.ui.toast((e as? ApiError)?.message ?: t("composer.composer.uploadFailed"), "error")
                 runCatching { fetchPack(pack.id) }
             } finally {
-                uploading = 0
+                total = 0
             }
         }
+    }
+    val addFiles = {
+        pick.launch(if (emoji) arrayOf("image/png", "image/gif", "image/webp", "image/apng") else arrayOf("image/png", "image/gif", "image/webp", "image/apng", "video/webm", "application/x-tgsticker", "application/gzip", "application/octet-stream"))
+    }
+    val addLabel = t(if (emoji) "android.settings.stickers.addEmoji" else "android.settings.stickers.addStickers")
+    val tint = rememberPackTint(pack)
+    val shape = Radii.Lg
+
+    // the one bold thing on the page: the pack on its own colour
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .ring(shape, c.panelEdge)
+            .background(mixOklab(c.bgRaised, tint, 0.26f), shape)
+            .background(sheen(c), shape)
+            .topEdge(shape, c.edgeLight)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) {
+            val cover = packCover(pack)
+            if (cover != null) fish.nexa.ui.chat.StickerMedia(cover.format, if (emoji) Media.emojiUrl(cover.blobId, 96, density) else Media.stickerUrl(cover.blobId, 160, density), "", if (emoji) 64.dp else 80.dp)
+            else Txt(pack.name.take(1).uppercase(), style = Nx.type.title.copy(fontSize = Nx.type.sp(36f)), color = c.textStrong)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Txt(pack.name, style = Nx.type.title.copy(fontSize = Nx.type.sp(22f), lineHeight = Nx.type.sp(26f)), color = c.textStrong, maxLines = 2)
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                val fact = Nx.type.hint.copy(fontSize = Nx.type.sp(13.5f))
+                Txt(packCount(pack), style = fact, color = c.textSubtle, maxLines = 1)
+                Visibility(pack.public, c.textSubtle, 13.5f)
+                if (pack.public && installs != null) Txt(t("stickerPack.installs", "count" to (installs ?: 0)), style = fact, color = c.textSubtle, maxLines = 1)
+            }
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                NxButton(addLabel, addFiles, size = ButtonSize.SM, icon = "Upload")
+                NxButton(t("pickers.stickerPicker.viewPack"), { openPackSheet(pack.id, pack) }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "Eye")
+            }
+        }
+    }
+    if (total > 0) Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.fillMaxWidth().height(6.dp).sunken(Radii.Pill, c)) {
+            Box(Modifier.fillMaxWidth((doneCount.toFloat() / total).coerceIn(0f, 1f)).height(6.dp).background(fish.nexa.ui.theme.brandGradient(c), Radii.Pill))
+        }
+        Txt(t("server.packEditor.uploadingProgress", "done" to doneCount, "total" to total), style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f)), color = c.textMuted)
     }
 
-    PageTitle(pack.name)
-    NxTextField(form.name, { form.name = it.take(100) }, label = t("server.packEditor.packName"), capitalize = true)
-    NxTextField(form.description, { form.description = it.take(500) }, label = t("server.packEditor.description"), singleLine = false, minLines = 2, modifier = Modifier.padding(top = 12.dp), capitalize = true)
-    // one change at a time: pressed again while one is on its way (or waits on a captcha), it waits
-    var publicBusy by remember(pack.id) { mutableStateOf(false) }
-    ToggleRow(t("server.packEditor.publicPack"), pack.public, { v ->
-        if (!publicBusy) {
-            publicBusy = true
-            scope.launch {
-                try {
-                    Nexa.expressions.upsertPack(Nexa.api.request("PATCH", "/stickers/packs/${pack.id}", StickerPack.serializer(), buildJsonObject { put("public", v) }))
-                } catch (e: Exception) {
-                    Nexa.ui.toast((e as? ApiError)?.message ?: t("server.packEditor.couldNotChangeVisibility"), "error")
-                } finally {
-                    publicBusy = false
+    Row(Modifier.fillMaxWidth().padding(top = 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Txt(t(if (emoji) "modals.customStatus.emoji" else "pickers.expressionPicker.stickers"), style = Nx.type.name.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(650)), color = c.textStrong, modifier = Modifier.weight(1f))
+        if (pack.stickers.isNotEmpty()) NxButton(if (picking) t("chat.editMessage.cancel") else t("server.packEditor.select"), {
+            picking = !picking
+            chosen.clear()
+        }, kind = if (picking) ButtonKind.SECONDARY else ButtonKind.GHOST, size = ButtonSize.SM, icon = if (picking) null else "SquareCheck")
+    }
+    if (pack.stickers.size >= SEARCH_FROM) Box(Modifier.padding(top = 8.dp)) { fish.nexa.ui.server.SearchBox(q, { q = it }, t("server.packEditor.searchThisPack")) }
+    val query = q.trim().lowercase()
+    val ordered = pack.stickers.sortedBy { it.position }
+    val shown = if (query.isEmpty()) ordered else ordered.filter { it.name.lowercase().contains(query) || it.tags.lowercase().contains(query) }
+    if (picking) {
+        val barShape = Radii.Md
+        Row(
+            Modifier
+                .padding(top = 10.dp)
+                .fillMaxWidth()
+                .ring(barShape, c.brand.copy(alpha = 0.4f))
+                .background(mixOklab(c.bgSurface, c.brand, 0.14f), barShape)
+                .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Txt(t("server.packEditor.selectedCount", "count" to chosen.size), style = Nx.type.bodySmall.copy(fontWeight = FontWeight(600)), color = c.textStrong, modifier = Modifier.weight(1f), maxLines = 1)
+            NxButton(t("server.packEditor.selectAll"), {
+                chosen.clear()
+                chosen.addAll(shown.map { it.id })
+            }, kind = ButtonKind.GHOST, size = ButtonSize.SM)
+            NxButton(t("chat.messageItem.delete"), {
+                val list = chosen.toList()
+                fish.nexa.ui.shell.confirm(t("server.packEditor.deleteChosen", "count" to list.size), t("server.packEditor.chosenAreRemovedForEveryone"), t("chat.messageItem.delete")) {
+                    try {
+                        for (id in list) Nexa.api.request("DELETE", "/stickers/packs/${pack.id}/stickers/$id")
+                    } finally {
+                        fetchPack(pack.id)
+                        withContext(Dispatchers.Main) {
+                            picking = false
+                            chosen.clear()
+                        }
+                    }
+                }
+            }, kind = ButtonKind.DANGER, size = ButtonSize.SM, icon = "Trash2", enabled = chosen.isNotEmpty())
+        }
+    }
+    ItemGrid(
+        pack, emoji, shown,
+        addLabel = if (!picking && query.isEmpty()) addLabel else null,
+        onAdd = addFiles,
+        chosen = if (picking) chosen else null,
+        onItem = { s ->
+            if (picking) {
+                if (s.id in chosen) chosen.remove(s.id) else chosen.add(s.id)
+            } else editItem(pack, s)
+        },
+    )
+    if (pack.stickers.isEmpty()) Hint(t("server.packEditor.dropFilesHereOrClickTo", "size" to (if (emoji) 2 else 5)), Modifier.padding(top = 8.dp))
+    else if (!picking && query.isEmpty()) Hint(t("android.settings.stickers.tapToEdit"), Modifier.padding(top = 8.dp))
+    if (query.isNotEmpty() && shown.isEmpty()) Box(Modifier.padding(top = 8.dp)) { EmptyBox(t("pickers.stickerPicker.noStickersMatch")) }
+
+    val panel = Radii.Lg
+    Column(
+        Modifier
+            .padding(top = 24.dp)
+            .fillMaxWidth()
+            .ring(panel, c.panelEdge)
+            .background(c.bgSurface, panel)
+            .background(sheen(c), panel)
+            .topEdge(panel, c.edgeLight)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Txt(t("server.packEditor.details"), style = Nx.type.name.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(650)), color = c.textStrong)
+        NxTextField(name, { onName(it.take(100)) }, label = t("server.packEditor.packName"), capitalize = true)
+        NxTextField(description, { onDescription(it.take(500)) }, label = t("server.packEditor.description"), hint = t("server.packEditor.shownWhenPeopleFindThePack"), singleLine = false, minLines = 2, capitalize = true)
+        // one change at a time: pressed again while one is on its way (or waits on a captcha), it waits
+        var publicBusy by remember(pack.id) { mutableStateOf(false) }
+        ToggleRow(t("server.packEditor.publicPack"), pack.public, { v ->
+            if (!publicBusy) {
+                publicBusy = true
+                scope.launch {
+                    try {
+                        Nexa.expressions.upsertPack(Nexa.api.request("PATCH", "/stickers/packs/${pack.id}", StickerPack.serializer(), buildJsonObject { put("public", v) }))
+                    } catch (e: Exception) {
+                        Nexa.ui.toast((e as? ApiError)?.message ?: t("server.packEditor.couldNotChangeVisibility"), "error")
+                    } finally {
+                        publicBusy = false
+                    }
                 }
             }
-        }
-    }, t("server.packEditor.anyoneWithTheLinkCanInstall"), enabled = !publicBusy)
-    if (pack.public) Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.weight(1f).sunken(Radii.Sm, c).ring(Radii.Sm, c.borderSubtle).padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Txt(packUrl(pack.id), style = Nx.type.code.copy(fontSize = Nx.type.sp(13f)), color = c.text, maxLines = 1)
-        }
-        var copied by remember { mutableStateOf(false) }
-        LaunchedEffect(copied) {
-            if (copied) {
-                delay(2000)
-                copied = false
+        }, t("server.packEditor.anyoneWithTheLinkCanInstall"), enabled = !publicBusy)
+        if (pack.public) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f).sunken(Radii.Sm, c).ring(Radii.Sm, c.borderSubtle).padding(horizontal = 12.dp, vertical = 10.dp)) {
+                Txt(packUrl(pack.id), style = Nx.type.code.copy(fontSize = Nx.type.sp(13f)), color = c.text, maxLines = 1)
             }
+            var copied by remember { mutableStateOf(false) }
+            LaunchedEffect(copied) {
+                if (copied) {
+                    delay(2000)
+                    copied = false
+                }
+            }
+            NxButton(if (copied) t("modals.groupInvite.copied") else t("server.packEditor.copyLink"), {
+                copied = copyText(ctx, packUrl(pack.id))
+            }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = if (copied) "Check" else "Copy")
         }
-        NxButton(if (copied) t("modals.groupInvite.copied") else t("server.packEditor.copyLink"), {
-            copied = copyText(ctx, packUrl(pack.id))
-        }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = if (copied) "Check" else "Link")
     }
-    SectionHeading(packCount(pack), trailing = {
-        if (uploading > 0) Spinner(size = 20.dp)
-        else NxButton(t(if (emoji) "android.settings.stickers.addEmoji" else "android.settings.stickers.addStickers"), {
-            pick.launch(if (emoji) arrayOf("image/png", "image/gif", "image/webp", "image/apng") else arrayOf("image/png", "image/gif", "image/webp", "image/apng", "video/webm", "application/x-tgsticker", "application/gzip", "application/octet-stream"))
-        }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "Upload")
-    })
-    ItemGrid(pack, emoji) { s -> itemMenu(pack, s) }
-    if (pack.stickers.isNotEmpty()) Hint(t("android.settings.stickers.tapToEdit"), Modifier.padding(top = 8.dp))
-    Box(Modifier.padding(top = 24.dp)) {
+    Box(Modifier.padding(top = 16.dp)) {
         DangerBox(null, t("server.packEditor.everyoneWhoInstalledThisPackLoses"), t("server.packEditor.deletePack"), {
             fish.nexa.ui.shell.confirm(t("server.packEditor.deleteNamed", "name" to pack.name), t("server.packEditor.everyoneWhoInstalledThisPackLoses"), t("server.packEditor.deletePack")) {
                 Nexa.api.request("DELETE", "/stickers/packs/${pack.id}")
                 Nexa.expressions.removePack(pack.id)
-                PackEditing.close()
-                withContext(Dispatchers.Main) { onBack() }
+                withContext(Dispatchers.Main) { onDeleted() }
             }
         })
     }
@@ -332,7 +494,7 @@ private fun PackView(packId: String, onBack: () -> Unit) {
 
 /** The way back from a pack to the list. */
 @Composable
-private fun BackRowTo(label: String, onBack: () -> Unit) {
+internal fun BackRowTo(label: String, onBack: () -> Unit) {
     val c = Nx.colors
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Row(
@@ -351,44 +513,73 @@ private fun BackRowTo(label: String, onBack: () -> Unit) {
     }
 }
 
-/** The pack's stickers or emoji, three a row; a tap opens what can be done with one. */
+/** The pack's stickers or emoji, three a row, with the way to add more first. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ItemGrid(pack: StickerPack, emoji: Boolean, onItem: ((Sticker) -> Unit)?) {
+private fun ItemGrid(pack: StickerPack, emoji: Boolean, items: List<Sticker>, addLabel: String?, onAdd: () -> Unit, chosen: List<String>?, onItem: (Sticker) -> Unit) {
     val c = Nx.colors
-    val items = pack.stickers.sortedBy { it.position }
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 10.dp)) {
         // whole pixels, so three never round to a hair over the row
-        val w = with(androidx.compose.ui.platform.LocalDensity.current) { (((maxWidth - 16.dp).toPx() / 3).toInt()).toDp() }
-        @OptIn(ExperimentalLayoutApi::class)
+        val w = with(LocalDensity.current) { (((maxWidth - 16.dp).toPx() / 3).toInt()).toDp() }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 3) {
+            val shape = Radii.Md
+            if (addLabel != null) Column(
+                Modifier
+                    .width(w)
+                    .ring(shape, c.borderStrong)
+                    .clip(shape)
+                    .pressable(remember { MutableInteractionSource() }, onClick = onAdd)
+                    .padding(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+            ) {
+                Box(Modifier.fillMaxWidth().aspectRatio(1f), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon("Plus", c.textMuted, size = 26.dp)
+                        Txt(addLabel, style = Nx.type.hint.copy(fontSize = Nx.type.sp(13f), fontWeight = FontWeight(600)), color = c.textMuted, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                }
+                // as tall as the tiles beside it, which have a name under them
+                Txt(" ", style = Nx.type.hint.copy(fontSize = Nx.type.sp(12.5f)), maxLines = 1)
+            }
             for (s in items) {
-                val shape = Radii.Md
+                val on = chosen?.contains(s.id) == true
                 Column(
                     Modifier
                         .width(w)
-                        .ring(shape, c.borderSubtle)
+                        .ring(shape, if (on) c.focusRing else c.borderSubtle, if (on) 2.dp else 1.dp)
                         .background(c.bgSurface, shape)
+                        .background(sheen(c), shape)
                         .clip(shape)
-                        .pressable(remember(s.id) { MutableInteractionSource() }, onLongClick = { fish.nexa.ui.reports.openReport(fish.nexa.data.ReportContext(kind = "sticker", id = s.id)) }) { if (onItem != null) onItem(s) else fish.nexa.ui.reports.openReport(fish.nexa.data.ReportContext(kind = "sticker", id = s.id)) }
+                        .pressable(remember(s.id) { MutableInteractionSource() }) { onItem(s) }
+                        .semantics { contentDescription = s.name }
                         .padding(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Box(Modifier.fillMaxWidth().aspectRatio(1f), contentAlignment = Alignment.Center) {
-                        ItemImage(s, emoji, if (emoji) 48.dp else 96.dp, Modifier.fillMaxSize())
-                        if (s.id == pack.coverStickerId) Box(Modifier.align(Alignment.TopEnd).size(20.dp).background(c.bgFloating, Radii.Xs), contentAlignment = Alignment.Center) {
-                            Icon("Star", c.warning, size = 13.dp)
-                        }
+                        StickerStill(s, emoji, if (emoji) 48.dp else 96.dp, if (emoji) Modifier.size(48.dp) else Modifier.fillMaxSize())
+                        if (s.id == pack.coverStickerId) Txt(
+                            t("server.packEditor.cover"),
+                            style = Nx.type.hint.copy(fontSize = Nx.type.sp(11f), fontWeight = FontWeight(700)),
+                            color = c.onBrand,
+                            maxLines = 1,
+                            modifier = Modifier.align(Alignment.TopStart).background(fish.nexa.ui.theme.brandGradient(c), Radii.Pill).padding(horizontal = 7.dp, vertical = 1.dp),
+                        )
+                        if (chosen != null) Box(
+                            Modifier.align(Alignment.TopEnd).size(22.dp).then(if (on) Modifier.background(fish.nexa.ui.theme.brandGradient(c), Radii.Pill) else Modifier.background(c.bgBase.copy(alpha = 0.7f), Radii.Pill).ring(Radii.Pill, c.textMuted, 1.5.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) { if (on) Icon("Check", c.onBrand, size = 14.dp) }
                     }
-                    Txt(if (emoji) ":${s.name}:" else s.name, style = Nx.type.hint, color = c.textMuted, maxLines = 1)
+                    Txt(s.name, style = Nx.type.hint.copy(fontSize = Nx.type.sp(12.5f), fontWeight = FontWeight(550)), color = c.textMuted, maxLines = 1)
                 }
             }
         }
     }
 }
 
-/** What can be done with one sticker: rename and tag it, make it the cover, move it, delete it. */
-private fun itemMenu(pack: StickerPack, s: Sticker) {
+/** One sticker of a pack you can change: drawn big and moving, its name and tags, and everything else that can be done with it. */
+private fun editItem(pack: StickerPack, s: Sticker) {
     val emoji = isEmoji(pack)
     val ordered = pack.stickers.sortedBy { it.position }
     val at = ordered.indexOfFirst { it.id == s.id }
@@ -408,37 +599,6 @@ private fun itemMenu(pack: StickerPack, s: Sticker) {
             }
         }
     }
-    openMenu(
-        listOfNotNull(
-            MenuItem.Action(t(if (emoji) "server.packEditor.editEmoji" else "server.packEditor.editSticker")) { editItem(pack, s) },
-            MenuItem.Action(t("server.packEditor.setAsCover"), disabled = pack.coverStickerId == s.id) {
-                Nexa.scope.launch {
-                    try {
-                        Nexa.expressions.upsertPack(Nexa.api.request("PATCH", "/stickers/packs/${pack.id}", StickerPack.serializer(), buildJsonObject { put("cover_sticker_id", s.id) }))
-                    } catch (e: Exception) {
-                        Nexa.ui.toast((e as? ApiError)?.message ?: t("modals.confirm.somethingWentWrong"), "error")
-                    }
-                }
-            },
-            if (at > 0) MenuItem.Action(t("reorder.moveEarlier")) { move(-1) } else null,
-            if (at < ordered.size - 1) MenuItem.Action(t("reorder.moveLater")) { move(1) } else null,
-            MenuItem.Action(t("server.packEditor.deleteSticker"), danger = true) {
-                fish.nexa.ui.shell.confirm(
-                    t("server.packEditor.deleteNamed", "name" to s.name),
-                    t("server.packEditor.thisStickerIsRemovedFromThe"),
-                    t("server.packEditor.deleteSticker"),
-                ) {
-                    Nexa.api.request("DELETE", "/stickers/packs/${pack.id}/stickers/${s.id}")
-                    fetchPack(pack.id)
-                }
-            },
-        ),
-        title = s.name,
-    )
-}
-
-private fun editItem(pack: StickerPack, s: Sticker) {
-    val emoji = isEmoji(pack)
     val ctl = SheetCtl(t(if (emoji) "server.packEditor.editEmoji" else "server.packEditor.editSticker"))
     var name by mutableStateOf(s.name)
     var tags by mutableStateOf(s.tags)
@@ -458,10 +618,40 @@ private fun editItem(pack: StickerPack, s: Sticker) {
     }
     openSettingsSheet("sticker-edit", ctl, footer = {
         NxButton(t("chat.editMessage.cancel"), { it.close() }, kind = ButtonKind.GHOST)
-        NxButton(t("chat.editMessage.save"), { save() })
+        NxButton(t("chat.editMessage.save"), { save() }, enabled = name != s.name || tags != s.tags)
     }) {
+        val c = Nx.colors
+        val density = LocalDensity.current.density
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(176.dp).sunken(Radii.Md, c).ring(Radii.Md, c.borderSubtle), contentAlignment = Alignment.Center) {
+                fish.nexa.ui.chat.StickerMedia(s.format, if (emoji) Media.emojiUrl(s.blobId, 96, density) else Media.stickerUrl(s.blobId, 160, density), s.name, if (emoji) 64.dp else 160.dp)
+            }
+        }
         NxTextField(name, { name = it.take(30) }, label = t("modals.subchat.name"))
         NxTextField(tags, { tags = it.take(200) }, label = t("server.packEditor.tags"), hint = t("server.packEditor.spaceSeparatedUsedBySearch"), imeAction = ImeAction.Done, onIme = { save() })
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            NxButton(t("server.packEditor.setAsCover"), {
+                ctl.close()
+                Nexa.scope.launch {
+                    try {
+                        Nexa.expressions.upsertPack(Nexa.api.request("PATCH", "/stickers/packs/${pack.id}", StickerPack.serializer(), buildJsonObject { put("cover_sticker_id", s.id) }))
+                    } catch (e: Exception) {
+                        Nexa.ui.toast((e as? ApiError)?.message ?: t("server.packEditor.couldNotSetTheCover"), "error")
+                    }
+                }
+            }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "Star", enabled = pack.coverStickerId != s.id, modifier = Modifier.weight(1f), block = true)
+            NxButton(t("server.packEditor.deleteSticker"), {
+                ctl.close()
+                fish.nexa.ui.shell.confirm(t("server.packEditor.deleteNamed", "name" to s.name), t("server.packEditor.thisStickerIsRemovedFromThe"), t("server.packEditor.deleteSticker")) {
+                    Nexa.api.request("DELETE", "/stickers/packs/${pack.id}/stickers/${s.id}")
+                    fetchPack(pack.id)
+                }
+            }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, icon = "Trash2", modifier = Modifier.weight(1f), block = true)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            NxButton(t("reorder.moveEarlier"), { ctl.close(); move(-1) }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, enabled = at > 0, modifier = Modifier.weight(1f), block = true)
+            NxButton(t("reorder.moveLater"), { ctl.close(); move(1) }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, enabled = at < ordered.size - 1, modifier = Modifier.weight(1f), block = true)
+        }
     }
 }
 
@@ -662,101 +852,3 @@ private suspend fun importTelegram(url: String, onProgress: (phase: String, done
     }
 }
 
-/** packRemoval.ts: what removing a pack takes out of the picker, then out it goes. */
-private fun confirmRemovePack(p: StickerPack) {
-    val count = p.stickers.size
-    val body = when {
-        count == 0 -> t("packRemoval.itLeavesYourPicker")
-        isEmoji(p) -> t("packRemoval.itsEmojiLeaveYourPicker", "count" to count)
-        else -> t("packRemoval.itsStickersLeaveYourPicker", "count" to count)
-    } + " " + t("packRemoval.youCanInstallItAgain")
-    fish.nexa.ui.shell.confirm(t("packRemoval.removePackNamed", "name" to p.name), body, t("pickers.stickerPicker.removePack")) {
-        try {
-            Nexa.api.request("DELETE", "/stickers/packs/${p.id}/install")
-        } catch (e: ApiError) {
-            throw fish.nexa.ui.ReadableError(e.message ?: t("packRemoval.couldNotRemoveThePack"))
-        }
-        // a pack of a server I am in stays, just not installed
-        if (p.serverId != null && Nexa.servers.get(p.serverId) != null) Nexa.expressions.upsertPack(p.copy(installed = false))
-        else Nexa.expressions.removePack(p.id)
-        Nexa.ui.toast(t("pickers.stickerPicker.removedNamed", "name" to p.name), "success")
-    }
-}
-
-// ---- Discover ----
-
-@Composable
-private fun Discover(onEdit: (StickerPack) -> Unit) {
-    val c = Nx.colors
-    val me = Nexa.users.me.collectAsState().value?.id
-    val packs by Nexa.expressions.packs.collectAsState()
-    var q by remember { mutableStateOf("") }
-    var list by remember { mutableStateOf<List<StickerPack>?>(null) }
-    var installing by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(q) {
-        if (q.isNotEmpty()) delay(300)
-        list = null
-        list = try {
-            Nexa.api.get("/stickers/packs/public?q=${URLEncoder.encode(q.trim(), "UTF-8")}&limit=50", ListSerializer(StickerPack.serializer()))
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-    NxTextField(q, { q = it }, placeholder = t("settings.stickers.searchPublicPacks"), modifier = Modifier.semantics { contentDescription = t("settings.stickers.searchPublicPacks") })
-    val l = list
-    Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        when {
-            l == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
-            l.isEmpty() -> EmptyBox(t(if (q.isNotBlank()) "settings.stickers.noPublicPacksMatch" else "settings.stickers.noPublicPacksYet"))
-            else -> for (p in l) {
-                val known = packs[p.id]
-                val installed = known?.installed == true || p.installed
-                val shape = Radii.Md
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .ring(shape, c.borderSubtle)
-                        .background(c.bgSurface, shape)
-                        .background(sheen(c), shape)
-                        .topEdge(shape, c.edgeLight)
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Box(Modifier.size(48.dp).sunken(Radii.Sm, c), contentAlignment = Alignment.Center) {
-                            val cover = packCover(p)
-                            if (cover != null) ItemImage(cover, isEmoji(p), 48.dp, Modifier.size(40.dp))
-                            else Txt(p.name.take(1).uppercase(), style = Nx.type.body.copy(fontWeight = FontWeight(700)), color = c.textMuted)
-                        }
-                        Column(Modifier.weight(1f)) {
-                            Txt(p.name, style = Nx.type.body.copy(fontWeight = FontWeight(600)), color = c.textStrong, maxLines = 1)
-                            Txt(packCount(p), style = Nx.type.hint, color = c.textMuted)
-                        }
-                        when {
-                            p.ownerUserId == me -> NxButton(t("pickers.stickerPicker.edit"), { onEdit(p) }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM)
-                            installed && canRemove(known ?: p.copy(installed = true), me) -> NxButton(t("composer.composer.remove"), { confirmRemovePack(known ?: p) }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM)
-                            installed -> NxButton(t("settings.stickers.installed"), {}, kind = ButtonKind.SECONDARY, size = ButtonSize.SM, enabled = false)
-                            else -> NxButton(t("settings.stickers.install"), {
-                                installing = p.id
-                                scope.launch {
-                                    try {
-                                        Nexa.expressions.upsertPack(Nexa.api.request("PUT", "/stickers/packs/${p.id}/install", StickerPack.serializer()))
-                                    } catch (e: Exception) {
-                                        Nexa.ui.toast((e as? ApiError)?.message ?: t("modals.stickerPack.couldNotInstallThePack"), "error")
-                                    } finally {
-                                        installing = null
-                                    }
-                                }
-                            }, size = ButtonSize.SM, loading = installing == p.id)
-                        }
-                    }
-                    if (p.description.isNotBlank()) Txt(p.description, style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13.5f)), color = c.textMuted, maxLines = 3)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for (s in p.stickers.sortedBy { it.position }.take(4)) ItemImage(s, isEmoji(p), 56.dp, Modifier.size(52.dp))
-                    }
-                }
-            }
-        }
-    }
-}

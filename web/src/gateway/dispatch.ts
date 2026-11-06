@@ -580,6 +580,9 @@ export async function applyEvent(e: GatewayEvent): Promise<void> {
     case "sticker_recent":
       useExpressions.getState().noteRecent(e.d.sticker);
       return;
+    case "sticker_recent_clear":
+      useExpressions.getState().setRecents([]);
+      return;
     case "member_add":
       useUsers.getState().upsert(e.d.user);
       useServers.getState().upsertMember(e.d.member, true);

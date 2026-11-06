@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -141,7 +142,7 @@ private fun languageName(tag: String) = I18n.languages.firstOrNull { it.tag == t
  * to the list. Anyone can list a server; nothing has to be earned first.
  */
 @Composable
-fun DiscoverPage() {
+private fun ServerDiscovery() {
     val c = Nx.colors
     var q by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
@@ -195,25 +196,9 @@ fun DiscoverPage() {
     }
     val filtered = q.isNotBlank() || category.isNotEmpty() || tag.isNotEmpty() || language.isNotEmpty() || size != "any"
 
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(52.dp)
-                .boxShadow(RoundedCornerShape(0.dp), 8f, 16f, c.shadeAt(0.9f), spread = -14f)
-                .background(c.bgRaised)
-                .background(sheen(c))
-                .padding(start = 18.dp, end = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            NavButton()
-            Icon("Compass", c.textMuted, size = 22.dp)
-            Txt(t("discovery.title"), style = Nx.type.headerTitle.copy(fontSize = Nx.type.sp(16.5f), fontWeight = FontWeight(660)), color = c.textStrong, maxLines = 1)
-        }
         LazyColumn(
-            Modifier.weight(1f).fillMaxWidth().navigationBarsPadding(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, top = 18.dp, bottom = 32.dp),
+            Modifier.fillMaxSize().navigationBarsPadding(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item("lead") {
@@ -302,6 +287,55 @@ fun DiscoverPage() {
                 }
             }
         }
+}
+
+/**
+ * The Discover tab (DiscoveryPage.tsx): servers to join, and sticker and emoji
+ * packs to install. A part once opened stays composed, so coming back keeps its
+ * search and where it was scrolled to.
+ */
+@Composable
+fun DiscoverPage(section: String = "servers") {
+    val c = Nx.colors
+    var open by remember(section) { mutableStateOf(section) }
+    var seen by remember { mutableStateOf(setOf(section)) }
+    if (open !in seen) seen = seen + open
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .boxShadow(RoundedCornerShape(0.dp), 8f, 16f, c.shadeAt(0.9f), spread = -14f)
+                .background(c.bgRaised)
+                .background(sheen(c))
+                .padding(start = 18.dp, end = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            NavButton()
+            Icon("Compass", c.textMuted, size = 22.dp)
+            Txt(t("discovery.title"), style = Nx.type.headerTitle.copy(fontSize = Nx.type.sp(16.5f), fontWeight = FontWeight(660)), color = c.textStrong, maxLines = 1)
+        }
+        Box(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp)) {
+            fish.nexa.ui.settings.Segmented(
+                listOf(t("discovery.tab.servers") to "servers", t("pickers.expressionPicker.stickers") to "stickers", t("modals.customStatus.emoji") to "emoji"),
+                open,
+                { open = it },
+                label = t("discovery.title"),
+            )
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            for (id in listOf("servers", "stickers", "emoji")) if (id in seen) {
+                // what is not open keeps its place and draws nothing
+                Box(if (open == id) Modifier.fillMaxSize() else Modifier.size(0.dp).clipToBounds()) {
+                    when (id) {
+                        "servers" -> ServerDiscovery()
+                        "stickers" -> PackDiscovery("sticker")
+                        else -> PackDiscovery("emoji")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -327,14 +361,17 @@ private fun CategoryChip(label: String, n: Int?, on: Boolean, onClick: () -> Uni
 }
 
 @Composable
-private fun SortStrip(sort: String, onSort: (String) -> Unit) {
+private fun SortStrip(sort: String, onSort: (String) -> Unit) = SortStrip(sort, listOf("members", "newest", "created"), { t("discovery.sort.$it") }, onSort = onSort)
+
+@Composable
+internal fun SortStrip(sort: String, options: List<String>, label: (String) -> String, name: String = t("discovery.sortLabel"), onSort: (String) -> Unit) {
     val c = Nx.colors
     val shape = RoundedCornerShape(12.dp)
     Row(
-        Modifier.fillMaxWidth().sunken(shape, c).ring(shape, c.borderSubtle).padding(3.dp).semantics { contentDescription = t("discovery.sortLabel") },
+        Modifier.fillMaxWidth().sunken(shape, c).ring(shape, c.borderSubtle).padding(3.dp).semantics { contentDescription = name },
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        for (x in listOf("members", "newest", "created")) {
+        for (x in options) {
             val on = sort == x
             Box(
                 Modifier
@@ -345,7 +382,7 @@ private fun SortStrip(sort: String, onSort: (String) -> Unit) {
                     .pressable(remember { MutableInteractionSource() }) { onSort(x) }
                     .semantics { selected = on },
                 contentAlignment = Alignment.Center,
-            ) { Txt(t("discovery.sort.$x"), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), fontWeight = FontWeight(600)), color = if (on) c.textStrong else c.textMuted, maxLines = 1, align = TextAlign.Center) }
+            ) { Txt(label(x), style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(13f), fontWeight = FontWeight(600)), color = if (on) c.textStrong else c.textMuted, maxLines = 1, align = TextAlign.Center) }
         }
     }
 }

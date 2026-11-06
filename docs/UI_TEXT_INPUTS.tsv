@@ -127,12 +127,15 @@ web/src/components/server/ChannelSettingsModal.tsx:305	input	"checkbox"	nontext
 web/src/components/server/ChannelSettingsModal.tsx:483	TextInput	{query}	local
 web/src/components/server/MemberActionModal.tsx:101	input	"checkbox"	nontext
 web/src/components/server/MemberActionModal.tsx:187	TextInput	{reason}	staff
-web/src/components/server/PackEditor.tsx:318	TextInput	{name}	expression
-web/src/components/server/PackEditor.tsx:322	TextArea	{description}	expression
-web/src/components/server/PackEditor.tsx:328	TextInput	{packUrl(pack.id)}	expression
-web/src/components/server/PackEditor.tsx:350	input	"file"	nontext
-web/src/components/server/PackEditor.tsx:354	TextInput	{p.name}	expression
-web/src/components/server/PackEditor.tsx:355	TextInput	{p.tags}	expression
+web/src/components/server/PackEditor.tsx:89	SearchBox	{q}	local
+web/src/components/server/PackEditor.tsx:426	TextInput	{p.name}	expression
+web/src/components/server/PackEditor.tsx:427	TextInput	{p.tags}	expression
+web/src/components/server/PackEditor.tsx:437	SearchBox	{q}	local
+web/src/components/server/PackEditor.tsx:490	TextInput	{name}	expression
+web/src/components/server/PackEditor.tsx:493	TextArea	{description}	expression
+web/src/components/server/PackEditor.tsx:498	TextInput	{packUrl(pack.id)}	expression
+web/src/components/server/PackEditor.tsx:568	TextInput	{name}	expression
+web/src/components/server/PackEditor.tsx:571	TextInput	{tags}	expression
 web/src/components/server/pages/BansPage.tsx:79	TextInput	{q}	local
 web/src/components/server/pages/DeleteServerPage.tsx:42	TextInput	{typed}	local
 web/src/components/server/pages/DiscoverySettingsPage.tsx:113	TextInput	{tagText}	server
@@ -217,7 +220,6 @@ web/src/components/settings/ServerProfileDesigner.tsx:495	input	"file"	nontext
 web/src/components/settings/ServerProfileDesigner.tsx:496	input	"file"	nontext
 web/src/components/settings/SoundsPage.tsx:211	input	{sounds.volume}	nontext
 web/src/components/settings/SoundsPage.tsx:267	input	"file"	nontext
-web/src/components/settings/StickersPage.tsx:151	TextInput	{q}	local
 web/src/components/settings/TypingStyleEditor.tsx:117	input	"file"	nontext
 web/src/components/settings/TypingStyleEditor.tsx:192	TextInput	{style.words ?? ""}	typing
 web/src/components/settings/VoicePage.tsx:255	input	{settings.inputVolume}	nontext

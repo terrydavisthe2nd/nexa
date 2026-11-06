@@ -965,6 +965,7 @@ Message on someone else's message, for one).
 | `noteLinkRole` | What a note's share link lets people do | none | `noteLinkCanView`, `noteLinkCanEdit` |
 | `noteMemberRole` | What a person may do in a shared note | none | `noteMemberCanEdit`, `noteMemberCanView`, `removeNoteMember` |
 | `page` | Selected text or a link anywhere else in the app | none | `copySelection`, `openLink`, `copyLink` |
+| `pickerSticker` | A sticker in the sticker picker | none | `favoriteSticker`, `viewPackOfSticker`, `reportPickerSticker` |
 | `profileAddRole` | The add role button on a person's profile in a server | none | `addProfileRole` |
 | `profileMore` | The More button on a person's profile | `user` | `reportProfileContent`, `reportProfileApp`, `viewFullProfile`, `copyProfileCardLink`, `editFriendNickname`, `removeFriendFromProfile`, `blockFromProfile`, `copyProfileUserId`, `copyProfileBotId` |
 | `roleOrder` | A role, in Server Settings, Roles | none | `viewAsRole`, `duplicateRole`, `moveRole` |
@@ -973,7 +974,7 @@ Message on someone else's message, for one).
 | `serverBulk` | Several servers picked in the server rail | none | `markServersRead`, `pinServers`, `addServersToFolder`, `muteServers`, `leaveServers` |
 | `serverProfilePick` | Picking a server, in Settings, Profiles | none | `pickProfileServer` |
 | `stickerOrder` | Moving a sticker, in a sticker pack's editor | none | `moveSticker` |
-| `stickerPack` | A sticker pack in the sticker picker | none | `reportStickerPack`, `editStickerPack`, `removeStickerPack` |
+| `stickerPack` | A sticker pack in the sticker picker | none | `viewStickerPack`, `reportStickerPack`, `editStickerPack`, `removeStickerPack` |
 | `subchat` | A sub-conversation of a direct message | `channel` | `editSubchat`, `deleteSubchat`, `copySubchatId` |
 | `systemMessage` | A message the app writes itself (a join, a pin, a call) | `message`, `user`, `channel`, `server` | `deleteSystemMessage` |
 | `textBox` | The message box and other text you can type in | none | `spellingSuggestions`, `addToDictionary`, `undoText`, `redoText`, `cutText`, `copyText`, `pasteText`, `selectAllText`, `formatText`, `showSendButton` |

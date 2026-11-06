@@ -174,6 +174,39 @@ export function searchStickers(packs: StickerPack[], q: string, limit = 60): { s
   return out.slice(0, limit).map(({ sticker, pack }) => ({ sticker, pack }));
 }
 
+export interface StickerMatchGroup {
+  pack: StickerPack;
+  stickers: Sticker[];
+}
+
+/**
+ * Search results under the pack they came from: the packs with the closest
+ * match first, a pack's stickers in their own order. A pack whose name matches
+ * brings all of its stickers.
+ */
+export function searchStickersByPack(packs: StickerPack[], q: string): StickerMatchGroup[] {
+  const query = q.trim().toLowerCase();
+  if (!query) return [];
+  const out: (StickerMatchGroup & { best: number })[] = [];
+  for (const pack of packs) {
+    const packMatches = pack.name.toLowerCase().includes(query);
+    let best = packMatches ? 20 : -1;
+    const stickers = pack.stickers.filter((sticker) => {
+      const name = sticker.name.toLowerCase();
+      let score = -1;
+      if (name === query) score = 100;
+      else if (name.startsWith(query)) score = 80;
+      else if (name.includes(query)) score = 50;
+      else if (sticker.tags.toLowerCase().split(/\s+/).some((tag) => tag.startsWith(query))) score = 40;
+      if (score > best) best = score;
+      return packMatches || score >= 0;
+    });
+    if (stickers.length > 0) out.push({ pack, stickers, best });
+  }
+  out.sort((a, b) => b.best - a.best);
+  return out.map(({ pack, stickers }) => ({ pack, stickers }));
+}
+
 /** Where a pack's image lives: emoji packs store emoji-kind blobs. `css` is how wide a sticker is drawn. */
 export function packImageUrl(pack: StickerPack, sticker: Sticker, css = 160): string {
   return pack.kind === "emoji" ? emojiUrl(sticker.blob_id, sticker.animated, 48) : stickerUrl(sticker.blob_id, css);

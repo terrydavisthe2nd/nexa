@@ -87,6 +87,7 @@ export type GatewayEvent =
   | { t: "emoji_update"; d: { server_id: Snowflake; emojis: Emoji[] } }
   | { t: "sticker_update"; d: { pack_id: Snowflake; deleted: boolean; pack?: StickerPack } }
   | { t: "sticker_recent"; d: { sticker: Sticker } }
+  | { t: "sticker_recent_clear"; d: Record<string, never> }
   | { t: "pin_update"; d: { channel_id: Snowflake; message_id: Snowflake; pinned: boolean } }
   | { t: "ban_add"; d: { server_id: Snowflake; user_id: Snowflake; reason: string } }
   | { t: "ban_remove"; d: { server_id: Snowflake; user_id: Snowflake } }

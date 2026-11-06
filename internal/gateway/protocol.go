@@ -129,6 +129,8 @@ const (
 	EvKeyRotationNeeded = "key_rotation_needed"
 	// EvStickerRecent carries the account's recently used stickers to its other devices.
 	EvStickerRecent = "sticker_recent"
+	// EvStickerRecentClear empties the recent row on the account's other devices.
+	EvStickerRecentClear = "sticker_recent_clear"
 	// Moderation, delivered through Nexa: the account's own state, a notice to
 	// show, one of its cases, announcements, and for staff the queue and the log.
 	EvNexaState              = "nexa_state"

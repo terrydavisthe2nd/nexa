@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -407,5 +408,78 @@ func TestStickerInfoShowsOnlyPublicPacks(t *testing.T) {
 	}
 	if _, body = do(t, ts, "GET", "/api/v1/stickers/"+sid, tokB, nil); body["pack"].(map[string]any)["installed"] != true {
 		t.Errorf("installed after installing: %v", body["pack"])
+	}
+}
+
+// Discovery lists only public packs with something in them, of the kind asked
+// for, with no more than a preview of their stickers.
+func TestDiscoverPacksListsOnlyPublicOnes(t *testing.T) {
+	_, ts := newTestServer(t)
+	tokA, _ := register(t, ts, "alice")
+	tokB, _ := register(t, ts, "bob")
+	newPack := func(name, kind string, stickers int, public bool) string {
+		t.Helper()
+		res, body := do(t, ts, "POST", "/api/v1/stickers/packs", tokA, map[string]any{"name": name, "kind": kind})
+		if res.StatusCode != 201 {
+			t.Fatalf("create %s: %d %v", name, res.StatusCode, body)
+		}
+		id := body["id"].(string)
+		for i := range stickers {
+			res, raw := rawPost(t, ts.URL+"/api/v1/stickers/packs/"+id+"/stickers?name="+name+strconv.Itoa(i)+"&tags=findme", tokA, "image/png", pngBytes(32+i, 32))
+			if res.StatusCode != 201 {
+				t.Fatalf("add to %s: %d %s", name, res.StatusCode, raw)
+			}
+		}
+		if public {
+			if res, body := do(t, ts, "PATCH", "/api/v1/stickers/packs/"+id, tokA, map[string]any{"public": true}); res.StatusCode != 200 {
+				t.Fatalf("publish %s: %d %v", name, res.StatusCode, body)
+			}
+		}
+		return id
+	}
+	big := newPack("big", "sticker", 10, true)
+	small := newPack("small", "sticker", 1, true)
+	newPack("secret", "sticker", 1, false)
+	newPack("hollow", "sticker", 0, true)
+	newPack("faces", "emoji", 1, true)
+	if res, body := do(t, ts, "PUT", "/api/v1/stickers/packs/"+small+"/install", tokB, nil); res.StatusCode != 200 {
+		t.Fatalf("install: %d %v", res.StatusCode, body)
+	}
+
+	list := func(query string) []map[string]any {
+		t.Helper()
+		res, body := do(t, ts, "GET", "/api/v1/stickers/discover?"+query, tokB, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("discover %s: %d %v", query, res.StatusCode, body)
+		}
+		out := []map[string]any{}
+		for _, p := range body["packs"].([]any) {
+			out = append(out, p.(map[string]any))
+		}
+		return out
+	}
+	got := list("kind=sticker")
+	if len(got) != 2 || got[0]["id"] != small || got[1]["id"] != big {
+		t.Fatalf("popular stickers: %v", got)
+	}
+	if got[0]["install_count"] != float64(1) || got[0]["installed"] != true || got[0]["owner"].(map[string]any)["username"] != "alice" {
+		t.Errorf("counts and owner: %v", got[0])
+	}
+	if got[1]["sticker_count"] != float64(10) || len(got[1]["stickers"].([]any)) != 8 {
+		t.Errorf("preview: %v", got[1])
+	}
+	if emoji := list("kind=emoji"); len(emoji) != 1 || emoji[0]["name"] != "faces" {
+		t.Errorf("emoji: %v", emoji)
+	}
+	// a private pack's sticker names and tags are never what finds it
+	if found := list("kind=sticker&q=secret0"); len(found) != 0 {
+		t.Errorf("private pack found by a sticker's name: %v", found)
+	}
+	if found := list("kind=sticker&q=small0"); len(found) != 1 || found[0]["id"] != small {
+		t.Errorf("sticker name search: %v", found)
+	}
+	res, body := do(t, ts, "GET", "/api/v1/stickers/discover?kind=sticker&limit=1", tokB, nil)
+	if res.StatusCode != 200 || body["has_more"] != true || body["next_offset"] != float64(1) {
+		t.Errorf("first page: %d %v", res.StatusCode, body)
 	}
 }

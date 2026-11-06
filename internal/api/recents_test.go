@@ -96,4 +96,18 @@ func TestRecentStickers(t *testing.T) {
 	if got := recentIDs(t, ts, tokA); len(got) != 24 || got[0] != ids[len(ids)-1] {
 		t.Fatalf("cap: %d first %v", len(got), got[:1])
 	}
+
+	// clearing empties only this account's row, on all its devices
+	if res, _ := do(t, ts, "POST", "/api/v1/stickers/recent", tokB, map[string]any{"sticker_id": s1}); res.StatusCode != 404 {
+		t.Fatalf("bob touching a private sticker: %d", res.StatusCode)
+	}
+	if res, _ := do(t, ts, "DELETE", "/api/v1/stickers/recent", tokA, nil); res.StatusCode != 204 {
+		t.Fatalf("clear: %d", res.StatusCode)
+	}
+	if ev := ga.next("sticker_recent_clear", 3*time.Second); ev == nil {
+		t.Fatal("sticker_recent_clear never arrived")
+	}
+	if got := recentIDs(t, ts, tokA); len(got) != 0 {
+		t.Fatalf("after clear: %v", got)
+	}
 }

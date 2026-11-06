@@ -1,5 +1,5 @@
 import { api, ApiError, errorFromResponse } from "./client";
-import type { Emoji, GifPage, Snowflake, Sticker, StickerInfo, StickerPack } from "./types";
+import type { DiscoverPacksPage, Emoji, GifPage, Snowflake, Sticker, StickerInfo, StickerPack } from "./types";
 import { t } from "@/i18n";
 
 type Progress = (loaded: number, total: number) => void;
@@ -28,6 +28,10 @@ export const expressions = {
   },
   publicPacks(q = "", limit = 50): Promise<StickerPack[]> {
     return api.request<StickerPack[]>("GET", "/stickers/packs/public", undefined, { query: { q, limit } });
+  },
+  /** A page of public packs of one kind for Discovery, each with a preview of its stickers. */
+  discoverPacks(query: { kind: "sticker" | "emoji"; q?: string; sort?: "popular" | "newest" | "updated"; offset?: number; limit?: number }): Promise<DiscoverPacksPage> {
+    return api.request<DiscoverPacksPage>("GET", "/stickers/discover", undefined, { query });
   },
   pack(id: Snowflake): Promise<StickerPack> {
     return api.request<StickerPack>("GET", `/stickers/packs/${id}`);
@@ -72,6 +76,10 @@ export const expressions = {
   /** Records that a sticker was just sent. Never rejects the send if it fails. */
   touchRecentSticker(id: Snowflake): Promise<void> {
     return api.request<void>("POST", "/stickers/recent", { sticker_id: id });
+  },
+  /** Empties the recent row, on every device of the account. */
+  clearRecentStickers(): Promise<void> {
+    return api.request<void>("DELETE", "/stickers/recent");
   },
   /**
    * Imports a Telegram set with progress. The server answers newline-delimited
