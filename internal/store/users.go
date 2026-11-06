@@ -137,6 +137,15 @@ func (s *Store) createUser(ctx context.Context, u *User, registration bool, admi
 	})
 }
 
+// UsernameFree reports whether a new account could take this username: no
+// account has it and no moderator reset is holding it. It only answers for this
+// moment; CreateRegisteredUser decides inside its transaction.
+func (s *Store) UsernameFree(ctx context.Context, username string) (bool, error) {
+	var n int
+	err := s.db.R.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM users WHERE username = ?) + (SELECT count(*) FROM username_holds WHERE username = ?)`, username, username).Scan(&n)
+	return n == 0, err
+}
+
 // usernameHeldTx reports whether a moderator reset took this name off an
 // account (see username_holds). It takes the name's lock first, so a reset and
 // a registration of the same name on Postgres cannot pass each other.

@@ -428,6 +428,26 @@ func TestTwoAccountsADayFromOneAddress(t *testing.T) {
 	}
 }
 
+// A reported bug: trying names people already had used up the two accounts a day.
+func TestTakenUsernameSpendsNoSignup(t *testing.T) {
+	srv, ts := newTestServer(t)
+	srv.limSignup = ratelimit.New(ratelimit.Every(2, 24*time.Hour), 2, 25*time.Hour)
+	register(t, ts, "owner")
+	for i := 0; i < 5; i++ {
+		if res, body := do(t, ts, "POST", "/api/v1/auth/register", "", registerBody("owner")); res.StatusCode != 409 || errCode(body) != "username_taken" {
+			t.Fatalf("taken name: %d %v", res.StatusCode, body)
+		}
+	}
+	for _, name := range []string{"first", "second"} {
+		if res, body := do(t, ts, "POST", "/api/v1/auth/register", "", registerBody(name)); res.StatusCode != 201 {
+			t.Fatalf("%s: %d %v", name, res.StatusCode, body)
+		}
+	}
+	if res, body := do(t, ts, "POST", "/api/v1/auth/register", "", registerBody("third")); res.StatusCode != 429 || errCode(body) != "too_many_signups" {
+		t.Fatalf("third: %d %v", res.StatusCode, body)
+	}
+}
+
 func TestAdminCanTurnTheSignupLimitOff(t *testing.T) {
 	srv, ts := newTestServer(t)
 	srv.limSignup = ratelimit.New(ratelimit.Every(2, 24*time.Hour), 2, 25*time.Hour)

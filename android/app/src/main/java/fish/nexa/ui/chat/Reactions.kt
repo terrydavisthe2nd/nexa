@@ -4,6 +4,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -58,6 +63,15 @@ import fish.nexa.ui.t
 import fish.nexa.ui.theme.Nx
 import fish.nexa.ui.theme.boxShadow
 import fish.nexa.ui.theme.ring
+
+/**
+ * The reaction pill under the finger, for the row's long press (rowTouch), which
+ * sees the press first and fires before the pill's own would: PressedPerson's way.
+ */
+object PressedReaction {
+    var open: (() -> Unit)? = null
+    fun take(): (() -> Unit)? = open.also { open = null }
+}
 
 /** A custom emoji as a reaction key: ":name:blob" or "a:name:blob" (stores/expressions.ts emojiReactionKey). */
 data class CustomEmoji(val name: String, val blobId: String, val animated: Boolean)
@@ -130,6 +144,7 @@ private fun ReactionPill(cm: ChatMessage, ctx: ListCtx, emoji: String, count: In
     // still for a frame first; the count the pill came with stays still.
     val ease = Nx.motion.easeOut
     val lastCount = remember { intArrayOf(count) }
+    val was = remember(count) { lastCount[0] }
     val tickFrom = remember(count) { val d = count.compareTo(lastCount[0]); lastCount[0] = count; if (still) 0 else d }
     val tick = remember(count) { androidx.compose.animation.core.Animatable(if (tickFrom == 0) 1f else 0f) }
     androidx.compose.runtime.LaunchedEffect(tick) { if (tick.value < 1f) tick.animateTo(1f, tween(200, easing = ease)) }
@@ -137,9 +152,18 @@ private fun ReactionPill(cm: ChatMessage, ctx: ListCtx, emoji: String, count: In
     val ref = remember { AnchorRef() }
     val shape = RoundedCornerShape(999.dp)
     val bg = if (me) mixSrgb(c.bgSurface, c.brand, 0.20f) else c.bgSurface
+    val showWho by androidx.compose.runtime.rememberUpdatedState({ openReactors(cm, emoji, count, me, ref) })
     Row(
         Modifier
             .anchor(ref)
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    PressedReaction.open = showWho
+                    waitForUpOrCancellation(PointerEventPass.Initial)
+                    PressedReaction.open = null
+                }
+            }
             .graphicsLayer { val k = scale * (0.6f + 0.4f * pop.value); scaleX = k; scaleY = k; alpha = pop.value }
             .then(if (me) Modifier.boxShadow(shape, 0f, 12f, c.brand.copy(alpha = 0.7f), spread = -4f) else Modifier)
             .ring(shape, if (me) c.brand.copy(alpha = 0.7f) else c.borderSubtle)
@@ -150,7 +174,7 @@ private fun ReactionPill(cm: ChatMessage, ctx: ListCtx, emoji: String, count: In
                 enabled = true,
                 onLongClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    openReactors(cm, emoji, count, ref)
+                    openReactors(cm, emoji, count, me, ref)
                 },
             ) {
                 if (!locked) {
@@ -164,12 +188,23 @@ private fun ReactionPill(cm: ChatMessage, ctx: ListCtx, emoji: String, count: In
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         EmojiGlyph(emoji, 20.dp, source = 24)
-        Txt(
-            count.toString(),
-            style = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(600), fontFeatureSettings = "tnum"),
-            color = if (me) c.textStrong else c.textSubtle,
-            modifier = Modifier.graphicsLayer { alpha = tick.value; translationY = (1f - tick.value) * tickFrom * 0.45f * size.height },
-        )
+        val countStyle = Nx.type.bodySmall.copy(fontSize = Nx.type.sp(15f), fontWeight = FontWeight(600), fontFeatureSettings = "tnum")
+        val countColor = if (me) c.textStrong else c.textSubtle
+        Box {
+            // the number being replaced leaves as the new one arrives, so no frame shows neither
+            if (tick.value < 1f) Txt(
+                was.toString(),
+                style = countStyle,
+                color = countColor,
+                modifier = Modifier.graphicsLayer { alpha = 1f - tick.value; translationY = -tick.value * tickFrom * 0.45f * size.height },
+            )
+            Txt(
+                count.toString(),
+                style = countStyle,
+                color = countColor,
+                modifier = Modifier.graphicsLayer { alpha = tick.value; translationY = (1f - tick.value) * tickFrom * 0.45f * size.height },
+            )
+        }
     }
 }
 
@@ -193,12 +228,15 @@ private fun AddReactionPill(cm: ChatMessage, ctx: ListCtx) {
 private const val REACTORS_SHOWN = 20
 
 /** ReactorsPopover: who reacted with this emoji, the first twenty and how many more. */
-private fun openReactors(cm: ChatMessage, emoji: String, count: Int, ref: AnchorRef) {
+private fun openReactors(cm: ChatMessage, emoji: String, count: Int, me: Boolean, ref: AnchorRef) {
     openPopout("reactors", ref.rect, 260.dp) { _ ->
         val c = Nx.colors
         var ids by remember { mutableStateOf<List<String>?>(null) }
         LaunchedEffect(Unit) {
+            // this account's own change is already drawn but may not have reached the server when it answers
+            val meId = Nexa.users.meId
             ids = runCatching { Send.reactors(cm.channelId, cm.id, emoji, REACTORS_SHOWN) }.getOrDefault(emptyList())
+                .filter { it != meId }.let { if (me && meId != null) listOf(meId) + it else it }
             ids?.let { Nexa.session.ensureUsers(it) }
         }
         Column(Modifier.width(260.dp).heightIn(max = 360.dp).semantics { contentDescription = t("chat.reactions.whoReacted", "emoji" to emojiLabel(emoji)) }) {

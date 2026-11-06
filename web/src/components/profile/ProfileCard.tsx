@@ -739,10 +739,17 @@ export function ProfileCard({ userId, variant, onClose, preview, previewWidgets,
     <>
       <div className={s.ident}>
         <div className={s.nameRow}>
-          <h2 className={s.display}>
-            {design?.inline?.name ?? (compact && !design ? <button className={s.displayBtn} onClick={() => viewFull()} data-testid="profile-name">{styledName}</button> : styledName)}
-            {design && !design.inline?.name ? <Spot design={design} part="name" label={t("designer.spot.name")} /> : null}
-          </h2>
+          {design && !design.inline?.name ? (
+            // beside the heading, not in it: the heading clips a long name, and cut the pencil and outline up with it
+            <div className={[s.spotWrap, s.nameSpot].join(" ")}>
+              <h2 className={s.display}>{styledName}</h2>
+              <Spot design={design} part="name" label={t("designer.spot.name")} />
+            </div>
+          ) : (
+            <h2 className={s.display}>
+              {design?.inline?.name ?? (compact && !design ? <button className={s.displayBtn} onClick={() => viewFull()} data-testid="profile-name">{styledName}</button> : styledName)}
+            </h2>
+          )}
           {/* the server tag they wear, which opens the server it is from (not for a visitor, who has no account to ask with) */}
           {user.server_tag ? (
             design ? (

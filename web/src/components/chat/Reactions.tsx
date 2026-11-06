@@ -1,6 +1,6 @@
 import { useMediaAnimation } from "@/lib/mediaAnimation";
 import { SmilePlus } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { messages as messagesApi } from "@/api/messages";
 import { emojiUrl } from "@/api/users";
 import { Twemoji } from "@/components/common/Twemoji";
@@ -87,25 +87,28 @@ export function Reactions({ msg, pickerAnchor, onOpenPicker, onPickerClose }: Pr
   // reacting with another server's emoji takes Use External Emoji, as the server holds it
   const reactServer = useChannels((c) => c.byId[msg.channel_id]?.server_id ?? null);
   const ownOnly = useServers((x) => (reactServer ? !canI(x.byId[reactServer], P.USE_EXTERNAL_EMOJIS, msg.channel_id) : false));
-  // who reacted, asked for once per emoji and count: a count that moved means
-  // the list did too, where it used to be kept from the first look for good
+  const meId = useAuth((x) => x.me?.id);
+  // who reacted, asked for once per emoji. Every change of a count starts again
+  // (`round`): the same count can mean different people, and an answer still on
+  // its way when a count moves is kept under a round nothing reads.
   const [who, setWho] = useState<Record<string, string[]>>({});
   // What the pills last showed, so a reaction that arrives pops in and a count
   // that moves ticks over, while what was here when the message was drawn
   // stays still. Each one's motion is let go only when it has finished, so a
   // render on the way (the names coming in on hover) cannot cut it short.
   const counts = msg.reactions.map((r) => `${r.emoji}\u0001${r.count}`).join("\u0000");
-  const [seen, setSeen] = useState(() => ({ counts, by: new Map(msg.reactions.map((r) => [r.emoji, r.count])) }));
-  const [moving, setMoving] = useState<ReadonlyMap<string, "pop" | "up" | "down">>(() => new Map());
+  const [seen, setSeen] = useState(() => ({ counts, round: 0, by: new Map(msg.reactions.map((r) => [r.emoji, r.count])) }));
+  const [moving, setMoving] = useState<ReadonlyMap<string, { kind: "pop" } | { kind: "up" | "down"; from: number }>>(() => new Map());
   if (seen.counts !== counts) {
     const next = new Map(moving);
     for (const r of msg.reactions) {
       const was = seen.by.get(r.emoji);
-      if (was === undefined) next.set(r.emoji, "pop");
-      else if (was !== r.count && next.get(r.emoji) !== "pop") next.set(r.emoji, r.count > was ? "up" : "down");
+      if (was === undefined) next.set(r.emoji, { kind: "pop" });
+      else if (was !== r.count && next.get(r.emoji)?.kind !== "pop") next.set(r.emoji, { kind: r.count > was ? "up" : "down", from: was });
     }
-    setSeen({ counts, by: new Map(msg.reactions.map((r) => [r.emoji, r.count])) });
+    setSeen({ counts, round: seen.round + 1, by: new Map(msg.reactions.map((r) => [r.emoji, r.count])) });
     setMoving(next);
+    setWho({});
   }
   const landed = (emoji: string) =>
     setMoving((m) => {
@@ -116,14 +119,22 @@ export function Reactions({ msg, pickerAnchor, onOpenPicker, onPickerClose }: Pr
     });
   const [showing, setShowing] = useState<{ emoji: string; anchor: DOMRect } | null>(null);
   const closeShowing = useCallback(() => setShowing(null), []);
+  // a list being looked at when a count moves is asked for again: the pointer has not moved, so nothing else would
+  const pointedAt = useRef<string | null>(null);
+  const lookupNow = useRef<(emoji: string) => void>(() => undefined);
+  const lookingAt = showing?.emoji ?? null;
+  useEffect(() => {
+    for (const emoji of new Set([pointedAt.current, lookingAt])) if (emoji) lookupNow.current(emoji);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the round changes
+  }, [seen.round]);
   const closePicker = onPickerClose;
   // Where a new reaction may not be added (an announcements channel, say), no
   // + is offered and only one's own reactions can be taken back: the server
   // refused the rest after the pick.
   const mayReact = canReact(msg);
   if (msg.reactions.length === 0 && !pickerAnchor) return null;
-  const lookup = async (emoji: string, count: number): Promise<void> => {
-    const key = `${emoji}:${count}`;
+  const lookup = async (emoji: string): Promise<void> => {
+    const key = `${emoji}:${seen.round}`;
     if (who[key]) return;
     try {
       const ids = await messagesApi.reactors(msg.channel_id, msg.id, emoji, REACTORS_SHOWN);
@@ -132,13 +143,25 @@ export function Reactions({ msg, pickerAnchor, onOpenPicker, onPickerClose }: Pr
       /* the label stays generic */
     }
   };
+  lookupNow.current = (emoji) => void lookup(emoji);
   // A long press, a right click or the menu key shows who reacted: there is
   // no hover on a touch screen, and no tooltip for a keyboard.
-  const show = (e: React.MouseEvent<HTMLButtonElement>, emoji: string, count: number) => {
+  const show = (e: React.MouseEvent<HTMLButtonElement>, emoji: string) => {
     e.preventDefault();
     e.stopPropagation();
     setShowing({ emoji, anchor: e.currentTarget.getBoundingClientRect() });
-    void lookup(emoji, count);
+    void lookup(emoji);
+  };
+  /**
+   * Who reacted, as far as is known. This account's own change is already drawn
+   * but may not have reached the server when it answers, so what it says about
+   * this account gives way to what this device knows.
+   */
+  const reactors = (r: DecryptedMessage["reactions"][number]): string[] | undefined => {
+    const ids = who[`${r.emoji}:${seen.round}`];
+    if (!ids || !meId) return ids;
+    const others = ids.filter((id) => id !== meId);
+    return r.me ? [meId, ...others] : others;
   };
   const open = showing ? msg.reactions.find((r) => r.emoji === showing.emoji) : undefined;
   return (
@@ -146,29 +169,35 @@ export function Reactions({ msg, pickerAnchor, onOpenPicker, onPickerClose }: Pr
       {msg.reactions.map((r) => {
         const custom = isCustom(r.emoji);
         const label = emojiLabel(r.emoji);
-        const ids = who[`${r.emoji}:${r.count}`];
+        const ids = reactors(r);
         const names = ids?.map((id) => displayName(users[id])).join(", ");
         const locked = !mayReact && !r.me;
+        const move = moving.get(r.emoji);
+        const tick = move && move.kind !== "pop" ? move : undefined;
         // the app's own tooltip, as on the toolbar above: it says who, once they are known
         return (
           <Tooltip key={r.emoji} text={names ? t("chat.reactions.reactedWith", { who: names, emoji: label }) : t("chat.reactions.reactWith", { emoji: label })} side="top">
             <button
               className={s.pill}
               data-me={r.me}
-              data-new={moving.get(r.emoji) === "pop" || undefined}
+              data-new={move?.kind === "pop" || undefined}
               onAnimationEnd={(e) => e.target === e.currentTarget && landed(r.emoji)}
               data-locked={locked || undefined}
               aria-pressed={r.me}
               aria-disabled={locked || undefined}
               aria-label={t("chat.reactions.pillLabel", { emoji: label, count: r.count })}
-              onMouseEnter={() => void lookup(r.emoji, r.count)}
-              onFocus={() => void lookup(r.emoji, r.count)}
-              onContextMenu={(e) => show(e, r.emoji, r.count)}
+              onMouseEnter={() => { pointedAt.current = r.emoji; void lookup(r.emoji); }}
+              onMouseLeave={() => { pointedAt.current = null; }}
+              onFocus={() => void lookup(r.emoji)}
+              onContextMenu={(e) => show(e, r.emoji)}
               onClick={() => !locked && void toggleReaction(msg, r.emoji)}
             >
               {custom ? <img src={emojiUrl(custom.id, custom.animated, 24)} alt="" /> : <Twemoji text={r.emoji} className={s.pillImg} fallbackClassName={s.pillEmoji} title="" />}
-              {/* keyed by the count, so a new number is a new element that ticks in */}
-              <span key={r.count} aria-hidden="true" className={s.pillCount} data-tick={moving.get(r.emoji) === "up" || moving.get(r.emoji) === "down" ? moving.get(r.emoji) : undefined} onAnimationEnd={() => landed(r.emoji)}>{r.count}</span>
+              <span className={s.pillCounts} aria-hidden="true">
+                {tick ? <span key={`was${tick.from}`} className={s.pillCountOld} data-tick={tick.kind}>{tick.from}</span> : null}
+                {/* keyed by the count, so a new number is a new element that ticks in */}
+                <span key={r.count} className={s.pillCount} data-tick={tick?.kind} onAnimationEnd={() => landed(r.emoji)}>{r.count}</span>
+              </span>
             </button>
           </Tooltip>
         );
@@ -183,7 +212,7 @@ export function Reactions({ msg, pickerAnchor, onOpenPicker, onPickerClose }: Pr
           custom={isCustom(open.emoji)}
           label={nameOf(open.emoji)}
           count={open.count}
-          ids={who[`${open.emoji}:${open.count}`] ?? null}
+          ids={reactors(open) ?? null}
           onClose={closeShowing}
         />
       ) : null}

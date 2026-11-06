@@ -16,7 +16,8 @@ export function RoleIcon({ icon, size = 18 }: { icon: RoleIconInfo; size?: numbe
     }
     return undefined;
   });
-  const style = { width: size, height: size, flex: "none", objectFit: "contain" as const, verticalAlign: "middle", display: "inline-block" };
+  // centred in a row that lines up by text baseline, where a picture would stand on the baseline, above the name
+  const style = { width: size, height: size, flex: "none", objectFit: "contain" as const, verticalAlign: "middle", display: "inline-block", alignSelf: "center" };
   if (icon.kind === "image") {
     const url = iconUrl(icon.id, size);
     return url ? <img src={url} alt={icon.name} title={icon.name} style={style} loading="lazy" decoding="async" draggable={false} /> : null;

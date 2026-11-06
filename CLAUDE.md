@@ -473,7 +473,8 @@ serves until SIGINT or SIGTERM.
   transaction).
 - Sign-up: two new accounts a day per IPv4 address or IPv6 /64 (`limSignup`, spent only after every other
   check passed, never for the first account), unless a Developer turned it off (instance setting
-  `signup_ip_limit`), on top of `limReg`'s ten attempts an hour. `Store.CreateRegisteredUser` decides the
+  `signup_ip_limit`), on top of `limReg`'s ten attempts an hour. A username already taken or held
+  (`Store.UsernameFree`) is refused before the allowance is touched. `Store.CreateRegisteredUser` decides the
   first account's Developer flag and the `ADMIN_USERNAME` exception inside the inserting transaction under a
   shared bootstrap lock, so concurrent sign-ups cannot each become the first administrator. KDF, login and
   recovery refuse normalized usernames over 32 bytes before lookup or limiter admission. Visitor limits trust
@@ -883,7 +884,8 @@ it:
   reopen it. `mod_reads` keeps what each member of staff has read.
 - AutoMod: the server applies a server's rules to what it can read (names, profiles, thread and post titles);
   members' apps apply them to encrypted messages and report what they held
-  (`POST /servers/{id}/automod/report`).
+  (`POST /servers/{id}/automod/report`). `readable` (web `lib/automod/rules.ts`, Android `data/Automod`) reads a
+  picker GIF's signed path as nothing: its digits passed for a phone number, which stopped the GIF.
 
 ### Safety reports
 
@@ -1209,6 +1211,11 @@ lazily (`lib/lazyChunk.ts`); a dialog with lazy pages makes them with `readyPage
 - Write `:hover` plainly: `hoverOnlyWithAMouse` (a PostCSS step in `vite.config.ts`) moves every `:hover` rule
   into `@media (hover: hover)`, since phones keep the last tap's hover; what only hover reveals needs its own
   `@media (hover: none)` rule.
+- The shell's `.app` and `.main` are `overflow: clip`, never `hidden`, which code can still scroll: a
+  `scrollIntoView` or `focus()` with anything past the panel's edge slid the whole panel up and left an empty bar
+  nothing could scroll back. A clipped grid item needs its own `min-height: 0`.
+- Who reacted (`Reactions.tsx`, Android `openReactors`) is asked for again whenever a count moves, since one count
+  can mean different people, and this account's own change is laid over the answer, which may predate it.
 - Colours are picked with `components/common/ColourInput.tsx` (Android `openColourPicker`), never
   `<input type="color">`.
 - `components/chat/MessageList.tsx` measures reading positions from the bottom of a reversed scroller. In
@@ -1253,8 +1260,8 @@ ledger; update them when adding shared text fields, dynamic prompts or imported 
   holding a canvas, video or iframe, which would come up blank. A dialog opening while another's copy fades
   takes over the dim at once (`data-calm`), so the dim never doubles or dips.
 - Arrivals: a message that comes in while its conversation is open rises in (`data-fresh`; never history or
-  what came before `listOpenedAt`); a new reaction pops and a changed count ticks (`Reactions.tsx` `moving`,
-  let go on animationend so a render cannot cut it short); the member list slides in when opened, not when a
+  what came before `listOpenedAt`); a new reaction pops and a changed count ticks, the old number leaving as the
+  new one arrives (`Reactions.tsx` `moving`, let go on animationend so a render cannot cut it short); the member list slides in when opened, not when a
   conversation changes. State that starts an animation is decided while rendering, never in an effect, so
   nothing shows still for a frame first.
 
@@ -1488,6 +1495,8 @@ talks to the server as deployed, so it never depends on unreleased server change
   `data/MemberRoster` filters and sorts on a worker. Regression tests cover these.
 - Layout (`ui/shell/Shell.kt`, the web's breakpoints): drawers below 768 dp (`Nav.wide` from there), pinned
   member list from 1100 dp (`Nav.roomy`). A slow drag settles to its side past 40%, as on the web.
+- `rowTouch` sees a press before anything in the row and fires first, so what has its own long press there claims
+  it on the way down (`PressedPerson`, `PressedImage`, `PressedReaction`).
 - `NxSlider` marks itself `noSwipeWhileTouched`, and both settings frames' swipe back check `NoSwipe.active`,
   so dragging a slider towards the back edge moves the slider.
 - Shared pieces: `openSheet`, `Modifier.floatAbove(gap)` in `components/Controls.kt`, `TickBox`,

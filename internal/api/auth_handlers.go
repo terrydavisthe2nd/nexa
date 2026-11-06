@@ -186,6 +186,15 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		u.RecoveryAuthHash = rh
 		u.EncPrivateKeyRecovery = req.EncPrivateKeyRecovery
 	}
+	// A name already taken makes no account, so it must not spend the day's
+	// allowance below. Losing a race for a free name still spends one.
+	if free, err := s.Store.UsernameFree(ctx, req.Username); err != nil {
+		WriteError(w, err)
+		return
+	} else if !free {
+		WriteError(w, store.ErrUsernameTaken)
+		return
+	}
 	count, err := s.Store.CountUsers(ctx)
 	if err != nil {
 		WriteError(w, err)

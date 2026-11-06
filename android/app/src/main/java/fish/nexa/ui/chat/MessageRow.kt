@@ -174,7 +174,10 @@ fun MessageRow(item: MsgItem, ctx: ListCtx, flashSeq: Int?, picked: Boolean, can
                     canReply = cm != null && canSend(ctx),
                     swipe = swipe,
                     onLongPress = {
-                        cm?.let {
+                        // on a reaction, who reacted with it
+                        val reaction = PressedReaction.take()
+                        if (reaction != null) reaction()
+                        else cm?.let {
                             // on someone's picture or name, the menu is theirs
                             val who = PressedPerson.take()
                             if (who == null || !openPersonMenu(ctx.channel.id, who)) openMessageMenu(it, ctx, PressedImage.take())

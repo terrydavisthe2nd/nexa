@@ -7,6 +7,7 @@ import { channelKeyFor, ring } from "@/lib/keyring";
 import { P, canActOn, has } from "@/lib/perms";
 import { useChannels } from "@/stores/channels";
 import { channelPerms, memberHighest, serverPerms, useServers, type ServerState } from "@/stores/servers";
+import { isBareGifPath } from "@/components/chat/mediaLinks";
 import { checkAttachments, checkCaps, checkEmoji, checkInvites, checkLinks, checkPersonal, linksIn, scam, shadyLink, wall, zalgo } from "./checks";
 import { Matcher } from "./match";
 
@@ -215,7 +216,9 @@ export interface Readable {
 /** The words of a message (with a poll's question and answers) and its files' names. */
 export function readable(p: MessagePayload | undefined): Readable {
   if (!p) return { text: "", files: [] };
-  const parts = [p.fwd?.comment ?? "", p.t ?? ""];
+  // a picker GIF's text is its signed path, which nobody reads and whose
+  // digits and letters only look like phone numbers and words
+  const parts = [p.fwd?.comment ?? "", isBareGifPath(p.t ?? "") ? "" : (p.t ?? "")];
   if (p.poll) {
     parts.push(p.poll.question ?? "");
     for (const a of p.poll.answers ?? []) parts.push(a.text ?? "");

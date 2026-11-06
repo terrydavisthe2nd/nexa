@@ -342,6 +342,7 @@
 .card[data-design] .bubbleText { position: relative; }
 .spotWrap { position: relative; display: inline-flex; align-items: center; min-width: 0; }
 .section.spotWrap { display: block; }
+.nameSpot { flex: 0 1 auto; }
 .spot { position: absolute; inset: -5px -7px; z-index: 1; border-radius: 10px; background: transparent; outline: 1.5px dashed transparent; outline-offset: 0; cursor: pointer; transition: outline-color var(--transition), background-color var(--transition); }
 .spot[data-round] { inset: -4px; border-radius: 50%; }
 /* the banner: the whole picture, under the avatar and the status */
@@ -360,7 +361,13 @@
   /* a short word on a line (pronouns, a tag) has its pencil below it, clear of the name above */
   .spotWrap > .spot .spotLabel { top: auto; bottom: 0; width: 18px; height: 18px; translate: 45% 60%; }
   [dir="rtl"] .spotWrap > .spot .spotLabel { translate: -45% 60%; }
+  /* the name's pencil at its end, with room of its own: at the top it sat on the avatar's, and below it on the username */
+  .nameSpot { margin-inline-end: 16px; }
+  .nameSpot > .spot .spotLabel { top: 50%; bottom: auto; inset-inline-end: -4px; translate: 50% -50%; }
+  [dir="rtl"] .nameSpot > .spot .spotLabel { translate: -50% -50%; }
 }
+/* no badges to arrange: no outline, and no pencil floating over nothing */
+.spotWrap:has(> .spot:only-child) { display: none; }
 /* what an empty part could hold, in the designer: dashed, quiet, and the way to fill it */
 .ghostBubble { display: inline-flex; align-items: center; gap: 6px; border: 1.5px dashed color-mix(in srgb, var(--text-muted) 65%, transparent); background: color-mix(in srgb, var(--bubble-bg) 60%, transparent); color: var(--text-subtle); cursor: pointer; animation: none; }
 .ghostBubble:hover, .ghostBubble:focus-visible { color: var(--text-strong); border-color: var(--profile-accent); }

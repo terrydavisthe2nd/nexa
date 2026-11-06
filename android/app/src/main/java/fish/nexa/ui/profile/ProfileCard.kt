@@ -456,7 +456,8 @@ private fun Identity(user: PublicUser, rel: Relationship?, full: Boolean, theme:
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             val nameEditor = design?.name
             if (nameEditor != null) Box(Modifier.weight(1f, fill = false)) { nameEditor() }
-            else Spotted(design, ProfilePart.NAME, t("designer.spot.name"), Modifier.weight(1f, fill = false)) {
+            // the pencil at the name's end, with room of its own: at the top it sat on the avatar's
+            else Spotted(design, ProfilePart.NAME, t("designer.spot.name"), Modifier.weight(1f, fill = false).then(if (design != null) Modifier.padding(end = 16.dp) else Modifier), kind = SpotKind.NAME) {
                 // in their own name style, when they have one
                 fish.nexa.ui.chat.RoleName(
                     shownName,

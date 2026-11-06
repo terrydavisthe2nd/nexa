@@ -260,7 +260,9 @@ object Automod {
     /** The words of a message (with a poll's question and answers) and its files' names. */
     fun readable(p: MessagePayload?): Readable {
         if (p == null) return Readable("", emptyList())
-        val parts = arrayListOf(p.fwdComment ?: "", p.t ?: "")
+        // a picker GIF's text is its signed path, which nobody reads and whose
+        // digits and letters only look like phone numbers and words
+        val parts = arrayListOf(p.fwdComment ?: "", (p.t ?: "").takeUnless { fish.nexa.media.isBareGifPath(it) } ?: "")
         p.poll?.let { poll ->
             parts += poll.question
             for (a in poll.answers) parts += a.text

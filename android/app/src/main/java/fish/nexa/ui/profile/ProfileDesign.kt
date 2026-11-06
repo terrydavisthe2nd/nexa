@@ -76,8 +76,8 @@ class WidgetDesign(
     val add: () -> Unit,
 )
 
-/** Where a spot's pencil sits: a part's top corner, below a short word, under a round picture, or inside the banner. */
-enum class SpotKind { CORNER, WORD, ROUND, BANNER }
+/** Where a spot's pencil sits: a part's top corner, below a short word, at the end of the name, under a round picture, or inside the banner. */
+enum class SpotKind { CORNER, WORD, NAME, ROUND, BANNER }
 
 /** A dashed outline drawn [out] beyond what it surrounds, the way the web's spot sits around its part. */
 private fun DrawScope.dashedOutline(color: Color, radius: Dp, outX: Dp, outY: Dp, round: Boolean) {
@@ -133,7 +133,7 @@ fun Spotted(
     }
     val (outX, outY) = when (kind) {
         SpotKind.CORNER -> 7.dp to 5.dp
-        SpotKind.WORD -> 7.dp to 5.dp
+        SpotKind.WORD, SpotKind.NAME -> 7.dp to 5.dp
         SpotKind.ROUND -> 4.dp to 4.dp
         SpotKind.BANNER -> 0.dp to 0.dp
     }
@@ -158,10 +158,11 @@ fun Spotted(
         )
         SpotPencil(
             accent,
-            if (kind == SpotKind.WORD) 18.dp else 22.dp,
+            if (kind == SpotKind.WORD || kind == SpotKind.NAME) 18.dp else 22.dp,
             when (kind) {
                 SpotKind.CORNER -> Modifier.align(Alignment.TopEnd).offset(x = outX, y = -outY - 13.dp)
                 SpotKind.WORD -> Modifier.align(Alignment.BottomEnd).offset(x = outX + 8.dp, y = outY + 11.dp)
+                SpotKind.NAME -> Modifier.align(Alignment.CenterEnd).offset(x = outX + 13.dp)
                 SpotKind.ROUND -> Modifier.align(Alignment.BottomCenter).offset(y = outY + 7.dp)
                 SpotKind.BANNER -> Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 12.dp)
             },
