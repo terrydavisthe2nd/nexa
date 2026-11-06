@@ -14,6 +14,10 @@ export const HOLD_MS = 450;
 const SLOP_PX = 10;
 /** Where a long press already means something: selecting text, a native control. */
 const NATIVE = "input, textarea, select, [contenteditable=''], [contenteditable='true'], [data-native-press]";
+/** How long after the lift a click can still be the lift's own. A new touch ends this sooner. */
+const LIFT_MS = 700;
+/** What a browser makes of a lifted finger. */
+const LIFT_MOUSE = ["mousedown", "mouseup", "click"] as const;
 
 /**
  * `fromBrowser` tells the browser's own contextmenu events from the one sent
@@ -26,6 +30,8 @@ export function installLongPress(doc: Document = document, fromBrowser: (e: Even
   let pressing = false;
   /** This press has opened a menu, so lifting the finger must not tap as well. */
   let opened = false;
+  /** When the lift of such a press stops owning the clicks that come, on the events' clock. */
+  let liftOwnsUntil = -Infinity;
 
   const cancel = (): void => {
     if (timer) clearTimeout(timer);
@@ -37,6 +43,8 @@ export function installLongPress(doc: Document = document, fromBrowser: (e: Even
     cancel();
     pressing = true;
     opened = false;
+    // whatever this touch clicks is its own
+    liftOwnsUntil = -Infinity;
     const t = e.touches[0];
     const target = e.target instanceof Element ? e.target : null;
     if (e.touches.length !== 1 || !t || !target || target.closest(NATIVE)) return;
@@ -70,8 +78,20 @@ export function installLongPress(doc: Document = document, fromBrowser: (e: Even
     if (e.touches.length > 0) return;
     pressing = false;
     // the menu is open now; the lift must not also press what was under the finger
-    if (opened && e.cancelable) e.preventDefault();
+    if (opened) {
+      if (e.cancelable) e.preventDefault();
+      // Not enough alone: a finger that drifted has started a scroll, and then
+      // this cannot be cancelled. iPhones have pressed the item that slid in
+      // under the finger, or closed the sheet by pressing the backdrop.
+      liftOwnsUntil = e.timeStamp + LIFT_MS;
+    }
     opened = false;
+  };
+
+  const onLiftMouse = (e: Event): void => {
+    if (!fromBrowser(e) || e.timeStamp >= liftOwnsUntil) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
   };
 
   const onNativeMenu = (e: Event): void => {
@@ -95,8 +115,10 @@ export function installLongPress(doc: Document = document, fromBrowser: (e: Even
   doc.addEventListener("touchcancel", onEnd, passive);
   doc.addEventListener("scroll", cancel, passive);
   doc.addEventListener("contextmenu", onNativeMenu, capture);
+  for (const type of LIFT_MOUSE) doc.addEventListener(type, onLiftMouse, capture);
   return () => {
     cancel();
+    for (const type of LIFT_MOUSE) doc.removeEventListener(type, onLiftMouse, capture);
     doc.removeEventListener("touchstart", onStart, passive);
     doc.removeEventListener("touchmove", onMove, passive);
     doc.removeEventListener("touchend", onEnd, { capture: true });

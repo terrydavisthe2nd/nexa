@@ -1297,6 +1297,10 @@ option bar are `docked` in the page's flow so messages move up rather than being
   `lib/contextMenus/menuDocs.test.ts` generates the menu table in `docs/plugins.md` and fails when it is stale
   (`UPDATE_DOCS=1` rewrites it) or a menu lacks a line in its `WHERE` list; every menu module must be in
   `lib/contextMenus/all.ts`.
+- A touch held still opens a menu (`lib/longPress.ts`, which sends `contextmenu`, since iOS never does). The
+  lift of that press must press nothing, or it chooses whatever slid in under the finger or closes the sheet
+  through its backdrop: mouse events and clicks after it are dropped until the next touch, because cancelling
+  `touchend` is not enough (a finger that drifted has started a scroll, and then it cannot be cancelled).
 - Frequent emoji are snapshotted once per open expression menu on both clients, so hit targets do not move
   while it is open. Copy ID for Bots (`lib/copyId.ts`) sits beside every Copy User ID and copies the id bots
   see.
