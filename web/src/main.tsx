@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { installCrashReporting } from "./lib/crashReport";
+import { startPerfReports } from "./lib/perfReports";
 import { loadCaptchaConfig } from "./lib/captcha";
 import { installLongPress } from "./lib/longPress";
 import { installZalgoGuard } from "./lib/zalgo";
@@ -47,6 +48,7 @@ function start(): void {
   registerWorkers();
 
   installCrashReporting();
+  startPerfReports();
   installLongPress();
   // no zalgo in any text box: what would pile marks onto a letter does not go in
   installZalgoGuard(refuseZalgo);

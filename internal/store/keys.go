@@ -227,7 +227,7 @@ func isFKError(err error) bool {
 // grantRead reads grants with their epoch's fingerprint.
 const grantRead = `SELECT g.conv_id, g.epoch, g.user_id, g.wrapped_key, g.wrapped_by, g.created_at, e.commitment FROM key_grants g JOIN key_epochs e ON e.conv_id = g.conv_id AND e.epoch = g.epoch `
 
-func scanGrants(rows *sql.Rows) ([]*KeyGrant, error) {
+func scanGrants(rows *db.Rows) ([]*KeyGrant, error) {
 	defer rows.Close()
 	out := []*KeyGrant{}
 	for rows.Next() {

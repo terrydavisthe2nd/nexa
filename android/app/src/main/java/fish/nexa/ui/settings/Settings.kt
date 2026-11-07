@@ -733,6 +733,7 @@ private fun settingsIndex(groups: List<SettingsGroup>): List<SettingResult> {
         Triple("privacy", "groupAdd", "settings.privacy.letFriendsAddMe"),
         Triple("privacy", "encryption", "server.encryption.encryption"),
         Triple("privacy", "encryption", "settings.privacy.search"),
+        Triple("privacy", "perfReports", "settings.privacy.perfReports"),
         Triple("blocked", "blockedMessages", "people.block.hideMessages"),
         Triple("data", "export", "settings.privacy.exportMyData"),
         Triple("chat", "messageDisplay", "settings.appearance.messageDisplay"),

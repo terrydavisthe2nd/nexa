@@ -251,6 +251,12 @@ export interface Settings {
   searchIndex: boolean;
   /** The last few searches, newest first, for the search box to offer again. Inside the encrypted settings like everything here. */
   searchRecent: string[];
+  /**
+   * Send performance reports (lib/perfReports.ts): how long things took on
+   * each of this account's devices, summed there and sent without anything
+   * naming the account. Off, nothing is measured or sent.
+   */
+  perfReports: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -346,6 +352,7 @@ export const DEFAULT_SETTINGS: Settings = {
   supportPromptSeen: null,
 
   searchIndex: true,
+  perfReports: true,
   searchRecent: [],
 };
 
@@ -406,6 +413,7 @@ function mergeSettings(base: Settings, incoming: unknown): Settings {
     collapsedStickerPacks: Array.isArray(inc.collapsedStickerPacks) ? inc.collapsedStickerPacks.filter((id): id is string => typeof id === "string") : base.collapsedStickerPacks,
 
     searchIndex: typeof inc.searchIndex === "boolean" ? inc.searchIndex : base.searchIndex,
+    perfReports: typeof inc.perfReports === "boolean" ? inc.perfReports : base.perfReports,
     // no more than search/recent.ts keeps, whatever an older or odd copy holds
     searchRecent: Array.isArray(inc.searchRecent) ? inc.searchRecent.filter((q): q is string => typeof q === "string" && q.length <= 200).slice(0, 8) : base.searchRecent,
   };

@@ -45,6 +45,7 @@ import { useServers } from "@/stores/servers";
 import { displayName } from "@/stores/users";
 import { ActiveRows, ActiveRowsProvider, rowIdOf } from "./activeRow";
 import { onReadyApplied, readyApplied } from "@/gateway/dispatch";
+import { useOpenTiming } from "@/lib/perfReports";
 /** A run of messages from blocked people, folded into one row (open shows them under it). */
 type BlockedRow = { kind: "blocked"; key: string; ids: string[]; open: boolean };
 type Row =
@@ -390,6 +391,7 @@ export function MessageList({ channel }: { channel: Channel }) {
   const loading = state?.loading ?? false;
   const loaded = state?.loaded ?? false;
   const failed = state?.failed ?? 0;
+  useOpenTiming(channel.id, loaded);
 
   if (unreadFrom.current === undefined && loaded && readKnown) unreadFrom.current = readState?.lastReadId ?? null;
   // Marked unread (here or on another device): the read position moves back,

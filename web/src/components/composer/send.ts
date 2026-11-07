@@ -1,4 +1,5 @@
 import { ApiError } from "@/api/client";
+import { stage as perfStage } from "@/lib/perfReports";
 import { messages as messagesApi } from "@/api/messages";
 import type { SendMessageRequest } from "@/api/types";
 import { brokenLimit, encryptMessage, type AttachmentMeta, type MessagePayload, type PollPayload } from "@/crypto/message";
@@ -240,7 +241,16 @@ export function sendMessage(channelId: string, rawText: string, opts: SendOption
   // Only now, past the two returns above that leave nothing behind: the failed
   // copy is the only place a retried message still exists.
   if (opts.replaces) messages.removePending(channelId, opts.replaces);
-  return enqueue(channelId, () => deliver(channelId, me.id, w, tmp, nonce, opts));
+  // pressing send until the server has it, earlier messages queued ahead included
+  const began = performance.now();
+  const timed: SendOptions = {
+    ...opts,
+    onSent: (d) => {
+      perfStage("send", performance.now() - began);
+      opts.onSent?.(d);
+    },
+  };
+  return enqueue(channelId, () => deliver(channelId, me.id, w, tmp, nonce, timed));
 }
 
 /**

@@ -302,6 +302,17 @@ fun MessageList(channel: Channel, modifier: Modifier = Modifier) {
     val latestRows by androidx.compose.runtime.rememberUpdatedState(reversed)
     val reduced = Nx.motion.reduced
 
+    // opening a conversation, for the performance report: from the first
+    // composition that shows it until the frame that draws its messages;
+    // openings before the first ready belong to startup
+    val opened = remember(channelId) { longArrayOf(if (fish.nexa.data.PerfReports.pastStartup()) android.os.SystemClock.elapsedRealtime() else 0L) }
+    LaunchedEffect(channelId, state.loaded) {
+        if (opened[0] == 0L || !state.loaded) return@LaunchedEffect
+        androidx.compose.runtime.withFrameNanos { }
+        fish.nexa.data.PerfReports.onScreen("open_conversation", (android.os.SystemClock.elapsedRealtime() - opened[0]).toDouble())
+        opened[0] = 0L
+    }
+
     // first page, and retries with backoff when it fails
     LaunchedEffect(channelId) { Nexa.messages.loadInitial(channelId) }
     LaunchedEffect(channelId, state.failed, state.loaded) {

@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"evilion.xyz/chat/internal/perf"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"
 )
@@ -110,11 +112,20 @@ func OpenURL(addr string) (*DB, error) {
 // Tx runs fn inside a write transaction, rolling back on error or panic. The
 // transaction it hands over rebinds placeholders exactly as the pools do, so a
 // query written once works inside a transaction as well as outside one.
+//
+// The profiler sees how long the transaction queued for the writer and how
+// long it then held it, both by the line that called Tx: on SQLite every other
+// write waits behind the holder.
 func (d *DB) Tx(ctx context.Context, fn func(tx *Tx) error) (err error) {
+	site := perf.Site(1)
+	asked := time.Now()
 	raw, err := d.W.sqlDB.BeginTx(ctx, nil)
+	began := time.Now()
+	perf.DB(ctx, perf.TxWait, site, "", began.Sub(asked), err != nil)
 	if err != nil {
 		return err
 	}
+	defer func() { perf.DB(ctx, perf.TxHold, site, "", time.Since(began), err != nil) }()
 	defer func() {
 		if p := recover(); p != nil {
 			_ = raw.Rollback()

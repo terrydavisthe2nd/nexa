@@ -1,4 +1,5 @@
 import { useMyReports } from "@/stores/myReports";
+import { sawReady, stage as perfStage } from "@/lib/perfReports";
 import { useMyBadges } from "@/stores/myBadges";
 import { CLOSE_TOO_MANY, GatewayClient, type GatewayStatus } from "./client";
 import type { GatewayEvent } from "./events";
@@ -139,6 +140,12 @@ export async function startSession(): Promise<void> {
       // heartbeats keep their pace in a hidden window, where the page's own timers slow to once a minute
       setTimeoutImpl: workerSetTimeout,
       clearTimeoutImpl: workerClearTimeout,
+      onTiming: (what, ms) => {
+        // a hidden page's messages can wait behind its throttled timers
+        if (what === "gateway_rtt" && document.visibilityState !== "visible") return;
+        perfStage(what, ms);
+        if (what === "gateway_connect") sawReady();
+      },
     });
     client.connect();
     window.addEventListener("online", wakeGateway);

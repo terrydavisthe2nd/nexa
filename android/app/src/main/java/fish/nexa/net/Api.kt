@@ -110,9 +110,17 @@ class Api(val baseUrl: String) {
         // tokens are Turnstile's; the server checks unmarked ones with hCaptcha, kept for older apps
         if (captcha != null) b.header("X-Captcha-Token", captcha).header("X-Captcha-Provider", "turnstile")
         for ((k, v) in headers) b.header(k, v)
+        val began = android.os.SystemClock.elapsedRealtimeNanos()
+        fun timed(failed: Boolean) = fish.nexa.data.PerfReports.request(method, path, (android.os.SystemClock.elapsedRealtimeNanos() - began) / 1e6, failed)
         try {
-            return execute(http, b.build(), auth && token != null)
+            return execute(http, b.build(), auth && token != null).also { timed(false) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: java.io.IOException) {
+            timed(true)
+            throw e
         } catch (e: ApiError) {
+            timed(e.status == 0 || e.status >= 500)
             // A request a captcha guards, sent without one: the server names
             // the action, so it is solved and the request sent again, once.
             val action = e.captchaAction

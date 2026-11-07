@@ -210,7 +210,9 @@ object Send {
         val tmp = tmpId()
         Nexa.messages.addPending(PendingMessage(tmp, nonce, channelId, me.id, p, System.currentTimeMillis(), replyToId = opts.replyTo, ping = opts.ping ?: true, flags = opts.flags))
         if (opts.replaces != null) Nexa.messages.removePending(channelId, opts.replaces)
-        Nexa.scope.launch { runCatching { inTurn(channelId) { deliver(channelId, me.id, w, tmp, nonce, opts) } } }
+        // pressing send until the server has it, earlier messages queued ahead included
+        val began = android.os.SystemClock.elapsedRealtime()
+        Nexa.scope.launch { runCatching { inTurn(channelId) { deliver(channelId, me.id, w, tmp, nonce, opts, began) } } }
     }
 
     /** Whether a message breaks what a message may hold; the box says so, and it stays unsent. */
@@ -336,7 +338,7 @@ object Send {
         return if (m.webhookId != null) null else m.authorId
     }
 
-    private suspend fun deliver(channelId: String, meId: String, w: Written, tmp: String, nonce: String, opts: SendOptions) {
+    private suspend fun deliver(channelId: String, meId: String, w: Written, tmp: String, nonce: String, opts: SendOptions, began: Long = 0L) {
         var payload = w.payload
         opts.embedsLater?.let { later ->
             val found = runCatching { later() }.getOrDefault(emptyList())
@@ -400,6 +402,7 @@ object Send {
             var dec = withContext(Dispatchers.Default) { Nexa.messages.decrypt(sent) }
             if (dec.payload == null) dec = dec.copy(payload = payload, error = null)
             Nexa.messages.settle(channelId, listOf(dec), tmpId = tmp, nonce = nonce)
+            if (began != 0L) PerfReports.stage("send", (android.os.SystemClock.elapsedRealtime() - began).toDouble())
             Nexa.channels.setLastMessage(channelId, sent.id)
             Slowmode.markSent(channelId)
         } catch (e: Exception) {

@@ -16,6 +16,7 @@ import (
 
 	"evilion.xyz/chat/internal/auth"
 	"evilion.xyz/chat/internal/ids"
+	"evilion.xyz/chat/internal/perf"
 	"evilion.xyz/chat/internal/store"
 	"evilion.xyz/chat/internal/textutil"
 )
@@ -111,9 +112,12 @@ func (x *Conn) Guest() *store.Guest { return x.c.guest }
 func (x *Conn) Send(t string, d any) { x.c.enqueue(ServerFrame{T: t, S: x.c.hub.nextSeq(), D: d}) }
 
 type conn struct {
-	id  ids.ID
-	hub *Hub
-	ws  *websocket.Conn
+	// platform is the kind of app on the other end (perf.Platform), for the
+	// profiler's round trip split
+	platform string
+	id       ids.ID
+	hub      *Hub
+	ws       *websocket.Conn
 	// userID and ip never change, so the read loop, the presence timer and the
 	// hub's sweeps can all read them without agreeing on a lock.
 	userID ids.ID
@@ -293,6 +297,7 @@ func (c *conn) goLive(ready ServerFrame) {
 func (c *conn) close(code websocket.StatusCode, reason string) {
 	c.once.Do(func() {
 		close(c.closed)
+		perf.Count(perf.GwClose, reason)
 		if c.external != nil {
 			c.closeExternal(code, reason)
 			return
@@ -413,7 +418,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := &conn{id: ids.New(), hub: h, ws: ws, userID: user.ID, ip: ip, session: session, guest: guest, send: make(chan ServerFrame, h.sendBuffer), closed: make(chan struct{}), typing: map[ids.ID]time.Time{},
 		ops: rate.NewLimiter(opRate, opBurst), presence: rate.NewLimiter(rate.Every(presenceEvery), presenceBurst), signalBytes: rate.NewLimiter(signalBytesRate, signalBytesBurst),
 		cursors: rate.NewLimiter(noteCursorRate, noteCursorBurst), noteSeen: map[ids.ID]noteAudience{},
-		actLimit: rate.NewLimiter(rate.Every(activityEvery), activityBurst), gameLimit: newGameLimit()}
+		actLimit: rate.NewLimiter(rate.Every(activityEvery), activityBurst), gameLimit: newGameLimit(), platform: perf.Platform(r.UserAgent())}
 	c.user.Store(user)
 	c.beat.Store(time.Now().UnixMilli())
 
@@ -513,8 +518,17 @@ func (c *conn) pingLoop() {
 			timeout = restPingTimeout
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		asked := time.Now()
 		err := c.ws.Ping(ctx)
 		cancel()
+		if err == nil {
+			// a resting phone's radio may be asleep, which is not the network
+			name := c.platform
+			if resting {
+				name += " (resting)"
+			}
+			perf.Observe(perf.GwRTT, name, time.Since(asked))
+		}
 		select {
 		case <-c.closed:
 			return
@@ -550,8 +564,10 @@ func (c *conn) writeLoop() {
 				continue
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+			wrote := time.Now()
 			err = c.ws.Write(ctx, websocket.MessageText, b)
 			cancel()
+			perf.ObserveN(perf.GwWrite, f.T, time.Since(wrote), int64(len(b)))
 			if err != nil {
 				c.close(websocket.StatusAbnormalClosure, "write failed")
 				return
@@ -699,6 +715,8 @@ func (c *conn) applyPresence(ctx context.Context, raw json.RawMessage) {
 
 func (c *conn) handle(ctx context.Context, f ClientFrame) {
 	h := c.hub
+	start := time.Now()
+	defer func() { perf.Observe(perf.GwOp, opName(f.Op), time.Since(start)) }()
 	if c.guest != nil {
 		switch f.Op {
 		case OpHeartbeat, OpVoiceState, OpVoiceSignal:

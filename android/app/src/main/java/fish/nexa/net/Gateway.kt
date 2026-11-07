@@ -61,6 +61,9 @@ class Gateway(
     private var rest = REST_NONE
     private var connectingSince = 0L
     private var heartbeatJob: Job? = null
+    /** When the socket opened and the last heartbeat went, for the performance report (data/PerfReports). */
+    private var openedAt = 0L
+    private var pingedAt = 0L
     private var ackJob: Job? = null
     private var reconnectJob: Job? = null
     private var connectTimer: Job? = null
@@ -86,6 +89,7 @@ class Gateway(
                 if (ws !== webSocket) return
                 connectTimer?.cancel()
                 webSocket.send(buildJsonObject { put("op", "identify"); put("d", buildJsonObject { put("token", token) }) }.toString())
+                openedAt = android.os.SystemClock.elapsedRealtime()
                 _state.value = State(Status.OPEN, ready = false)
                 while (queue.isNotEmpty()) webSocket.send(queue.removeFirst())
                 startHeartbeat()
@@ -102,7 +106,19 @@ class Gateway(
                     return
                 }
                 val t = (frame["t"] as? JsonPrimitive)?.contentOrNull ?: return
-                if (t == "heartbeat_ack") return
+                if (t == "heartbeat_ack") {
+                    // only on screen (onScreen): a resting phone's radio may be asleep, which is not the network
+                    val at = synchronized(lock) { pingedAt.also { pingedAt = 0 } }
+                    if (at != 0L) fish.nexa.data.PerfReports.onScreen("gateway_rtt", (android.os.SystemClock.elapsedRealtime() - at).toDouble())
+                    return
+                }
+                if (t == "ready") {
+                    val at = synchronized(lock) { openedAt.also { openedAt = 0 } }
+                    if (at != 0L) {
+                        fish.nexa.data.PerfReports.onScreen("gateway_connect", (android.os.SystemClock.elapsedRealtime() - at).toDouble())
+                        fish.nexa.data.PerfReports.sawReady()
+                    }
+                }
                 if (t == "ready") synchronized(lock) {
                     ready = true
                     attempt = 0
@@ -216,6 +232,8 @@ class Gateway(
         val socket = ws ?: return
         if (_state.value.status != Status.OPEN) return
         socket.send("{\"op\":\"heartbeat\"}")
+        // only a heartbeat answered with nothing else ahead of it times the network
+        pingedAt = if (ready) android.os.SystemClock.elapsedRealtime() else 0L
         if (ackJob != null) return
         val seen = framesSeen
         // a radio waking on a poor signal takes a while, and a call is the only thing that cannot wait

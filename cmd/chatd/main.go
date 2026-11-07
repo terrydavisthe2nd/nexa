@@ -34,6 +34,7 @@ import (
 	"evilion.xyz/chat/internal/media"
 	"evilion.xyz/chat/internal/music"
 	"evilion.xyz/chat/internal/objstore"
+	"evilion.xyz/chat/internal/perf"
 	"evilion.xyz/chat/internal/rpcapps"
 	"evilion.xyz/chat/internal/screen"
 	"evilion.xyz/chat/internal/store"
@@ -232,6 +233,10 @@ func main() {
 		loops.Go(func() { srv.Meter.Run(ctx, time.Minute, func(err error) { log.Warn("realtime usage", "err", err) }) })
 	}
 	loops.Go(func() { maintenance(ctx, log, st, mediaStore, cfg.SessionTTL) })
+	// the always-on profiler: report.md and its raw numbers under DATA_DIR/perf,
+	// with the window in progress written as this stops
+	perf.Gauge("gateway connections", func() float64 { return float64(hub.ConnectionCount()) })
+	loops.Go(func() { perf.Run(ctx, filepath.Join(cfg.DataDir, "perf"), log) })
 
 	httpSrv := &http.Server{Addr: cfg.Listen, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second}
 	errc := make(chan error, 1)

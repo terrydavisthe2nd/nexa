@@ -34,7 +34,7 @@ type ModUnread struct {
 
 // readAllOf is how far a member of staff has read everything at once (0: never).
 func readAllOf(ctx context.Context, q interface {
-	QueryRowContext(context.Context, string, ...any) *sql.Row
+	QueryRowContext(context.Context, string, ...any) *db.Row
 }, uid ids.ID) (int64, error) {
 	var upTo int64
 	err := q.QueryRowContext(ctx, `SELECT read_id FROM mod_reads WHERE user_id = ? AND kind = ? AND item_id = 0`, int64(uid), modReadAll).Scan(&upTo)

@@ -57,6 +57,7 @@ export function settingsIndex(opts: { pageLabels: Record<string, string> }): Set
     e("privacy", t("settings.privacy.letFriendsAddMe"), "groupAdd"),
     e("privacy", t("server.encryption.encryption"), "encryption"),
     e("privacy", t("settings.privacy.search"), "encryption"),
+    e("privacy", t("settings.privacy.perfReports"), "perfReports"),
     e("blocked", t("people.block.hideMessages"), "blockedMessages"),
     e("reports", t("reports.report")),
     e("data", t("settings.privacy.exportMyData"), "export"),

@@ -51,6 +51,16 @@ func (f *ServerFrame) encode() ([]byte, error) {
 	return f.shared.b, f.shared.err
 }
 
+// opName is an op as the profiler records it: one of the client ops, or
+// "(unknown)" so what a client makes up cannot fill the table.
+func opName(op string) string {
+	switch op {
+	case OpIdentify, OpHeartbeat, OpPresence, OpTyping, OpVoiceState, OpVoiceSignal, OpSubscribe, OpActivities, OpAway, OpNoteCursor, OpRest:
+		return op
+	}
+	return "(unknown)"
+}
+
 // Client ops.
 const (
 	OpIdentify    = "identify"
@@ -103,7 +113,7 @@ const (
 	// EvPresenceSync replaces what a device knows of who is here, once it comes
 	// back from a rest that left presence changes out (rest.go).
 	EvPresenceSync = "presence_sync"
-	EvUserUpdate        = "user_update"
+	EvUserUpdate   = "user_update"
 	// EvBillingUpdate tells an account its subscription or boosts changed (api/billing.go); the app reads them again.
 	EvBillingUpdate      = "billing_update"
 	EvRelationshipAdd    = "relationship_add"
@@ -158,9 +168,9 @@ const (
 	// EvModReport carries new or changed safety reports, and the queue's counts,
 	// to every member of staff; EvReportUpdate carries a report's receipt (its new
 	// status, never staff notes) to the person who sent it.
-	EvModReport    = "mod_report"
+	EvModReport = "mod_report"
 	// EvModGames tells admins how many shared games wait on them.
-	EvModGames = "mod_games"
+	EvModGames     = "mod_games"
 	EvReportUpdate = "report_update"
 	// Nexa's note to someone a friend put in a group directly, and its
 	// dismissal on another of their devices. Only that person is sent either.

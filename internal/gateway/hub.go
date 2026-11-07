@@ -18,6 +18,7 @@ import (
 
 	"evilion.xyz/chat/internal/auth"
 	"evilion.xyz/chat/internal/ids"
+	"evilion.xyz/chat/internal/perf"
 	"evilion.xyz/chat/internal/ratelimit"
 	"evilion.xyz/chat/internal/rpcapps"
 	"evilion.xyz/chat/internal/store"
@@ -615,13 +616,18 @@ func (h *Hub) EmitUsers(userIDs []ids.ID, t string, d any) {
 	if len(userIDs) == 0 {
 		return
 	}
-	h.sendToUsers(userIDs, ServerFrame{T: t, S: h.nextSeq(), D: d}.fanOut())
+	start := time.Now()
+	n := h.sendToUsers(userIDs, ServerFrame{T: t, S: h.nextSeq(), D: d}.fanOut())
+	perf.ObserveN(perf.GwEmit, t, time.Since(start), int64(n))
 }
 
-func (h *Hub) sendToUsers(userIDs []ids.ID, frame ServerFrame) {
+// sendToUsers queues a frame for every connection of the users and says how
+// many that was.
+func (h *Hub) sendToUsers(userIDs []ids.ID, frame ServerFrame) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	seen := make(map[ids.ID]bool, len(userIDs))
+	n := 0
 	for _, uid := range userIDs {
 		if seen[uid] {
 			continue
@@ -629,8 +635,10 @@ func (h *Hub) sendToUsers(userIDs []ids.ID, frame ServerFrame) {
 		seen[uid] = true
 		for c := range h.conns[uid] {
 			c.enqueue(frame)
+			n++
 		}
 	}
+	return n
 }
 
 // EmitConn sends an event to one connection of a user, if it is still open.
@@ -648,9 +656,10 @@ func (h *Hub) EmitConn(uid, connID ids.ID, t string, d any) {
 
 // EmitUsersExcept sends to users but skips one connection (the originator).
 func (h *Hub) emitUsersExcept(userIDs []ids.ID, except *conn, t string, d any) {
+	start := time.Now()
 	frame := ServerFrame{T: t, S: h.nextSeq(), D: d}.fanOut()
+	n := 0
 	h.mu.RLock()
-	defer h.mu.RUnlock()
 	seen := map[ids.ID]bool{}
 	for _, uid := range userIDs {
 		if seen[uid] {
@@ -660,21 +669,28 @@ func (h *Hub) emitUsersExcept(userIDs []ids.ID, except *conn, t string, d any) {
 		for c := range h.conns[uid] {
 			if c != except {
 				c.enqueue(frame)
+				n++
 			}
 		}
 	}
+	h.mu.RUnlock()
+	perf.ObserveN(perf.GwEmit, t, time.Since(start), int64(n))
 }
 
 // EmitAll sends to every connection.
 func (h *Hub) EmitAll(t string, d any) {
+	start := time.Now()
 	frame := ServerFrame{T: t, S: h.nextSeq(), D: d}.fanOut()
+	n := 0
 	h.mu.RLock()
-	defer h.mu.RUnlock()
 	for _, set := range h.conns {
 		for c := range set {
 			c.enqueue(frame)
+			n++
 		}
 	}
+	h.mu.RUnlock()
+	perf.ObserveN(perf.GwEmit, t, time.Since(start), int64(n))
 }
 
 // Viewers lists the users who can see a channel: a conversation's
@@ -714,6 +730,7 @@ func (h *Hub) canAccess(ctx context.Context, uid ids.ID, ch *store.Channel) (boo
 
 // EmitChannel sends an event to everyone who can see the channel.
 func (h *Hub) EmitChannel(channelID ids.ID, t string, d any) {
+	start := time.Now()
 	ctx, cancel := background()
 	defer cancel()
 	viewers, err := h.Viewers(ctx, channelID)
@@ -727,7 +744,9 @@ func (h *Hub) EmitChannel(channelID ids.ID, t string, d any) {
 		ch, err := h.st.ChannelForAccess(ctx, channelID)
 		frame.direct = err != nil || store.IsDMLike(ch.Type)
 	}
-	h.sendToUsers(viewers, frame)
+	n := h.sendToUsers(viewers, frame)
+	// with the lookup of who can see the channel, which is most of it
+	perf.ObserveN(perf.GwEmit, t, time.Since(start), int64(n))
 }
 
 // presenceAudience lists who sees uid's presence, custom status and

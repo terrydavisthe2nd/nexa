@@ -14,6 +14,8 @@ export interface GatewayOptions {
   setTimeoutImpl?: typeof setTimeout;
   clearTimeoutImpl?: typeof clearTimeout;
   random?: () => number;
+  /** Told how long a connection took to be ready and how long each heartbeat took to come back (lib/perfReports). */
+  onTiming?: (what: "gateway_connect" | "gateway_rtt", ms: number) => void;
 }
 
 const MAX_QUEUE = 64;
@@ -66,6 +68,9 @@ export class GatewayClient {
   private crowded = 0;
   private closedByUser = false;
   private heartbeat: ReturnType<typeof setTimeout> | null = null;
+  /** When the socket opened and the last heartbeat went, for onTiming. */
+  private openedAt = 0;
+  private pingedAt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private ackTimer: ReturnType<typeof setTimeout> | null = null;
   private connectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -136,6 +141,7 @@ export class GatewayClient {
       if (this.ws !== ws) return;
       this.clearConnectTimer();
       ws.send(JSON.stringify({ op: "identify", d: { token } }));
+      this.openedAt = performance.now();
       this.setStatus("open");
       this.flush();
       this.startHeartbeat();
@@ -150,7 +156,13 @@ export class GatewayClient {
         return;
       }
       if (!isGatewayFrame(parsed)) return;
+      if (parsed.t === "heartbeat_ack" && this.pingedAt) {
+        this.opts.onTiming?.("gateway_rtt", performance.now() - this.pingedAt);
+        this.pingedAt = 0;
+      }
       if (parsed.t === "ready") {
+        if (this.openedAt) this.opts.onTiming?.("gateway_connect", performance.now() - this.openedAt);
+        this.openedAt = 0;
         this.ready = true;
         this.attempt = 0;
         this.crowded = 0;
@@ -267,6 +279,8 @@ export class GatewayClient {
     const ws = this.ws;
     if (!ws || this._status !== "open") return;
     ws.send(JSON.stringify({ op: "heartbeat" }));
+    // only a heartbeat answered with nothing else ahead of it times the network
+    this.pingedAt = this.ready ? performance.now() : 0;
     if (this.ackTimer !== null) return;
     const seen = this.framesSeen;
     const limit = this.ready ? ACK_TIMEOUT_MS : READY_ACK_TIMEOUT_MS;

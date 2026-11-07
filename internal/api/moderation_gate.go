@@ -27,6 +27,7 @@ var banAllowed = map[string]bool{
 	"GET /api/v1/auth/passkeys":         true,
 	"DELETE /api/v1/auth/passkeys/{id}": true,
 	"POST /api/v1/client-errors":        true,
+	"POST /api/v1/perf":                 true,
 	// a subscription can always be seen and cancelled
 	"GET /api/v1/billing":         true,
 	"POST /api/v1/billing/portal": true,
@@ -68,6 +69,7 @@ var muteAllowed = map[string]bool{
 	"DELETE /api/v1/users/@me/server-tag":                               true,
 	"POST /api/v1/channels/{id}/messages/{mid}/ack":                     true,
 	"POST /api/v1/client-errors":                                        true,
+	"POST /api/v1/perf":                                                 true,
 	"POST /api/v1/proxy/refresh":                                        true,
 	"POST /api/v1/activities/preview":                                   true,
 	"POST /api/v1/keys/grants":                                          true,

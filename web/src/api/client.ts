@@ -192,6 +192,9 @@ export const api = {
    */
   captchaSolver: null as ((action: string) => Promise<string | null>) | null,
 
+  /** Told how long each request took, answer included, and whether it failed (lib/perfReports). */
+  onTiming: null as ((method: string, path: string, ms: number, failed: boolean) => void) | null,
+
   fetchImpl: defaultFetch,
 
   XHRImpl: (typeof XMLHttpRequest !== "undefined" ? XMLHttpRequest : null) as
@@ -239,10 +242,13 @@ export const api = {
 
     let res: Response;
     let raw: string;
+    const began = performance.now();
     try {
       res = await this.fetchImpl(this.url(path, opts?.query), init);
       raw = res.status === 204 || res.status === 205 ? "" : await res.text();
+      this.onTiming?.(method, path, performance.now() - began, res.status >= 500);
     } catch (err) {
+      if (!(err instanceof DOMException && err.name === "AbortError" && !limit.expired())) this.onTiming?.(method, path, performance.now() - began, true);
       // fetch rejects with a bare TypeError for anything below HTTP, and the
       // callers that branch on ApiError fall through to showing the browser's
       // own untranslated "Failed to fetch".

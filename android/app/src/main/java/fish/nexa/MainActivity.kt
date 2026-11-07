@@ -22,10 +22,17 @@ class MainActivity : ComponentActivity() {
         // the forms apps open, from wherever an interaction brings one
         fish.nexa.ui.apps.installAppForms()
         setContent { App() }
+        // slow frames for the performance report, measured only while frames are drawn
+        fish.nexa.data.PerfReports.watchFrames(window)
         if (!open(intent)) lifecycleScope.launch {
             Nexa.auth.state.first { it is fish.nexa.data.AuthState.Ready }
             fish.nexa.ui.nav.Nav.restore()
         }
+    }
+
+    override fun onDestroy() {
+        fish.nexa.data.PerfReports.unwatchFrames(window)
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {

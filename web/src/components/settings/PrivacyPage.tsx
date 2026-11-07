@@ -3,6 +3,7 @@ import { describeError } from "@/lib/errors";
 import { users as usersApi } from "@/api/users";
 import type { MeUser } from "@/api/types";
 import { Toggle } from "@/components/common/Toggle";
+import { useSettings } from "@/stores/settings";
 import { SearchSettings } from "@/components/search/SearchSettings";
 import { useAuth } from "@/stores/auth";
 import { useUI } from "@/stores/ui";
@@ -22,6 +23,8 @@ export default function PrivacyPage() {
   const me = useAuth((a) => a.me);
   const setMe = useAuth((a) => a.setMe);
   const toast = useUI((u) => u.toast);
+  const perfReports = useSettings((st) => st.settings.perfReports !== false);
+  const patch = useSettings((st) => st.patch);
   if (!me) return null;
   const setDM = async (value: MeUser["dm_privacy"]) => {
     try {
@@ -54,6 +57,8 @@ export default function PrivacyPage() {
       <h3 className={s.h5} data-setting="encryption">{t("server.encryption.encryption")}</h3>
       <p className={s.hint}>{t("settings.privacy.everyMessageAndFileYouSend")}</p>
       <SearchSettings />
+      <h3 className={s.h5}>{t("settings.privacy.performance")}</h3>
+      <Toggle setting="perfReports" checked={perfReports} onChange={(v) => patch({ perfReports: v })} label={t("settings.privacy.perfReports")} description={t("settings.privacy.perfReportsHint")} />
     </>
   );
 }

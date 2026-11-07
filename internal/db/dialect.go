@@ -7,6 +7,9 @@ import (
 	"hash/fnv"
 	"strings"
 	"sync"
+	"time"
+
+	"evilion.xyz/chat/internal/perf"
 )
 
 // Dialect is which database is behind the pools.
@@ -180,27 +183,44 @@ func (c *Conn) bind(query string) string {
 func (c *Conn) SQL() *sql.DB { return c.sqlDB }
 
 func (c *Conn) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return c.sqlDB.ExecContext(ctx, c.bind(query), args...)
+	return c.exec(ctx, perf.Site(1), query, args)
 }
 
-func (c *Conn) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
-	return c.sqlDB.QueryContext(ctx, c.bind(query), args...)
+func (c *Conn) QueryContext(ctx context.Context, query string, args ...any) (*Rows, error) {
+	return c.query(ctx, perf.Site(1), query, args)
 }
 
-func (c *Conn) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
-	return c.sqlDB.QueryRowContext(ctx, c.bind(query), args...)
+func (c *Conn) QueryRowContext(ctx context.Context, query string, args ...any) *Row {
+	return c.queryRow(ctx, perf.Site(1), query, args)
 }
 
 func (c *Conn) Exec(query string, args ...any) (sql.Result, error) {
-	return c.sqlDB.Exec(c.bind(query), args...)
+	return c.exec(context.Background(), perf.Site(1), query, args)
 }
 
-func (c *Conn) Query(query string, args ...any) (*sql.Rows, error) {
-	return c.sqlDB.Query(c.bind(query), args...)
+func (c *Conn) Query(query string, args ...any) (*Rows, error) {
+	return c.query(context.Background(), perf.Site(1), query, args)
 }
 
-func (c *Conn) QueryRow(query string, args ...any) *sql.Row {
-	return c.sqlDB.QueryRow(c.bind(query), args...)
+func (c *Conn) QueryRow(query string, args ...any) *Row {
+	return c.queryRow(context.Background(), perf.Site(1), query, args)
+}
+
+func (c *Conn) exec(ctx context.Context, site uintptr, query string, args []any) (sql.Result, error) {
+	start := time.Now()
+	res, err := c.sqlDB.ExecContext(ctx, c.bind(query), args...)
+	return timedExec(ctx, site, query, start, res, err)
+}
+
+func (c *Conn) query(ctx context.Context, site uintptr, query string, args []any) (*Rows, error) {
+	start := time.Now()
+	rows, err := c.sqlDB.QueryContext(ctx, c.bind(query), args...)
+	return timedRows(ctx, site, query, start, rows, err)
+}
+
+func (c *Conn) queryRow(ctx context.Context, site uintptr, query string, args []any) *Row {
+	start := time.Now()
+	return &Row{Row: c.sqlDB.QueryRowContext(ctx, c.bind(query), args...), ctx: ctx, site: site, query: query, start: start}
 }
 
 func (c *Conn) Close() error { return c.sqlDB.Close() }
@@ -218,15 +238,32 @@ func (t *Tx) Dialect() Dialect { return t.dialect }
 func (t *Tx) bind(query string) string { return rebind(t.dialect, query) }
 
 func (t *Tx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return t.tx.ExecContext(ctx, t.bind(query), args...)
+	return t.exec(ctx, perf.Site(1), query, args)
 }
 
-func (t *Tx) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
-	return t.tx.QueryContext(ctx, t.bind(query), args...)
+func (t *Tx) QueryContext(ctx context.Context, query string, args ...any) (*Rows, error) {
+	return t.query(ctx, perf.Site(1), query, args)
 }
 
-func (t *Tx) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
-	return t.tx.QueryRowContext(ctx, t.bind(query), args...)
+func (t *Tx) QueryRowContext(ctx context.Context, query string, args ...any) *Row {
+	return t.queryRow(ctx, perf.Site(1), query, args)
+}
+
+func (t *Tx) exec(ctx context.Context, site uintptr, query string, args []any) (sql.Result, error) {
+	start := time.Now()
+	res, err := t.tx.ExecContext(ctx, t.bind(query), args...)
+	return timedExec(ctx, site, query, start, res, err)
+}
+
+func (t *Tx) query(ctx context.Context, site uintptr, query string, args []any) (*Rows, error) {
+	start := time.Now()
+	rows, err := t.tx.QueryContext(ctx, t.bind(query), args...)
+	return timedRows(ctx, site, query, start, rows, err)
+}
+
+func (t *Tx) queryRow(ctx context.Context, site uintptr, query string, args []any) *Row {
+	start := time.Now()
+	return &Row{Row: t.tx.QueryRowContext(ctx, t.bind(query), args...), ctx: ctx, site: site, query: query, start: start}
 }
 
 // Serialise makes this transaction the only one working on what parts name,
@@ -259,15 +296,15 @@ func (t *Tx) Serialise(ctx context.Context, kind string, parts ...int64) error {
 }
 
 func (t *Tx) Exec(query string, args ...any) (sql.Result, error) {
-	return t.tx.Exec(t.bind(query), args...)
+	return t.exec(context.Background(), perf.Site(1), query, args)
 }
 
-func (t *Tx) Query(query string, args ...any) (*sql.Rows, error) {
-	return t.tx.Query(t.bind(query), args...)
+func (t *Tx) Query(query string, args ...any) (*Rows, error) {
+	return t.query(context.Background(), perf.Site(1), query, args)
 }
 
-func (t *Tx) QueryRow(query string, args ...any) *sql.Row {
-	return t.tx.QueryRow(t.bind(query), args...)
+func (t *Tx) QueryRow(query string, args ...any) *Row {
+	return t.queryRow(context.Background(), perf.Site(1), query, args)
 }
 
 // SQL is the transaction itself, for a caller that needs something else from it.

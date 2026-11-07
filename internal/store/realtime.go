@@ -132,7 +132,7 @@ const callUsageCols = `user_id,
 	MIN(CASE WHEN measured_at > 0 THEN 1 ELSE 0 END) AS measured,
 	MAX(day) AS last_day`
 
-func scanCallTotals(rows *sql.Rows) ([]CallUsageTotal, error) {
+func scanCallTotals(rows *db.Rows) ([]CallUsageTotal, error) {
 	defer rows.Close()
 	var out []CallUsageTotal
 	for rows.Next() {

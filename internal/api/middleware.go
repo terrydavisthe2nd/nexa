@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"evilion.xyz/chat/internal/perf"
 	"evilion.xyz/chat/internal/ratelimit"
 )
 
@@ -18,11 +19,13 @@ type statusWriter struct {
 	http.ResponseWriter
 	status int
 	bytes  int
+	first  time.Time // when the answer began
 }
 
 func (s *statusWriter) WriteHeader(code int) {
 	if s.status == 0 {
 		s.status = code
+		s.first = time.Now()
 	}
 	s.ResponseWriter.WriteHeader(code)
 }
@@ -30,6 +33,7 @@ func (s *statusWriter) WriteHeader(code int) {
 func (s *statusWriter) Write(b []byte) (int, error) {
 	if s.status == 0 {
 		s.status = http.StatusOK
+		s.first = time.Now()
 	}
 	n, err := s.ResponseWriter.Write(b)
 	s.bytes += n
@@ -53,15 +57,33 @@ func RequestID(next http.Handler) http.Handler {
 	})
 }
 
-// Logging writes one structured line per request.
+// notTimed are routes that wait on purpose, which would only crowd the
+// profiler's slow lists: the QR sign-in long poll. WebSocket upgrades are left
+// out by their header, since their handler lasts the connection's life.
+var notTimed = map[string]bool{"GET /api/v1/auth/qr/{id}": true}
+
+// Logging writes one structured line per request and gives the profiler its
+// timing: by route pattern, until the first byte of the answer, with the
+// database time spent inside it (internal/perf).
 func Logging(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 			sw := &statusWriter{ResponseWriter: w}
+			ctx, preq := perf.Begin(r.Context())
+			r = r.WithContext(ctx)
 			next.ServeHTTP(sw, r)
 			if sw.status == 0 {
 				sw.status = http.StatusOK
+				sw.first = time.Now()
+			}
+			// the mux sets the pattern on the request it was handed
+			if sw.status != http.StatusSwitchingProtocols && r.Header.Get("Upgrade") == "" && !notTimed[r.Pattern] {
+				pattern := r.Pattern
+				if pattern == "" {
+					pattern = "(no route: " + r.Method + ")"
+				}
+				perf.Route(pattern, sw.status, sw.first.Sub(start), max(r.ContentLength, 0), int64(sw.bytes), preq)
 			}
 			lvl := slog.LevelDebug
 			if sw.status >= 500 {

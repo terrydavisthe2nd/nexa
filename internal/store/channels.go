@@ -540,7 +540,7 @@ const groupAddNoticeQuery = `SELECT p.channel_id, p.add_notice_by, p.added_at FR
 	WHERE p.user_id = ? AND p.add_notice_by IS NOT NULL AND c.type = 'group_dm'
 	AND NOT EXISTS (SELECT 1 FROM users a WHERE a.id = p.add_notice_by AND a.flags & ? != 0)`
 
-func scanGroupAddNotices(rows *sql.Rows) ([]GroupAddNotice, error) {
+func scanGroupAddNotices(rows *db.Rows) ([]GroupAddNotice, error) {
 	defer rows.Close()
 	out := []GroupAddNotice{}
 	for rows.Next() {

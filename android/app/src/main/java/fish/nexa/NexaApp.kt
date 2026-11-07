@@ -31,6 +31,7 @@ class NexaApp : Application() {
         fish.nexa.ui.nexa.NexaAlerts.install()
         fish.nexa.notify.StaffAlerts.install()
         fish.nexa.data.Power.install(this)
+        fish.nexa.data.PerfReports.start()
         fish.nexa.ui.components.Decor.install()
         fish.nexa.search.SearchIndex.install()
         // notifications read a message's words as plain text, mentions as names

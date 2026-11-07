@@ -339,7 +339,10 @@ class MessagesStore(private val api: Api, private val keys: KeyManager) {
     private suspend fun decryptAll(page: List<Message>): List<ChatMessage> {
         // the originals the page's replies point at came along with it
         ReplyTargets.ingest(page)
-        return withContext(Dispatchers.Default) { page.map { decrypt(it) } }
+        val began = android.os.SystemClock.elapsedRealtimeNanos()
+        return withContext(Dispatchers.Default) { page.map { decrypt(it) } }.also {
+            if (page.isNotEmpty()) PerfReports.stage("decrypt", (android.os.SystemClock.elapsedRealtimeNanos() - began) / 1e6)
+        }
     }
 
     suspend fun loadInitial(ch: String) {

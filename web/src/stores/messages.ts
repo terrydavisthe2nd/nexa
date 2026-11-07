@@ -4,6 +4,7 @@ import { messages as messagesApi } from "@/api/messages";
 import type { Message, PollTally, ReactionSummary } from "@/api/types";
 import type { MessagePayload } from "@/crypto/message";
 import { decryptForStore, type DecryptedMessage, type DecryptError } from "@/lib/decrypt";
+import { stage as perfStage } from "@/lib/perfReports";
 import { compareIds } from "@/lib/ids";
 import { ingestReferences, useReplyTargets } from "./replyTargets";
 
@@ -283,6 +284,14 @@ function mergeIds(existing: string[], added: string[]): string[] {
   return out;
 }
 
+/** Decrypts a page of history, timing it for the performance report. */
+async function decryptPage(page: Message[]): Promise<DecryptedMessage[]> {
+  const began = performance.now();
+  const out = await Promise.all(page.map(decryptForStore));
+  if (page.length) perfStage("decrypt", performance.now() - began);
+  return out;
+}
+
 export const useMessages = create<MessagesState>()((set, get) => ({
   channels: {},
   ensure: (channelId) => get().channels[channelId] ?? emptyChannel(),
@@ -535,7 +544,7 @@ export const useMessages = create<MessagesState>()((set, get) => ({
     get().setLoading(channelId, true);
     try {
       const page = await messagesApi.list(channelId, { limit: PAGE });
-      const decrypted = await Promise.all(page.map(decryptForStore));
+      const decrypted = await decryptPage(page);
       if (generation(channelId) !== gen) return;
       resolveAuthors(decrypted);
       sawReferences(decrypted);
@@ -566,7 +575,7 @@ export const useMessages = create<MessagesState>()((set, get) => ({
         // cheaper to start again from the newest page than to walk the gap.
         for (let i = 0; i < 5 && !filled; i++) {
           const page = await messagesApi.list(channelId, { after, limit: PAGE });
-          const decrypted = await Promise.all(page.map(decryptForStore));
+          const decrypted = await decryptPage(page);
           if (generation(channelId) !== gen) return;
           get().insert(channelId, decrypted);
           sawPage(channelId, decrypted);
@@ -632,7 +641,7 @@ export const useMessages = create<MessagesState>()((set, get) => ({
     get().setLoading(channelId, true);
     try {
       const page = await messagesApi.list(channelId, { before: oldest, limit: PAGE });
-      const decrypted = await Promise.all(page.map(decryptForStore));
+      const decrypted = await decryptPage(page);
       if (generation(channelId) !== gen) return;
       get().setHasOlder(channelId, page.length >= PAGE);
       get().insert(channelId, decrypted);
@@ -649,7 +658,7 @@ export const useMessages = create<MessagesState>()((set, get) => ({
     get().setLoading(channelId, true);
     try {
       const page = await messagesApi.list(channelId, { after: newest, limit: PAGE });
-      const decrypted = await Promise.all(page.map(decryptForStore));
+      const decrypted = await decryptPage(page);
       if (generation(channelId) !== gen) return;
       resolveAuthors(decrypted);
       sawReferences(decrypted);
@@ -664,7 +673,7 @@ export const useMessages = create<MessagesState>()((set, get) => ({
     get().setLoading(channelId, true);
     try {
       const page = await messagesApi.list(channelId, { around: messageId, limit: PAGE });
-      const decrypted = await Promise.all(page.map(decryptForStore));
+      const decrypted = await decryptPage(page);
       if (generation(channelId) !== gen) return;
       resolveAuthors(decrypted);
       sawReferences(decrypted);

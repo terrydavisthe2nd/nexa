@@ -1,7 +1,7 @@
 NEXA - PRIVACY POLICY
 Site: nexa.fish (also at mathtest.lol, and formerly chat.evilion.xyz)
 Contact the owner (nora) here: evilionx3@proton.me
-Effective: 2026-11-05
+Effective: 2026-11-06
 
 This policy lists exactly what Nexa holds. It is written against the
 actual database, so if something is not listed here, there is no place
@@ -35,9 +35,12 @@ under data protection law, including the GDPR (sections 9 to 11).
   Spotify, Apple Music, Deezer and SoundCloud play through the server,
   so those services never learn who is watching or listening.
 - No email, no phone number, no real name, no payment details, no
-  location, no contacts, no analytics, and no push tokens are ever
+  location, no contacts, no tracking, and no push tokens are ever
   collected. If you buy a plan, you pay on Stripe's page, and Nexa
   learns only which plan you have (section 3k).
+- Your apps send performance reports: how long things take on your
+  device, added up there, with nothing naming you, your messages or
+  who you talk to. You can turn them off (section 3m).
 - You can export your data, correct it, or delete your account
   yourself, and you can object or complain (section 11).
 
@@ -220,9 +223,12 @@ h) Day to day running: unfinished upload progress (expected and
    you send (what you write, the screenshots or recordings you add, the
    device details if you choose to include them, and the thread with
    staff, none of it end-to-end encrypted), the site wide monthly data
-   total for calls (what each account used is in 3l), and server
+   total for calls (what each account used is in 3l), server
    request logs (page, result, size, and duration, with no IP address
-   recorded there).
+   recorded there), and the server's performance totals: how long each
+   kind of request, database query and connection takes, and how long
+   connected devices take to answer the server, added up for everyone
+   with nothing naming an account, an IP address or a conversation.
 
 i) Activity and a linked Discord account (optional): what the
    desktop app or a linked Discord account says you are doing, such
@@ -322,6 +328,26 @@ l) Call usage (not end-to-end encrypted, amounts only): how much call
    more than the day's limit through TURN gets no relay until the next
    day.
 
+m) Performance reports (not end-to-end encrypted, added up, nothing
+   naming you; on unless you turn them off): every few minutes, your
+   app sends how long things took on your device: starting the app,
+   opening a conversation, decrypting messages, sending a message,
+   connecting, the server's requests as your device timed them, and,
+   on the web, moments the page was slow to respond; on Android,
+   frames that were slow to draw. These arrive as totals (how many
+   times, and how many fell into each span of time), along with the
+   kind of app (web, desktop or Android), a rough class for the device
+   (from its number of processor cores and its memory) and its kind of
+   connection (such as Wi-Fi or mobile). Requests are named by their
+   kind, with every ID taken out. Reports never carry message content,
+   names, IDs, what you typed or searched, or the app's version. Your
+   account is checked only to limit how often reports can be sent:
+   the server adds each report to the totals for everyone and keeps
+   nothing saying which account, IP address or device it came from,
+   so there is nothing in it to export or delete for you. Turn it off
+   in Settings, Privacy, Send performance reports; your devices then
+   stop measuring and sending.
+
 4. WHAT IS NEVER COLLECTED
 
 No email address. No phone number. No legal name, birth date, age, or
@@ -332,7 +358,9 @@ history. No call records beyond the line in 3c and the amounts in 3l:
 who was in which call is held in memory while the call lasts and
 otherwise exists only inside that line's encrypted summary. No device or
 advertising IDs and no push tokens. No location. No address book
-imports. No link clicks, analytics, or tracking of any kind. No record
+imports. No link clicks, tracking, or analytics about you: the only
+measurements are the performance totals in 3h and 3m, which name
+nobody, and you can turn off what your apps send. No record
 of what you search for: message search runs on your device, using
 messages it already decrypted, and GIF, game, and music searches pass
 through the server to the services in section 6, with recent results
@@ -346,7 +374,8 @@ drafts live only inside your encrypted settings.
   decrypts them, and the communities and channels you share with
   them.
 - The owner and the staff they appoint see sections 3a to 3j, and
-  admins and up see 3l. Staff use a moderation panel that shows
+  admins and up see 3l. The performance totals (3h, 3m) are read by
+  the owner on the server itself, and name nobody. Staff use a moderation panel that shows
   public profiles, what servers show everyone, when accounts were last
   active, which accounts have used the same IP addresses (never the
   addresses), how much call traffic each account used, moderation
@@ -510,6 +539,8 @@ calls.
   memory for two minutes. Game and music search results: in memory
   for a day.
 - Crash reports: only about the newest 500 are kept.
+- Performance totals (3h, 3m): quarter hour totals for 14 days, and
+  daily totals for 90 days.
 - Bug reports and their threads: until your account is deleted.
 - Plans (3k), with the gifts you were given: while your account
   exists, including after a plan or gift ends.
@@ -602,9 +633,10 @@ of your data. These are Nexa's:
   bug reports.
 - To keep Nexa secure and working (legitimate interests, Nexa's and
   every member's): the captcha, rate limits, the IP addresses in
-  section 3e, crash reports, backups, and the call usage in 3l, which
-  keeps calls inside the allowance everyone shares and shows staff
-  anyone using it up.
+  section 3e, crash reports, backups, the performance totals in 3h
+  and 3m, which show what makes Nexa slow so it can be fixed, and the
+  call usage in 3l, which keeps calls inside the allowance everyone
+  shares and shows staff anyone using it up.
 - To enforce the rules (legitimate interests): the account addresses
   in section 3e, which show staff the accounts that share one and go
   with the account; and moderation cases and their threads, the

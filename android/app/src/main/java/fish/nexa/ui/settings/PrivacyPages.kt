@@ -122,6 +122,12 @@ fun PrivacyPage() {
             setSetting("searchRecent", kotlinx.serialization.json.JsonArray(emptyList()))
         }, kind = ButtonKind.SECONDARY, size = ButtonSize.SM)
     }
+
+    SectionHeading(t("settings.privacy.performance"))
+    ToggleRow(
+        t("settings.privacy.perfReports"), doc.bool("perfReports", true), { setSetting("perfReports", it) },
+        t("settings.privacy.perfReportsHint"), anchor = "perfReports",
+    )
 }
 
 /**

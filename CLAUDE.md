@@ -435,6 +435,7 @@ serves until SIGINT or SIGTERM.
 | `ids` | snowflakes (41 bits of milliseconds, 10 of node, 12 of sequence), decimal strings in JSON |
 | `media` | blob storage, upload validation, sized variants, metadata scrub; bucket attachments (`remote.go`, `relay.go`) |
 | `objstore` | a small S3 client for the R2 bucket, standard library only; `objstore/memstore` is an in-memory bucket for tests |
+| `perf` | the always-on profiler: routes, queries, the writer, the gateway, the runtime and the apps' reports, summed into `DATA_DIR/perf` (Profiling, below) |
 | `perms` | Discord's permission model and bit values |
 | `ratelimit` | keyed token buckets, optionally shared through Redis |
 | `realtime` | Cloudflare Realtime: the SFU client, the usage meter, analytics, TURN keys |
@@ -1095,6 +1096,33 @@ missing or invalid file means no notice, and the app never runs reboot commands.
 (`deploy/README.md`; `tools/test_maintenance.py`). Web `shell/MaintenanceBanner.tsx` and Android
 `ui/shell/MaintenanceBanner.kt` show a non-dismissible countdown, timed on local elapsed clocks so a wrong
 device clock does not matter. The homepage demo skips it.
+
+### Profiling (`internal/perf`)
+
+- Always on, no setting. `perf.Run` (started in `cmd/chatd`, waited for at shutdown, which writes the window in
+  progress) writes a quarter hour window to `DATA_DIR/perf/windows/<UTC date>.jsonl` (kept 14 days), rolls whole
+  days into `days/` (90 days), rebuilds `report.md` after every window, keeps the latest heap profile
+  (`heap.pprof`) and takes a ten second CPU profile every half hour (`cpu/`, the newest 48). When the owner asks to
+  fix performance from the profiler, read `data/perf/report.md` on the live server first (its Findings list what
+  looks wrong), then the windows for when, and `go tool pprof -top bin/chatd data/perf/cpu/*.pprof` for hot code.
+- What is measured: `api.Logging` times every route by its mux pattern until the first byte of the answer, with the
+  database time spent inside it (`perf.Begin` puts a `perf.Request` in the context; WebSocket upgrades and the QR
+  long poll are left out). `internal/db` times every query by the store line that ran it, until its rows are closed
+  or its row scanned (`db.Rows`, `db.Row` wrap `database/sql`'s, so `querier` and scan helpers take those), and
+  each `DB.Tx`'s wait for the writer and hold of it. The gateway records ping round trips by platform
+  (`perf.Platform` from the User-Agent; a resting phone apart), client ops, fan-out per event with connections
+  reached, socket writes per event with bytes, and close reasons. Recording is a map update under one mutex and
+  never touches disk; every group holds at most 1500 names (the rest share "(other)").
+- The apps' half is Send performance reports (synced `perfReports`, on unless turned off; Settings, Privacy; web
+  `lib/perfReports.ts`, Android `data/PerfReports`): startup (only from a signed-in, unlocked start, and on Android
+  only a start someone saw), `open_conversation` (before the first ready it counts as startup), `decrypt` per page,
+  `send`, `gateway_connect`, `gateway_rtt` (on screen only), every API request's round trip by route with numbers
+  replaced by `{id}`, `long_task` and `interaction` (web) and `slow_frame` (Android, with frames drawn as `e`). They
+  are summed on the device into the server's bucket edges (`bounds`; `TestAppsShareTheBucketEdges` holds both apps
+  to them) and sent to `POST /api/v1/perf` every five minutes and when the app is hidden (Android: only on screen,
+  and once on leaving it). The handler (`perf_handlers.go`, `limPerf`) keeps only known stages, device tiers and
+  connections, matches routes to their mux pattern and drops the rest, and stores nothing per account, address or
+  version (`TestPerfReportKeepsOnlyPatternsAndStages`). The Privacy Policy describes it in 3h and 3m; keep them true.
 
 ### Configuration
 

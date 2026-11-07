@@ -71,7 +71,8 @@ type Server struct {
 	Auth    *auth.Authenticator
 	Version string
 	Extra   []func(mux *http.ServeMux) // routes registered by other packages (gateway, media, static)
-	Secret  []byte                     // server secret for fake KDF salts (never leaves the box)
+	mux     *http.ServeMux
+	Secret  []byte // server secret for fake KDF salts (never leaves the box)
 	Media   *media.Store
 	Profile ProfileExtras
 	// InviteCheck reports whether an invite code allows registration (set by the server layer).
@@ -124,6 +125,7 @@ type Server struct {
 	limExpr    *ratelimit.Limiter
 	limImport  *ratelimit.Limiter
 	limCrash   *ratelimit.Limiter
+	limPerf    *ratelimit.Limiter
 	limReport  *ratelimit.Limiter
 	limBug     *ratelimit.Limiter
 	// notes: making them, saving them, inviting people to them, opening links to them
@@ -356,6 +358,8 @@ func NewServer(cfg config.Config, st *store.Store, log *slog.Logger, bc Broadcas
 		limImport: ratelimit.New(ratelimit.Every(10, time.Hour), 6, 2*time.Hour),
 		// crash reports, per account: a broken page reports a burst, not a flood
 		limCrash: ratelimit.New(ratelimit.Every(10, time.Minute), 10, 10*time.Minute),
+		// the apps send a performance report every few minutes and as they close
+		limPerf: ratelimit.New(ratelimit.Every(1, time.Minute), 4, 10*time.Minute),
 		// new notes, per account: a burst while importing or tidying, then a steady few
 		limNote: ratelimit.New(ratelimit.Every(60, time.Hour), 30, 2*time.Hour),
 		// saves, per account: a note saves itself a fraction of a second after
@@ -452,7 +456,7 @@ func (s *Server) limiters() map[string]*ratelimit.Limiter {
 		"generic": s.limGeneric, "auth-ip": s.limAuthIP, "auth-user": s.limAuthUsr, "register": s.limReg, "signup": s.limSignup, "message": s.limMsg,
 		"upload": s.limUpload, "parts": s.limParts, "links": s.limLinks, "reads": s.limReads, "relay": s.limRelay, "unfurl": s.limUnfurl, "proxy": s.limProxy, "youtube": s.limYouTube, "refresh": s.limRefresh, "voice": s.limVoice, "turn": s.limTurn,
 		"guest": s.limGuest, "leave-key": s.limLeftKey, "rotator": s.limRotator, "key-reject": s.limKeyBad, "password": s.limPass, "profile": s.limProfile, "expressions": s.limExpr,
-		"import": s.limImport, "crash": s.limCrash, "bug": s.limBug, "report": s.limReport, "bug-file": s.limBugFile, "key-ask": s.limKeyAsk,
+		"import": s.limImport, "crash": s.limCrash, "perf": s.limPerf, "bug": s.limBug, "report": s.limReport, "bug-file": s.limBugFile, "key-ask": s.limKeyAsk,
 		"webhook": s.limHook, "webhook-channel": s.limHookCh, "webhook-manage": s.limHookMgr, "poll-vote": s.limVote, "discord": s.limDiscord, "server-tag": s.limTag, "music-search": s.limMusic, "music-preview": s.limPreview,
 		"automod": s.limAutomod, "publish": s.limPublish, "thread": s.limThread, "discover": s.limDiscover,
 		"note": s.limNote, "note-save": s.limNoteSave, "note-update": s.limNoteUpdate, "note-invite": s.limNoteInvite, "note-link": s.limNoteLink, "note-presence": s.limNotePresence,
@@ -487,6 +491,7 @@ func (s *Server) ShareLimiters(shared ratelimit.Shared) {
 // Handler returns the fully assembled HTTP handler.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	s.mux = mux // the apps' performance reports name routes the way it does
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "version": s.Version})
 	})
