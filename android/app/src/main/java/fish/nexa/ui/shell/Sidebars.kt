@@ -509,8 +509,7 @@ private fun ChannelTyping(serverId: String, channelId: String, lit: Boolean) {
     val c = Nx.colors
     val label = typingSentence(typers.map { Names.member(serverId, it) })
     val reduced = Nx.motion.reduced
-    val turns = androidx.compose.animation.core.rememberInfiniteTransition(label = "channelTyping")
-    val phase by turns.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1200, easing = androidx.compose.animation.core.LinearEasing)), label = "phase")
+    val phase by fish.nexa.ui.components.decorClock(1200, informs = true)
     val color = if (lit) c.text else c.textMuted
     // exactly the dots' width, so the gap after the name is the row's own (ServerSidebar.module.css .typing)
     androidx.compose.foundation.Canvas(Modifier.size(17.dp, 20.dp).semantics { contentDescription = label }) {

@@ -2,11 +2,6 @@ package fish.nexa.ui.chat
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -181,8 +176,7 @@ private fun keyframes(p: Float, stops: List<Pair<Float, Float>>, easing: Easing)
 /** A 0..1 clock running round every [periodMs]. */
 @Composable
 private fun clock(periodMs: Int): State<Float> {
-    val transition = rememberInfiniteTransition(label = "typing")
-    return transition.animateFloat(0f, 1f, infiniteRepeatable(tween(periodMs, easing = LinearEasing), RepeatMode.Restart), label = "clock")
+    return fish.nexa.ui.components.decorClock(periodMs, informs = true)
 }
 
 /** Three dots taking turns to hop (tdot); with reduced motion they breathe in place. */

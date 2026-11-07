@@ -26,14 +26,21 @@ import kotlin.random.Random
 
 /**
  * The realtime socket, as web/src/gateway/client.ts runs it: identify as the
- * first frame, a heartbeat every 25 s answered within 8 s (90 s before ready,
- * which the ack queues behind), every reconnect a fresh identify and a full
- * ready, the same backoff, and ops sent while down kept for the next open.
- * Frames are handed on in order; the caller processes them off this thread.
+ * first frame, a heartbeat answered in time (90 s before ready, which the ack
+ * queues behind), every reconnect a fresh identify and a full ready, and ops
+ * sent while down kept for the next open. Frames are handed on in order; the
+ * caller processes them off this thread.
+ *
+ * Unlike a browser's, this one runs on a battery: a radio stays at full power
+ * for several seconds after every packet, so how often anything moves is what
+ * counts. [setRest] says how much of the connection this device wants, the
+ * heartbeat and the wait between reconnects follow it, and the server does its
+ * side (internal/gateway/rest.go).
  */
 class Gateway(
     private val api: Api,
     private val scope: CoroutineScope,
+    private val online: () -> Boolean,
     private val onEvent: (t: String, d: JsonElement?) -> Unit,
 ) {
     enum class Status { IDLE, CONNECTING, OPEN, CLOSED }
@@ -48,7 +55,10 @@ class Gateway(
     private var attempt = 0
     private var crowded = 0
     private var ready = false
-    private var framesSeen = 0L
+    /** Frames that came in on this socket; moves on when the other end has answered. */
+    @Volatile var framesSeen = 0L
+        private set
+    private var rest = REST_NONE
     private var connectingSince = 0L
     private var heartbeatJob: Job? = null
     private var ackJob: Job? = null
@@ -98,6 +108,8 @@ class Gateway(
                     attempt = 0
                     crowded = 0
                     _state.value = State(Status.OPEN, ready = true)
+                    // the server keeps this per connection, so a new one is told again
+                    if (rest != REST_NONE) sendRest()
                 }
                 onEvent(t, frame["d"])
             }
@@ -151,7 +163,11 @@ class Gateway(
     private fun scheduleReconnect(code: Int?, reason: String?) {
         connectTimer?.cancel()
         _state.value = State(Status.CLOSED, closeCode = code, closeReason = reason)
-        var delayMs = min(MAX_BACKOFF_MS.toDouble(), 1000 * 1.7.pow(attempt)) + Random.nextDouble() * 500
+        // A call needs its connection back quickly; otherwise, with no network or out of
+        // sight, trying every few seconds only keeps the radio searching. A network
+        // coming back or the app coming to the front tries at once (wake).
+        val longest = if (rest == REST_NONE || (rest == REST_SLOW && online())) MAX_BACKOFF_MS else MAX_RESTING_BACKOFF_MS
+        var delayMs = min(longest.toDouble(), 1000 * 1.7.pow(attempt)) + Random.nextDouble() * 500
         if (code == CLOSE_TOO_MANY) {
             delayMs = min(MAX_CROWDED_BACKOFF_MS.toDouble(), CROWDED_BACKOFF_MS * 2.0.pow(crowded)) + Random.nextDouble() * 5000
             crowded++
@@ -169,9 +185,20 @@ class Gateway(
 
     private fun startHeartbeat() {
         stopHeartbeat()
+        runHeartbeat()
+    }
+
+    /** The beat at the current pace. An answer being waited for goes on being waited for. */
+    private fun runHeartbeat() {
+        heartbeatJob?.cancel()
+        val every = when (rest) {
+            REST_NONE -> HEARTBEAT_MS
+            REST_SLOW -> SLOW_HEARTBEAT_MS
+            else -> DEEP_HEARTBEAT_MS
+        }
         heartbeatJob = scope.launch {
             while (true) {
-                delay(HEARTBEAT_MS)
+                delay(every)
                 ping()
             }
         }
@@ -191,7 +218,8 @@ class Gateway(
         socket.send("{\"op\":\"heartbeat\"}")
         if (ackJob != null) return
         val seen = framesSeen
-        val limit = if (ready) ACK_TIMEOUT_MS else READY_ACK_TIMEOUT_MS
+        // a radio waking on a poor signal takes a while, and a call is the only thing that cannot wait
+        val limit = if (!ready) READY_ACK_TIMEOUT_MS else if (rest == REST_NONE) ACK_TIMEOUT_MS else RESTING_ACK_TIMEOUT_MS
         ackJob = scope.launch {
             delay(limit)
             synchronized(lock) {
@@ -221,6 +249,19 @@ class Gateway(
                 connect()
             }
         }
+    }
+
+    /** How much of the connection this device wants right now (REST_*). */
+    fun setRest(level: Int) = synchronized(lock) {
+        if (rest == level) return
+        rest = level
+        if (_state.value.status != Status.OPEN) return
+        runHeartbeat()
+        if (ready) sendRest()
+    }
+
+    private fun sendRest() {
+        ws?.send(buildJsonObject { put("op", "rest"); put("d", buildJsonObject { put("level", rest) }) }.toString())
     }
 
     fun send(op: String, d: JsonElement? = null) = synchronized(lock) {
@@ -264,11 +305,23 @@ class Gateway(
     companion object {
         /** The server refused: too many connections from this network or account, or it is full (internal/gateway/hub.go). */
         const val CLOSE_TOO_MANY = 4009
+        /** The whole connection: in a call. */
+        const val REST_NONE = 0
+        /** Everything, without keeping the radio up: on screen. */
+        const val REST_SLOW = 1
+        /** Only what is worth waking for straight away: out of sight. */
+        const val REST_DEEP = 2
+
         const val HEARTBEAT_MS = 25_000L
+        const val SLOW_HEARTBEAT_MS = 60_000L
+        /** Out of sight the server's pings already show the line works, and the phone sleeps through most of this anyway (ConnectionService asks now and then). */
+        const val DEEP_HEARTBEAT_MS = 5 * 60_000L
         const val ACK_TIMEOUT_MS = 8_000L
+        const val RESTING_ACK_TIMEOUT_MS = 20_000L
         const val READY_ACK_TIMEOUT_MS = 90_000L
         const val CONNECT_TIMEOUT_MS = 15_000L
         const val MAX_BACKOFF_MS = 12_000L
+        const val MAX_RESTING_BACKOFF_MS = 5 * 60_000L
         const val CROWDED_BACKOFF_MS = 30_000L
         const val MAX_CROWDED_BACKOFF_MS = 5 * 60_000L
         const val RATE_LIMITED_BACKOFF_MS = 5_000L

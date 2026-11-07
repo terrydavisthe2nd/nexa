@@ -104,7 +104,9 @@ object AppUpdate {
     val lastCheck: StateFlow<Long> = _lastCheck
 
     private const val FIRST_CHECK_MS = 10_000L
-    private const val EVERY_MS = 60_000L
+    private const val EVERY_MS = 30 * 60_000L
+    /** Coming back to the app looks sooner, since the radio is waking anyway. */
+    private const val BACK_MS = 5 * 60_000L
     /** The longest a run of failed looks waits before trying again. */
     private const val MAX_BACKOFF_MS = 15 * 60_000L
 
@@ -123,7 +125,7 @@ object AppUpdate {
     /** Install was pressed and Android asked first whether Nexa may install apps: install as soon as that is allowed. */
     @Volatile private var installWhenAllowed = false
 
-    /** Starts looking: ten seconds from now, then every minute while the app is in front. */
+    /** Starts looking: ten seconds from now, then now and then while the app is in front. */
     fun start() {
         if (!enabled || loop != null) return
         cleanOld()
@@ -137,7 +139,7 @@ object AppUpdate {
         }
     }
 
-    /** The app came back to the front: install what waited on Android's permission, or look now if a minute has gone by. */
+    /** The app came back to the front: install what waited on Android's permission, or look now if it has been a while. */
     fun resume() {
         if (!enabled) return
         // back from Android's screens: a call may float again when the app is left
@@ -149,11 +151,11 @@ object AppUpdate {
             return
         }
         val now = System.currentTimeMillis()
-        if (now - _lastCheck.value >= EVERY_MS && now >= nextAt) Nexa.scope.launch { check(quiet = true) } else offerIfReady()
+        if (now - _lastCheck.value >= BACK_MS && now >= nextAt) Nexa.scope.launch { check(quiet = true) } else offerIfReady()
     }
 
     /**
-     * Looks for a newer build and fetches it. The minute-by-minute looks are
+     * Looks for a newer build and fetches it. The looks it makes by itself are
      * quiet: they leave Settings' line alone unless something changes. One
      * asked for from Settings always runs and says it is looking.
      */
@@ -190,7 +192,7 @@ object AppUpdate {
             throw e
         } catch (e: Exception) {
             failures++
-            nextAt = System.currentTimeMillis() + minOf(MAX_BACKOFF_MS, EVERY_MS shl minOf(failures, 8))
+            nextAt = System.currentTimeMillis() + minOf(MAX_BACKOFF_MS, BACK_MS shl minOf(failures, 8))
             _lastCheck.value = System.currentTimeMillis()
             _state.value = if (e is Stopped) State.Failed(e.version, stopped = true) else State.Failed(e.message?.takeIf { it.isNotBlank() } ?: t("settings.desktop.unknownError"))
         } finally {

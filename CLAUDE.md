@@ -519,9 +519,9 @@ serves until SIGINT or SIGTERM.
 - One WebSocket at `GET /gateway`; the client sends `{op, d}`, the server `{t, s, d}`. The first frame is
   `identify` with the token, answered by `ready` (its `now` keeps the device's clock offset: web
   `lib/serverClock.ts`, Android `data/ServerClock`).
-- Client ops: `identify`, `heartbeat` (every 25 s), `presence`, `typing`, `voice_state`, `voice_signal`,
-  `subscribe_members`, `activities`, `away`, `note_cursor`. A connection may send 20 ops a second, in bursts
-  of
+- Client ops: `identify`, `heartbeat` (every 25 s; Android slower, see Android, Battery), `presence`, `typing`,
+  `voice_state`, `voice_signal`, `subscribe_members`, `activities`, `away`, `note_cursor`, `rest`. A connection may
+  send 20 ops a second, in bursts of
   100. Close codes: 4001 session revoked (the client signs out), 4003 banned, 4008 rate limited, 4009 too many
        connections. Both gateways reserve unidentified connections from the hub's admission budget before
        upgrading; the bot gateway cannot bypass the main gateway's limits.
@@ -532,6 +532,14 @@ serves until SIGINT or SIGTERM.
   one person sees is a `message_create` with flag 64 to that person alone, removed by a `message_delete`
   marked `ephemeral`. A bot's gateway session is an ordinary connection on the hub (`gateway.External`) whose
   frames go to `bot_dispatch`.
+- `rest` (`gateway/rest.go`, Android only; a client that never sends it gets everything as before) says how much
+  of the connection a device wants: level 0 everything with the 12 s pings, 1 slow pings (75 s, under Cloudflare's
+  100 s idle limit, 30 s to answer), 2 slow pings and only what is worth waking for. At level 2 `typing`, `presence`,
+  `note_cursor` and `note_presence` are not sent, and leaving it sends one `presence_sync` if any presence was left
+  out (web has no handler, since browsers never rest). Events named in `canWait` are held: the first of a quiet
+  spell goes at once, the rest together at most every 30 s (`holdWindow`), with a ping, or before anything urgent, so
+  order holds. Anything not in `canWait` goes at once, so a new event is never held by accident, and so does a new
+  message in a DM-like conversation or one that mentions this account, @everyone or any role.
 - What follows the app without being part of it (plugins, the search index, notifications) listens through
   `dispatchHooks` in `dispatch.ts`, each hook in a try/catch (`each`) so a throwing listener stops nothing.
   `dispatchHooks.onEvent` takes the `AppEvent`s of `gateway/appEvents.ts`. Servers, relationships and typing
@@ -1529,6 +1537,23 @@ talks to the server as deployed, so it never depends on unreleased server change
   pass text through `discordMarkdown`, since Nexa's parser keeps spans on one line.
 - GIF favourites (`media/GifFavorites`): a link favourite is re-signed by `MediaLinks.fresh` (saved links run
   out after a day); only a link the server refuses to sign or a file that cannot be opened counts as gone.
+- Battery (the owner's request, 2026-11-06; measured with a TCP tap and frame counts on the emulator). A radio stays
+  at full power for seconds after any packet, so how often anything moves is what counts, and any loop on screen keeps
+  the whole window drawing. What must not come back:
+  - An effect in a composable goes on running with the app out of sight (only frames stop), so anything repeating that
+    touches the network waits on `Nexa.ui.visible` first. `MaintenanceBanner` once made a request every 30 s for ever.
+  - `Gateway.setRest` follows `Session.restLevel` (in a call 0, on screen 1, else 2) and sets the heartbeat (25 s, 60 s,
+    5 min) and the longest reconnect wait (12 s, or 5 min out of sight or offline; `wake` tries at once).
+    `ConnectionService`'s inexact 10 minute alarm asks whether a sleeping phone's connection is still alive, since one
+    that died silently wakes nothing.
+  - Loops that only decorate use `decorClock`, `decorSwing` (`ui/components/Decor.kt`), never `rememberInfiniteTransition`:
+    33 ms steps on one clock, held after 20 s without a touch, under Battery Saver and under an open drawer. `informs`
+    is for what says something (typing dots). Moving pictures are held through `Decor.Tracked`, Coil's decoder.
+  - `blurredBy` uses an offscreen layer so its result is kept. Otherwise the whole page is blurred again on every frame
+    anything anywhere moves: an open drawer over one moving avatar took 83% of a core and now takes none. So what is
+    under a blur holds still (`LocalDecorHeld`, `Decor.setSheetOpen`, `Decor.setCovered`).
+  - The search walk (`Crawler`) goes on unasked only when `Power.plentiful`: charging, unmetered, no Battery Saver. A
+    search waiting on it still walks at once. Out of sight, index writes gather up for a minute.
 - There is no push service: `notify/ConnectionService` keeps the connection open in the background (on unless
   turned off) and `Notifier` raises alerts. Android ends the app if a service started for the foreground is stopped before it
   gets there, so `ConnectionService.stop` leaves a start still on its way to arrive, go foreground and stop itself;

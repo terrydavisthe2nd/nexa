@@ -103,6 +103,7 @@ fun PrivacyPage() {
     SectionHeading(t("settings.privacy.search"))
     val indexOn = doc.bool("searchIndex", true)
     ToggleRow(t("settings.privacy.searchIndex"), indexOn, { setSetting("searchIndex", it) }, t("settings.privacy.searchIndexHint"))
+    if (indexOn) Hint(t("android.settings.searchIndexCharging"), Modifier.padding(top = 10.dp))
     Hint(SearchIndexStatus.line(indexOn), Modifier.padding(top = 10.dp))
     Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         var rebuilding by remember { mutableStateOf(false) }

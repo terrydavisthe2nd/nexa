@@ -82,7 +82,11 @@ private fun Snow(modifier: Modifier) {
     // the air everyone shares: a slow random walk around a light breeze
     val wind = remember { floatArrayOf(4f) }
     var tick by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(Unit) {
+    val moving = fish.nexa.ui.components.Decor.running && !fish.nexa.ui.components.LocalDecorHeld.current
+    LaunchedEffect(moving) {
+        // still, a redraw for some other reason must not carry the flakes on
+        tick = 0L
+        if (!moving) return@LaunchedEffect
         var last = 0L
         while (true) {
             withFrameNanos { now ->
@@ -90,6 +94,7 @@ private fun Snow(modifier: Modifier) {
                 tick = if (last == 0L) 0L else (now - last).coerceIn(0L, 50_000_000L)
                 last = now
             }
+            kotlinx.coroutines.delay(fish.nexa.ui.components.Decor.FRAME_MS - android.os.SystemClock.uptimeMillis() % fish.nexa.ui.components.Decor.FRAME_MS)
         }
     }
     Canvas(modifier.clearAndSetSemantics {}) {

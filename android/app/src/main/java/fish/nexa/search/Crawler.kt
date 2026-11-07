@@ -147,6 +147,8 @@ interface CrawlerDeps {
     suspend fun sleep(ms: Long)
     fun online(): Boolean
     fun hidden(): Boolean
+    /** The walk may go on with nobody waiting for it. */
+    fun mayWalk(): Boolean = true
     /** There is something new to say about progress. */
     fun changed()
     /** The walk moved on; worth saving. */
@@ -165,7 +167,8 @@ interface CrawlerDeps {
  *
  * Requests are paced (a fifth of the rate limit in the background, half
  * while a search waits on it, slower while the app is out of sight) and
- * refusals waited out; a very long conversation gives way after
+ * refusals waited out; with nobody waiting it walks only when [CrawlerDeps.mayWalk]
+ * says so, since a request every moment keeps a phone's radio at full power; a very long conversation gives way after
  * [SLICE_PAGES] pages so everything else gets its turn; and it stops the
  * moment it is told to. With the index kept in memory only, nothing is walked
  * until a search needs it, and then only the conversations it looks in.
@@ -350,7 +353,8 @@ class Crawler(
             return null
         }
         val first = pick(wantedList, true, false)
-        if (first != null || !background) return@synchronized first
+        // unasked, the walk waits for a time when it costs next to nothing
+        if (first != null || !background || !deps.mayWalk()) return@synchronized first
         pick(eligible, false, true)
     }
 

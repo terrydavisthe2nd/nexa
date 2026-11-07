@@ -35,6 +35,11 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withTimeoutOrNull
+import fish.nexa.voice.Voice
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonArray
@@ -64,6 +69,7 @@ class Session(private val nx: Nexa) {
     private var gateway: Gateway? = null
     private var consumer: Job? = null
     private var typingSweeper: Job? = null
+    private var pacing: Job? = null
     private var queue = KChannel<GatewayEvent>(KChannel.UNLIMITED)
     private var generation = 0
 
@@ -120,9 +126,19 @@ class Session(private val nx: Nexa) {
         }
         nx.messages.resolveAuthors = { ids -> ensureUsers(ids) }
         nx.keys.onKeysArrived = { convs -> nx.messages.redecrypt(convs) }
-        val g = Gateway(nx.api, nx.scope) { t, d -> q.trySend(GatewayEvent(t, d)) }
+        val g = Gateway(nx.api, nx.scope, online = { nx.ui.online.value }) { t, d -> q.trySend(GatewayEvent(t, d)) }
         gateway = g
+        g.setRest(restLevel(nx.ui.visible.value, Voice.state.value.mine != null))
         g.connect()
+        pacing = nx.scope.launch {
+            combine(nx.ui.visible, Voice.state.map { it.mine != null }.distinctUntilChanged(), ::restLevel).collect { g.setRest(it) }
+        }
+    }
+
+    private fun restLevel(visible: Boolean, inCall: Boolean) = when {
+        inCall -> Gateway.REST_NONE
+        visible -> Gateway.REST_SLOW
+        else -> Gateway.REST_DEEP
     }
 
     fun stop() {
@@ -131,12 +147,22 @@ class Session(private val nx: Nexa) {
         gateway = null
         consumer?.cancel()
         typingSweeper?.cancel()
+        pacing?.cancel()
         queue.close()
         _ready.value = false
         lockedInCall = false
     }
 
     fun wake() = gateway?.wake()
+
+    /** Asks the server for an answer, and comes back once it answered or [withinMs] went by. */
+    suspend fun checkAlive(withinMs: Long) {
+        val g = gateway ?: return
+        val seen = g.framesSeen
+        g.wake()
+        withTimeoutOrNull(withinMs) { while (g.framesSeen == seen) delay(250) }
+    }
+
     fun restart() = gateway?.restart()
     fun send(op: String, d: JsonElement? = null) = gateway?.send(op, d)
 
@@ -300,6 +326,8 @@ class Session(private val nx: Nexa) {
             "sticker_recent" -> decode((d as? JsonObject)?.get("sticker"), Sticker.serializer())?.let { nx.expressions.useRecent(it) }
             "sticker_recent_clear" -> nx.expressions.setRecent(emptyList())
             "presence" -> decode(d, Presence.serializer())?.let { nx.presence.set(it) }
+            // back from a rest in which presence changes were left out
+            "presence_sync" -> decode((d as? JsonObject)?.get("presences"), ListSerializer(Presence.serializer()))?.let { nx.presence.replaceAll(it) }
             // this account's subscription or boosts changed; only a page that has read them reads them again
             "billing_update" -> if (Plans.billing.value != null) nx.scope.launch { Plans.load() }
             "user_update" -> decode(d, PublicUser.serializer())?.let { u ->

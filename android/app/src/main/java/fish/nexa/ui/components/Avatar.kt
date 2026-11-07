@@ -119,10 +119,7 @@ fun Avatar(
     // the pill's width, in dots (1 is the plain dot); it keeps the dot's height (Avatar.module.css .typable)
     val grow by androidx.compose.animation.core.animateFloatAsState(if (pill) 2.2f else 1f, if (reduced) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(220, easing = Nx.motion.easeOut), label = "typing")
     // the three dots take turns: a phase from 0 to 1, over and over, while the pill shows
-    val phase = if (pill) {
-        val turns = androidx.compose.animation.core.rememberInfiniteTransition(label = "typingDots")
-        turns.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1200, easing = androidx.compose.animation.core.LinearEasing)), label = "phase")
-    } else null
+    val phase = if (pill) decorClock(1200, informs = true) else null
     val onStatus = when (status) {
         "idle" -> c.onWarning
         "dnd" -> c.onDanger

@@ -222,6 +222,12 @@ fun MainShell() {
             ConnectionBanner()
             MaintenanceBanner()
             ViewAsBanner()
+            // blurred under a sheet or a drawer, anything moving in it would mean blurring it all again
+            val drawerOpen by remember { androidx.compose.runtime.derivedStateOf { drawer.value >= 1f || members.value >= 1f } }
+            val underSheet by remember { androidx.compose.runtime.derivedStateOf { Layers.dim > 0f } }
+            LaunchedEffect(drawerOpen) { fish.nexa.ui.components.Decor.setCovered(drawerOpen) }
+            LaunchedEffect(underSheet) { fish.nexa.ui.components.Decor.setSheetOpen(underSheet) }
+            androidx.compose.runtime.CompositionLocalProvider(fish.nexa.ui.components.LocalDecorHeld provides (drawerOpen || underSheet)) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (route) {
                     is Route.Friends -> FriendsPage()
@@ -235,6 +241,7 @@ fun MainShell() {
                     is Route.Discover -> fish.nexa.ui.discovery.DiscoverPage(route.section)
                     is Route.Admin -> fish.nexa.ui.moderation.AdminPanel(route)
                 }
+            }
             }
         }
 

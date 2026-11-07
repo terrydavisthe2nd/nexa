@@ -128,7 +128,9 @@ object ActivitySync {
         }
         Nexa.scope.launch {
             while (true) {
-                delay(15_000)
+                // sleeps until it could be time, not a little at a time
+                val left = AWAY_AFTER - (System.currentTimeMillis() - lastUse)
+                delay(if (away || left <= 0) AWAY_AFTER else left + 1_000)
                 if (Nexa.auth.state.value !is fish.nexa.data.AuthState.Ready) continue
                 val idle = System.currentTimeMillis() - lastUse >= AWAY_AFTER
                 val want = autoIdle() && idle && !fish.nexa.data.AppLock.inCall()

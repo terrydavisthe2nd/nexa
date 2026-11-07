@@ -344,7 +344,11 @@ func (h *Hub) sweep() {
 	h.mu.RLock()
 	for _, set := range h.conns {
 		for c := range set {
-			if now.Sub(c.lastBeat()) > h.heartbeatTimeout {
+			limit := h.heartbeatTimeout
+			if c.rest.Load() != RestNone {
+				limit = max(limit, restBeatTimeout)
+			}
+			if now.Sub(c.lastBeat()) > limit {
 				stale = append(stale, c)
 			}
 		}
@@ -611,7 +615,10 @@ func (h *Hub) EmitUsers(userIDs []ids.ID, t string, d any) {
 	if len(userIDs) == 0 {
 		return
 	}
-	frame := ServerFrame{T: t, S: h.nextSeq(), D: d}.fanOut()
+	h.sendToUsers(userIDs, ServerFrame{T: t, S: h.nextSeq(), D: d}.fanOut())
+}
+
+func (h *Hub) sendToUsers(userIDs []ids.ID, frame ServerFrame) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	seen := make(map[ids.ID]bool, len(userIDs))
@@ -714,7 +721,13 @@ func (h *Hub) EmitChannel(channelID ids.ID, t string, d any) {
 		h.log.Warn("emit channel: viewers", "channel", channelID, "err", err)
 		return
 	}
-	h.EmitUsers(viewers, t, d)
+	frame := ServerFrame{T: t, S: h.nextSeq(), D: d}.fanOut()
+	// a resting phone gets these at once (rest.go)
+	if t == EvMessageCreate {
+		ch, err := h.st.ChannelForAccess(ctx, channelID)
+		frame.direct = err != nil || store.IsDMLike(ch.Type)
+	}
+	h.sendToUsers(viewers, frame)
 }
 
 // presenceAudience lists who sees uid's presence, custom status and

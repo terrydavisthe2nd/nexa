@@ -22,6 +22,7 @@ import fish.nexa.ui.t
 import fish.nexa.ui.theme.Nx
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -35,6 +36,8 @@ fun MaintenanceBanner() {
     var now by remember { mutableLongStateOf(android.os.SystemClock.elapsedRealtime()) }
     LaunchedEffect(Unit) {
         while (true) {
+            // an effect goes on running with the app out of sight, and each of these wakes the radio
+            Nexa.ui.visible.first { it }
             try {
                 val status = Nexa.api.get("/maintenance").jsonObject
                 rebootAt = status["reboot_at"]?.jsonPrimitive?.longOrNull ?: 0L
@@ -43,15 +46,16 @@ fun MaintenanceBanner() {
                 now = received
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { /* Older servers and downtime keep the app usable. */ }
-            delay(30_000)
+            delay(10 * 60_000)
         }
     }
     val left = rebootAt - (serverAt + (now - received).coerceAtLeast(0))
     val visible = rebootAt > 0 && left <= 150 * 60_000L
     LaunchedEffect(visible) {
         while (true) {
+            Nexa.ui.visible.first { it }
             now = android.os.SystemClock.elapsedRealtime()
-            delay(if (visible) 1000 else 30_000)
+            delay(if (visible) 1000 else 60_000)
         }
     }
     if (!visible) return

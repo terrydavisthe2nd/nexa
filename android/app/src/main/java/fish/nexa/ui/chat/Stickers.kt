@@ -112,7 +112,7 @@ private fun TgsView(url: String, alt: String, size: Dp, modifier: Modifier) {
     Box(modifier.size(size).semantics { contentDescription = alt }) {
         if (text != null) {
             val composition by rememberLottieComposition(LottieCompositionSpec.JsonString(text))
-            LottieAnimation(composition, isPlaying = fish.nexa.ui.shell.settingOn("animateStickers"), iterations = LottieConstants.IterateForever, modifier = Modifier.fillMaxSize())
+            LottieAnimation(composition, isPlaying = fish.nexa.ui.shell.settingOn("animateStickers") && fish.nexa.ui.components.Decor.running && !fish.nexa.ui.components.LocalDecorHeld.current, iterations = LottieConstants.IterateForever, modifier = Modifier.fillMaxSize())
         }
     }
 }
@@ -126,8 +126,11 @@ private fun WebmView(url: String, alt: String, size: Dp, modifier: Modifier) {
     val box = with(LocalDensity.current) { size.roundToPx() }
     var frame by remember(url) { mutableStateOf<Bitmap?>(null) }
     var plain by remember(url) { mutableStateOf(false) }
-    val animate = fish.nexa.ui.shell.settingOn("animateStickers")
+    // decoding these is the most any picture costs, so holding still lets go of the decoders; it starts its pass again after
+    val animate = fish.nexa.ui.shell.settingOn("animateStickers") && fish.nexa.ui.components.Decor.running && !fish.nexa.ui.components.LocalDecorHeld.current
     LaunchedEffect(url, box, animate) {
+        // the frame on screen stays; only the very first draw needs one made
+        if (!animate && frame != null) return@LaunchedEffect
         val clip = Webm.load(url)
         if (clip == null) {
             plain = true
@@ -159,7 +162,7 @@ private fun WebmView(url: String, alt: String, size: Dp, modifier: Modifier) {
 @Composable
 private fun PlainWebm(url: String, alt: String, size: Dp, modifier: Modifier) {
     val context = LocalContext.current
-    val animate = fish.nexa.ui.shell.settingOn("animateStickers")
+    val animate = fish.nexa.ui.shell.settingOn("animateStickers") && fish.nexa.ui.components.Decor.running && !fish.nexa.ui.components.LocalDecorHeld.current
     val player = remember(url) {
         ExoPlayer.Builder(context).setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(Streams.factory())).build().apply {
             setMediaItem(MediaItem.fromUri(url))
@@ -169,7 +172,12 @@ private fun PlainWebm(url: String, alt: String, size: Dp, modifier: Modifier) {
             prepare()
         }
     }
-    LaunchedEffect(player, animate) { player.playWhenReady = animate; if (!animate) player.seekTo(0) }
+    val wanted = fish.nexa.ui.shell.settingOn("animateStickers")
+    LaunchedEffect(player, animate) {
+        player.playWhenReady = animate
+        // turned off shows its start; only held, it stays where it is
+        if (!wanted) player.seekTo(0)
+    }
     DisposableEffect(player) { onDispose { player.release() } }
     Box(modifier.size(size).semantics { contentDescription = alt }) {
         ContentFrame(player, Modifier.fillMaxSize(), surfaceType = SURFACE_TYPE_TEXTURE_VIEW, contentScale = ContentScale.Fit)

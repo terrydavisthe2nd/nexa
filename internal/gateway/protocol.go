@@ -25,6 +25,9 @@ type ServerFrame struct {
 	// connections writes it first and reused by all the others: an event for
 	// two thousand people is encoded once, not two thousand times.
 	shared *frameBytes
+	// direct marks a new message in a direct or group conversation, which a
+	// resting device gets at once (rest.go).
+	direct bool
 }
 
 type frameBytes struct {
@@ -67,6 +70,9 @@ const (
 	// have open, sealed with the note's key, for the others in it to draw.
 	// Passed on and forgotten: nothing about it is stored.
 	OpNoteCursor = "note_cursor"
+	// OpRest says how much of the connection this device wants right now, so a
+	// phone's radio can sleep (rest.go).
+	OpRest = "rest"
 )
 
 // Server events.
@@ -94,6 +100,9 @@ const (
 	EvRoleUpdate        = "role_update"
 	EvRoleDelete        = "role_delete"
 	EvPresence          = "presence"
+	// EvPresenceSync replaces what a device knows of who is here, once it comes
+	// back from a rest that left presence changes out (rest.go).
+	EvPresenceSync = "presence_sync"
 	EvUserUpdate        = "user_update"
 	// EvBillingUpdate tells an account its subscription or boosts changed (api/billing.go); the app reads them again.
 	EvBillingUpdate      = "billing_update"

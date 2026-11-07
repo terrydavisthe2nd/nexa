@@ -49,7 +49,7 @@ object Ota {
 
     private const val TAG = "Ota"
     private const val FIRST_CHECK_MS = 15_000L
-    private const val EVERY_MS = 15 * 60_000L
+    private const val EVERY_MS = 60 * 60_000L
     /** The folders a pack may write: what CopyWebAssets copies, minus twemoji (its tables change with Kotlin code). */
     private val ALLOWED = Regex("^(locales|sounds|seasonal|whatsnew|legal)/[A-Za-z0-9][A-Za-z0-9._-]{0,100}$")
     private const val MAX_PACK = 64L shl 20

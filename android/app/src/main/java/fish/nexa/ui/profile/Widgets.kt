@@ -1,11 +1,7 @@
 package fish.nexa.ui.profile
 
 import androidx.annotation.OptIn
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -1098,11 +1094,9 @@ private fun SongRow(m: Widgets.Music, index: Int, owner: String) {
 @Composable
 internal fun Equalizer(color: Color = Nx.colors.textBrand) {
     val reduced = Nx.motion.reduced
-    val transition = rememberInfiniteTransition(label = "eq")
     Row(Modifier.width(13.dp).height(12.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
         for ((i, ms) in listOf(820, 640, 940).withIndex()) {
-            val h by transition.animateFloat(0.3f, 1f, infiniteRepeatable(tween(ms), RepeatMode.Reverse), label = "bar")
-            val shown = if (reduced) listOf(0.55f, 1f, 0.75f)[i] else h
+            val shown = if (reduced) listOf(0.55f, 1f, 0.75f)[i] else 0.3f + 0.7f * fish.nexa.ui.components.decorSwing(ms)
             Box(Modifier.width(3.dp).fillMaxHeight(shown).background(color, RoundedCornerShape(1.dp)))
         }
     }

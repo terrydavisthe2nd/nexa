@@ -94,7 +94,7 @@ object Media {
             .components {
                 add(OkHttpNetworkFetcherFactory(callFactory = { Nexa.api.http }))
                 add(EncryptedFetcher.Factory())
-                if (Build.VERSION.SDK_INT >= 28) add(AnimatedImageDecoder.Factory()) else add(GifDecoder.Factory())
+                add(fish.nexa.ui.components.Decor.Tracked(if (Build.VERSION.SDK_INT >= 28) AnimatedImageDecoder.Factory() else GifDecoder.Factory()))
                 add(SvgDecoder.Factory())
                 add(VideoFrameDecoder.Factory())
             }

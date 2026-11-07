@@ -137,6 +137,14 @@ type conn struct {
 	// (the away op); see Hub.allAway.
 	away atomic.Bool
 
+	// How much of the connection this device wants right now (rest.go).
+	rest atomic.Int32
+	// A presence change left out while resting, so coming back asks for a sync.
+	missedPresence atomic.Bool
+	heldMu         sync.Mutex
+	held           []ServerFrame
+	lastSent       time.Time
+
 	ops      *rate.Limiter
 	presence *rate.Limiter
 	// A presence change that comes too soon waits here rather than being
@@ -214,6 +222,14 @@ func (c *conn) enqueue(f ServerFrame) {
 		}
 		c.pendMu.Unlock()
 	}
+	if c.heldBack(f) {
+		return
+	}
+	c.push(f)
+}
+
+// push puts a frame in the send buffer.
+func (c *conn) push(f ServerFrame) {
 	select {
 	case c.send <- f:
 	default:
@@ -477,13 +493,26 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (c *conn) pingLoop() {
 	t := time.NewTicker(pingEvery)
 	defer t.Stop()
+	var pinged time.Time
 	for {
 		select {
 		case <-c.closed:
 			return
 		case <-t.C:
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), pingTimeout)
+		resting := c.rest.Load() != RestNone
+		if resting && time.Since(pinged) < restPingEvery {
+			c.flushHeld(false)
+			continue
+		}
+		// what waited goes out with the ping, so the radio wakes once for both
+		c.flushHeld(true)
+		pinged = time.Now()
+		timeout := pingTimeout
+		if resting {
+			timeout = restPingTimeout
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		err := c.ws.Ping(ctx)
 		cancel()
 		select {
@@ -698,6 +727,13 @@ func (c *conn) handle(ctx context.Context, f ClientFrame) {
 		if u := c.user.Load(); u != nil && (u.PresencePref == "" || u.PresencePref == "online") {
 			h.broadcastUser(ctx, c)
 		}
+	case OpRest:
+		c.beat.Store(time.Now().UnixMilli())
+		var d restData
+		if c.guest != nil || json.Unmarshal(f.D, &d) != nil {
+			return
+		}
+		c.setRest(ctx, d.Level)
 	case OpActivities:
 		c.beat.Store(time.Now().UnixMilli())
 		var d activitiesData

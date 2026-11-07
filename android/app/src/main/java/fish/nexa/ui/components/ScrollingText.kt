@@ -90,12 +90,14 @@ fun ScrollingText(text: AnnotatedString, style: TextStyle, modifier: Modifier = 
     val offset = remember { Animatable(0f) }
     val shown = remember { object { var text: AnnotatedString? = null } }
     val density = LocalDensity.current.density
-    LaunchedEffect(over, groupOver, text) {
+    val moving = Decor.running && !LocalDecorHeld.current
+    LaunchedEffect(over, groupOver, text, moving) {
         // new words start again from their beginning
         if (shown.text != text) {
             shown.text = text
             offset.snapTo(0f)
         }
+        if (!moving) return@LaunchedEffect
         if (over == 0) {
             // fits now (the line grew): back to the start rather than jumping there
             if (offset.value != 0f) offset.animateTo(0f, tween(travelMs(offset.value / density), easing = EASE_IN_OUT))

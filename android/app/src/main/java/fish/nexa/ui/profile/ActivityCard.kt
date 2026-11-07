@@ -2,11 +2,7 @@ package fish.nexa.ui.profile
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -245,14 +241,10 @@ private fun ActivityCardBody(a: Activity) {
 @Composable
 private fun ActivityBars(color: Color) {
     val reduced = Nx.motion.reduced
-    val transition = rememberInfiniteTransition(label = "eq")
     val specs = listOf(900 to 0.4f, 1100 to 0.85f, 800 to 0.6f)
     Row(Modifier.width(13.dp).height(11.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
         for ((ms, base) in specs) {
-            val h by transition.animateFloat(
-                if (reduced) base else 0.3f, if (reduced) base else 1f,
-                infiniteRepeatable(tween(ms), RepeatMode.Reverse), label = "bar",
-            )
+            val h = if (reduced) base else 0.3f + 0.7f * fish.nexa.ui.components.decorSwing(ms)
             Box(Modifier.weight(1f).fillMaxHeight(h).background(color, RoundedCornerShape(1.dp)))
         }
     }

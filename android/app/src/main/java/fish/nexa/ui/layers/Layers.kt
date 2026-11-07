@@ -130,10 +130,16 @@ val SCRIM_BLUR = 6.dp
  * Blurs this by [radius], as the web's `backdrop-filter` blurs what is behind an
  * overlay. Read while drawing, so a scrim fading in only redraws. Android 12 and
  * up; before that it only dims, as it always did.
+ *
+ * Offscreen keeps the blurred picture until what is in it changes. Without it the
+ * whole page was blurred again on every frame anything anywhere on screen moved,
+ * by far the most this app could ask of a phone.
  */
 fun Modifier.blurredBy(radius: () -> Dp): Modifier = graphicsLayer {
     val r = radius().toPx()
-    renderEffect = if (Build.VERSION.SDK_INT >= 31 && r >= 0.5f) BlurEffect(r, r, TileMode.Clamp) else null
+    val blur = Build.VERSION.SDK_INT >= 31 && r >= 0.5f
+    renderEffect = if (blur) BlurEffect(r, r, TileMode.Clamp) else null
+    compositingStrategy = if (blur) androidx.compose.ui.graphics.CompositingStrategy.Offscreen else androidx.compose.ui.graphics.CompositingStrategy.Auto
 }
 
 /** Draws the layer stack; mounted once, over the shell. */

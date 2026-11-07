@@ -35,6 +35,7 @@ import fish.nexa.ui.theme.look.LookDraft
 import fish.nexa.ui.theme.look.Looks
 import fish.nexa.ui.theme.look.ResolvedTheme
 import fish.nexa.ui.theme.look.Seasonal
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -124,6 +125,7 @@ fun App() {
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.delay(60_000)
+            Nexa.ui.visible.first { it }
             Seasonal.tick()
         }
     }
@@ -164,12 +166,14 @@ fun App() {
                             awaitPointerEvent(PointerEventPass.Initial)
                             fish.nexa.data.LockTimers.activity()
                             fish.nexa.ui.settings.ActivitySync.touch()
+                            fish.nexa.ui.components.Decor.touched()
                         }
                     }
                 }
                 .onPreviewKeyEvent {
                     fish.nexa.data.LockTimers.activity()
                     fish.nexa.ui.settings.ActivitySync.touch()
+                    fish.nexa.ui.components.Decor.touched()
                     // the keybinds answer first, even inside a text box, as they do on the web
                     auth is AuthState.Ready && fish.nexa.ui.settings.Keybinds.handle(it)
                 },
@@ -182,7 +186,7 @@ fun App() {
                 is AuthState.Offline -> OfflineScreen(s)
                 // while banned, the ban screen stands in place of the whole app
                 is AuthState.Ready -> {
-                    // the app's own updates: looked for soon after it opens, every minute while it is in front, and on coming back
+                    // the app's own updates: looked for soon after it opens, now and then while it is in front, and on coming back
                     val visible by Nexa.ui.visible.collectAsState()
                     LaunchedEffect(visible) { if (visible) AppUpdate.resume() }
                     val isBanned = banned()

@@ -4,12 +4,6 @@ import fish.nexa.ui.collectEntryAsState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -144,11 +138,7 @@ fun RoleName(text: String, look: RoleLook?, style: TextStyle, fallback: Color, m
         return
     }
     val animateNames = fish.nexa.ui.shell.settingOn("animateNames")
-    val phase = if (look.shimmer && animateNames && !Nx.motion.reduced) {
-        val t = rememberInfiniteTransition(label = "shimmer")
-        val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(4000, easing = LinearEasing), RepeatMode.Restart), label = "shimmer")
-        p
-    } else 0f
+    val phase = if (look.shimmer && animateNames && !Nx.motion.reduced) fish.nexa.ui.components.decorClock(4000).value else 0f
     // a shimmer's colours run out and back to the first, so the loop has no seam
     val stops = if (look.shimmer) colors + colors.first() else colors
     val brush = remember(stops, look.shimmer, phase) {
@@ -229,11 +219,9 @@ private fun PlainName(text: String, style: TextStyle, modifier: Modifier, maxLin
 private fun OwnName(text: String, own: NameStyle, style: TextStyle, outerModifier: Modifier, maxLines: Int) {
     val animate = fish.nexa.ui.shell.settingOn("animateNames") && own.isAnimated && !Nx.motion.reduced
     val phase = if (animate && own.effect in listOf("gradient", "candy", "chrome", "glow", "ink", "pop")) {
-        val t = rememberInfiniteTransition(label = "name-motion")
         val duration = when (own.effect) { "gradient", "chrome" -> 4000; "candy" -> 3000; else -> 1500 }
-        val reverse = own.effect in listOf("chrome", "glow", "ink", "pop")
-        val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(duration, easing = if (reverse) FastOutSlowInEasing else LinearEasing), if (reverse) RepeatMode.Reverse else RepeatMode.Restart), label = "name-motion")
-        p
+        if (own.effect in listOf("chrome", "glow", "ink", "pop")) fish.nexa.ui.components.decorSwing(duration, FastOutSlowInEasing::transform)
+        else fish.nexa.ui.components.decorClock(duration).value
     } else 0f
     val modifier = if (own.effect in listOf("glow", "ink", "pop")) outerModifier.alpha(1f - 0.35f * phase) else outerModifier
     val light = Nx.colors.isLight
@@ -297,11 +285,7 @@ private fun OwnName(text: String, own: NameStyle, style: TextStyle, outerModifie
         }
         "aurora" -> {
             // every colour flowing through the name and round again
-            val phase = if (animate) {
-                val t = rememberInfiniteTransition(label = "aurora")
-                val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(6000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "aurora")
-                p
-            } else 0f
+            val phase = if (animate) fish.nexa.ui.components.decorSwing(6000, FastOutSlowInEasing::transform) else 0f
             val stops = cs + cs.first()
             val brush = remember(stops, phase) {
                 object : ShaderBrush() {
@@ -333,11 +317,7 @@ private fun OwnName(text: String, own: NameStyle, style: TextStyle, outerModifie
         }
         "holo" -> {
             // holographic foil: the colour with a sheen of every hue sweeping across it
-            val phase = if (animate) {
-                val t = rememberInfiniteTransition(label = "holo")
-                val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(5000, easing = LinearEasing), RepeatMode.Restart), label = "holo")
-                p
-            } else 0f
+            val phase = if (animate) fish.nexa.ui.components.decorClock(5000).value else 0f
             val stops = listOf(
                 0f to c1, 0.18f to mixOklab(c1, Color(0xFF7FF3FF), 0.55f), 0.30f to mixOklab(c1, Color.White, 0.70f), 0.44f to mixOklab(c1, Color(0xFFFF8FF0), 0.55f),
                 0.58f to mixOklab(c1, Color(0xFFFFF38A), 0.55f), 0.72f to c1, 0.86f to mixOklab(c1, Color(0xFF7FF3FF), 0.55f), 1f to c1,
@@ -360,8 +340,7 @@ private fun OwnName(text: String, own: NameStyle, style: TextStyle, outerModifie
         "neon" -> {
             // a tube lit from inside: a pale core, a line of the colour round it, and its glow, with a flicker now and then
             val flicker = if (animate) {
-                val t = rememberInfiniteTransition(label = "neon")
-                val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(7000, easing = LinearEasing), RepeatMode.Restart), label = "neon")
+                val p = fish.nexa.ui.components.decorClock(7000).value
                 if (p in 0.92f..0.935f || p in 0.945f..0.96f) 0.72f else 1f
             } else 1f
             Box(modifier.alpha(flicker)) {
@@ -375,11 +354,7 @@ private fun OwnName(text: String, own: NameStyle, style: TextStyle, outerModifie
         }
         "flame" -> {
             // the colours rising through the name, with their warmth over it
-            val phase = if (animate) {
-                val t = rememberInfiniteTransition(label = "flame")
-                val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart), label = "flame")
-                p
-            } else 0f
+            val phase = if (animate) fish.nexa.ui.components.decorClock(1800).value else 0f
             val mid = mixOklab(c1, c2, 0.5f)
             val brush = remember(c1, c2, phase) {
                 object : ShaderBrush() {

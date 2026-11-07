@@ -1,5 +1,6 @@
 package fish.nexa.notify
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
@@ -10,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -56,6 +58,42 @@ object Background {
 class ConnectionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /**
+     * The server's pings wake a sleeping phone, but a connection that died without
+     * a word (a mobile network forgetting it) wakes nothing, and messages would
+     * stop until something else woke the phone. So now and then it asks.
+     */
+    private var alarmSet = false
+    private val alarms get() = getSystemService(AlarmManager::class.java)
+    private val alarm = AlarmManager.OnAlarmListener {
+        alarmSet = false
+        setAlarm()
+        if (!Nexa.ui.visible.value) {
+            val hold = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "nexa:connection-check")
+            hold.acquire(CHECK_MS + 1_000)
+            Nexa.scope.launch {
+                try {
+                    Nexa.session.checkAlive(CHECK_MS)
+                } finally {
+                    if (hold.isHeld) hold.release()
+                }
+            }
+        }
+    }
+
+    private fun setAlarm() {
+        if (alarmSet) return
+        alarmSet = true
+        // inexact and not during Doze: Android lines it up with whatever else wakes the phone
+        alarms.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, SystemClock.elapsedRealtime() + CHECK_EVERY_MS, "nexa:connection-check", alarm, null)
+    }
+
+    override fun onDestroy() {
+        alarms.cancel(alarm)
+        alarmSet = false
+        super.onDestroy()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val n = NotificationCompat.Builder(this, Notifier.CH_CONNECTION)
@@ -85,11 +123,14 @@ class ConnectionService : Service() {
         // after a reboot or a restart by the system, sign back in from what is kept on the device
         if (Nexa.auth.state.value == AuthState.Loading) Nexa.scope.launch { Nexa.auth.bootstrap() }
         else Nexa.session.wake()
+        setAlarm()
         return START_STICKY
     }
 
     companion object {
         private const val ID = 7001
+        private const val CHECK_EVERY_MS = 10 * 60_000L
+        private const val CHECK_MS = 25_000L
 
         /** Starts asked for that onStartCommand has not reached yet. */
         private var starting = 0

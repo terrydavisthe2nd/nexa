@@ -132,7 +132,8 @@ object SearchIndex {
     private fun scheduleFlush() {
         if (flushJob?.isActive == true) return
         flushJob = Nexa.scope.launch(thread) {
-            delay(FLUSH_MS)
+            // each write seals a whole block again, so out of sight they gather up (going out of sight writes what waited)
+            delay(if (visible || fish.nexa.data.Power.plentiful()) FLUSH_MS else HIDDEN_FLUSH_MS)
             flushNow()
         }
     }
@@ -345,6 +346,8 @@ object SearchIndex {
 
         override fun online() = Nexa.session.gatewayState?.value?.status == Gateway.Status.OPEN
 
+        override fun mayWalk() = fish.nexa.data.Power.plentiful()
+
         override fun hidden() = !visible
 
         override fun changed() = refresh()
@@ -480,6 +483,8 @@ object SearchIndex {
                 if (on) open() else rebuild()
             }
         }
+        // plugged in: the walk may go on
+        Nexa.scope.launch { fish.nexa.data.Power.charging.collect { if (it) crawler?.kick() } }
         // a new conversation, or a message that moves one along, may be work
         Nexa.scope.launch { Nexa.channels.byId.collect { crawler?.kick() } }
         // what changed in the last second is written before the app may be stopped
@@ -503,6 +508,7 @@ object SearchIndex {
 
     private const val TAG = "NexaSearch"
     private const val FLUSH_MS = 1_000L
+    private const val HIDDEN_FLUSH_MS = 60_000L
 }
 
 /** The searches the search box offers again (web/src/search/recent.ts), kept in the account's sealed settings. */
